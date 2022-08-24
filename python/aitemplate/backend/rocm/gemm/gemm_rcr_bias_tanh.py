@@ -1,0 +1,193 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+"""
+GEMM ROCM backend for A[RowMajor], B[ColumnMajor], C[RowMajor], i.e.
+c[m, n] = tanh(a[m, k] * b[n, k] + bias[n])
+This is used for `torch.nn.functional.linear + tanh`
+When used for `linear`, need to set A->Data, B->Weight, C->Bias
+"""
+import jinja2
+
+from ... import registry
+from . import common
+from .layout import RCR
+
+# pylint: disable=C0415,W0613
+
+EXTRA_CODE = jinja2.Template(
+    """
+#include "data_type.hpp"
+
+namespace ck {
+namespace tensor_operation {
+namespace element_wise {
+namespace {
+struct AddTanh
+{
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
+
+    // 1-2/(e^(2x)+1)
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const float& x1) const
+    {
+        const float a = x0 + x1;
+        y             = 1.0f - 2.0f / (1.0f + exp(2.0f*a));
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<double>(double& y, const double& x0, const double& x1) const
+    {
+        const double a = x0 + x1;
+        y             = 1.0 - 2.0 / (1.0 + exp(2.0*a));
+    };
+
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        const float a = ck::type_convert<float>(x0 + x1);
+        y = type_convert<half_t>(1.0) - type_convert<half_t>(2.0) /
+                    (type_convert<half_t>(1.0) + type_convert<half_t>(exp(2.0f*a)));
+    };
+};
+} // namespace
+} // namespace element_wise
+} // namespace tensor_operation
+} // namespace ck
+"""
+)
+
+
+@registry.reg("rocm.gemm_rcr_bias_tanh.config")
+def gemm_config(func_attrs, dtype="float16"):
+    """Extract (operation name, operation instance) pair from
+    all operation candidates.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Operation attributes.
+
+    Returns
+    -------
+    Dict
+        Extracted (operation name, operation instance) pair
+        from all operation candidates.
+    """
+    import ck_lib  # noqa: F401
+
+    op_kind = ck_lib.library.GemmKind.Gemm
+    extra_kind = ck_lib.library.TensorOperation.AddTanh
+    common.make_fproc_f16(func_attrs, RCR, op_kind, extra_kind)
+
+
+@registry.reg("rocm.gemm_rcr_bias_tanh.gen_profiler")
+def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
+    """Generates standalone executables for profiler.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Operation attributes.
+    workdir : str
+        Directory to store the generated outputs.
+    dim_info_dict: Dict[str, DimInfo]
+        Generated from gemm._extract_dims().
+        Used to store mapping between dim_names to input / output tensor dims.
+    """
+    common.gen_profiler(
+        func_attrs=func_attrs,
+        workdir=workdir,
+        dim_info_dict=dim_info_dict,
+        args_parse=RCR.args_parse,
+        gemm_flag="bias_tanh",
+        extra_code=EXTRA_CODE.render(),
+    )
+
+
+@registry.reg("rocm.gemm_rcr_bias_tanh.gen_function")
+def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
+    """Generates function body.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Operation attributes.
+    exec_cond_template : jinja2.Template
+        Generates if statement to execute kernel.
+    dim_info_dict: Dict[str, DimInfo]
+        Generated from gemm._extract_dims().
+        Used to store mapping between dim_names to input / output tensor dims.
+
+    Returns
+    -------
+    str
+        The rendered template of generated function body.
+    """
+    return common.gen_function(
+        func_attrs,
+        exec_cond_template,
+        dim_info_dict,
+        "bias_tanh",
+        extra_code=EXTRA_CODE.render(),
+    )
+
+
+@registry.reg("rocm.gemm_rcr_bias_tanh.func_decl")
+def gemm_gen_function_decl(func_attrs):
+    """Generates function declarations.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Operation attributes.
+
+    Returns
+    -------
+    str
+        The rentered template of function declaration.
+    """
+    func_name = func_attrs["name"]
+    return common.gen_function_decl(func_name=func_name, gemm_flag="bias_tanh")
+
+
+@registry.reg("rocm.gemm_rcr_bias_tanh.func_call")
+def gemm_gen_function_call(func_attrs, indent="  "):
+    """Generates function call.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Stores the operation attributes.
+    indent : str, optional
+        Indent for codegen, target dependent e.g. C++, python, etc., by default "  ".
+
+    Returns
+    -------
+    str
+        The rendered template of generated function call.
+    """
+    return common.gen_function_call(func_attrs, indent, gemm_flag="bias_tanh")
+
+
+@registry.reg("rocm.gemm_rcr_bias_tanh.filter")
+def gemm_function_filter(cfg, func_attrs, x_shape):
+    """Generates function filter.
+
+    Parameters
+    ----------
+    cfg: str
+        The filename generated for profiler.
+    func_attrs : Dict
+        Stores the operation attributes.
+    ab_alignment:
+        Input alignments.
+
+    Returns
+    -------
+    bool
+        If input cfg should be filtered.
+    """
+    return True

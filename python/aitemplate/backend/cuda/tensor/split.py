@@ -1,0 +1,64 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+"""
+[summary] cuda concatenate function
+"""
+
+from ... import registry
+from ...backend_spec import CUDASpec
+from ...common import split_common
+
+
+@registry.reg("cuda.split.func_decl")
+def gen_function_decl(func_attrs):
+    """Generate function declaration.
+
+    Parameters
+    ----------
+    func_attrs : Dict[str, Any]
+        Stores the operation attributes.
+    Returns
+    -------
+    str
+        Rendered function declaration.
+    """
+    return split_common.gen_function_decl(
+        func_attrs=func_attrs, backend_spec=CUDASpec()
+    )
+
+
+@registry.reg("cuda.split.gen_function")
+def gen_function(func_attrs):
+    """[summary]Generates function body.
+
+    Parameters
+    ----------
+    func_attrs : Dict[str, Any]
+        Stores the operation attributes.
+
+    Returns
+    -------
+    str
+        Rendered function body.
+    """
+    return split_common.gen_function(func_attrs=func_attrs, backend_spec=CUDASpec())
+
+
+@registry.reg("cuda.split.func_call")
+def gen_function_call(func_attrs, indent="  "):
+    """Generates function call.
+
+    Parameters
+    ----------
+    func_attrs : Dict[str, Any]
+        Stores the operation attributes.
+    indent : str, optional
+        Indent for template, by default "  ".
+
+    Returns
+    -------
+    str
+        Rendered function call.
+    """
+    return split_common.gen_function_call(
+        func_attrs=func_attrs, backend_spec=CUDASpec()
+    )

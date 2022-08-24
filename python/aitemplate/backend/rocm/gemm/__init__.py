@@ -1,0 +1,35 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+"""
+Rocm gemm init.
+"""
+from . import (  # noqa: F401
+    bmm_ccr,
+    bmm_crr,
+    bmm_rcr,
+    bmm_rcr_permute,
+    bmm_rrr,
+    bmm_rrr_permute,
+    bmm_softmax_bmm,
+    bmm_softmax_bmm_permute,
+    gemm_rcr,
+    gemm_rcr_bias,
+    gemm_rcr_bias_add,
+    gemm_rcr_bias_add_add,
+    gemm_rcr_bias_add_add_relu,
+    gemm_rcr_bias_add_relu,
+    gemm_rcr_bias_fast_gelu,
+    gemm_rcr_bias_mul,
+    gemm_rcr_bias_mul_add,
+    gemm_rcr_bias_mul_tanh,
+    gemm_rcr_bias_permute,
+    gemm_rcr_bias_permute_m2n3,
+    gemm_rcr_bias_permute_m3n2,
+    gemm_rcr_bias_relu,
+    gemm_rcr_bias_sigmoid,
+    gemm_rcr_bias_sigmoid_mul,
+    gemm_rcr_bias_sigmoid_mul_tanh,
+    gemm_rcr_bias_swish,
+    gemm_rcr_bias_tanh,
+    gemm_rrr,
+    gemm_rrr_bias_permute,
+)

@@ -1,0 +1,26 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+# ROCM Docker Image for AITemplate
+
+FROM rocm/pytorch:rocm5.1.3_ubuntu20.04_py3.7_pytorch_staging
+
+ADD ./docker/install/ /Install
+# necessary package
+RUN bash /Install/install_basic_dep.sh
+
+# for test
+RUN bash /Install/install_test_dep.sh
+
+# for docs
+RUN bash /Install/install_doc_dep.sh
+
+# Copy AITemplate to Docker
+RUN mkdir /AITemplate
+ADD ./COMMIT_INFO /AITemplate/COMMIT_INFO
+ADD ./python /AITemplate/python
+ADD ./3rdparty /AITemplate/3rdparty
+ADD ./benchmark /AITemplate/benchmark
+ADD ./tests /AITemplate/tests
+ADD ./docs /AITemplate/docs
+ADD ./static /AITemplate/static
+ADD ./docker/install/install_ait.sh /AITemplate/
+RUN bash /AITemplate/install_ait.sh

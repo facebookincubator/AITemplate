@@ -1,0 +1,182 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+import os
+from typing import Dict, List
+
+import numpy as np
+
+from aitemplate import backend, compiler
+
+from aitemplate.compiler.base import ConstantTensor, NumpyConstantTensorData, Tensor
+from aitemplate.compiler.transform.transform_utils import replace_tensor
+from aitemplate.testing import AITemplateTensor, Model
+from aitemplate.utils import logger
+
+
+def _output_from_tensor(tensor: Tensor) -> Tensor:
+    new_tensor = Tensor(
+        shape=tensor._attrs["shape"],
+        name=tensor._attrs["name"],
+        src_ops=tensor._attrs["src_ops"].copy(),
+        dst_ops=tensor._attrs["dst_ops"].copy(),
+        dtype=tensor._attrs["dtype"],
+        is_output=True,
+        is_view_of=tensor._attrs["is_view_of"],
+    )
+    if new_tensor._attrs["is_view_of"] is not None:
+        # If this tensor is a view, we need to set external_tensor
+        # so codegen handles the "output is view of output" case
+        # correctly.
+        new_tensor._attrs["external_tensor"] = new_tensor._attrs["is_view_of"]
+    return new_tensor
+
+
+def _extract_foldable_subgraph(
+    sorted_graph: List[Tensor],
+) -> List[Tensor]:
+    """
+    Extract a list of foldable nodes. A node is foldable if:
+    * It is a ConstantTensor, or
+    * All of its inputs are foldable.
+
+    The subgraph returned is just a list of Tensors. All foldable
+    tensors that are not ConstantTensors are marked as outputs in
+    the subgraph. The original graph is not modified.
+
+    All tensors that are not ConstantTensors are marked as outputs.
+    This is because we want to execute the subgraph and get all
+    of the new constants. Only the ones that are actually needed are put
+    back into the final graph.
+    """
+    foldable_node_names = set()
+    subgraph = []
+
+    for tensor in sorted_graph:
+        if tensor._attrs["is_input"]:
+            continue
+
+        name = tensor._attrs["name"]
+        if isinstance(tensor, ConstantTensor):
+            foldable_node_names.add(name)
+            subgraph.append(tensor)
+            continue
+        elif tensor._attrs["is_param"]:
+            # Params that are not also ConstantTensors cannot be folded;
+            # they have no data!
+            continue
+
+        foldable = all(
+            inp._attrs["name"] in foldable_node_names
+            for op in tensor._attrs["src_ops"]
+            for inp in op._attrs["inputs"]
+        )
+
+        if foldable:
+            foldable_node_names.add(name)
+            subgraph.append(_output_from_tensor(tensor))
+
+    return subgraph
+
+
+def _constant_folding_impl(
+    sorted_graph: List[Tensor], workdir: str
+) -> Dict[str, ConstantTensor]:
+
+    # Collect the set of output names before we do any transformations. We'll need this
+    # if we end up turning outputs into constants. _extract_foldable_subgraph marks *all*
+    # folded constants as outputs, so we can't just query attrs["is_output"] (see
+    # extract_foldable_subgraph for more info on why that happens)
+    original_output_tensors = {
+        tensor._attrs["name"] for tensor in sorted_graph if tensor._attrs["is_output"]
+    }
+
+    subgraph = _extract_foldable_subgraph(sorted_graph)
+    output_tensors = [tensor for tensor in subgraph if tensor._attrs["is_output"]]
+    if not output_tensors:
+        logger.info(__file__, "No constants to fold, skipping constant folding.")
+        return {}
+
+    blob, constant_blob, workspace = compiler.transform.memory_planning(subgraph)
+
+    constant_folding_workdir = os.path.join(workdir, "constant_folding")
+    os.makedirs(constant_folding_workdir, exist_ok=True)
+    file_pairs = backend.codegen.gen_function_src(subgraph, workdir, "constant_folding")
+    main_pairs = backend.codegen.gen_library_src(
+        subgraph,
+        blob,
+        constant_blob,
+        workspace,
+        workdir,
+        output_tensors,
+        "constant_folding",
+    )
+    file_pairs.extend(main_pairs)
+    compile_engine = backend.builder.Builder()
+    compile_engine.build_objs(
+        file_pairs,
+        backend.target.Target.current().compile_cmd(False),
+        backend.target.Target.current().binary_compile_cmd(),
+    )
+
+    so_name = os.path.join(constant_folding_workdir, "test.so")
+    compile_engine.build_so(so_name, [p[1] for p in file_pairs])
+
+    module = Model(so_name, num_runtimes=1)
+
+    outputs = {}
+    new_tensors = {}
+    for tensor in subgraph:
+        if not isinstance(tensor, ConstantTensor):
+            name = tensor._attrs["name"]
+            shape = module.GetOutputMaximumShape(tensor._attrs["name"])
+            arr = np.empty(shape, dtype=tensor._attrs["dtype"])
+            new_tensor = ConstantTensor(
+                NumpyConstantTensorData(arr),
+                shape=tensor._attrs["shape"],
+                name=name,
+                # copy dst_ops so we can modify the original tensor without affecting this one.
+                dst_ops=tensor._attrs["dst_ops"].copy(),
+                dtype=tensor._attrs["dtype"],
+                is_output=name in original_output_tensors,
+            )
+            new_tensors[name] = new_tensor
+            outputs[name] = AITemplateTensor(
+                arr.ctypes.data, shape, tensor._attrs["dtype"]
+            )
+
+    module._RunWithOutputsOnHost({}, outputs)
+    return new_tensors
+
+
+def constant_folding(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
+    """
+    Fold and propagate constants.
+
+    This pass looks for ops that have inputs which can be determined
+    at compile time. It evaluates them, then puts the new constants
+    back into the graph as ConstantTensors. The old ops are eliminated.
+
+    This pass actually compiles and runs an AIT runtime. If there are
+    any problems (e.g. due to buggy ops), the constant folding is
+    aborted and the graph is returned unchanged. All generated code
+    is stored in workdir/constant_folding.
+    """
+    try:
+        new_constants = _constant_folding_impl(sorted_graph, workdir)
+    except Exception as e:
+        logger.warning(
+            __file__,
+            f"Constant folding encountered an error: {e}. The graph will not be modified.",
+        )
+        return sorted_graph
+
+    # Replace ops with their folded values.
+    for idx, tensor in enumerate(sorted_graph):
+        name = tensor._attrs["name"]
+        if name in new_constants:
+            new_tensor = new_constants[name]
+            replace_tensor(tensor, new_tensor)
+            sorted_graph[idx] = new_tensor
+
+    # Eliminate constants that are no longer used
+    compiler.transform.remove_unused_ops(sorted_graph)
+    return compiler.transform.transform_utils.sanitize_sorted_graph(sorted_graph)

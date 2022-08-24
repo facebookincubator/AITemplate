@@ -1,0 +1,221 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+"""
+Softmax codegen for ROCM.
+"""
+
+from typing import Any, Dict
+
+import jinja2
+
+from ....compiler.base import IntImm
+
+from ... import registry
+from . import norm_common
+
+EXTRA_HEADERS = jinja2.Template(
+    """
+#include "include/ck/tensor_operation/gpu/device/device_softmax.hpp"
+"""
+)
+
+TENSOR_DECL_TEMPLATE = jinja2.Template(
+    """
+  int64_t ptr_sz = in_{{ range(rank)|join(' * in_') }};
+  // TODO: special pool size for 8M L2 cache
+  // need to tune it for other devices
+  int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 23) / ptr_sz)));
+
+  memory_pool->AllocateHalfTensor(ptr_sz, mem_pool_sz);  // in: index 0
+  memory_pool->AllocateHalfTensor(ptr_sz, mem_pool_sz);  // out: index 1
+"""
+)
+
+EXEC_TEMPLATE = jinja2.Template(
+    """
+    float alpha = 1.0f;
+    float beta  = 0.0f;
+    const std::vector<int> reduceDims{ {{reduce_dims}} };
+    std::vector<ck::index_t> i_inLengths;
+    std::vector<ck::index_t> i_inStrides;
+{% for idx in range(rank) %}
+    i_inLengths.push_back(*in_{{idx}});
+{% endfor %}
+{% for start in range(1, rank) %}
+    i_inStrides.push_back( (*in_{{ range(start, rank)|join(') * (*in_') }}) );
+{% endfor %}
+    i_inStrides.push_back(1);
+    auto device_instance = {{instance}}{};
+    auto argument_ptr = device_instance.MakeArgumentPointer(i_inLengths,
+                                                            i_inStrides,
+                                                            reduceDims,
+                                                            &alpha,
+                                                            &beta,
+                                                            static_cast<ck::half_t *>(input),
+                                                            static_cast<ck::half_t *>(output)
+                                                            );
+    if(!device_instance.IsSupportedArgument(argument_ptr.get()))
+    {
+        throw std::runtime_error(
+            "wrong! device_softmax with the specified compilation parameters does "
+            "not support this Softmax problem");
+    };
+    std::string instance_name = device_instance.GetTypeString();
+    auto invoker_ptr = device_instance.MakeInvokerPointer();
+    invoker_ptr->Run(argument_ptr.get(), StreamConfig{stream, false});
+    return;
+"""
+)
+
+FUNC_SIGNATURE = jinja2.Template(
+    """
+void {{func_name}}({{dtype}}* input,
+                   {{dtype}}* output,
+{% for idx in range(input_ndim) %}
+                   int64_t* in_{{idx}},
+{% endfor %}
+                   hipStream_t stream)
+    """
+)
+
+
+def get_func_signature(func_attrs: Dict[str, Any]) -> str:
+    input_ndim = func_attrs["inputs"][0]._rank()
+    return FUNC_SIGNATURE.render(
+        func_name=func_attrs["name"],
+        dtype="void",
+        input_ndim=input_ndim,
+    ).strip()
+
+
+@registry.reg("rocm.softmax.config")
+def extract_config(func_attrs):
+    """Extract (operation name, operation instance) pair
+    from all operation candidates.
+
+    Parameters
+    ----------
+    op_kind : ck_lib.library.OperationKind
+        Operation kind.
+    extra_kind : ck_lib.library.[AnyKind]
+        Used to as extra flag to distinguish kernels.
+        E.g. bias_add_relu vs. add_relu_bias
+    f_prop_op: function
+        Used to filter operation.
+
+    Returns
+    -------
+    Dict
+        Extracted (operation name, operation instance) pair.
+    """
+    norm_common.extract_config(func_attrs)
+
+
+@registry.reg("rocm.softmax.gen_profiler")
+def softmax_gen_profiler(
+    func_attrs: Dict[str, Any], workdir: str, indent: str = "  "
+) -> str:
+    """Generates standalone executables for profiler.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Operation attributes.
+    workdir : str
+        Directory to store the generated outputs.
+    indent : str, optional
+        Indent for codegen, target dependent e.g. C++, python, etc., by default "  ".
+    """
+    dim = func_attrs["dim"]
+    shapes = func_attrs["inputs"][0]._attrs["shape"]
+    rank = len(shapes)
+
+    assert (
+        dim == rank - 1
+    ), f"rocm softmax only supports dim == rank - 1, dim={dim}, rank={rank}"
+
+    assert isinstance(
+        shapes[dim], IntImm
+    ), "softmax requires reduction dim to be static"
+
+    norm_common.gen_profiler(
+        func_attrs,
+        workdir,
+        EXEC_TEMPLATE,
+        TENSOR_DECL_TEMPLATE,
+        EXTRA_HEADERS,
+        get_func_signature=get_func_signature,
+        indent=indent,
+    )
+
+
+@registry.reg("rocm.softmax.gen_function")
+def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
+    """Generate function body.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Operation attributes.
+
+    Returns
+    -------
+    str
+        The rendered template of generated function body.
+    """
+    dim = func_attrs["dim"]
+    shapes = func_attrs["inputs"][0]._attrs["shape"]
+    rank = len(shapes)
+
+    assert (
+        dim == rank - 1
+    ), f"rocm softmax only supports dim == rank - 1, dim={dim}, rank={rank}"
+
+    assert isinstance(
+        shapes[dim], IntImm
+    ), "softmax requires reduction dim to be static"
+    return norm_common.gen_function(
+        func_attrs, EXEC_TEMPLATE, EXTRA_HEADERS, get_func_signature
+    )
+
+
+@registry.reg("rocm.softmax.func_decl")
+def softmax_gen_function_decl(func_attrs: Dict[str, Any]):
+    """Generates function declarations.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Operation attributes.
+
+    Returns
+    -------
+    str
+        The rentered template of function declaration.
+    """
+    return get_func_signature(func_attrs) + ";"
+
+
+@registry.reg("rocm.softmax.func_call")
+def softmax_gen_function_call(func_attrs, indent="  "):
+    """Generates function call.
+
+    Parameters
+    ----------
+    func_attrs : Dict
+        Stores the operation attributes.
+    indent : str, optional
+        Indent for codegen, target dependent e.g. C++, python, etc., by default "  ".
+
+    Returns
+    -------
+    str
+        The rendered template of generated function call.
+    """
+    assert len(func_attrs["outputs"]) == 1
+    assert len(func_attrs["inputs"]) == 1
+    shapes = func_attrs["inputs"][0]._attrs["shape"]
+    assert (
+        len(shapes) >= 2
+    ), f"Softmax only supports input with rank >= 2, current rank: {len(shapes)}"
+
+    return norm_common.gen_function_call(func_attrs, indent)

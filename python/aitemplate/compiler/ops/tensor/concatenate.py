@@ -1,0 +1,283 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+"""
+[summary]
+"""
+from typing import List, Sequence, Union
+
+from .... import backend
+from ....backend import registry
+from ....utils import shape_utils
+from ....utils.tensor_utils import wrap_dim
+from ...base import IntVar, Operator, Tensor
+
+# pylint: disable=C0103,W0221
+
+
+class concatenate(Operator):
+    """[summary]
+
+    Parameters
+    ----------
+    Operator : [type]
+        [description]
+    """
+
+    def __init__(self) -> None:
+        """[summary]
+
+        Parameters
+        ----------
+
+        Returns
+        """
+        super().__init__()
+        self._attrs["op"] = "concatenate"
+        self._attrs["has_profiler"] = False
+
+    def _unique(self, vector):
+        return sorted(set(vector))
+
+    def _infer_shapes(self, inputs: List[Tensor], dim) -> List[IntVar]:
+        """Infers shapes for concatenate."""
+
+        if len(inputs) < 1:
+            raise RuntimeError("expected a list of Tensors")
+        x = inputs[0]
+        rank = len(x._attrs["shape"])
+        if rank <= 0:
+            raise RuntimeError("expected a non-scalar tensor")
+        if dim >= rank:
+            raise RuntimeError(
+                "concat_dim ({dim}) expected to be less than rank ({rank})".format(
+                    dim=dim, rank=rank
+                )
+            )
+        for t in inputs:
+            r = len(t._attrs["shape"])
+            if r != rank:
+                raise RuntimeError(
+                    "tensors expected to have the same rank, got {} and {}".format(
+                        r, rank
+                    )
+                )
+        input_shapes = [i._attrs["shape"] for i in inputs]
+        output_shape = []
+        input_shape_values = [
+            [d._attrs["values"] for d in shape] for shape in input_shapes
+        ]
+        for idx, lst in enumerate(zip(*input_shape_values)):
+            if idx == dim:
+                min_value_sum = sum(value[0] for value in lst)
+                max_value_sum = sum(value[-1] for value in lst)
+                output_shape.append(
+                    shape_utils.gen_int_var([min_value_sum, max_value_sum])
+                )
+            else:
+                output_dim = input_shapes[0][idx]
+                for shape in input_shapes:
+                    if output_dim != shape[idx]:
+                        raise RuntimeError(
+                            "tensors expected to have the same dimensions "
+                            "except concat_dim! dim: {}, shape1: {}, shape2: {}, inputs: {}".format(
+                                idx, output_dim, shape[idx], inputs
+                            )
+                        )
+                output_shape.append(output_dim)
+        return output_shape
+
+    def __call__(self, inputs: List[Tensor], dim=0) -> List[Tensor]:
+        """[summary]
+
+        Parameters
+        ----------
+        inputs : List[Tensor]
+            [description]
+        Returns
+        -------
+        Tensor
+            [description]
+        """
+        self._attrs["inputs"] = list(inputs)
+        # We have transformations that may modify some inputs to tensor accessors,
+        # for which the source op will write directly to the corresponding
+        # output locations. However, our concat backend needs original input
+        # shapes to calculate concat offsets. So, we keep a copy of input tensors.
+        self._attrs["original_inputs"] = list(inputs)
+        # True means the corresponding tensor will be copied by the concat backend.
+        self._attrs["input_masks"] = [True] * len(inputs)
+        input_rank = inputs[0]._rank()
+        dim = wrap_dim(dim, input_rank)
+        self._attrs["concat_dim"] = dim
+        self._set_depth()
+        output_shape = self._infer_shapes(inputs, dim)
+        output = Tensor(output_shape, src_ops={self}, dtype=inputs[0]._attrs["dtype"])
+        self._attrs["outputs"] = [output]
+        return output
+
+    def _get_func(self, fmt_str):
+        """[summary]
+
+        Parameters
+        ----------
+        inputs : string
+            [description] format string to create func_key for looking up func
+                          from the registry
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        target = backend.target.Target.current()
+        func_key = fmt_str.format(target=target.name(), op=self._attrs["op"])
+        return registry.get(func_key)
+
+    def gen_function(self) -> str:
+        """[summary]
+
+        Returns
+        -------
+        str
+            [description]
+        """
+        func = self._get_func("{target}.{op}.gen_function")
+        return func(self._attrs)
+
+    def gen_function_decl(self) -> str:
+        """[summary]
+
+        Returns
+        -------
+        str
+            [description]
+        """
+        func = self._get_func("{target}.{op}.gen_function_decl")
+        return func(self._attrs)
+
+    def gen_function_call(self) -> str:
+        """[summary]
+
+        Returns
+        -------
+        str
+            [description]
+        """
+        func = self._get_func("{target}.{op}.gen_function_call")
+        return func(self._attrs)
+
+    def get_original_index(self, idx: int) -> int:
+        """
+        Return the original index of the input at idx in the current "inputs" list.
+
+        Parameters
+        ----------
+        idx : int
+            the index of an input based on the current "inputs"
+
+        Returns
+        -------
+        int
+            the index of this input in the "original_inputs"
+        """
+        num_original_inputs = len(self._attrs["original_inputs"])
+        orig_idx = None
+        # track the index for the "inputs" list
+        curr_idx = 0
+        for i in range(num_original_inputs):
+            # We don't increase curr_idx if this input is removed
+            if not self._attrs["input_masks"][i]:
+                continue
+            # We found the original index
+            if curr_idx == idx:
+                orig_idx = i
+                break
+            curr_idx += 1
+        assert orig_idx is not None, f"Expected orig_idx to be non-None for idx {idx}"
+        return orig_idx
+
+    def get_tensor_index(self, tensor: Tensor) -> int:
+        """
+        Return the index for the input tensor in the "inputs" list.
+
+        Parameters
+        ----------
+        tensor : Tensor
+            the input tensor for looking up the index
+
+        Returns
+        -------
+        int
+            the index of this input in the "nputs" list
+        """
+        idx = None
+        for input_idx, input_tensor in enumerate(self._attrs["inputs"]):
+            if input_tensor is tensor:
+                idx = input_idx
+                # found the input to be removed
+                break
+        assert idx is not None and idx < len(self._attrs["inputs"]), (
+            f"Expected idx to be less than the number of inputs, "
+            f'but got: {idx}, {len(self._attrs["inputs"])}'
+        )
+        return idx
+
+    def remove_input_at(self, indices: Union[int, Sequence[int]]) -> None:
+        """
+        This function removes the inputs in indices from the "inputs" attribute
+        and sets input_masks[indices] to be False. Note that the indices are based
+        on the current "inputs".
+
+        Parameters
+        ----------
+        indices : Union[int, Sequence[int]]
+            the index of an input or indices of multiple inputs based on the current "inputs"
+
+        Returns
+        -------
+        None
+        """
+        if isinstance(indices, int):
+            indices = [indices]
+        else:
+            indices = list(indices)
+
+        curr_inputs = self._attrs["inputs"]
+        num_curr_inputs = len(curr_inputs)
+
+        assert (
+            len(indices) <= num_curr_inputs
+        ), f"Expected len(indices) <= num_curr_inputs, but got {len(indices)} and {num_curr_inputs}"
+
+        num_original_inputs = len(self._attrs["original_inputs"])
+        num_input_masks = len(self._attrs["input_masks"])
+        assert num_original_inputs == num_input_masks, (
+            f"original_inputs and input_masks must have the same length, "
+            f"but got {num_original_inputs} and {num_input_masks}"
+        )
+
+        curr_idx = 0  # index into curr_inputs
+        idx = 0  # index into indices
+        new_inputs = []
+        # we need to skip those indices where input_masks have been modified.
+        for orig_idx in range(num_original_inputs):
+            if not self._attrs["input_masks"][orig_idx]:
+                continue
+            if idx < len(indices) and curr_idx == indices[idx]:
+                if not self._attrs["input_masks"][orig_idx]:
+                    raise RuntimeError(
+                        f'Expected input_masks at {idx} to be True for {self._attrs["name"]}'
+                    )
+                self._attrs["input_masks"][orig_idx] = False
+                idx += 1
+            else:
+                new_inputs.append(curr_inputs[curr_idx])
+            curr_idx += 1
+        num_new_inputs = len(new_inputs)
+        assert num_new_inputs + len(indices) == num_curr_inputs, (
+            f"Expected num_new_inputs + len(indices) == num_curr_inputs, "
+            f"but got {num_new_inputs + len(indices)} and {num_curr_inputs}"
+        )
+        self._attrs["inputs"] = new_inputs
+
+    def _inputs_for_pseudo_code(self):
+        return self._attrs["inputs"] + [f"dim={self._attrs['concat_dim']}"]

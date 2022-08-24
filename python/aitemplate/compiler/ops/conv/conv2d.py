@@ -1,0 +1,657 @@
+# (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
+"""
+[summary]
+"""
+import itertools
+import os
+import re
+from collections import OrderedDict
+from hashlib import sha1
+from typing import List
+
+import jinja2
+
+from .... import backend
+from ....backend import registry
+from ....backend.target import Target
+from ....utils import logger, shape_utils
+from ...base import DynamicProfileStrategy, IntImm, IntVar, Operator, Tensor
+from .cache_entry import ConvQueryEntry, ConvRecordEntry
+
+# pylint: disable=C0103,W0221,R1732,W0102,W1202,C0301,R1716
+
+
+SHAPE_FUNC_TEMPLATE = jinja2.Template(
+    """
+{{indent}}{{dtype}}NI = {{x_dim0}};
+{{indent}}{{dtype}}HI = {{x_dim1}};
+{{indent}}{{dtype}}WI = {{x_dim2}};
+{{indent}}{{dtype}}CI = {{x_dim3}};
+{{indent}}{{dtype}}CO = {{w_dim0}};
+{{indent}}{{dtype}}KH = {{w_dim1}};
+{{indent}}{{dtype}}KW = {{w_dim2}};
+{{indent}}{{dtype}}SH = {{stride}};
+{{indent}}{{dtype}}SW = {{stride}};
+{{indent}}{{dtype}}DH = {{dilate}};
+{{indent}}{{dtype}}DW = {{dilate}};
+{{indent}}{{dtype}}PH = {{pad}};
+{{indent}}{{dtype}}PW = {{pad}};
+{{indent}}{{dtype}}KHEff = (KH - 1) * DH + 1;
+{{indent}}{{dtype}}KWEff = (KW - 1) * DW + 1;
+{{indent}}{{dtype}}NO = NI;
+{{indent}}{{dtype}}HO = (HI + PH + PH - KHEff) {{div}} SH + 1;
+{{indent}}{{dtype}}WO = (WI + PW + PW - KWEff) {{div}} SW + 1;
+"""
+)
+
+SHAPE_ASSIGNMENT_TEMPLATE = jinja2.Template(
+    """
+{{indent}}{{y_dim0}} = NO;
+{{indent}}{{y_dim1}} = HO;
+{{indent}}{{y_dim2}} = WO;
+{{indent}}{{y_dim3}} = CO;
+"""
+)
+
+EXEC_KEY_TEMPLATE = jinja2.Template(
+    """
+NI == {{x_dim0}} && HI == {{x_dim1}} && WI == {{x_dim2}} && CI == {{x_dim3}}
+"""
+)
+
+EXEC_DYN_KEY_TEMPLATE = jinja2.Template(
+    """
+NI >= {{x_dim0_lb}} && NI <= {{x_dim0_ub}} && HI == {{x_dim1}} && WI == {{x_dim2}} && CI == {{x_dim3}}
+"""
+)
+
+EXEC_COND_TEMPLATE = jinja2.Template(
+    """
+{{indent}}if ({{cond}}) {
+{{indent}}  {{program}}
+{{indent}}}
+"""
+)
+
+
+class conv2d(Operator):
+    """[summary]
+
+    Parameters
+    ----------
+    Operator : [type]
+        [description]
+    """
+
+    def __init__(self, stride, pad, dilate=1, group=1) -> None:
+        """[summary]
+
+        Parameters
+        ----------
+        stride : [type]
+            [description]
+        pad : [type]
+            [description]
+        dilate : int, optional
+            [description], by default 1
+        """
+        super().__init__()
+        self._attrs["op"] = "conv2d"
+        self._attrs["stride"] = stride
+        self._attrs["pad"] = pad
+        self._attrs["dilate"] = dilate
+        self._attrs["group"] = group
+        self._attrs["has_profiler"] = True
+        self._attrs["epilogue_alignment"] = 1
+        self._attrs["epilogue"] = "LinearCombination"
+        self._attrs["workspace"] = 0
+        self._attrs["split_k"] = None
+        self.shape_eval_template = SHAPE_FUNC_TEMPLATE
+        self.shape_save_template = SHAPE_ASSIGNMENT_TEMPLATE
+        self.exec_key_template = EXEC_KEY_TEMPLATE
+        self.exec_dyn_key_template = EXEC_DYN_KEY_TEMPLATE
+        self.exec_cond_template = EXEC_COND_TEMPLATE
+
+    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+        """[summary]
+
+        Parameters
+        ----------
+        x : List[int]
+            [description]
+        w : List[int]
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+
+        Raises
+        ------
+        RuntimeError
+            [description]
+        """
+        if x[3] != w[3] * self._attrs["group"]:
+            raise RuntimeError("X/W Shape mismatch for conv2d")
+        eval_func = self.shape_eval_template.render(
+            indent="",
+            dtype="",
+            div="//",
+            stride=self._attrs["stride"],
+            pad=self._attrs["pad"],
+            dilate=self._attrs["dilate"],
+            x_dim0=x[0],
+            x_dim1=x[1],
+            x_dim2=x[2],
+            x_dim3=x[3],
+            w_dim0=w[0],
+            w_dim1=w[1],
+            w_dim2=w[2],
+        )
+        output = {}
+        exec(eval_func, output)  # noqa: P204
+        return [
+            int(output["NO"]),
+            int(output["HO"]),
+            int(output["WO"]),
+            int(output["CO"]),
+        ]
+
+    def _infer_shapes(self, x: Tensor, w: Tensor) -> List[int]:
+        """[summary]
+
+        Parameters
+        ----------
+        x : Tensor
+            [description]
+        w : Tensor
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
+        x_shapes = itertools.product(*x_shape_values)
+        w_shape = [var._attrs["values"][0] for var in w._attrs["shape"]]
+        self._attrs["CO"] = w_shape[0]
+        self._attrs["KH"] = w_shape[1]
+        self._attrs["KW"] = w_shape[2]
+        # run infershape for each
+        y_shapes = []
+        for x_shape in x_shapes:
+            y_shape = self._infer_shape(x_shape, w_shape)
+            y_shapes.append(y_shape)
+
+        def unique(vector):
+            return sorted(set(vector))
+
+        output_shape = [
+            shape_utils.gen_int_var(unique([d[0] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[1] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
+        ]
+        return output_shape
+
+    def _invert_exec_key(self, key):
+        """[summary]
+
+        Parameters
+        ----------
+        key : [type]
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        tmp = re.findall(r"(\d+)", key)
+        return [int(x) for x in tmp]
+
+    def _gen_exec_key(self, shape: List[int]):
+        """[summary]
+
+        Parameters
+        ----------
+        shape : [type]
+            [description]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        return self.exec_key_template.render(
+            x_dim0=shape[0], x_dim1=shape[1], x_dim2=shape[2], x_dim3=shape[3]
+        ).replace("\n", "")
+
+    def _gen_dyn_exec_key(self, dim0_lb, dim0_ub, dim1, dim2, dim3):
+        return self.exec_dyn_key_template.render(
+            x_dim0_lb=dim0_lb, x_dim0_ub=dim0_ub, x_dim1=dim1, x_dim2=dim2, x_dim3=dim3
+        ).replace("\n", "")
+
+    def _extract_exec_path(self, x: Tensor):
+        """[summary]
+
+        Parameters
+        ----------
+        x : Tensor
+            [description]
+        """
+        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
+        x_shapes = itertools.product(*x_shape_values)
+        self._attrs["exec_path"] = OrderedDict()
+        for x_shape in x_shapes:
+            key = self._gen_exec_key(x_shape)
+            self._attrs["exec_path"][key] = ""
+
+    def _signature(self):
+        """[summary]
+
+        Returns
+        -------
+        [type]
+            [description]
+        """
+        signature = "conv2d: K=[{kh}, {kw}], S=[{s}], P=[{p}], CO=[{co}]".format(
+            kh=self._attrs["KH"],
+            kw=self._attrs["KW"],
+            s=self._attrs["stride"],
+            p=self._attrs["pad"],
+            co=self._attrs["CO"],
+        )
+        return signature
+
+    def _extract_epilogue_alignment(self, output_shape: List[IntVar]) -> None:
+        epilogue_dim = output_shape[-1]
+        if not isinstance(epilogue_dim, IntImm):
+            raise RuntimeError("Conv output last dimension must be static!")
+        shape = epilogue_dim._attrs["values"][0]
+        if shape % 8 == 0:
+            self._attrs["epilogue_alignment"] = 8
+        elif shape % 4 == 0:
+            self._attrs["epilogue_alignment"] = 4
+        elif shape % 2 == 0:
+            self._attrs["epilogue_alignment"] = 2
+
+    def __call__(self, x: Tensor, w: Tensor) -> List[Tensor]:
+        """[summary]
+
+        Parameters
+        ----------
+        x : Tensor
+            [description]
+        w : Tensor
+            [description]
+
+        Returns
+        -------
+        List[Tensor]
+            [description]
+        """
+        self._attrs["inputs"] = [x, w]
+        self._set_depth()
+        output_shape = self._infer_shapes(x, w)
+        self._extract_exec_path(x)
+        self._extract_epilogue_alignment(output_shape)
+        output = Tensor(output_shape, src_ops={self})
+        self._attrs["outputs"] = [output]
+        return output
+
+    def gen_profiler(
+        self,
+        workdir: str = None,
+        dynamic_profiling_strategy=DynamicProfileStrategy.HINTS,
+    ) -> None:
+        """[summary]
+
+        Parameters
+        ----------
+        workdir : str, optional
+            [description], by default None
+        dynamic_profiling_strategy: DynamicProfileStrategy, optional
+            A dynamic profiling strategy, used to filter generated profiles at compile time.
+            See also: :func:`~aitemplate.compiler.transform.profile.profile`
+        """
+        target = backend.target.Target.current()
+
+        func_key = "{target}.{op}.config".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        func(self._attrs)
+        func_key = "{target}.{op}.gen_profiler".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        func(self._attrs, workdir, self.shape_eval_template)
+
+    def _gen_profile_cmd(self, profiler_prefix, cfg, x_shape):
+        exe_path = os.path.join(profiler_prefix, cfg)
+        if not os.access(exe_path, os.X_OK):
+            raise RuntimeError("Profiler %s is not executable" % exe_path)
+        cmd = [exe_path]
+        cmd.append(x_shape[0])
+        cmd.append(x_shape[1])
+        cmd.append(x_shape[2])
+        cmd.append(x_shape[3])
+        cmd.append(self._attrs["KH"])
+        cmd.append(self._attrs["KW"])
+        cmd.append(self._attrs["CO"])
+        cmd.append(self._attrs["stride"])
+        cmd.append(self._attrs["pad"])
+        cmd.append(self._attrs["dilate"])
+        cmd.append(self._attrs["group"])
+        command = [str(x) for x in cmd]
+        return command
+
+    def _profile_single_workload(self, profiler_prefix, exec_key, devices):
+        target = backend.target.Target.current()
+        # if in CI just choose minimal configs
+        # workspace is a hack just provides 102400 Byte
+        if target.use_dummy_profiling_results():
+            algo = target.select_minimal_algo(list(self._attrs["op_instance"].keys()))
+            logger.info(__name__, f"Select minimal algo {algo} for CI")
+            return (algo, 102400)
+        # query cache
+        tmp_key = next(iter(self._attrs["op_instance"].keys()))
+        tmp_op = self._attrs["op_instance"][tmp_key]
+        exec_entry_sha1 = sha1(exec_key.encode("utf-8")).hexdigest()
+        split_k = 1 if self._attrs["split_k"] is None else self._attrs["split_k"]
+        query = ConvQueryEntry(
+            dtype_a=tmp_op.A.element.value,
+            dtype_b=tmp_op.B.element.value,
+            dtype_c=tmp_op.C.element.value,
+            dtype_acc=tmp_op.accumulator_type().value,
+            major_a=tmp_op.A.layout.value,
+            major_b=tmp_op.B.layout.value,
+            major_c=tmp_op.C.layout.value,
+            kh=self._attrs["KH"],
+            kw=self._attrs["KW"],
+            co=self._attrs["CO"],
+            stride=self._attrs["stride"],
+            pad=self._attrs["pad"],
+            dilate=self._attrs["dilate"],
+            op_type=self._attrs["op"],
+            device=target._arch,
+            epilogue=tmp_op.epilogue_functor.value,
+            split_k=split_k,
+            exec_entry_sha1=exec_entry_sha1,
+        )
+        cache_value = target.query_profile_cache("conv", query.__dict__)
+        if cache_value is not None and not target.force_profile():
+            logger.info(__name__, "Load profiling result from cache.")
+            return cache_value
+        if target.use_dummy_profiling_results():
+            op_type = self._attrs["op"]
+            raise Exception(
+                "This is a CI run but we could not find the following cache ",
+                f"available on device {target._arch}\n",
+                f"{op_type} {exec_entry_sha1}.\n",
+                "To bypass, you need to make it available in the db table.",
+            )
+
+        func_key = "{target}.{op}.filter".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        content = list(self._attrs["op_instance"].keys())
+        runner = backend.profiler_runner.Runner(devices, self._attrs["name"])
+        x_shape = self._invert_exec_key(exec_key)
+        for cfg in content:
+            if not func(cfg, self._attrs, x_shape):
+                continue
+            command = self._gen_profile_cmd(profiler_prefix, cfg, x_shape)
+            runner.push(cfg, command)
+
+        runner.join()
+        result = runner.pull()
+
+        out = sorted(result, key=lambda x: x[1])
+        if len(out) == 0:
+            raise RuntimeError(
+                "Profile workload: " + "" + "failed. " "Results: {}.".format(result)
+            )
+        best_algo = out[0][0]
+        workspace = out[0][1].workspace
+        ## cache
+        cache_record = ConvRecordEntry(
+            exec_entry=exec_key,
+            exec_entry_sha1=exec_entry_sha1,
+            dtype_a=tmp_op.A.element.value,
+            dtype_b=tmp_op.B.element.value,
+            dtype_c=tmp_op.C.element.value,
+            dtype_acc=tmp_op.accumulator_type().value,
+            major_a=tmp_op.A.layout.value,
+            major_b=tmp_op.B.layout.value,
+            major_c=tmp_op.C.layout.value,
+            kh=self._attrs["KH"],
+            kw=self._attrs["KW"],
+            co=self._attrs["CO"],
+            stride=self._attrs["stride"],
+            pad=self._attrs["pad"],
+            dilate=self._attrs["dilate"],
+            op_type=self._attrs["op"],
+            epilogue=tmp_op.epilogue_functor.value,
+            device=target._arch,
+            algo=best_algo,
+            workspace=workspace,
+            split_k=split_k,  # todo add into profile
+        )
+        Target.current().insert_profile_cache("conv", cache_record.__dict__)
+        return (best_algo, workspace)
+
+    def profile(
+        self,
+        workdir="./",
+        devices=None,
+        dynamic_profiling_strategy=DynamicProfileStrategy.HINTS,
+    ):
+        if devices is None:
+            devices = [0]
+        self._profile_static(workdir, devices)
+
+        has_dynamic = False
+        for input_tensor in self._attrs["inputs"]:
+            for dim in input_tensor._attrs["shape"]:
+                if not isinstance(dim, IntImm):
+                    has_dynamic = True
+                    break
+        if has_dynamic:
+            if dynamic_profiling_strategy != DynamicProfileStrategy.HINTS:
+                raise NotImplementedError(
+                    "conv2d only supports HINTS dynamic profiling strategy for now! Current strategy: {}".format(
+                        dynamic_profiling_strategy
+                    )
+                )
+            self._profile_dynamic_dim(workdir)
+
+    def _profile_static(self, workdir, devices):
+        """Profiles with static shapes."""
+
+        workloads = list(self._attrs["exec_path"].keys())
+        profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
+        if "op_instance" not in self._attrs:
+            target = backend.target.Target.current()
+            # init candidate ops
+            func_key = "{target}.{op}.config".format(
+                target=target.name(), op=self._attrs["op"]
+            )
+            func = registry.get(func_key)
+            func(self._attrs)
+
+        for wkl in workloads:
+            logger.info(
+                __name__,
+                "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
+            )
+            best_algo, workspace = self._profile_single_workload(
+                profiler_prefix, wkl, devices
+            )
+            self._attrs["exec_path"][wkl] = best_algo
+            self._attrs["workspace"] = max(self._attrs["workspace"], workspace)
+
+    def _profile_dynamic_dim(self, workdir):
+        """Profiles with dynamic shapes."""
+
+        profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
+        runner = backend.profiler_runner.Runner([0], self._attrs["name"])
+        # extract dynamic dim from exec_path
+        if len(self._attrs["exec_path"]) <= 1:
+            return
+
+        def _extract_dynamic_dim(exec_keys):
+            logger.info(__name__, "ONLY SUPPORT DYNAMIC BATCH (dim0)!")
+            var_dims = [[], [], [], []]
+            for key in exec_keys:
+                dims = self._invert_exec_key(key)
+                for i, v in enumerate(dims):
+                    var_dims[i].append(v)
+            return var_dims
+
+        dims = _extract_dynamic_dim(self._attrs["exec_path"].keys())
+        dim1 = dims[1][0]
+        dim2 = dims[2][0]
+        dim3 = dims[3][0]
+        algos = list(self._attrs["exec_path"].values())
+        # generate region
+        regions = []  # lb, ub, lb_algos, ub_algos
+        for i in range(len(dims[0]) - 1):
+            regions.append([dims[0][i], dims[0][i + 1], algos[i], algos[i + 1]])
+        # for each region,
+        #   binary search to find cutting point
+        #   generate new exec
+        special_cases = OrderedDict()
+        new_exec_paths = OrderedDict()
+        for lb, ub, lb_algo, ub_algo in regions:
+            mid = (lb + ub) // 2
+            origin_lb = lb
+            origin_ub = ub
+            last_mid = mid
+            while mid > lb and mid < ub:
+                mid = (lb + ub) // 2
+                mid_shape = [mid, dim1, dim2, dim3]
+                logger.info(
+                    __name__,
+                    "current: lb_algo: {lb_algo}, LB:{lb} MID:{mid} UB:{ub}".format(
+                        lb_algo=lb_algo, lb=lb, mid=mid, ub=ub
+                    ),
+                )
+
+                mid_lb_algo_cmd = self._gen_profile_cmd(
+                    profiler_prefix, str(lb_algo), mid_shape
+                )
+                mid_ub_algo_cmd = self._gen_profile_cmd(
+                    profiler_prefix, str(ub_algo), mid_shape
+                )
+                runner.push(0, mid_lb_algo_cmd)
+                runner.push(1, mid_ub_algo_cmd)
+                runner.join()
+                result = runner.pull()
+                assert len(result) >= 1
+                # if there is only one result, assume ub algo failed.
+                if len(result) == 1:
+                    assert result[0][0] == 0
+                    # last_lb = lb
+                    lb = mid + 1
+                # if there are two result, compare to decide new lb/ub
+                else:
+                    lb_time = result[0][1]
+                    ub_time = result[1][1]
+                    if lb_time < ub_time:
+                        # lb algo can work with larger batch
+                        # last_lb = lb
+                        lb = mid + 1
+                    else:
+                        # ub algo can work with smaller batch
+                        # last_ub = ub
+                        ub = mid - 1
+                last_mid = mid
+                mid = (lb + ub) // 2
+            lo_region_key = self._gen_dyn_exec_key(
+                origin_lb, last_mid, dim1, dim2, dim3
+            )
+            up_region_key = self._gen_dyn_exec_key(
+                last_mid, origin_ub, dim1, dim2, dim3
+            )
+            new_exec_paths[lo_region_key] = lb_algo
+            new_exec_paths[up_region_key] = ub_algo
+            # find special cases
+            # This code is kept in case need fully tested dynamic code
+            # So far I find binary search works well.
+            # def _find_special_case(lb, ub, algo):
+            #     for i in range(lb + 1, ub + 1):
+            #         x_shape = [i, dim1, dim2, dim3]
+            #         cmd = self._gen_profile_cmd(profiler_prefix, str(algo), x_shape)
+            #         runner.push(0, cmd)
+            #         runner.join()
+            #         out = runner.pull()
+            #         if len(out) == 0:
+            #             logger.info(self._attrs["name"], "Find specail case: batch=%d" % i)
+            #             algo = self._profile_single_workload(profiler_prefix, x_shape, [0])
+            #             special_cases[self._gen_exec_key(x_shape)] = algo
+
+            # logger.info(self._attrs["name"],
+            #     "Searching for specail cases between [{lb}, {ub}]".format(lb=origin_lb,
+            #         ub=last_mid))
+            # _find_special_case(origin_lb, last_mid, lb_algo)
+            # logger.info(self._attrs["name"],
+            #     "Searching for specail cases between [{lb}, {ub}]".format(lb=last_mid + 1,
+            #         ub=origin_ub))
+            # _find_special_case(last_mid, origin_ub, ub_algo)
+        special_cases.update(new_exec_paths)
+        self._attrs["exec_path"] = special_cases
+
+    def gen_function(self) -> str:
+        """[summary]
+
+        Returns
+        -------
+        str
+            [description]
+        """
+        target = backend.target.Target.current()
+        func_key = "{target}.{op}.gen_function".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        return func(
+            self._attrs,
+            self.exec_cond_template,
+            self.shape_eval_template,
+            self.shape_save_template,
+        )
+
+    def gen_function_decl(self) -> str:
+        """[summary]
+
+        Returns
+        -------
+        str
+            [description]
+        """
+        target = backend.target.Target.current()
+        func_key = "{target}.{op}.gen_function_decl".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        return func(self._attrs["name"])
+
+    def gen_function_call(self) -> str:
+        """[summary]
+
+        Returns
+        -------
+        str
+            [description]
+        """
+        target = backend.target.Target.current()
+        func_key = "{target}.{op}.gen_function_call".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        return func(self._attrs["name"])
