@@ -1,0 +1,3 @@
+ROCmSoftwarePlatform/rocm-recipes
+# 1.90+
+danmar/cppcheck@dd05839a7e63ef04afd34711cb3e1e0ef742882f

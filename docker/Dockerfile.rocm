@@ -1,0 +1,147 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+# ROCM Docker Image for AITemplate
+FROM ubuntu:20.04
+
+ARG ROCMVERSION=5.2.3
+ARG compiler_version=b0f4678b9058a4ae00200dfb1de0da5f2ea84dcb
+
+
+RUN set -xe
+
+ARG DEB_ROCM_REPO=http://repo.radeon.com/rocm/apt/.apt_$ROCMVERSION/
+# Add rocm repository
+RUN apt-get update
+RUN apt-get install -y wget gnupg
+RUN wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | apt-key add -
+RUN sh -c "echo deb [arch=amd64] $DEB_ROCM_REPO ubuntu main > /etc/apt/sources.list.d/rocm.list"
+RUN wget --no-check-certificate -qO - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | apt-key add -
+RUN sh -c "echo deb https://apt.kitware.com/ubuntu/ bionic main | tee -a /etc/apt/sources.list"
+
+# Install dependencies
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-unauthenticated \
+    apt-utils \
+    build-essential \
+    cmake-data \
+    cmake \
+    curl \
+    git \
+    hip-rocclr \
+    jq \
+    libelf-dev \
+    libncurses5-dev \
+    libnuma-dev \
+    libpthread-stubs0-dev \
+    llvm-amdgpu \
+    pkg-config \
+    python \
+    python3 \
+    python-dev \
+    python3-dev \
+    python3-pip \
+    software-properties-common \
+    rocm-dev \
+    rocm-device-libs \
+    rocm-cmake \
+    rocm-libs \
+    vim \
+    zlib1g-dev \
+    openssh-server \
+    clang-format-10 \
+    kmod && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Setup ubsan environment to printstacktrace
+RUN ln -s /usr/bin/llvm-symbolizer-3.8 /usr/local/bin/llvm-symbolizer
+ENV UBSAN_OPTIONS=print_stacktrace=1
+
+# Install an init system
+RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64.deb
+RUN dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
+
+ARG PREFIX=/opt/rocm
+# Install packages for processing the performance results
+RUN pip3 install --upgrade pip
+RUN pip3 install sqlalchemy
+RUN pip3 install pymysql
+RUN pip3 install pandas
+RUN pip3 install setuptools-rust
+RUN pip3 install sshtunnel
+# Setup ubsan environment to printstacktrace
+ENV UBSAN_OPTIONS=print_stacktrace=1
+
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
+ADD ./docker/install/rocm_dev-requirements.txt dev-requirements.txt
+RUN groupadd -f render
+
+# Install the new rocm-cmake version
+RUN git clone -b master https://github.com/RadeonOpenCompute/rocm-cmake.git  && \
+  cd rocm-cmake && mkdir build && cd build && \
+  cmake  .. && cmake --build . && cmake --build . --target install
+
+WORKDIR /
+
+ENV compiler_version=$compiler_version
+RUN sh -c "echo compiler version = '$compiler_version'"
+
+RUN --mount=type=ssh if [ "$compiler_version" != "release" ]; then \
+        git clone https://github.com/RadeonOpenCompute/llvm-project.git && \
+        cd llvm-project && \
+        git checkout "$compiler_version" && \
+        mkdir build && cd build && \
+        cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
+        make -j 96 ; \
+    else echo "using the release compiler"; \
+    fi
+
+ENV HIP_CLANG_PATH='/llvm-project/build/bin'
+RUN sh -c "echo HIP_CLANG_PATH = '$HIP_CLANG_PATH'"
+
+# Fix compiler bug in 10736
+ADD ./docker/rocm_fix /rocm_fix
+RUN python3 /rocm_fix/fix_10736.py
+
+ADD ./docker/install/ /Install
+# necessary package
+RUN bash /Install/install_basic_dep.sh
+
+# for test
+RUN bash /Install/install_test_dep.sh
+
+# for docs
+RUN bash /Install/install_doc_dep.sh
+
+# Install Pytorch
+RUN pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/rocm5.1.1
+
+# for detection
+RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
+RUN bash /Install/install_detection_deps.sh
+
+
+# Copy AITemplate to Docker
+RUN mkdir /AITemplate
+ADD ./COMMIT_INFO /AITemplate/COMMIT_INFO
+ADD ./python /AITemplate/python
+ADD ./3rdparty /AITemplate/3rdparty
+ADD ./examples /AITemplate/examples
+ADD ./tests /AITemplate/tests
+ADD ./docs /AITemplate/docs
+ADD ./static /AITemplate/static
+ADD ./licenses /AITemplate/licenses
+ADD ./docker/install/install_ait.sh /AITemplate/
+RUN bash /AITemplate/install_ait.sh

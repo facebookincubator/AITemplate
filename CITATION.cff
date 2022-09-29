@@ -1,0 +1,54 @@
+cff-version: 1.2.0
+title: AITemplate
+message: >-
+  If you use this software, please cite using the
+  following metadata.
+type: software
+authors:
+  - given-names: Bing
+    family-names: Xu
+    affiliation: Meta
+    email: bingxu@meta.com
+  - given-names: Ying
+    family-names: Zhang
+    affiliation: Meta
+    email: yingz@meta.com
+  - given-names: Hao
+    family-names: Lu
+    affiliation: Meta
+    email: hlu@meta.com
+  - given-names: Yang
+    family-names: Chen
+    affiliation: Meta
+    email: yangche@meta.com
+  - given-names: Terry
+    family-names: Chen
+    affiliation: Meta
+    email: terrychen@meta.com
+  - given-names: Mike
+    family-names: Iovine
+    affiliation: Meta
+    email: mikeiovine@meta.com
+  - given-names: Mu-Chu
+    family-names: Lee
+    affiliation: Meta
+    email: mlee8@meta.com
+  - given-names: Zhijing
+    family-names: Li
+    affiliation: Meta
+    email: tissue030@meta.com
+
+
+repository-code: 'https://github.com/facebookincubator/AITemplate'
+abstract: >-
+  AITemplate (AIT) is a unified inference framework with separate acceleration backends for both AMD and NVIDIA GPU hardware. It delivers close to hardware-native Tensor Core (NVIDIA GPU) and Matrix Core (AMD GPU) performance on a variety of widely used AI models such as convolutional neural networks, transformers, and diffusers.
+keywords:
+  - 'neural network, cutlass, composable kernel, cuda, rocm'
+license: Apache 2.0
+license-url: https://github.com/facebookincubator/AITemplate/LICENSE
+version: '0.1'
+date-released: '2022-10-03'
+identifiers:
+  - type: url
+    value: "https://github.com/facebookincubator/AITemplate/tree/v0.1.0"
+    description: The GitHub release URL of tag 0.1.0

@@ -1,0 +1,41 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.8"]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ufmt
+        pip install click
+        pip install flake8
+    - name: Analyzing the code with flake8
+      run: |
+        echo "::add-matcher::tests/lint/flake8_problem_matcher.json"
+        flake8 .
+    - name: Analyzing the code with ufmt
+      run: |
+        ufmt diff python
+        ufmt diff tests
+        ufmt diff docs
+    - name: Check Meta copyright header
+      run: |
+        python tests/lint/check_meta_header.py --path=./tests --fixit=False
+        python tests/lint/check_meta_header.py --path=./python --fixit=False

@@ -1,0 +1,10 @@
+[submodule "3rdparty/cutlass"]
+	path = 3rdparty/cutlass
+	url = https://github.com/NVIDIA/cutlass.git
+[submodule "3rdparty/cub"]
+	path = 3rdparty/cub
+	url = https://github.com/NVIDIA/cub.git
+[submodule "3rdparty/composable_kernel"]
+	path = 3rdparty/composable_kernel
+	url = https://github.com/ROCmSoftwarePlatform/composable_kernel.git
+	branch = develop

@@ -1,0 +1,80 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine.
+# See: https://circleci.com/docs/2.0/configuration-reference
+version: 2.1
+
+# Orbs are reusable packages of CircleCI configuration that you may share across projects, enabling you to create encapsulated, parameterized commands, jobs, and executors that can be used across multiple projects.
+# See: https://circleci.com/docs/2.0/orb-intro/
+orbs:
+  # The python orb contains a set of prepackaged CircleCI configuration you can use repeatedly in your configuration files
+  # Orb commands and jobs help you with common scripting around a language/tool
+  # so you dont have to copy and paste it everywhere.
+  # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/python
+  python: circleci/python@1.5.0
+
+# -------------------------------------------------------------------------------------
+# Re-usable commands
+# -------------------------------------------------------------------------------------
+setup_env: &setup_env
+  - run:
+      name: Setup environment
+      command: |
+        python3.8 --version
+        python3.8 -m pip install --upgrade pip
+        cd python
+        python3.8 setup.py bdist_wheel
+        sudo python3.8 -m pip install --no-input dist/*.whl
+        cd ..
+        python3.8 -m pip install pytest
+        python3.8 -m pip install torch
+        python3.8 -m pip install numpy
+        python3.8 -m pip install jinja2
+        python3.8 -m pip install recordtype
+        python3.8 -m pip install parameterized
+        python3.8 -m pip install einops
+        git submodule sync
+        git submodule update --init
+        echo 'export PYTHONPATH=$PWD/python:$PYTHONPATH' >> $BASH_ENV
+        echo 'export PATH=/usr/local/cuda-11.4/bin:$PATH' >> $BASH_ENV
+        echo 'export CI_FLAG=CIRCLECI' >> $BASH_ENV
+        echo 'export CACHE_DIR=$PWD/tests/ci_profile_cache' >> $BASH_ENV
+
+basic_tests: &basic_tests
+  - run:
+      name: Run tests
+      command: |
+        set -e
+        TEST_FILES=$(circleci tests glob "tests/unittest/**/test_*.py" | grep -v benchmark | circleci tests split --split-by=timings)
+        mkdir test-results
+        python3.8 -m pytest $TEST_FILES --junitxml=test-results/junit.xml --verbose --continue-on-collection-errors -rA
+
+
+# Define a job to be invoked later in a workflow.
+# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
+jobs:
+  build-and-test:
+    machine:
+      image: ubuntu-2004-cuda-11.4:202110-01
+      # Check T101565170 for multi-gpu use cases.
+      resource_class: gpu.nvidia.medium
+
+    parallelism: 10
+
+    # Checkout the code as the first step. This is a dedicated CircleCI step.
+    # The python orb's install-packages step will install the dependencies from a Pipfile via Pipenv by default.
+    # Here we're making sure we use just use the system-wide pip. By default it uses the project root's requirements.txt.
+    # Then run your tests!
+    # CircleCI will report the results back to your VCS provider.
+    steps:
+      - checkout
+      - <<: *setup_env
+      - <<: *basic_tests
+      - store_test_results:
+          path: test-results
+
+# Invoke jobs via workflows
+# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
+workflows:
+  unittest: # This is the name of the workflow, feel free to change it to better match your workflow.
+    # Inside the workflow, you define the jobs you want to run.
+    jobs:
+      - build-and-test
