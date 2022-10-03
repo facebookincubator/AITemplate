@@ -55,6 +55,15 @@ Before start installing AITemplate, first make sure you have correct hardware an
     - Incorrect compiler version will lead performance regression.
     - Instruction for building HIPCC 10736 can be founded in `docker/Dockerfile.rocm`
 
+
+When clone the code, please use the following command to clone the submodules:
+```
+git clone --recursive https://github.com/facebookincubator/AITemplate
+```
+
+.. warning::
+    Please check all submodules are cloned correctly before go to next step.
+
 Then build Python wheel package and install.
 
     .. code-block:: bash
@@ -62,3 +71,5 @@ Then build Python wheel package and install.
         cd python
         python setup.py bdist_wheel
         pip install dist/aitemplate-0.0.1-py3-none-any.whl
+
+

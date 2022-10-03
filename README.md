@@ -43,6 +43,12 @@ AITemplate provides a straightforward approach for making an extension in codege
   - **NVIDIA**: AIT is only tested on SM80+ GPUs (Ampere etc). Not all kernels work with old SM75/SM70 (T4/V100) GPUs.
   - **AMD**:  AIT is only tested on CDNA2 (MI-210/250) GPUs. There may be compiler issues for old CDNA1 (MI-100) GPUs.
 
+## Clone the code
+When clone the code, please use the following command to clone the submodules:
+```
+git clone --recursive https://github.com/facebookincubator/AITemplate
+```
+
 ### Docker Image
 We highly recommend using AITemplate with Docker to avoid accidentally using a wrong version of NVCC or HIPCC.
 - CUDA: `./docker/build.sh cuda`
@@ -57,10 +63,12 @@ The following command will create a Python wheel for AITemplate. Please ensure y
 
 *Incorrect compiler will lead performance regression.*
 
+**Please check all submodules are cloned correctly before go to next step.**
+
 ```
 cd python
 python setup.py bdist_wheel
-pip install dist/*.whl
+pip install dist/*.whl --force-reinstall
 ```
 
 ## Getting Started
