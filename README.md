@@ -37,14 +37,14 @@ The AITemplate-generated Python runtime can take PyTorch tensors as inputs and o
 
 AITemplate provides a straightforward approach for making an extension in codegen. To add a new operator or a new fused kernel into AITemplate, most of the time one only needs to add two Python files: one for a graph node definition and another for the backend codegen. The CUDA/HIP kernel in a text header file can be directly utilized in the codegen.
 
-## Installalation
+## Installation
 
 **Hardware requirement:**
   - **NVIDIA**: AIT is only tested on SM80+ GPUs (Ampere etc). Not all kernels work with old SM75/SM70 (T4/V100) GPUs.
   - **AMD**:  AIT is only tested on CDNA2 (MI-210/250) GPUs. There may be compiler issues for old CDNA1 (MI-100) GPUs.
 
 ## Clone the code
-When clone the code, please use the following command to clone the submodules:
+When cloning the code, please use the following command to also clone the submodules:
 ```
 git clone --recursive https://github.com/facebookincubator/AITemplate
 ```
