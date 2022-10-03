@@ -195,7 +195,7 @@ def compile_unet(
     latent_model_input_ait = Tensor(
         [batch_size, hh, ww, 4], name="input0", is_input=True
     )
-    timesteps_ait = Tensor([2], name="input1", is_input=True)
+    timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
     text_embeddings_pt_ait = Tensor([batch_size, 64, 768], name="input2", is_input=True)
 
     Y = ait_mod(latent_model_input_ait, timesteps_ait, text_embeddings_pt_ait)
@@ -316,9 +316,10 @@ def compile_vae(
 
 @click.command()
 @click.option("--token", default="", help="access token")
+@click.option("--batch-size", default=1, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
-def compile_diffusers(token, use_fp16_acc=True, convert_conv_to_gemm=True):
+def compile_diffusers(token, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
@@ -338,15 +339,15 @@ def compile_diffusers(token, use_fp16_acc=True, convert_conv_to_gemm=True):
     ).to("cuda")
 
     # CLIP
-    compile_clip(use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm)
+    compile_clip(batch_size=batch_size, use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm)
     # UNet
     compile_unet(
-        batch_size=2,
+        batch_size=batch_size * 2,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
     )
     # VAE
-    compile_vae(use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm)
+    compile_vae(batch_size=batch_size, use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm)
 
 
 if __name__ == "__main__":

@@ -160,7 +160,7 @@ def benchmark_clip(
     attention_mask[-1, -mask_seq:] = 0
     attention_mask = None
 
-    position_ids = torch.arange(seqlen).expand((1, -1)).cuda()
+    position_ids = torch.arange(seqlen).expand((batch_size, -1)).cuda()
     pt_ys = pt_mod(input_ids, attention_mask, position_ids)
     print("pt output:", pt_ys[0].shape)
 
@@ -274,9 +274,11 @@ def benchmark_vae(batch_size=1, height=64, width=64, benchmark_pt=False, verify=
 
 @click.command()
 @click.option("--token", default="", help="access token")
+@click.option("--batch-size", default=1, help="batch size")
 @click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
-def benchmark_diffusers(token, verify, benchmark_pt):
+def benchmark_diffusers(token, batch_size, verify, benchmark_pt):
+    assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
@@ -293,11 +295,11 @@ def benchmark_diffusers(token, verify, benchmark_pt):
     ).to("cuda")
 
     # CLIP
-    benchmark_clip(benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_clip(batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify)
     # UNet
-    benchmark_unet(batch_size=2, benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_unet(batch_size=batch_size * 2, benchmark_pt=benchmark_pt, verify=verify)
     # VAE
-    benchmark_vae(benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_vae(batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify)
 
 
 if __name__ == "__main__":
