@@ -4,7 +4,9 @@ In this example, we show how to build fast AIT modules for CLIP, UNet, VAE model
 
 ### Build Dependencies
 
-The AIT stable diffusion example depends on `diffusers` and `transformers`. 
+First, clone, build, and install AITemplate [per the README instructions](https://github.com/facebookincubator/AITemplate#clone-the-code).
+
+This AIT stable diffusion example depends on `diffusers`, `transformers`, `torch` and `click`. 
 
 Verify the library versions. We have tested transformers 4.21/4.22/4.23, diffusers 0.3/0.4 and torch 1.11/1.12.
 
@@ -21,10 +23,10 @@ Verify the library versions. We have tested transformers 4.21/4.22/4.23, diffuse
 
 ### Build AIT modules for CLIP, UNet, VAE
 
-Build the AIT modules by running `compile.py`,
+Build the AIT modules by running `compile.py`. You must first register in Hugging Face Hub to obtain an access token for the Stable Diffusion weights. See [user access tokens](https://huggingface.co/docs/hub/security-tokens) for more info. Your access tokens are listed in your [Hugging Face account settings](https://huggingface.co/settings/tokens).
 
 ```
-python3 examples/05_stable_diffusion/compile.py
+python3 examples/05_stable_diffusion/compile.py --token ACCESS_TOKEN
 ```
 It generates three folders: `./tmp/CLIPTextModel`, `./tmp/UNet2DConditionModel`, `./tmp/AutoencoderKL`. In each folder, there is a `test.so` file which is the generated AIT module for the model.
 
@@ -32,13 +34,9 @@ It generates three folders: `./tmp/CLIPTextModel`, `./tmp/UNet2DConditionModel`,
 AIT needs to do profiling to select the best algorithms for CUTLASS and CK.
 To enable multiple GPUs for profiling, use the environment variable `CUDA_VISIBLE_DEVICES` on NVIDIA platform and `HIP_VISIBLE_DEVICES` on AMD platform.
 
-### Prepare Weights and Benchmark
+### Benchmark
 
-In this step, we dowanload the Stable Diffusion weights for each model, and use them to initialize the parameters in AIT modules. Then we benchmark the AIT modules.
-
-1. Register in Hugging Face Hub to obtain an access token for Stable Diffusion weights. See [user access tokens](https://huggingface.co/docs/hub/security-tokens).
-
-2. (Optional) Run `benchmark.py` with the access token to initialize the weights and benchmark.
+This step is optional. You can run `benchmark.py` with the access token to initialize the weights and benchmark.
 
 ```
 python3 examples/05_stable_diffusion/benchmark.py --token ACCESS_TOKEN
