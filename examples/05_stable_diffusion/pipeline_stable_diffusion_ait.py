@@ -126,7 +126,8 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
 
     def clip_inference(self, input_ids, seqlen=64):
         exe_module = self.clip_ait_exe
-        position_ids = torch.arange(seqlen).expand((1, -1)).cuda()
+        bs = input_ids.shape[0]
+        position_ids = torch.arange(seqlen).expand((bs, -1)).cuda()
         inputs = {
             "input0": input_ids,
             "input1": position_ids,

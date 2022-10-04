@@ -112,12 +112,18 @@ _OOM = Out of Memory_
 
 ## Batched Version
 
-A batched version of AIT Stable Diffusion can be found at: https://github.com/terrychenism/AIT_StableDiffusion/tree/main/examples/05_stable_diffusion
+### A100-40GB / CUDA 11.6
 
+- Stable Diffusion with AIT batch inference, 50 steps
 
-Some reference results are taken from the repo:
+| Batch size   | PT Latency (ms)  | AIT Latency (ms) |
+|--------------|------------------|------------------|
+|  1           |   3058.27        |      1282.98     |
+|  3           |   7334.46        |      3121.88     |
+|  8           |   17944.60       |      7492.81     |
+|  16          |      OOM         |      14931.95    |
 
-### A100-40GB, 25 Steps
+- AIT Faster rendering, 25 steps
 
 | Batch size | AIT Latency (ms) | AVG im/s |
 |------------|------------------|----------|
