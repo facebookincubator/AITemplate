@@ -21,7 +21,7 @@ Verify the library versions. We have tested transformers 4.21/4.22/4.23, diffuse
 
 ### Build AIT modules for CLIP, UNet, VAE
 
-Build the AIT moduels by running `compile.py`,
+Build the AIT modules by running `compile.py`,
 
 ```
 python3 examples/05_stable_diffusion/compile.py
