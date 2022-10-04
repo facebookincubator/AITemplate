@@ -10,7 +10,7 @@ AITemplate (AIT) is a Python framework that transforms deep neural networks into
 
 .. toctree::
    :maxdepth: 1
-   :caption: : Getting Started
+   :caption: Getting Started
 
    install/index
 
