@@ -2,18 +2,11 @@
 
 In this example, we show how to build fast AIT modules for CLIP, UNet, VAE models, and benchmark/run them.
 
-### Download and Build AITemplate
-
-```
-git clone --recursive https://github.com/facebookincubator/AITemplate
-cd python
-python setup.py bdist_wheel
-pip install dist/*.whl --force-reinstall
-```
-
 ### Build Dependencies
 
-The AIT stable diffusion example depends on `diffusers`, `transformers`, `torch` and `click`. 
+First, clone, build, and install AITemplate [per the README instructions](https://github.com/facebookincubator/AITemplate#clone-the-code).
+
+This AIT stable diffusion example depends on `diffusers`, `transformers`, `torch` and `click`. 
 
 Verify the library versions. We have tested transformers 4.21/4.22/4.23, diffusers 0.3/0.4 and torch 1.11/1.12.
 
