@@ -164,6 +164,7 @@ class layernorm(Operator):
         self._sanity_check(x, gamma, beta)
         self._set_depth()
         output_shape = self._infer_shapes(x)
+        self._extract_exec_path()
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
@@ -229,9 +230,10 @@ class layernorm(Operator):
             A dynamic profiling strategy. By default MAX is used, i.e. to profile
             a dynamic range, an upper bound will be used.
         """
-        assert (
-            len(self._attrs["normalized_shape"]) == 1
-        ), "For profiling, normalized_shape must be 1D"
+        if self._attrs["has_profiler"]:
+            assert (
+                len(self._attrs["normalized_shape"]) == 1
+            ), "For profiling, normalized_shape must be 1D"
 
         m_max = 1
         m_min = 1
