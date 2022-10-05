@@ -164,7 +164,6 @@ class layernorm(Operator):
         self._sanity_check(x, gamma, beta)
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        self._extract_exec_path()
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
