@@ -202,6 +202,7 @@ class softmax(Operator):
         self._attrs["dim"] = dim
         self._set_depth()
         output_shape = self._infer_shapes(x)
+        self._extract_exec_path()
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         return output
