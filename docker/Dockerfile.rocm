@@ -86,10 +86,6 @@ RUN git clone -b master https://github.com/RadeonOpenCompute/rocm-cmake.git  && 
 
 WORKDIR /
 
-# Fix compiler bug in 10736
-ADD ./docker/rocm_fix /rocm_fix
-RUN python3 /rocm_fix/fix_10736.py
-
 ADD ./docker/install/ /Install
 # necessary package
 RUN bash /Install/install_basic_dep.sh
