@@ -19,6 +19,7 @@ import requests
 import torch
 from PIL import Image
 
+from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from pipeline_stable_diffusion_img2img_ait import StableDiffusionImg2ImgAITPipeline
 
 
@@ -54,6 +55,10 @@ def run(token, prompt, benchmark):
         images = pipe(
             prompt=prompt, init_image=init_image, strength=0.75, guidance_scale=7.5
         ).images
+        if benchmark:
+            args = (prompt, init_image)
+            t = benchmark_torch_function(10, pipe, *args)
+            print(f"sd e2e: {t} ms")
 
     images[0].save("fantasy_landscape_ait.png")
 
