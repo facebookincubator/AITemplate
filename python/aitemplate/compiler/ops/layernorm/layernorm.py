@@ -230,9 +230,10 @@ class layernorm(Operator):
             A dynamic profiling strategy. By default MAX is used, i.e. to profile
             a dynamic range, an upper bound will be used.
         """
-        assert (
-            len(self._attrs["normalized_shape"]) == 1
-        ), "For profiling, normalized_shape must be 1D"
+        if self._attrs["has_profiler"]:
+            assert (
+                len(self._attrs["normalized_shape"]) == 1
+            ), "For profiling, normalized_shape must be 1D"
 
         m_max = 1
         m_min = 1
