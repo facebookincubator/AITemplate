@@ -144,11 +144,11 @@ _OOM = Out of Memory_
 
 ## IMG2IMG
 
-### A100-40GB / CUDA 11.4, 40 steps
+### A100-40GB / CUDA 11.6, 40 steps
 
 | Module   | PT Latency (ms) | AIT Latency (ms) |
 |----------|-----------------|------------------|
-| Pipeline | 4192.93         | 1826.73          |
+| Pipeline | 4163.60         | 1785.46          |
 
 
 
