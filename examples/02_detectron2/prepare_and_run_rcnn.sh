@@ -36,21 +36,23 @@ MODEL_PATH=~/.torch/model
 mkdir -p $MODEL_PATH
 MODEL_NAME=mask_rcnn_R_50_FPN
 
+mkdir -p ./tmp
+
 wget $BASE/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl -O tmp/pt_$MODEL_NAME.pkl
 
 ### Build AIT Model, Export the Pre-trained Weights and Run Inference 
 
-cfg=examples/02_detectron2/configs/$MODEL_NAME.yaml
-CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 examples/02_detectron2/compile_model.py   \
+cfg=configs/$MODEL_NAME.yaml
+CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 python3 compile_model.py   \
   --config $cfg \
   --batch 1
 
-python3 examples/02_detectron2/tools/convert_pt2ait.py  \
+python3 tools/convert_pt2ait.py  \
   --d2-weight tmp/pt_$MODEL_NAME.pkl \
   --ait-weight tmp/ait_$MODEL_NAME.pt \
   --model-name $MODEL_NAME
 
-python3 examples/02_detectron2/demo.py \
+python3 demo.py \
   --weight tmp/ait_$MODEL_NAME.pt \
   --config $cfg \
   --batch 1 --input "$IMG_PATH/*.jpg" \

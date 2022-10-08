@@ -52,7 +52,6 @@ __inline__ __device__ T blockReduceSum(T* val) {
   warpReduceSum<T>(val);
 
   if (lane == 0) {
-#pragma unroll
     shared[wid] = val[0];
   }
 
@@ -60,7 +59,6 @@ __inline__ __device__ T blockReduceSum(T* val) {
 
   // blockDim.x is round up to multiples of 32
   bool is_mask = threadIdx.x < (blockDim.x / 32);
-#pragma unroll
   val[0] = is_mask ? shared[lane] : (T)(0.0f);
 
   warpReduceSum<T>(val);

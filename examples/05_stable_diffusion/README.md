@@ -6,7 +6,7 @@ In this example, we show how to build fast AIT modules for CLIP, UNet, VAE model
 
 First, clone, build, and install AITemplate [per the README instructions](https://github.com/facebookincubator/AITemplate#clone-the-code).
 
-This AIT stable diffusion example depends on `diffusers`, `transformers`, `torch` and `click`. 
+This AIT stable diffusion example depends on `diffusers`, `transformers`, `torch` and `click`.
 
 Verify the library versions. We have tested transformers 4.21/4.22/4.23, diffusers 0.3/0.4 and torch 1.11/1.12.
 
@@ -30,6 +30,11 @@ python3 examples/05_stable_diffusion/compile.py --token ACCESS_TOKEN
 ```
 It generates three folders: `./tmp/CLIPTextModel`, `./tmp/UNet2DConditionModel`, `./tmp/AutoencoderKL`. In each folder, there is a `test.so` file which is the generated AIT module for the model.
 
+Compile the img2img models:
+```
+python3 examples/05_stable_diffusion/compile.py --img2img True --token ACCESS_TOKEN
+```
+
 #### Multi-GPU profiling
 AIT needs to do profiling to select the best algorithms for CUTLASS and CK.
 To enable multiple GPUs for profiling, use the environment variable `CUDA_VISIBLE_DEVICES` on NVIDIA platform and `HIP_VISIBLE_DEVICES` on AMD platform.
@@ -48,6 +53,12 @@ Run AIT models with an example image:
 
 ```
 python3 examples/05_stable_diffusion/demo.py --token ACCESS_TOKEN
+```
+
+Img2img demo:
+
+```
+python3 examples/05_stable_diffusion/demo_img2img.py --token ACCESS_TOKEN
 ```
 
 Check the resulted image: `example_ait.png`
@@ -131,10 +142,20 @@ _OOM = Out of Memory_
 | 16         | 7906             | 0.49     |
 
 
+## IMG2IMG
+
+### A100-40GB / CUDA 11.6, 40 steps
+
+| Module   | PT Latency (ms) | AIT Latency (ms) |
+|----------|-----------------|------------------|
+| Pipeline | 4163.60         | 1785.46          |
+
+
 
 ### Note for Performance Results
 
 - For all benchmarks we render the images of size 512x512
+- For img2img model we only support fix input 512x768 by default, stay tuned for dynamic shape support
 - For NVIDIA A100, our test cluster doesn't allow to lock frequency. We make warm up longer to collect more stable results, but it is expected to have small variance to the results with locked frequency.
 - To benchmark MI-250 1 GCD, we lock the frequency with command `rocm-smi -d x --setperfdeterminism 1700`, where `x` is the GPU id.
 - Performance results are what we can reproduced & take reference. It should not be used for other purposes.
