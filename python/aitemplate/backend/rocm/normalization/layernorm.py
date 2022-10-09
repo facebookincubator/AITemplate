@@ -256,9 +256,7 @@ def gen_function(
             config = ""
             cfg_name = desc_to_config_name[algo]
         inst = norm_common.INSTANCE_TEMPLATE.render(
-            config=config,
-            name=fname,
-            config_name=cfg_name
+            config=config, name=fname, config_name=cfg_name
         )
         instances[exec_item.exec_cond] = inst
         instance_decl += inst

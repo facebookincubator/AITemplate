@@ -734,9 +734,7 @@ def gen_function(
         else:
             config = ""
             cfg_name = desc_to_config_name[value]
-        inst = INSTANCE_TEMPLATE.render(
-            config=config, name=fname, config_name=cfg_name
-        )
+        inst = INSTANCE_TEMPLATE.render(config=config, name=fname, config_name=cfg_name)
         instances[key] = inst
         instance_decl += inst
 

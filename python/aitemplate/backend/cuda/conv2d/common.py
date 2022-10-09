@@ -162,9 +162,7 @@ def gen_function(
         else:
             config = ""
             cfg_name = desc_to_config_name[value]
-        inst = instance_template.render(
-            config=config, name=fname, config_name=cfg_name
-        )
+        inst = instance_template.render(config=config, name=fname, config_name=cfg_name)
         instances[key] = inst
         instance_decl += inst
     shape_eval_func = shape_eval_template.render(
