@@ -753,7 +753,7 @@ def gen_function(
     exec_path = func_attrs["exec_path"]
     op_instance = func_attrs["op_instance"]
 
-    inst_def_flag = set()
+    desc_to_config_name = {}
     instances = {}
     instance_decl = ""
     has_d0_flag = has_d0(func_attrs)
@@ -761,13 +761,15 @@ def gen_function(
     for key, value in exec_path.items():
         fname = "f" + sha1(key.encode()).hexdigest()
         algo = value.algo
-        if algo not in inst_def_flag:
+        if algo not in desc_to_config_name:
             config = emit_instance(op_instance[algo])
-            inst_def_flag.add(algo)
+            cfg_name = extract_config_name(config)
+            desc_to_config_name[algo] = cfg_name
         else:
             config = ""
+            cfg_name = desc_to_config_name[algo]
         inst = INSTANCE_TEMPLATE.render(
-            config=config, name=fname, config_name=extract_config_name(config)
+            config=config, name=fname, config_name=cfg_name
         )
         instances[key] = inst
         instance_decl += inst

@@ -150,18 +150,20 @@ def gen_function(
     exec_path = func_attrs["exec_path"]
     op_instance = func_attrs["op_instance"]
 
-    inst_def_flag = set()
     instances = {}
     instance_decl = ""
+    desc_to_config_name = {}
     for key, value in exec_path.items():
         fname = "f" + sha1(key.encode()).hexdigest()
-        if value not in inst_def_flag:
+        if value not in desc_to_config_name:
             config = f_emit_instance(op_instance[value])
-            inst_def_flag.add(value)
+            cfg_name = extract_config_name(config)
+            desc_to_config_name[value] = cfg_name
         else:
             config = ""
+            cfg_name = desc_to_config_name[value]
         inst = instance_template.render(
-            config=config, name=fname, config_name=extract_config_name(config)
+            config=config, name=fname, config_name=cfg_name
         )
         instances[key] = inst
         instance_decl += inst

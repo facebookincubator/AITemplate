@@ -17,15 +17,16 @@ import unittest
 import torch
 
 from aitemplate.compiler import compile_model, ops
-from aitemplate.frontend import IntImm, Tensor
+from aitemplate.compiler.base import DynamicProfileStrategy
+from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 
 
 class ConvTestCase(unittest.TestCase):
-    def test_fp16(self, batch=4):
+    def test_fp16(self, batch_sizes=[4, 8, 12]):
         target = detect_target()
         X = Tensor(
-            shape=[IntImm(batch), 28, 28, 128],
+            shape=[IntVar(batch_sizes), 28, 28, 128],
             dtype="float16",
             name="input_0",
             is_input=True,
@@ -37,20 +38,23 @@ class ConvTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "conv2d")
+        module = compile_model(
+            Y, target, "./tmp", "conv2d",
+            dynamic_profiling_strategy=DynamicProfileStrategy.HINTS)
 
-        X_pt = torch.randn(batch, 128, 28, 28).cuda().half()
-        W_pt = torch.randn(256, 128, 3, 3).cuda().half()
-        Y_pt = torch.nn.functional.conv2d(X_pt, W_pt, padding=1)
-        x = X_pt.permute((0, 2, 3, 1)).contiguous()
-        w = W_pt.permute((0, 2, 3, 1)).contiguous()
-        y = torch.empty([batch, 28, 28, 256]).cuda().half()
-        module.run_with_tensors({"input_0": x, "input_1": w}, [y])
-        y_transpose = y.permute((0, 3, 1, 2))
-        if target.name() == "cuda":
-            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
-        else:
-            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+        for batch in batch_sizes:
+            X_pt = torch.randn(batch, 128, 28, 28).cuda().half()
+            W_pt = torch.randn(256, 128, 3, 3).cuda().half()
+            Y_pt = torch.nn.functional.conv2d(X_pt, W_pt, padding=1)
+            x = X_pt.permute((0, 2, 3, 1)).contiguous()
+            w = W_pt.permute((0, 2, 3, 1)).contiguous()
+            y = torch.empty([batch, 28, 28, 256]).cuda().half()
+            module.run_with_tensors({"input_0": x, "input_1": w}, [y])
+            y_transpose = y.permute((0, 3, 1, 2))
+            if target.name() == "cuda":
+                self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
+            else:
+                self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
 
 
 if __name__ == "__main__":
