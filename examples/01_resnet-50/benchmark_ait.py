@@ -125,6 +125,7 @@ def main(use_fp16_acc=True, use_graph=True, batch_size=0):
             compile_module("resnet50", bs, use_fp16_acc=use_fp16_acc)
             benchmark("resnet50", bs, graph_mode=use_graph)
     else:
+        compile_module("resnet50", batch_size, use_fp16_acc=use_fp16_acc)
         benchmark("resnet50", batch_size, graph_mode=use_graph)
 
 
