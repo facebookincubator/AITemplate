@@ -122,7 +122,7 @@ def main(use_fp16_acc=True, use_graph=True, batch_size=0):
         use_graph = False
     if batch_size < 1:
         for bs in (1, 2, 4, 8, 16, 32, 64, 128, 256):
-            compile_module("resnet50", bs, use_fp16_acc=use_fp16_acc)
+            compile_module("resnet50", bs, use_fp16_acc=use_fp16_acc, transform_conv_to_gemm=True)
             benchmark("resnet50", bs, graph_mode=use_graph)
     else:
         benchmark("resnet50", batch_size, graph_mode=use_graph)

@@ -15,9 +15,7 @@
 # ROCM Docker Image for AITemplate
 FROM ubuntu:20.04
 
-ARG ROCMVERSION=5.2.3
-ARG compiler_version=b0f4678b9058a4ae00200dfb1de0da5f2ea84dcb
-
+ARG ROCMVERSION=5.3
 
 RUN set -xe
 
@@ -73,16 +71,9 @@ RUN wget https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.
 RUN dpkg -i dumb-init_*.deb && rm dumb-init_*.deb
 
 ARG PREFIX=/opt/rocm
-# Install packages for processing the performance results
-RUN pip3 install --upgrade pip
-RUN pip3 install sqlalchemy
-RUN pip3 install pymysql
-RUN pip3 install pandas
-RUN pip3 install setuptools-rust
-RUN pip3 install sshtunnel
+
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1
-
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
 ADD ./docker/install/rocm_dev-requirements.txt dev-requirements.txt
@@ -94,26 +85,6 @@ RUN git clone -b master https://github.com/RadeonOpenCompute/rocm-cmake.git  && 
   cmake  .. && cmake --build . && cmake --build . --target install
 
 WORKDIR /
-
-ENV compiler_version=$compiler_version
-RUN sh -c "echo compiler version = '$compiler_version'"
-
-RUN --mount=type=ssh if [ "$compiler_version" != "release" ]; then \
-        git clone https://github.com/RadeonOpenCompute/llvm-project.git && \
-        cd llvm-project && \
-        git checkout "$compiler_version" && \
-        mkdir build && cd build && \
-        cmake -DCMAKE_INSTALL_PREFIX=/opt/rocm/llvm -DCMAKE_BUILD_TYPE=Release -DLLVM_ENABLE_ASSERTIONS=1 -DLLVM_TARGETS_TO_BUILD="AMDGPU;X86" -DLLVM_ENABLE_PROJECTS="clang;lld;compiler-rt" ../llvm && \
-        make -j 96 ; \
-    else echo "using the release compiler"; \
-    fi
-
-ENV HIP_CLANG_PATH='/llvm-project/build/bin'
-RUN sh -c "echo HIP_CLANG_PATH = '$HIP_CLANG_PATH'"
-
-# Fix compiler bug in 10736
-ADD ./docker/rocm_fix /rocm_fix
-RUN python3 /rocm_fix/fix_10736.py
 
 ADD ./docker/install/ /Install
 # necessary package
@@ -131,7 +102,6 @@ RUN pip3 install torch torchvision torchaudio --extra-index-url https://download
 # for detection
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
 RUN bash /Install/install_detection_deps.sh
-
 
 # Copy AITemplate to Docker
 RUN mkdir /AITemplate
