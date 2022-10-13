@@ -141,7 +141,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         for i in range(num_ouputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
-        exe_module.run_with_tensors(inputs, ys, graph_mode=True)
+        exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         noise_pred = ys[0].permute((0, 3, 1, 2)).float()
         return noise_pred
 
@@ -158,7 +158,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         for i in range(num_ouputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
-        exe_module.run_with_tensors(inputs, ys, graph_mode=True)
+        exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         return ys[0].float()
 
     def vae_inference(self, vae_input):
@@ -169,7 +169,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         for i in range(num_ouputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
-        exe_module.run_with_tensors(inputs, ys, graph_mode=True)
+        exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         vae_out = ys[0].permute((0, 3, 1, 2)).float()
         return vae_out
 
