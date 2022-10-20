@@ -25,7 +25,7 @@ from .layout import RCR
 
 EXTRA_CODE = jinja2.Template(
     """
-#include "data_type.hpp"
+#include "ck/utility/data_type.hpp"
 
 const ck::half_t alpha = {{scale}};
 

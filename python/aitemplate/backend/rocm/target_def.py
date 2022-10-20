@@ -93,55 +93,8 @@ class ROCM(Target):
         ck_paths = [
             os.path.join(self._template_path),
             os.path.join(self._template_path, "include/"),
-            os.path.join(self._template_path, "include/ck/"),
-            os.path.join(self._template_path, "include/ck/problem_transform/"),
-            os.path.join(self._template_path, "include/ck/tensor/"),
-            os.path.join(self._template_path, "include/ck/tensor_description/"),
-            os.path.join(self._template_path, "include/ck/tensor_operation/"),
-            os.path.join(self._template_path, "include/ck/tensor_operation/gpu/block/"),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/device/"
-            ),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/device/impl/"
-            ),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/element/"
-            ),
-            os.path.join(self._template_path, "include/ck/tensor_operation/gpu/grid/"),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/thread/"
-            ),
-            os.path.join(self._template_path, "include/ck/tensor_operation/gpu/warp/"),
-            os.path.join(self._template_path, "include/ck/utility/"),
-            os.path.join(self._template_path, "include/ck/host_utility"),
             os.path.join(self._template_path, "external/include/half/"),
-            os.path.join(self._template_path, "library/include/ck/library/host/"),
-            os.path.join(
-                self._template_path, "library/include/ck/library/host_tensor/"
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/obselete_driver_offline/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/reference_tensor_operation/cpu/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/reference_tensor_operation/gpu/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/tensor_operation_instance/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/tensor_operation_instance/gpu/" + "reduce/",
-            ),
-            os.path.join(self._template_path, "library/include/ck/library/tensor_op/"),
-            os.path.join(self._template_path, "library/include/ck/library/utility/"),
+            os.path.join(self._template_path, "library/include/"),
             os.path.join(self._template_path, "profiler/include/"),
         ]
         options = [
