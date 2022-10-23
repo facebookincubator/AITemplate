@@ -184,6 +184,7 @@ def compile_module(
     use_fp16_acc: bool,
     encoders_only: bool,
     pt_model: torch.nn.Module,
+    benchmark: bool
 ) -> None:
     model_name = f"BERT_{activation}_{batch_size}_{seq_length}"
     target = detect_target(use_fp16_acc=use_fp16_acc)
@@ -207,7 +208,10 @@ def compile_module(
 
     params = map_pt_params(model, pt_model, batch_size, seq_length)
 
-    mod = compile_model(y, target, "./tmp", model_name)
+    if benchmark:
+        mod = Model(os.path.join("./tmp", model_name, "test.so"))
+    else:
+        mod = compile_model(y, target, "./tmp", model_name)
 
     for k, v in params.items():
         mod.set_constant_with_tensor(k, v)
@@ -267,30 +271,44 @@ def compile_and_benchmark(
     pt_model.eval()
     hidden_size = pt_model.config.hidden_size
 
-    if batch_size < 1:
-        batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    if batch_size >= 1 and seq_length >= 1:
+        mod = compile_module(
+                    batch_size,
+                    seq_length,
+                    hidden_size,
+                    activation,
+                    use_fp16_acc,
+                    encoders_only,
+                    pt_model,
+                    1,
+                )
+        benchmark(batch_size, seq_length, hidden_size, mod, graph_mode, encoders_only)
     else:
-        batch_sizes = [batch_size]
+        if batch_size < 1:
+            batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+        else:
+            batch_sizes = [batch_size]
 
-    if seq_length < 1:
-        seq_lengths = (
-            [64, 128, 384, 512, 1024, 4096] if encoders_only else [64, 128, 384, 512]
-        )
-    else:
-        seq_lengths = [seq_length]
-
-    for seq_length in seq_lengths:
-        for bs in batch_sizes:
-            mod = compile_module(
-                bs,
-                seq_length,
-                hidden_size,
-                activation,
-                use_fp16_acc,
-                encoders_only,
-                pt_model,
+        if seq_length < 1:
+            seq_lengths = (
+                [64, 128, 384, 512, 1024, 4096] if encoders_only else [64, 128, 384, 512]
             )
-            benchmark(bs, seq_length, hidden_size, mod, graph_mode, encoders_only)
+        else:
+            seq_lengths = [seq_length]
+
+        for sq in seq_lengths:
+            for bs in batch_sizes:
+                mod = compile_module(
+                    bs,
+                    sq,
+                    hidden_size,
+                    activation,
+                    use_fp16_acc,
+                    encoders_only,
+                    pt_model,
+                    0,
+                )
+                benchmark(bs, seq_length, hidden_size, mod, graph_mode, encoders_only)
 
 
 if __name__ == "__main__":

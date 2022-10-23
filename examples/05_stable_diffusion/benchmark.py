@@ -68,7 +68,7 @@ def benchmark_unet(
 
     latent_model_input_pt = torch.randn(batch_size, 4, hh, ww).cuda().half()
     text_embeddings_pt = torch.randn(batch_size, 64, 768).cuda().half()
-    timesteps_pt = torch.Tensor([1, 1]).cuda().half()
+    timesteps_pt = torch.Tensor([1] * batch_size).cuda().half()
 
     with autocast("cuda"):
         pt_ys = pt_mod(
@@ -148,7 +148,7 @@ def benchmark_clip(
 
     tokenizer = CLIPTokenizer.from_pretrained(version)
     text_input = tokenizer(
-        ["a photo of an astronaut riding a horse on mars"],
+        ["a photo of an astronaut riding a horse on mars"] * batch_size,
         padding="max_length",
         max_length=seqlen,
         truncation=True,
@@ -278,7 +278,7 @@ def benchmark_vae(batch_size=1, height=64, width=64, benchmark_pt=False, verify=
 @click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
 def benchmark_diffusers(token, batch_size, verify, benchmark_pt):
-    assert batch_size == 1, "batch size must be 1 for submodule verification"
+    #assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
