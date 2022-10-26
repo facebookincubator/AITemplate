@@ -35,7 +35,7 @@ def run(token, prompt, benchmark):
 
     # load the pipeline
     device = "cuda"
-    model_id_or_path = "CompVis/stable-diffusion-v1-4"
+    model_id_or_path = "runwayml/stable-diffusion-v1-5"
     pipe = StableDiffusionImg2ImgAITPipeline.from_pretrained(
         model_id_or_path,
         revision="fp16",
