@@ -223,7 +223,7 @@ def cal_align_ab(x_shape: List[int]) -> int:
         return 4
     if k % 2 == 0:
         return 2
-    raise RuntimeError(f"a/b is not aligned {x_shape}")
+    raise RuntimeError(f"a/b is not aligned {x_shape=}")
 
 
 def function_filter(cfg, func_attrs, x_shape):
@@ -243,11 +243,7 @@ def function_filter(cfg, func_attrs, x_shape):
     bool
         If input cfg should be filtered.
     """
-    try:
-        ab_alignment = cal_align_ab(x_shape)
-    except:
-        print(cfg)
-        raise
+    ab_alignment = cal_align_ab(x_shape)
     tmp = cfg.split("_")
     align_c = int(tmp[-1])
     align_ab = int(tmp[-2])

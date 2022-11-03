@@ -44,7 +44,7 @@ class conv2d_groups_bias(conv2d):
         self._attrs["epilogue"] = "LinearCombinationRelu"
 
     def __call__(self, x: Tensor, w: Tensor, b: Tensor):
-        """Call conv2d_bias_activation with tensors x, w, b
+        """Call conv2d_groups_bias with tensors x, w, b
 
         Parameters
         ----------

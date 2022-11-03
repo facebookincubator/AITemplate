@@ -289,15 +289,15 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-@registry.reg("cuda.conv2d.config")
-def conv2d_config(func_attrs, dtype="float16"):
-    """Populates conv2d cutlass configs into 'op_instance' field."""
+@registry.reg("cuda.conv2d_groups.config")
+def conv2d_groups_config(func_attrs, dtype="float16"):
+    """Populates conv2d_groups cutlass configs into 'op_instance' field."""
     func_attrs["op_instance"] = common.extract_config(func_attrs)
 
 
-@registry.reg("cuda.conv2d.gen_profiler")
+@registry.reg("cuda.conv2d_groups.gen_profiler")
 def gen_profiler(func_attrs, workdir, shape_template):
-    """Codegen for conv2d profiler."""
+    """Codegen for conv2d_groups profiler."""
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
     # shape func
@@ -342,14 +342,14 @@ def gen_profiler(func_attrs, workdir, shape_template):
     common.build_profiler(file_pairs)
 
 
-@registry.reg("cuda.conv2d.gen_function")
+@registry.reg("cuda.conv2d_groups.gen_function")
 def gen_function(
     func_attrs,
     exec_cond_remplate,
     shape_eval_template,
     shape_save_template,
 ):
-    """Codegen for conv2d function."""
+    """Codegen for conv2d_groups function."""
     return common.gen_function(
         func_attrs,
         INSTANCE_TEMPLATE,
@@ -361,16 +361,16 @@ def gen_function(
     )
 
 
-@registry.reg("cuda.conv2d.func_decl")
-def conv2d_gen_function_decl(func_attrs):
-    """Codegen for conv2d function declaration."""
+@registry.reg("cuda.conv2d_groups.func_decl")
+def conv2d_groups_gen_function_decl(func_attrs):
+    """Codegen for conv2d_groups function declaration."""
     func_name = func_attrs["name"]
     return FUNC_DECL_TEMPLATE.render(func_name=func_name)
 
 
-@registry.reg("cuda.conv2d.func_call")
-def conv2d_gen_function_call(func_attrs, indent="  "):
-    """Codegen for conv2d function call."""
+@registry.reg("cuda.conv2d_groups.func_call")
+def conv2d_groups_gen_function_call(func_attrs, indent="  "):
+    """Codegen for conv2d_groups function call."""
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
     w = func_attrs["inputs"][1]
@@ -399,8 +399,8 @@ def conv2d_gen_function_call(func_attrs, indent="  "):
     )
 
 
-@registry.reg("cuda.conv2d.filter")
-def conv2d_function_filter(cfg, func_attrs, x_shape):
+@registry.reg("cuda.conv2d_groups.filter")
+def conv2d_groups_function_filter(cfg, func_attrs, x_shape):
     """Generates function filter.
 
     Parameters
