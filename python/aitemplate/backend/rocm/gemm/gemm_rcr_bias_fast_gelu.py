@@ -95,6 +95,7 @@ def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
         exec_cond_template,
         dim_info_dict,
         "bias_fast_gelu",
+        output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(output_accessor=func_attrs["output_accessors"][0]),
     )
 
 
