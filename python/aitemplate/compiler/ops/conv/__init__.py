@@ -32,5 +32,5 @@ from .depthwise_conv3d import depthwise_conv3d
 from .transposed_conv2d import transposed_conv2d
 from .transposed_conv2d_bias import transposed_conv2d_bias
 from .transposed_conv2d_bias_relu import transposed_conv2d_bias_relu
-from .conv2d_groups import conv2d_groups
-from .conv2d_groups_bias import conv2d_groups_bias
+from .conv2d_depthwise import conv2d_depthwise
+from .conv2d_depthwise_bias import conv2d_depthwise_bias

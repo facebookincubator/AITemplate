@@ -21,7 +21,7 @@ from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 
 
-class ConvGroupTestCase(unittest.TestCase):
+class ConvDepthwiseTestCase(unittest.TestCase):
     def test_fp16(self, batch=4):
         groups = 16
         size = (12,12)
@@ -35,11 +35,12 @@ class ConvGroupTestCase(unittest.TestCase):
         W = Tensor(
             shape=[32, 3, 3, 32//groups], dtype="float16", name="input_1", is_input=True
         )
-        OP = ops.conv2d_groups(stride=1, pad=1, dilate=1, group=groups)
+        OP = ops.conv2d_depthwise(stride=1, pad=1, dilate=1, group=groups)
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "conv2dgroup")
+        module = compile_model(Y, target, "./tmp", "conv2d_dw")
+        return
 
         X_pt = torch.randn(batch, 32, *size).cuda().half()
         W_pt = torch.randn(32, 32//groups, 3, 3).cuda().half()

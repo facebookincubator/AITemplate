@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 """
-Fused conv2d_groups op.
+Fused conv2d_depthwise_bias op.
 """
 from typing import Tuple
 
@@ -21,11 +21,11 @@ from ...base import Tensor
 from .conv2d import conv2d
 
 # pylint: disable=C0103
-class conv2d_groups(conv2d):
-    """Base class of conv2d with groups."""
+class conv2d_depthwise_bias(conv2d):
+    """Base class of conv2d with groups and bias."""
 
     def __init__(self, stride, pad, dilate=1, group=1) -> None:
-        """conv2d_groups constructor.
+        """conv2d_depthwise_bias constructor.
 
         Parameters
         ----------
@@ -40,11 +40,11 @@ class conv2d_groups(conv2d):
             channels to output channels, by default 1
         """
         super().__init__(stride, pad, dilate=dilate, group=group)
-        self._attrs["op"] = "conv2d_groups"
+        self._attrs["op"] = "conv2d_depthwise_bias"
         self._attrs["epilogue"] = "LinearCombinationRelu"
 
-    def __call__(self, x: Tensor, w: Tensor):
-        """Call conv2d_groups with tensors x, w, b
+    def __call__(self, x: Tensor, w: Tensor, b: Tensor):
+        """Call conv2d_depthwise_bias with tensors x, w, b
 
         Parameters
         ----------
@@ -52,13 +52,15 @@ class conv2d_groups(conv2d):
             in shape (N, H, W, C_in)
         w : Tensor
             in shape (C_out, K_h, K_w, C_in)
+        b : Tensor
+            in shape (C_out)
 
         Returns
         -------
         List[Tensor]
             includes the output tensor in shape (N, H_out, W_out, C_out)
         """
-        self._attrs["inputs"] = [x, w]
+        self._attrs["inputs"] = [x, w, b]
         self._set_depth()
         output_shape = self._infer_shapes(x, w)
         output = Tensor(output_shape, src_ops={self})
