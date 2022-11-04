@@ -26,6 +26,8 @@ from typing import Any, Dict, List, Set, Union
 
 import numpy as np
 
+from aitemplate.compiler.stable_set import StableSet
+
 from aitemplate.utils.torch_utils import torch_dtype_to_string
 
 from ..utils.tensor_utils import wrap_dim
@@ -42,7 +44,6 @@ class Node(ABC):
         Initializes self._attrs field, which is a dict that stores
         all attributes for this Node.
         Basic attributes include:
-
             * name: str, name of the node.
             * depth: int, depth of the node in a graph. None if this is not applicable.
             * nop: bool, marks whether this node is a no-operation.
@@ -205,6 +206,7 @@ class IntImm(IntVar):
 
 
 _DTYPE2BYTE = {
+    "bool": 1,
     "float16": 2,
     "float32": 4,
     "float": 4,
@@ -365,13 +367,15 @@ class Tensor(Node):
         self,
         shape: List[IntVar],
         name: str = None,
-        src_ops: Set[Node] = None,
-        dst_ops: Set[Node] = None,
+        src_ops: StableSet[Node] = None,
+        dst_ops: StableSet[Node] = None,
         dtype: str = "float16",
         is_input: bool = False,
         is_output: bool = False,
         value: Any = None,
         is_view_of: Any = None,
+        check_nan_and_inf: bool = False,
+        check_outputs: bool = False,
     ) -> None:
         """Initializes a Tensor.
 
@@ -400,12 +404,20 @@ class Tensor(Node):
             empty list, this Tensor is used to represent a number.
         is_view_of : Any, optional
             Whether this Tensor is a view of another Tensor.
+        check_nan_and_inf : bool, optional
+            Whether or not to check this tensor is nan or inf during runtime.
+        check_outputs : bool, optional
+            Whether or not to print this tensor's value out during runtime.
         """
         super().__init__()
         self._attrs["shape"] = self._convert_shape(shape)
         self._attrs["name"] = name
-        self._attrs["src_ops"] = src_ops if src_ops is not None else set()
-        self._attrs["dst_ops"] = dst_ops if dst_ops is not None else set()
+        self._attrs["src_ops"] = (
+            StableSet(src_ops) if src_ops is not None else StableSet()
+        )
+        self._attrs["dst_ops"] = (
+            StableSet(dst_ops) if dst_ops is not None else StableSet()
+        )
         self._attrs["dtype"] = dtype
         self._attrs["is_output"] = is_output
         self._attrs["is_input"] = is_input
@@ -436,6 +448,9 @@ class Tensor(Node):
 
         # Data to be bound for constant folding. See _bind_data.
         self._attrs["data"] = None
+
+        self._attrs["check_nan_and_inf"] = check_nan_and_inf
+        self._attrs["check_outputs"] = check_outputs
 
     def __str__(self) -> str:
         output = {}
@@ -511,7 +526,7 @@ class Tensor(Node):
 
         if with_shape:
             shapes = ", ".join([dim.pseudo_code() for dim in self._attrs["shape"]])
-            args.append(f"shape={shapes}")
+            args.append(f"shape=[{shapes}]")
 
         data = self._attrs["data"]
         if data is not None:
@@ -627,6 +642,7 @@ class IntVarTensor(Tensor):
             name,
             src_ops,
             dst_ops,
+            dtype=dtype,
             is_input=is_input,
             is_output=is_output,
         )
@@ -634,6 +650,30 @@ class IntVarTensor(Tensor):
 
     def pseudo_code(self, with_shape=True) -> str:
         return f"IntVarTensor({self._attrs['int_var'].pseudo_code()})"
+
+    def __add__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_ADD")(self, other)
+
+    def __radd__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_ADD")(other, self)
+
+    def __sub__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_SUB")(self, other)
+
+    def __rsub__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_SUB")(other, self)
+
+    def __mul__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_MUL")(self, other)
+
+    def __rmul__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_MUL")(other, self)
+
+    def __truediv__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_DIV")(self, other)
+
+    def __rtruediv__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_DIV")(other, self)
 
 
 class DynamicProfileStrategy(Enum):

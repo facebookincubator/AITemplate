@@ -31,7 +31,6 @@ class perm021fc_ccr_bias(perm021fc_ccr):
 
     .. highlight:: python
     .. code-block:: python
-
         X_pt = torch.randn(B, K, M).cuda().half()
         W_pt = torch.randn(N, K).cuda().half()
         Bias_pt = torch.randn(N).cuda().half()

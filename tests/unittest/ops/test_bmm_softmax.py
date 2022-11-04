@@ -40,6 +40,9 @@ class BMMSoftmaxTestCase(unittest.TestCase):
         if int(target._arch) < 80:
             logger.warning(__file__, "Skip this test on SM75")
             return
+        if type(target).__name__ == "FBCUDA":
+            logger.warning(__file__, "Skip this test for special profiling requirement")
+            return
         module = compile_model(Y, target, "./tmp", test_name)
         X_pt = torch.randn(B, M, K).cuda().half()
         W_pt = torch.randn(B, N, K).cuda().half()

@@ -70,7 +70,8 @@ class GEMMTestCase(unittest.TestCase):
             # This test triggered a c10 assertion failure internally
             # caffe2/c10/util/SmallVector.h:338:
             # Assertion `idx < size()' failed
-
+            if type(target).__name__ != "FBCUDA":
+                self._test_rcr([2], N=64, K=0, test_name="zero_k")
             self._test_rcr([2], N=0, K=4, test_name="zero_n")
             self._test_rcr([0], N=4, K=4, test_name="zero_m")
 

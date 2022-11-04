@@ -31,7 +31,6 @@ class perm102_bmm_rcr_bias(perm102_bmm_rcr):
 
     .. highlight:: python
     .. code-block:: python
-
         X_pt = torch.randn(M, B, K).cuda().half()
         W_pt = torch.randn(B, N, K).cuda().half()
         B_pt = torch.randn(B, N).cuda().half()

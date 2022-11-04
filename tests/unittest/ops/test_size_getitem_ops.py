@@ -66,6 +66,7 @@ class SizeOpTestCase(unittest.TestCase):
         X_shape=(16, 32, 64),
         Y_shape=(-1, 16, 16, 128),
         test_name="tensor_size_op",
+        copy_op=False,
     ):
         target = detect_target()
         X1 = Tensor(
@@ -75,8 +76,13 @@ class SizeOpTestCase(unittest.TestCase):
             is_input=True,
         )
 
-        Y1 = ops.flatten(1, -1)(ops.elementwise(FuncEnum.ADD)(X1, X1))
-        Y2 = ops.flatten(1, -1)(ops.elementwise(FuncEnum.MUL)(X1, X1))
+        Y1_op = ops.flatten(1, -1)
+        Y2_op = ops.flatten(1, -1)
+        if copy_op:
+            Y1_op = ops.flatten(**Y1_op._get_op_attributes())
+            Y2_op = ops.flatten(**Y2_op._get_op_attributes())
+        Y1 = Y1_op(ops.elementwise(FuncEnum.ADD)(X1, X1))
+        Y2 = Y2_op(ops.elementwise(FuncEnum.MUL)(X1, X1))
         Y3 = ops.concatenate()([Y1, Y2], 0)
         dim = ops.size()(Y3, -4)  # test negative dim
         Y = ops.reshape()(Y2, [dim, -1])
@@ -106,6 +112,7 @@ class SizeOpTestCase(unittest.TestCase):
         self._test_size_op([3, 1], (5, 4, 16), (-1, 8), "size_op_2")
 
         self._test_size_op_2(test_name="size_op_3")
+        self._test_size_op_2(test_name="size_op_3_copy_op", copy_op=True)
 
 
 if __name__ == "__main__":

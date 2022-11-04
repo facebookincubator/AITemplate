@@ -41,6 +41,8 @@ def ptr_decl(name, dtype="float16", indent="  "):
         type_string = "int64_t*"
     elif dtype in ["int", "int32"]:
         type_string = "int32_t*"
+    elif dtype == "bool":
+        type_string = "bool*"
     else:
         raise NotImplementedError
     return PTR_TEMPLATE.render(name=name, dtype=type_string, indent=indent)

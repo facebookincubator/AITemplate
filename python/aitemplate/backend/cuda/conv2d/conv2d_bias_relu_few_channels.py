@@ -44,7 +44,7 @@ def conv2d_config(func_attrs, dtype="float16"):
 @registry.reg("cuda.conv2d_bias_relu_few_channels.gen_profiler")
 def gen_profiler(func_attrs, workdir, shape_template):
     """generate code for profiling"""
-    cba.gen_profiler(func_attrs, workdir, shape_template)
+    return cba.gen_profiler(func_attrs, workdir, shape_template)
 
 
 @registry.reg("cuda.conv2d_bias_relu_few_channels.gen_function")

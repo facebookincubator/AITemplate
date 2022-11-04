@@ -182,7 +182,7 @@ def gen_profiler(
         )
         common.add_profiler(file_pairs, workdir, op_type, op_name, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)
 
 
 def gen_function_decl(func_attrs):

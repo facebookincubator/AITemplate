@@ -41,10 +41,8 @@ def gen_function(
     func_name = func_attrs["name"]
     exec_path = func_attrs["exec_path"]
     x = func_attrs["inputs"][0]
-    y = func_attrs["outputs"][0]
     backend_spec = CUDASpec()
     input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
     half2_data_ref = backend_spec.half2_data_ref
 
     shape_eval_func = shape_eval_template.render(
@@ -66,7 +64,7 @@ def gen_function(
     shape_func = shape_eval_func + shape_save_func
     exec_paths = ""
     for key in exec_path:
-        program = upsampling2d_common.EXEC_TEMPLATE.render()
+        program = upsampling2d_common.EXEC_TEMPLATE.render(dtype=input_type)
         exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return upsampling2d_common.SRC_TEMPLATE.render(
@@ -76,8 +74,6 @@ def gen_function(
         exec_paths=exec_paths,
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         half2_data_ref=half2_data_ref,
         mode=func_attrs["mode"],
         tsize=upsampling2d_common.gen_alignment(x),

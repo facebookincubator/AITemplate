@@ -23,7 +23,7 @@ from aitemplate.testing import detect_target
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class PadLastDim(unittest.TestCase):
-    def test_static_shape_4d(self):
+    def _test_static_shape_4d(self, copy_op=False):
         NN = 2
         HH = 7
         WW = 7
@@ -31,11 +31,13 @@ class PadLastDim(unittest.TestCase):
         CO = 264
         X = Tensor(shape=[NN, HH, WW, CI], name="X", is_input=True)
         op = ops.pad_last_dim(4, CO)
+        if copy_op:
+            op = ops.pad_last_dim(**op._get_op_attributes())
         Y = op(X)
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "pad_last_dim4d")
+        module = compile_model(Y, target, "./tmp", f"pad_last_dim4d_{copy_op}")
 
         X_pt = torch.randn(NN, HH, WW, CI).cuda().half()
         Pad_pt = torch.zeros(NN, HH, WW, CO - CI).cuda().half()
@@ -44,6 +46,10 @@ class PadLastDim(unittest.TestCase):
         y = torch.empty([NN, HH, WW, CO]).cuda().half()
         module.run_with_tensors([X_pt], [y])
         self.assertTrue(torch.allclose(y, Y_pt, atol=1e-2, rtol=1e-2))
+
+    def test_static_shape_4d(self):
+        self._test_static_shape_4d()
+        self._test_static_shape_4d(copy_op=True)
 
     def test_static_shape_2d(self):
         NN = 32

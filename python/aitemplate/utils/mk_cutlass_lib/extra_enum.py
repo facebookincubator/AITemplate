@@ -31,6 +31,7 @@ class EpilogueFunctor(enum.Enum):
   LinearCombinationGELU = enum_auto()
   LinearCombinationFastGELU = enum_auto()
   LinearCombinationSilu = enum_auto()
+  LeftSiLUAndMul = enum_auto()
 
 EpilogueFunctorTag = {
   EpilogueFunctor.LinearCombination:
@@ -55,6 +56,8 @@ EpilogueFunctorTag = {
     'cutlass::epilogue::thread::LinearCombinationFastGELU',
   EpilogueFunctor.LinearCombinationSilu:
     'cutlass::epilogue::thread::LinearCombinationSilu',
+  EpilogueFunctor.LeftSiLUAndMul:
+    'cutlass::epilogue::thread::LeftSiLUAndMul',
 }
 
 EpilogueFunctorName = {
@@ -68,7 +71,8 @@ EpilogueFunctorName = {
   "LinearCombinationHardSwish": EpilogueFunctor.LinearCombinationHardSwish,
   "LinearCombinationGELU": EpilogueFunctor.LinearCombinationGELU,
   "LinearCombinationFastGELU": EpilogueFunctor.LinearCombinationFastGELU,
-  "LinearCombinationSilu": EpilogueFunctor.LinearCombinationSilu
+  "LinearCombinationSilu": EpilogueFunctor.LinearCombinationSilu,
+  "LeftSiLUAndMul": EpilogueFunctor.LeftSiLUAndMul
 }
 
 class EpilogueMath(enum.Enum):

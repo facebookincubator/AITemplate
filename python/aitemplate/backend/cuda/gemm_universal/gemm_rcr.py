@@ -20,6 +20,8 @@ where A[RowMajor][M, K], B[ColMajor][N, K]
 import jinja2
 
 from ... import registry
+
+from ...backend_spec import CUDASpec
 from . import common
 from .layout import RCR
 
@@ -49,10 +51,10 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     {M, N, K},
     split_k,
     {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},
-    (void*) (a_ptr + input_a_offset),
-    (void*) (b_ptr + input_b_offset),
-    (void*) (c_ptr + output_offset),
-    (void*) (c_ptr + output_offset),
+    ({{elem_input_type}}*)(a_ptr) + input_a_offset,
+    ({{elem_input_type}}*)(b_ptr) + input_b_offset,
+    ({{elem_output_type}}*)(c_ptr) + output_offset,
+    ({{elem_output_type}}*)(c_ptr) + output_offset,
     input_a_batch_stride,
     input_b_batch_stride,
     /*output_batch_stride*/ M * N,
@@ -72,10 +74,10 @@ PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     {M, N, K},
     split_k,
     {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},
-    (void*) a_ptr,
-    (void*) b_ptr,
-    (void*) c_ptr,
-    (void*) (c_ptr + output_offset),
+    ({{elem_input_type}}*)(a_ptr),
+    ({{elem_input_type}}*)(b_ptr),
+    ({{elem_output_type}}*)(c_ptr),
+    ({{elem_output_type}}*)(c_ptr) + output_offset,
     M * K,
     N * K,
     M * N,
@@ -90,12 +92,13 @@ PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 
 @registry.reg("cuda.gemm_rcr.config")
 def gemm_rcr_config(func_attrs, dtype="float16"):
-    common.make_fproc_f16(func_attrs, RCR)
+    common.make_fproc(func_attrs, RCR)
 
 
 def common_gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     dim_info_dict,
     src_template,
     problem_args_template,
@@ -105,9 +108,10 @@ def common_gen_profiler(
     output_addr_calculator = common.DEFAULT_OUTPUT_ADDR_CALCULATOR.render(
         stride_dim="*b_dim0"
     )
-    common.gen_profiler(
+    return common.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         src_template,
         problem_args_template,
@@ -120,10 +124,11 @@ def common_gen_profiler(
 
 
 @registry.reg("cuda.gemm_rcr.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     return common_gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common.SRC_TEMPLATE,
         PROFILER_PROBLEM_ARGS_TEMPLATE,
@@ -172,7 +177,17 @@ def gen_function(
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
     output_ndims = len(func_attrs["output_accessors"][0].original_shapes)
-    problem_args = PROBLEM_ARGS_TEMPLATE.render()
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    problem_args = PROBLEM_ARGS_TEMPLATE.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+    )
     return common.gen_function(
         func_attrs,
         common.SRC_TEMPLATE,

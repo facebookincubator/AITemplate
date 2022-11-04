@@ -18,11 +18,10 @@ Common functions and templates for perm021_ccr_bias_permute, which computes
 """
 from ... import registry
 
-from ..gemm_universal import common
-
 from . import (
     bmm_common,
     bmm_permute_common,
+    common,
     common_bias,
     common_permute,
     perm021fc_ccr_bias,
@@ -85,24 +84,34 @@ class Tensor3DPermute021BMM {
 
 @registry.reg("cuda.perm021fc_ccr_bias_permute.config")
 def config(func_attrs, dtype="float16"):
-    def fproc_f16(op):
+    def fproc(op):
         import cutlass_lib
 
-        return common_permute.default_fproc_f16(
+        from ...backend_spec import CUDASpec
+
+        backend_spec = CUDASpec()
+        elem_type = backend_spec.dtype_to_lib_type(
+            func_attrs["inputs"][0]._attrs["dtype"]
+        )
+
+        return common.default_fproc(
             op=op,
             a_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             b_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             c_layout=cutlass_lib.library.LayoutType.RowMajor,
+            elem_type=elem_type,
             epiligue_name=func_attrs["epilogue"],
             permute_layout=func_attrs["layout"],
         )
 
-    func_attrs["op_instance"] = common_permute.extract_config(fproc_f16, func_attrs)
+    func_attrs["op_instance"] = common_permute.extract_config(fproc, func_attrs)
 
 
 @registry.reg("cuda.perm021fc_ccr_bias_permute.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
-    return perm021fc_ccr_bias.gen_profiler(func_attrs, workdir, dim_info_dict)
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
+    return perm021fc_ccr_bias.gen_profiler(
+        func_attrs, workdir, profiler_filename, dim_info_dict
+    )
 
 
 @registry.reg("cuda.perm021fc_ccr_bias_permute.gen_function")
@@ -112,9 +121,11 @@ def gen_function(
     dim_info_dict,
 ):
     mm_info = perm021fc_ccr_bias._get_problem_info(
-        alpha_value=func_attrs.get("alpha", 1)
+        alpha_value=func_attrs.get("alpha", 1),
     )
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
 
     return bmm_permute_common.gen_function(
         func_attrs,

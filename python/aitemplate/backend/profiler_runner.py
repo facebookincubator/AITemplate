@@ -28,12 +28,19 @@ from .task_runner import BaseRunner, Task
 
 # pylint: disable=W0221
 
+PROF_RUNTIME_PATTERN = re.compile(r"OP:([a-zA-Z0-9_]+),TIME:([\d\.]+),WS:([\d]+)")
+# FIXME: We will remove the following two patterns once we implement the
+# same profiling mechanism as gemm for conv and amd
 RUNTIME_PATTERN = re.compile(r"TIME:([\d\.]+)")
 WORKSPACE_PATTERN = re.compile(r"WS:([\d]+)")
 
-ProfileResult = namedtuple("ProfileResult", "duration workspace")
+ProfileResult = namedtuple("ProfileResult", "op_config duration workspace")
 """Object to store profiling result
 """
+
+
+def optimization_key(result):
+    return float(result[1])
 
 
 def process_task(task: Task) -> None:
@@ -47,7 +54,7 @@ def process_task(task: Task) -> None:
     stdout = task._stdout
     stderr = task._stderr
     if len(stderr) > 0:
-        task._failed = True
+        # task._failed = True
         logger.debug(
             __name__,
             "Failed: [{name}][{algo}]\ncmd:\n{cmd}\nstderr:\n{stderr}".format(
@@ -57,15 +64,36 @@ def process_task(task: Task) -> None:
                 stderr=stderr,
             ),
         )
+
+    runtimes = PROF_RUNTIME_PATTERN.findall(stdout)
+    if len(runtimes) > 0:
+        logger.debug(__name__, f"all runtimes (unsorted): {runtimes}")
+        # format - OP:xx,TIME:x.xx,WS:xx
+        try:
+            best_runtime = min(runtimes, key=optimization_key)
+            op_config = best_runtime[0]
+            duration = float(best_runtime[1])
+            workspace = int(best_runtime[2])
+        except Exception:
+            duration = 0
+            workspace = 0
+            task._failed = True
     else:
-        duration = float(RUNTIME_PATTERN.findall(stdout)[0])
-        workspace = int(WORKSPACE_PATTERN.findall(stdout)[0])
-        task._ret = ProfileResult(duration, workspace)
+        # FIXME: remove it once we unify our profiling mechanism for conv and amd
+        op_config = ""
+        try:
+            duration = float(RUNTIME_PATTERN.findall(stdout)[0])
+            workspace = int(WORKSPACE_PATTERN.findall(stdout)[0])
+        except Exception:
+            duration = 0
+            workspace = 0
+            task._failed = True
+    task._ret = ProfileResult(op_config, duration, workspace)
+    if not task._failed:
         logger.info(
             __name__,
-            "Successful: [{name}][{algo}]: TIME: {duration} WS:{ws}".format(
-                name=task._name, algo=task._idx, duration=duration, ws=workspace
-            ),
+            f"Successful: [{task._name}][{task._idx}]: OP: {op_config} "
+            f"TIME: {duration} WS:{workspace}",
         )
 
 

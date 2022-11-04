@@ -19,7 +19,7 @@ import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
-from aitemplate.frontend import Tensor
+from aitemplate.frontend import Tensor, tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
 from aitemplate.utils import shape_utils
@@ -327,31 +327,30 @@ class ConcatenateTestCase(unittest.TestCase):
         )
 
         self._run_concatenate(
-            concatenate_op=ops.concatenate(),
+            concatenate_op=tensor.cat(),
             input_shapes=([12, 3, 4, 5], [3, 3, 4, 5], [7, 3, 4, 5]),
             dim=0,
         )
         self._run_concatenate(
-            concatenate_op=ops.concatenate(),
+            concatenate_op=tensor.cat(),
             input_shapes=([2, 3, 4, 5], [2, 3, 4, 5], [2, 3, 4, 5]),
             dim=1,
         )
         self._run_concatenate(
-            concatenate_op=ops.concatenate(),
+            concatenate_op=tensor.cat(),
             input_shapes=([2, 3, 9, 5], [2, 3, 4, 5], [2, 3, 1, 5]),
             dim=2,
         )
         self._run_concatenate(
-            concatenate_op=ops.concatenate(),
+            concatenate_op=tensor.cat(),
             input_shapes=([2, 3, 4, 5], [2, 3, 4, 3], [2, 3, 4, 5]),
             dim=3,
         )
         self._run_concatenate(
-            concatenate_op=ops.concatenate(),
-            input_shapes=([1, 3, 1], [2, 3, 1], [3, 3, 1]),
+            concatenate_op=tensor.cat(), input_shapes=([1, 3, 1], [2, 3, 1], [3, 3, 1])
         )
         self._run_concatenate(
-            concatenate_op=ops.concatenate(),
+            concatenate_op=tensor.cat(),
             input_shapes=([2, 3, 4, 5], [2, 3, 4, 3], [2, 3, 4, 5]),
             dim=-1,
         )

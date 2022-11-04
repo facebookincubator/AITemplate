@@ -101,7 +101,7 @@ def bmm_rcr_softmax_config(func_attrs, dtype="float16"):
 @registry.reg("cuda.bmm_rcr_softmax.gen_profiler")
 def gen_profiler(func_attrs, workdir, dim_info_dict):
     """Generate code for profiling"""
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs,
         workdir,
         dim_info_dict,

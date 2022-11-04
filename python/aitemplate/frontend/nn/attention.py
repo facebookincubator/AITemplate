@@ -32,6 +32,18 @@ USE_CUDA = detect_target().name() == "cuda"
 
 
 class FlashAttention(Module):
+    r"""FlashAttention provides an implementation for fused
+    multi-head attention module:
+
+    .. math::
+        \text{Attention}(Q, K, V) = \text{softmax}(\frac{QK}{\sqrt(d)}) * V
+
+    .. math::
+        \text{MultiHead}(Q, K, V) = \text{Concat}(head_1,\dots,head_h)W^O
+
+    where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
+    """
+
     def __init__(
         self,
         batch_size,
@@ -58,6 +70,32 @@ class FlashAttention(Module):
 
 
 class MultiheadAttention(Module):
+    r"""Multi-Head Attention.
+
+    Allows the model to jointly attend to information
+    from different representation subspaces as described in the paper:
+    `Attention Is All You Need <https://arxiv.org/abs/1706.03762>`_.
+
+    Multi-Head Attention is defined as:
+
+    .. math::
+        \text{MultiHead}(Q, K, V) = \text{Concat}(head_1,\dots,head_h)W^O
+
+    where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
+
+    Args:
+        dim: toal dimension of the model
+        batch_size: batch size
+        seq_len: sequence length
+        num_heads: Number of parallel attention heads. Default: 8
+        qkv_bias: whether to add bias to QKV. Default: False
+        attn_drop: Dropout probability on attention output weights. Default: ``0.0`` (no dropout).
+        proj_drop: Dropout probability on projection layers. Default: ``0.0`` (no dropout).
+        has_residual: has or has no residual. Default: `True`.
+        causal: default: `False`.
+        mask_seq: sequence mask, default: ``0``.
+    """
+
     def __init__(
         self,
         dim,
@@ -70,6 +108,7 @@ class MultiheadAttention(Module):
         has_residual=True,
         causal=False,
         mask_seq=0,
+        use_mem_eff=False,
     ):
         super().__init__()
         assert (
@@ -81,22 +120,29 @@ class MultiheadAttention(Module):
         self.causal = causal
         self.has_residual = has_residual
         self.mask_seq = mask_seq
+        self.use_mem_eff = use_mem_eff
 
         flash_head_dims = {8, 16, 32, 64, 128}
         # simple heuristic, may need refinement
         self.use_flash = (
-            not (seq_len >= 384 and batch_size <= 3)
+            not (seq_len >= 512 and batch_size <= 2)
         ) and head_dim in flash_head_dims
         # odd seq try use flash
         if seq_len % 2 == 1:
             self.use_flash = True
 
-        self.op = flash_attention(
-            batch_size=batch_size,
-            dropout=attn_drop,
-            max_seq_len=seq_len,
-            causal=causal,
-        )
+        if use_mem_eff:
+            self.op = ops.mem_eff_attention(
+                causal=causal,
+            )
+            self.use_flash = False
+        else:
+            self.op = flash_attention(
+                batch_size=batch_size,
+                dropout=attn_drop,
+                max_seq_len=seq_len,
+                causal=causal,
+            )
         # cu_length: the cumulative sequence lengths, used to index into hidden_states.
         self.cu_length = Parameter(shape=[batch_size + 1], dtype="int32")
         if self.mask_seq:
@@ -163,6 +209,14 @@ class MultiheadAttention(Module):
             # input(x): (B*seqlen, 3, num_heads, head_dim)
             # output: (B, Seqlen, num_heads, head_dim)
             return self.op(x, self.cu_length.tensor())
+        elif USE_CUDA and self.use_mem_eff:
+            (q, k, v) = ops.split()(x, 1, dim=0)
+            _, b, num_heads, seqlen, d = self.get_shape(q)
+            return self.op(
+                ops.reshape()(q, [b, -1, seqlen, d]),
+                ops.reshape()(k, [b, -1, seqlen, d]),
+                ops.reshape()(v, [b, -1, seqlen, d]),
+            )
         else:
             # intput(q/k/v): (B*num_heads, seqlen, head_dim)
             # attn = (B, S, H) * (B, S, H) = (B, S, S) #RCR
@@ -192,9 +246,9 @@ class MultiheadAttention(Module):
                     causal=self.causal,
                 )
                 out = OP(
-                    (ops.reshape()(q, [-1, seqlen, d])),
-                    (ops.reshape()(k, [-1, seqlen, d])),
-                    (ops.reshape()(v, [-1, seqlen, d])),
+                    ops.reshape()(q, [-1, seqlen, d]),
+                    ops.reshape()(k, [-1, seqlen, d]),
+                    ops.reshape()(v, [-1, seqlen, d]),
                 )
             return out
 

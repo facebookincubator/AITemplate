@@ -21,9 +21,6 @@ from typing import Any, Dict, List, Tuple
 
 import jinja2
 
-from ... import builder
-from ...target import Target
-
 # pylint: disable=C0301
 
 FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
@@ -450,7 +447,4 @@ def gen_profiler(
     )
     op_name = func_attrs["op"]
     add_profiler(file_pairs, workdir, op_type, op_name, code)
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_pairs, target.compile_cmd(executable=True))
+    return file_pairs

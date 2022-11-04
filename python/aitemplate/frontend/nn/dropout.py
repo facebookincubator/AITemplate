@@ -19,6 +19,8 @@ from .module import Module
 
 
 class Dropout(Module):
+    r"""Dropout placeholder"""
+
     def __init__(
         self,
         p=0,
@@ -27,12 +29,15 @@ class Dropout(Module):
         super().__init__()
 
     def forward(self, *args):
+        r"""Not implemented."""
         assert len(args) == 1
         data = args[0]
         return data
 
 
 class DropPath(Dropout):
+    r"""DropPath placeholder"""
+
     def __init__(
         self,
         dtype="float16",

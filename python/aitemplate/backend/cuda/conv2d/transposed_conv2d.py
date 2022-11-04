@@ -19,6 +19,8 @@ import re
 
 import jinja2
 
+from aitemplate.backend.backend_spec import CUDASpec
+
 from ... import registry
 from . import common, conv2d
 
@@ -51,9 +53,9 @@ SRC_TEMPLATE = jinja2.Template(
 {{instances_def}}
 
 void {{function_name}} (
-    cutlass::half_t* in_ptr,
-    cutlass::half_t* weight_ptr,
-    cutlass::half_t* out_ptr,
+    void* in_ptr,
+    void* weight_ptr,
+    void* out_ptr,
     uint8_t* workspace,
     int64_t* batch,
     int64_t* out_ch,
@@ -209,6 +211,9 @@ def gen_profiler(func_attrs, workdir, shape_template):
         pad="pad",
     )
     file_pairs = []
+
+    backend_spec = CUDASpec()
+    dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
     for op_name, op in op_instance.items():
         config = emit_instance(op)
 
@@ -218,12 +223,11 @@ def gen_profiler(func_attrs, workdir, shape_template):
             config_name=config_name, name=name, config=config
         )
         exec_program = conv2d.EXEC_TEMPLATE.render(
-            indent="  ", is_profiler=True, instance=name
+            indent="  ", is_profiler=True, instance=name, dtype=dtype
         )
         op_func = SRC_TEMPLATE.render(
             instances=instance,
             function_name="conv",
-            dtype="cutlass::half_t",
             shape_func="",
             exec_paths=exec_program,
         )
@@ -232,7 +236,7 @@ def gen_profiler(func_attrs, workdir, shape_template):
         )
         common.add_profiler(file_pairs, workdir, op_type, op_name, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)
 
 
 @registry.reg("cuda.transposed_conv2d.filter")

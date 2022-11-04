@@ -18,6 +18,7 @@ import unittest
 import numpy as np
 import torch
 from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils import logger
@@ -101,7 +102,7 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         Y_src_ops = Y._attrs["src_ops"]
         if num_cat_ops == 1:
             np.testing.assert_equal(len(Y_src_ops), 2)
-            np.testing.assert_equal(Y_src_ops, {group_gemm_op, concat_op})
+            np.testing.assert_equal(Y_src_ops, StableSet({group_gemm_op, concat_op}))
             np.testing.assert_equal(
                 concat_op._attrs["input_masks"], [False, False, True, False]
             )
@@ -203,7 +204,7 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         )
         Y_src_ops = Y._attrs["src_ops"]
         np.testing.assert_equal(len(Y_src_ops), 2)
-        np.testing.assert_equal(Y_src_ops, {group_gemm_op, concat_op})
+        np.testing.assert_equal(Y_src_ops, StableSet({group_gemm_op, concat_op}))
         np.testing.assert_equal(concat_op._attrs["input_masks"], [False, False, True])
         expected_inputs_group_gemm_op = [X1, W1, B1, X2, W2, B2]
         np.testing.assert_equal(

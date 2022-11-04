@@ -214,24 +214,74 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             # Do comparisons.
             self.assertTrue(torch.allclose(x6, x5_pt, atol=1e-2, rtol=1e-2))
 
-    def _fused_gemm_e2e_helper(self, m: int, k: int, n1: int, n2: int, n3: int):
+    def _fused_gemm_e2e_helper(
+        self,
+        m: int,
+        k: int,
+        n1: int,
+        n2: int,
+        n3: int,
+        m2: int = -1,
+        cat_dim: int = 1,
+        no_fuse: bool = False,
+    ):
         # Construct one graph with 3 gemms + 1 cat.
-        X1 = Tensor(
-            shape=[IntImm(m), IntImm(k)],
-            dtype="float16",
-            name="X1",
-            is_input=True,
-        )
+        nd_gemm = m2 > 0
+        if nd_gemm:
+            X1 = Tensor(
+                shape=[IntImm(m), IntImm(m2), IntImm(k)],
+                dtype="float16",
+                name="X1",
+                is_input=True,
+            )
+            X2 = Tensor(
+                shape=[IntImm(m), IntImm(m2), IntImm(k)],
+                dtype="float16",
+                name="X2",
+                is_input=True,
+            )
+            X3 = Tensor(
+                shape=[IntImm(m), IntImm(m2), IntImm(k)],
+                dtype="float16",
+                name="X3",
+                is_input=True,
+            )
+            X4 = Tensor(
+                shape=[IntImm(m), IntImm(m2), IntImm(n2)],
+                dtype="float16",
+                name="X4",
+                is_input=True,
+            )
+        else:
+            X1 = Tensor(
+                shape=[IntImm(m), IntImm(k)],
+                dtype="float16",
+                name="X1",
+                is_input=True,
+            )
+            X2 = Tensor(
+                shape=[IntImm(m), IntImm(k)],
+                dtype="float16",
+                name="X2",
+                is_input=True,
+            )
+            X3 = Tensor(
+                shape=[IntImm(m), IntImm(k)],
+                dtype="float16",
+                name="X3",
+                is_input=True,
+            )
+            X4 = Tensor(
+                shape=[IntImm(m), IntImm(n2)],
+                dtype="float16",
+                name="X4",
+                is_input=True,
+            )
+
         W1 = Tensor(
             shape=[IntImm(n1), IntImm(k)],
             dtype="float16",
             name="W1",
-            is_input=True,
-        )
-        X2 = Tensor(
-            shape=[IntImm(m), IntImm(k)],
-            dtype="float16",
-            name="X2",
             is_input=True,
         )
         W2 = Tensor(
@@ -246,22 +296,10 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             name="B2",
             is_input=True,
         )
-        X3 = Tensor(
-            shape=[IntImm(m), IntImm(k)],
-            dtype="float16",
-            name="X3",
-            is_input=True,
-        )
         W3 = Tensor(
             shape=[IntImm(k), IntImm(n3)],
             dtype="float16",
             name="W3",
-            is_input=True,
-        )
-        X4 = Tensor(
-            shape=[IntImm(m), IntImm(n2)],
-            dtype="float16",
-            name="X4",
             is_input=True,
         )
 
@@ -269,7 +307,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         X6 = ops.gemm_rcr_bias()(X2, W2, B2)
         X7 = ops.gemm_rrr()(X3, W3)
         X8 = ops.gemm_rcr_bias_add_add_relu()(X2, W2, B2, X4, X4)
-        X9 = ops.concatenate()([X5, X6, X7, X8], dim=1)
+        X9 = ops.concatenate()([X5, X6, X7, X8], dim=cat_dim)
         X9._attrs["name"] = "output0"
         X9._attrs["is_output"] = True
 
@@ -282,21 +320,30 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             "fused_gemm_m_{}_k_{}_n1_{}_n2_{}_n3_{}".format(m, k, n1, n2, n3),
         ) as module:
 
-            # Verify the generated graph.
-            sorted_graph = module.debug_sorted_graph
-            self.assertEqual(len(sorted_graph), 9)
-            sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
-            self.assertEqual(len(sorted_ops), 4)
+            if not no_fuse:
+                # Verify the generated graph.
+                sorted_graph = module.debug_sorted_graph
+                self.assertEqual(len(sorted_graph), 9)
+                sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+                self.assertEqual(len(sorted_ops), 4)
 
-            # Run PyTorch baseline.
-            x1_pt = torch.randn(m, k).cuda().half()
+            if nd_gemm:
+                # Run PyTorch baseline.
+                x1_pt = torch.randn(m, m2, k).cuda().half()
+                x2_pt = torch.randn(m, m2, k).cuda().half()
+                x3_pt = torch.randn(m, m2, k).cuda().half()
+                x4_pt = torch.randn(m, m2, n2).cuda().half()
+            else:
+                # Run PyTorch baseline.
+                x1_pt = torch.randn(m, k).cuda().half()
+                x2_pt = torch.randn(m, k).cuda().half()
+                x3_pt = torch.randn(m, k).cuda().half()
+                x4_pt = torch.randn(m, n2).cuda().half()
+
             w1_pt = torch.randn(n1, k).cuda().half()
-            x2_pt = torch.randn(m, k).cuda().half()
             w2_pt = torch.randn(n2, k).cuda().half()
             b2_pt = torch.randn(n2).cuda().half()
-            x3_pt = torch.randn(m, k).cuda().half()
             w3_pt = torch.randn(k, n3).cuda().half()
-            x4_pt = torch.randn(m, n2).cuda().half()
 
             x5_pt = torch.nn.functional.linear(x1_pt, w1_pt)
             x6_pt = torch.nn.functional.linear(x2_pt, w2_pt, b2_pt)
@@ -305,7 +352,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 torch.nn.functional.linear(x2_pt, w2_pt, b2_pt) + x4_pt + x4_pt
             )
 
-            x9_pt = torch.cat([x5_pt, x6_pt, x7_pt, x8_pt], dim=1)
+            x9_pt = torch.cat([x5_pt, x6_pt, x7_pt, x8_pt], dim=cat_dim)
 
             # Run AITemplate module.
             inputs = [0] * 8
@@ -321,7 +368,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
             inputs[name_to_idx["B2"]] = b2_pt
 
-            x9 = torch.empty([m, n1 + n2 + n3 + n2]).cuda().half()
+            x9 = torch.empty(x9_pt.shape).cuda().half()
             module.run_with_tensors(inputs, [x9])
 
             # Do comparisons.
@@ -332,6 +379,11 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         self._fused_gemm_e2e_helper(m=1024, k=256, n1=32, n2=32, n3=64)
         self._fused_gemm_e2e_helper(m=1024, k=128, n1=16, n2=32, n3=8)
         self._fused_gemm_e2e_helper(m=1024, k=256, n1=8, n2=16, n3=32)
+
+        self._fused_gemm_e2e_helper(m=1024, k=256, n1=8, n2=16, n3=32, m2=8, cat_dim=2)
+        self._fused_gemm_e2e_helper(
+            m=1024, k=256, n1=32, n2=32, n3=32, m2=8, cat_dim=1, no_fuse=True
+        )
 
     def _fused_gemm_alignment_e2e_helper(
         self, gemm_op, input_n: int, m: int, k: int, n: int
@@ -1550,7 +1602,103 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         y_pt = y_pt.cpu().numpy()
 
-        np.testing.assert_allclose(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
+        torch.testing.assert_close(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
+
+    def test_strided_op_multiple_cats(self):
+        # y1 = concat(x0, x1) # [4, 30]
+        # y2 = slice(y1) # [4, 6]
+        # y = concat(y1, y2) # [4, 36]
+        x0_shape = [4, 10]
+        x1_shape = [4, 20]
+        input_type = "float16"
+        cat_dim = 1
+        test_name = "test_strided_op_multiple_cats"
+
+        target = detect_target()
+        X0 = Tensor(shape=x0_shape, dtype=input_type, name="x0", is_input=True)
+        X1 = Tensor(shape=x1_shape, dtype=input_type, name="x1", is_input=True)
+
+        Y1 = ops.concatenate()([X0, X1], dim=cat_dim)
+        slice_start_indices = [0, 0]
+        slice_end_indices = [None, 6]
+        Y2 = ops.dynamic_slice()(
+            Y1, start_indices=slice_start_indices, end_indices=slice_end_indices
+        )
+        Y = ops.concatenate()([Y1, Y2], dim=cat_dim)
+
+        Y._attrs["name"] = "output"
+        Y._attrs["is_output"] = True
+
+        module = compile_model(Y, target, "./tmp", test_name)
+
+        x0_pt = get_random_torch_tensor(x0_shape, input_type)
+        x1_pt = get_random_torch_tensor(x1_shape, input_type)
+        y1_pt = torch.cat([x0_pt, x1_pt], dim=cat_dim)
+        slice_indices = [
+            slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
+        ]
+        y2_pt = y1_pt[slice_indices]
+        y_pt = torch.cat([y1_pt, y2_pt], dim=cat_dim)
+
+        y = torch.empty(y_pt.size()).cuda().half()
+        inputs = {"x0": x0_pt, "x1": x1_pt}
+        module.run_with_tensors(inputs, [y])
+        y_pt = y_pt.cpu().numpy()
+
+        torch.testing.assert_close(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
+
+    def test_strided_op_multiple_cats_2(self):
+        # y1 = x0 + x1
+        # y2 = slice(y1)
+        # y3 = concat(x2, y2)
+        # y = concat(y3, y3)
+        x0_shape = [4, 10]
+        x1_shape = [4, 10]
+        x2_shape = [4, 20]
+        input_type = "float16"
+        cat_dim = 1
+        test_name = "test_strided_op_multiple_cats_2"
+
+        target = detect_target()
+        X0 = Tensor(shape=x0_shape, dtype=input_type, name="x0", is_input=True)
+        X1 = Tensor(shape=x1_shape, dtype=input_type, name="x1", is_input=True)
+        X2 = Tensor(shape=x2_shape, dtype=input_type, name="x2", is_input=True)
+
+        Y1 = ops.elementwise(FuncEnum.ADD)(X0, X1)
+        slice_start_indices = [0, 0]
+        slice_end_indices = [None, 12]
+        Y2 = ops.dynamic_slice()(
+            Y1, start_indices=slice_start_indices, end_indices=slice_end_indices
+        )
+        Y3 = ops.concatenate()([X2, Y2], dim=cat_dim)
+        Y = ops.concatenate()([Y3, Y3], dim=cat_dim)
+
+        Y._attrs["name"] = "output"
+        Y._attrs["is_output"] = True
+
+        module = compile_model(Y, target, "./tmp", test_name)
+        sorted_graph = module.debug_sorted_graph
+        sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+        self.assertEqual(len(sorted_ops), 2)
+        self.assertEqual(sorted_ops[1]._attrs["op"], "concatenate")
+
+        x0_pt = get_random_torch_tensor(x0_shape, input_type)
+        x1_pt = get_random_torch_tensor(x1_shape, input_type)
+        x2_pt = get_random_torch_tensor(x2_shape, input_type)
+        y1_pt = x0_pt + x1_pt
+        slice_indices = [
+            slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
+        ]
+        y2_pt = y1_pt[slice_indices]
+        y3_pt = torch.cat([x2_pt, y2_pt], dim=cat_dim)
+        y_pt = torch.cat([y3_pt, y3_pt], dim=cat_dim)
+
+        y = torch.empty(y_pt.size()).cuda().half()
+        inputs = {"x0": x0_pt, "x1": x1_pt, "x2": x2_pt}
+        module.run_with_tensors(inputs, [y])
+        y_pt = y_pt.cpu().numpy()
+
+        torch.testing.assert_close(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
 
 
 if __name__ == "__main__":

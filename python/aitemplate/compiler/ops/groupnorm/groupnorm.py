@@ -19,6 +19,7 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
+from operator import itemgetter
 from typing import Any, List, Union
 
 import jinja2
@@ -128,7 +129,6 @@ class group_norm(Operator):
         self._sanity_check(x, gamma, beta)
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        self._extract_exec_path()
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         return output
@@ -250,13 +250,14 @@ class group_norm(Operator):
         runner.join()
         result = runner.pull()
 
-        out = sorted(result, key=lambda x: x[1])
-        if len(out) == 0:
+        if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " + "" + "failed. " "Results: {}.".format(result)
+                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
-        best_algo = out[0][0]
-        workspace = out[0][1].workspace
+
+        out = min(result, key=itemgetter(1))
+        best_algo = out[0]
+        workspace = out[1].workspace
         ## cache
         cache_record = NormRecordEntry(
             exec_entry=exec_key,
@@ -402,3 +403,9 @@ class group_norm(Operator):
 
     def _inputs_for_pseudo_code(self):
         return self._attrs["inputs"] + [f"num_groups={self._attrs['num_groups']}"]
+
+    def _get_op_attributes(self):
+        return {
+            "num_groups": self._attrs["num_groups"],
+            "num_channels": self._attrs["num_channels"],
+        }

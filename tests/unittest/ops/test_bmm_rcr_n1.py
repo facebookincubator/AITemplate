@@ -26,7 +26,7 @@ from aitemplate.utils import shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class BMMTestCase(unittest.TestCase):
+class BMMRcrN1TestCase(unittest.TestCase):
     def _test_rcr_n1(self, Bs, Ms, N, K, use_fp16_acc, test_name):
         target = detect_target(use_fp16_acc=use_fp16_acc)
         BDim = shape_utils.gen_int_var_min_max(Bs, name="batch")

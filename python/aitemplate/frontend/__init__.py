@@ -16,4 +16,4 @@ from ..compiler.base import DynamicProfileStrategy, IntImm, IntVar, Tensor  # no
 from . import nn
 from .nn.parameter import Parameter
 
-__all__ = ["nn", "Parameter"]
+__all__ = ["nn", "tensor", "Parameter"]

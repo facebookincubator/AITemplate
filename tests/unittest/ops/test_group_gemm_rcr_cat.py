@@ -25,7 +25,7 @@ from aitemplate.utils import logger
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class GEMMTestCase(unittest.TestCase):
+class GroupGEMMRcrCatTestCase(unittest.TestCase):
     def test_rcr_cat(self):
         M = 256
         K1 = 128

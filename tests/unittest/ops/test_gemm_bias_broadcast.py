@@ -227,6 +227,8 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             # This test triggered a c10 assertion failure internally
             # caffe2/c10/util/SmallVector.h:338:
             # Assertion `idx < size()' failed
+            if type(target).__name__ != "FBCUDA":
+                self._test_bias_rcr_add_add_relu(21, None, None, 0, 512)
 
     def _test_bias_rcr_mul(self, m, m0, m1, k, n):
         target = detect_target()

@@ -21,8 +21,6 @@ from typing import Any, Dict
 
 import jinja2
 
-from ... import builder
-from ...target import Target
 from .efficient_nms_kernel import kernel
 
 # pylint: disable=C0301
@@ -244,7 +242,4 @@ def gen_profiler(func_attrs, workdir, header_files, backend_spec):
     )
     op_name = func_attrs["op"]
     add_profiler(file_pairs, workdir, op_type, op_name, code)
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_pairs, target.compile_cmd(executable=True))
+    return file_pairs

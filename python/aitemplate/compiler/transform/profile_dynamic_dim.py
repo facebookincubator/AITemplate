@@ -16,9 +16,9 @@
 Graph pass to invoke profiling with dynamic shapes.
 """
 from copy import deepcopy
-from typing import List
+from typing import List, OrderedDict
 
-from ...backend import codegen
+from ...backend import builder, codegen
 from ...utils import logger
 from ..base import Tensor
 
@@ -27,20 +27,25 @@ from ..base import Tensor
 
 def profile_dynamic_dim(sorted_graph: List[Tensor], workdir="./tmp"):
     logger.info(__name__, "Current dynamic profiler supports ONLY ONE dynamic dim.")
-    codegen.gen_profiler(sorted_graph, workdir)
-    profiled = {}
+    generated_profilers = list(codegen.gen_profiler(sorted_graph, workdir))
+    generated_profilers = [p for p in generated_profilers if p is not None]
+    compile_engine = builder.Builder()
+    compile_engine.make_profilers(generated_profilers, workdir)
+    funcs_to_profile = OrderedDict(
+        {
+            func._attrs["name"]: func
+            for node in sorted_graph
+            for func in node.src_ops()
+            if func._attrs["has_profiler"]
+        }
+    )
+    for f in funcs_to_profile.values():
+        f.profile_dynamic_dim(
+            workdir=workdir,
+        )
     for node in sorted_graph:
         for func in node.src_ops():
-            func_name = func._attrs["name"]
-            if func_name in profiled:
-                # paths = profiled[func_name]._attrs["exec_path"].keys()
-                func._attrs["exec_path"] = deepcopy(
-                    profiled[func_name]._attrs["exec_path"]
-                )
-                # for path in paths:
-                #     func._attrs["exec_path"][path] = \
-                #         profiled[func_name]._attrs["exec_path"][path]
-                continue
             if func._attrs["has_profiler"]:
-                func.profile_dynamic_dim(workdir=workdir)
-                profiled[func_name] = func
+                func._attrs["exec_path"] = deepcopy(
+                    funcs_to_profile[func._attrs["name"]]._attrs["exec_path"]
+                )

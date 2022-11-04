@@ -22,7 +22,7 @@ from aitemplate.testing import detect_target
 
 
 class conv2dTransposeTestCase(unittest.TestCase):
-    def test_fp16(self, batch=32):
+    def _test_fp16(self, batch=32, copy_op=False):
         target = detect_target()
         if target.name() == "cuda" and int(target._arch) < 80:
             return
@@ -36,6 +36,8 @@ class conv2dTransposeTestCase(unittest.TestCase):
             shape=[256, 2, 2, 256], dtype="float16", name="input_1", is_input=True
         )
         OP = ops.transposed_conv2d(stride=2, pad=0, dilate=1)
+        if copy_op:
+            OP = ops.transposed_conv2d(**OP._get_op_attributes())
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
@@ -51,6 +53,10 @@ class conv2dTransposeTestCase(unittest.TestCase):
         module.run_with_tensors({"input_0": x, "input_1": w}, [y])
         y_transpose = y.permute((0, 3, 1, 2))
         self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
+
+    def test_fp16(self):
+        self._test_fp16()
+        self._test_fp16(copy_op=True)
 
 
 if __name__ == "__main__":

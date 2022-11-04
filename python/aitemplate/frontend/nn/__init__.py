@@ -30,5 +30,3 @@ from .identity import Identity
 from .dropout import *
 from .layer_norm import *
 from .group_norm import *
-
-__all__ = ["Module", "ModuleDict", "ModuleList", "Sequential"]

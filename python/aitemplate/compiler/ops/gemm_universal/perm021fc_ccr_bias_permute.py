@@ -34,7 +34,6 @@ class perm021fc_ccr_bias_permute(perm021fc_ccr_bias):
 
     .. highlight:: python
     .. code-block:: python
-
         X_pt = torch.randn(B, K, M).cuda().half()
         W_pt = torch.randn(N, K).cuda().half()
         Bias_pt = torch.randn(N).cuda().half()
@@ -75,3 +74,6 @@ class perm021fc_ccr_bias_permute(perm021fc_ccr_bias):
             raise NotImplementedError(
                 "{} is not implemented!".format(self._attrs["layout"])
             )
+
+    def _get_op_attributes(self):
+        return {"layout": self._attrs["layout"].split("_")[-1]}

@@ -28,7 +28,6 @@ from aitemplate.utils import shape_utils
 class group_layernorm(layernorm):
     """group_layernorm.
     For each group, we expect each input to have shapes:
-
         Input shape: [M0, M1, ..., Mp, N1, N2, ..., ND]
         Normalized_shape: [N1, N2, ..., ND]
         Gamma/Beta, if not None, have the same shape as normalized_shape.

@@ -76,7 +76,7 @@ def gemm_rcr_config(func_attrs, dtype="float16"):
 
 @registry.reg("rocm.gemm_rcr_bias_mul_add.gen_profiler")
 def gen_profiler(func_attrs, workdir, dim_info_dict):
-    common.gen_profiler(
+    return common.gen_profiler(
         func_attrs=func_attrs,
         workdir=workdir,
         dim_info_dict=dim_info_dict,

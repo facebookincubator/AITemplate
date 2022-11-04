@@ -85,3 +85,7 @@ def silu(tensor: Any) -> Tensor:
 
 def nan_to_num(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("NAN_TO_NUM")(tensor)
+
+
+def power(*args, **kwargs) -> Tensor:
+    return OP_REGISTRY.get("POW")(*args, **kwargs)

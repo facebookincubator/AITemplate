@@ -70,3 +70,9 @@ class conv2d_bias_hardswish(conv2d_bias_activation):
         """
         super().__init__("hardswish", stride, pad, dilate=dilate, group=group)
         self._attrs["epilogue"] = "LinearCombinationHardSwish"
+
+    def _get_op_attributes(self):
+        attr = super()._get_op_attributes()
+        del attr["activation"]
+
+        return attr

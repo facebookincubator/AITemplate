@@ -22,6 +22,7 @@ from typing import Any, Dict
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from ...common import tensor_accessor_codegen
 from ...target import Target
 from . import layernorm_common
@@ -48,17 +49,22 @@ namespace {
 {
     {{input_accessor}}
     {{output_accessor}}
-    return invokeLayernormSigmoidMul<half, float, {{fuse_sigmoid_mul}}>(output, input, gamma, beta, m, n, eps, stream, input_accessor, output_accessor);
+    return invokeLayernormSigmoidMul<{{elem_input_type}}, float, {{fuse_sigmoid_mul}}>(
+        static_cast<{{elem_input_type}}*>(output),
+        static_cast<const {{elem_input_type}}*>(input),
+        static_cast<const {{elem_input_type}}*>(gamma),
+        static_cast<const {{elem_input_type}}*>(beta),
+        m, n, eps, stream, input_accessor, output_accessor);
 }
     """
 )
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-cudaError_t {{func_name}}(half* output,
-                   half* input,
-                   const half* gamma,
-                   const half* beta,
+cudaError_t {{func_name}}(void* output,
+                   void* input,
+                   const void* gamma,
+                   const void* beta,
                    int m,
                    int n,
                    const float eps,
@@ -88,12 +94,17 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 @registry.reg("cuda.layernorm.gen_function")
 def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     gamma_beta_const_defs = layernorm_common.gamma_beta_const_defs(func_attrs)
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     return FUNC_TEMPLATE.render(
         custom_libs=Target.current().get_custom_libs(
             os.path.dirname(__file__), "layernorm_sigmoid_mul_kernel.cuh"
         ),
         tensor_accessor_libs=tensor_accessor_codegen.get_libs(),
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
+        elem_input_type=elem_input_type,
         fuse_sigmoid_mul="false",
         input_accessor=tensor_accessor_codegen.TENSOR_ACCESSOR_TEMPLATE.render(
             name="input_accessor", tensor_accessor=func_attrs["input_accessors"][0]
@@ -108,12 +119,17 @@ def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
 @registry.reg("cuda.layernorm_sigmoid_mul.gen_function")
 def layernorm_sigmoid_mul_gen_function(func_attrs: Dict[str, Any]) -> str:
     gamma_beta_const_defs = layernorm_common.gamma_beta_const_defs(func_attrs)
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     return FUNC_TEMPLATE.render(
         custom_libs=Target.current().get_custom_libs(
             os.path.dirname(__file__), "layernorm_sigmoid_mul_kernel.cuh"
         ),
         tensor_accessor_libs=tensor_accessor_codegen.get_libs(),
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
+        elem_input_type=elem_input_type,
         fuse_sigmoid_mul="true",
         input_accessor=tensor_accessor_codegen.TENSOR_ACCESSOR_TEMPLATE.render(
             name="input_accessor", tensor_accessor=func_attrs["input_accessors"][0]
@@ -142,9 +158,7 @@ def layernorm_sigmoid_mul_gen_function_call(func_attrs, indent="  "):
         func_attrs["inputs"]
     ), "expected at least 1 inputs but got {}".format(len(func_attrs["inputs"]))
 
-    output_name = layernorm_common.FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][0]._attrs["name"]
-    )
+    output_name = func_attrs["outputs"][0]._attrs["name"]
     (input_name, gamma_name, beta_name) = layernorm_common.get_input_names(func_attrs)
 
     input_accessor = func_attrs["input_accessors"][0]

@@ -22,7 +22,7 @@ from aitemplate.testing import detect_target
 
 
 class ConvBiasReluTestCase(unittest.TestCase):
-    def test_fp16(self, batch=4):
+    def _test_fp16(self, batch=4, copy_op=False):
         target = detect_target()
         X = Tensor(
             shape=[IntImm(batch), 28, 28, 128],
@@ -35,6 +35,8 @@ class ConvBiasReluTestCase(unittest.TestCase):
         )
         B = Tensor(shape=[256], dtype="float16", name="input_2", is_input=True)
         OP = ops.conv2d_bias_relu(stride=1, pad=1, dilate=1)
+        if copy_op:
+            OP = ops.conv2d_bias_relu(**OP._get_op_attributes())
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
@@ -56,6 +58,10 @@ class ConvBiasReluTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
         else:
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+
+    def test_fp16(self):
+        self._test_fp16()
+        self._test_fp16(copy_op=True)
 
 
 if __name__ == "__main__":

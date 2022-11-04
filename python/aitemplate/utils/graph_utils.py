@@ -63,12 +63,14 @@ def sorted_op_pseudo_code(ops, with_shape=True) -> str:
 
 
 def dump_graph_debug_str_to_file(tensors, workdir, name):
-    prefix = os.path.join(workdir, name)
-    graph_path = prefix + "_graph.txt"
-    pseudo_code_path = prefix + "_pseudo_code.txt"
-    with open(graph_path, "w") as f:
-        f.write(sorted_graph_debug_str(tensors))
-        logger.info(__file__, f"Dumped {name} graph to {graph_path}")
-    with open(pseudo_code_path, "w") as f:
-        f.write(sorted_graph_pseudo_code(tensors))
-        logger.info(__file__, f"Dumped {name} pseudo code to {pseudo_code_path}")
+    if logger.is_debug():
+        # Dump graph and pseudo code for debug only
+        prefix = os.path.join(workdir, name)
+        graph_path = prefix + "_graph.txt"
+        pseudo_code_path = prefix + "_pseudo_code.txt"
+        with open(graph_path, "w") as f:
+            f.write(sorted_graph_debug_str(tensors))
+            logger.debug(__file__, f"Dumped {name} graph to {graph_path}")
+        with open(pseudo_code_path, "w") as f:
+            f.write(sorted_graph_pseudo_code(tensors))
+            logger.debug(__file__, f"Dumped {name} pseudo code to {pseudo_code_path}")

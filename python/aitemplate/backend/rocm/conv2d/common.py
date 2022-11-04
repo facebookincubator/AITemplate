@@ -22,7 +22,6 @@ from hashlib import sha1
 
 import jinja2
 
-from ... import builder
 from ...target import Target
 
 # pylint: disable=C0103,C0415,W0611,C0301
@@ -604,7 +603,7 @@ def gen_profiler(
         dilate="dilation",
         pad="pad",
     )
-    file_paris = []
+    file_pairs = []
     for op_name, op in op_instance.items():
         config = emit_instance(op)
         config_name = extract_config_name(config)
@@ -673,15 +672,8 @@ def gen_profiler(
             continue
         with open(src_path, "w") as fo:
             fo.write(code)
-        file_paris.append((src_path, obj_path))
-
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_paris, target.compile_cmd(executable=True))
-    # cleanup source
-    # for src_path, _ in file_paris:
-    #     os.remove(src_path)
+        file_pairs.append((src_path, obj_path))
+    return file_pairs
 
 
 def gen_function(

@@ -17,6 +17,7 @@
 Common codegen functions for gemm_bias_activation.
 """
 
+from ...backend_spec import CUDASpec
 from . import common, common_bias, gemm_rcr
 from .layout import RCR
 
@@ -24,23 +25,25 @@ from .layout import RCR
 
 
 def gemm_rcr_config(func_attrs, dtype="float16"):
-    common.make_fproc_f16(func_attrs, RCR)
+    common.make_fproc(func_attrs, RCR)
 
 
 def gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     dim_info_dict,
     problem_args_template,
     extra_code="",
 ):
-    gemm_rcr.common_gen_profiler(
+    return gemm_rcr.common_gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common_bias.SRC_TEMPLATE,
         problem_args_template,
-        bias_ptr_arg="memory_pool->RequestHalfTensorByIdx(3)",
+        bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
         extra_code=extra_code,
     )
 
@@ -55,7 +58,17 @@ def gen_function(
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
     output_ndims = len(func_attrs["output_accessors"][0].original_shapes)
-    problem_args = problem_args_template.render()
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    problem_args = problem_args_template.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+    )
     return common.gen_function(
         func_attrs,
         common_bias.SRC_TEMPLATE,

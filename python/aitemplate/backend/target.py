@@ -35,7 +35,6 @@ AIT_STATIC_FILES_PATH = os.path.join(_3RDPARTY_PATH, "../static")
 CUTLASS_PATH = os.path.join(_3RDPARTY_PATH, "cutlass")
 COMPOSABLE_KERNEL_PATH = os.path.join(_3RDPARTY_PATH, "composable_kernel")
 CUB_PATH = os.path.join(_3RDPARTY_PATH, "cub")
-DEFAULT_INTERNAL_DB_PATH = "aitemplate/AITemplate/python/aitemplate"
 
 CURRENT_TARGET = None
 
@@ -61,6 +60,12 @@ class Target(object):
         self._cache_path = ""
         self._profile_cache = None
         self.static_files_path = static_files_path
+
+        ndebug_str = os.getenv("AIT_NDEBUG", "1")
+        try:
+            self._ndebug = int(ndebug_str)
+        except ValueError:
+            self._ndebug = 0
 
     def __enter__(self):
         """Enter the target context manager.
@@ -138,6 +143,10 @@ class Target(object):
             Need to be implemented by subclass.
         """
         raise NotImplementedError
+
+    def make(self):
+        make_path = shutil.which("make")
+        return make_path if make_path is not None else "make"
 
     def compile_cmd(self, executable: bool = False):
         """Compile command string template for this target.
@@ -293,10 +302,6 @@ class Target(object):
         prefix = None
         if os.environ.get("CACHE_DIR", None):
             prefix = os.environ.get("CACHE_DIR", None)
-        if os.getenv("INSIDE_RE_WORKER") == "1":
-            from libfb.py import parutil
-
-            prefix = parutil.get_file_path(DEFAULT_INTERNAL_DB_PATH)
         cache_file = self._get_cache_file_name()
         if prefix is None:
             prefix = os.path.join(pathlib.Path.home(), ".aitemplate")
@@ -330,6 +335,29 @@ class Target(object):
         """Get local profile cache path for this target."""
         return self._cache_path
 
+    def get_profile_cache_version(self, op_class: str) -> int:
+        """Get the current profile cache version for the op_class.
+
+        Parameters
+        ----------
+        op_class : str
+            Op class name: only gemm is supported at the moment.
+
+        Returns
+        -------
+        int
+            cache version.
+
+        Raises
+        ------
+        NotImplementedError
+            If op class is not supported, raise error.
+        """
+        # TODO: support conv and normalization
+        if op_class == "gemm":
+            return self._profile_cache.get_profile_gemm_cache_version()
+        raise NotImplementedError
+
     def query_profile_cache(self, op_class: str, args: str) -> Tuple[str]:
         """Query the profile cache for the given op class and args.
 
@@ -354,6 +382,8 @@ class Target(object):
             return self._profile_cache.query_gemm(args)
         if op_class == "conv":
             return self._profile_cache.query_conv(args)
+        if op_class == "conv3d":
+            return self._profile_cache.query_conv3d(args)
         if op_class == "normalization":
             return self._profile_cache.query_normalization(args)
         raise NotImplementedError
@@ -364,6 +394,8 @@ class Target(object):
             self._profile_cache.insert_gemm(args)
         elif op_class == "conv":
             self._profile_cache.insert_conv(args)
+        elif op_class == "conv3d":
+            self._profile_cache.insert_conv3d(args)
         elif op_class == "normalization":
             self._profile_cache.insert_normalization(args)
         else:

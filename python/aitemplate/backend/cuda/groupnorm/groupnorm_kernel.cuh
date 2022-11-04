@@ -447,7 +447,7 @@ __global__ __launch_bounds__(NUM_THREADS) void group_norm_smem(
 }
 
 template <bool FuseSwish, int H, int W, int C, int num_groups>
-cudaError_t invokeWelfordGroupNorm(
+cudaError_t invokeWelfordGroupNorm_half(
     half* output,
     half* input,
     half* gamma,
@@ -513,7 +513,7 @@ cudaError_t invokeWelfordGroupNorm(
 }
 
 template <bool FuseSwish, int H, int W, int C, int G>
-cudaError_t invokeGroupNorm(
+cudaError_t invokeGroupNorm_half(
     half* output,
     half* input,
     half* gamma,
@@ -543,13 +543,17 @@ cudaError_t invokeGroupNorm(
         smem));
 
     constexpr int num_threads = std::min(1024, H / ILP * W * C_G_2);
-
-    dim3 block(num_threads);
-    group_norm_smem<FuseSwish, H, W, C, C_G, ILP, BANK_CONFLICT, num_threads>
-        <<<dim3(G, N), block, smem, stream>>>(
-            input, output, gamma, beta, N, eps);
+    if constexpr (num_threads > 0) {
+      dim3 block(num_threads);
+      group_norm_smem<FuseSwish, H, W, C, C_G, ILP, BANK_CONFLICT, num_threads>
+          <<<dim3(G, N), block, smem, stream>>>(
+              input, output, gamma, beta, N, eps);
+    } else {
+      return invokeWelfordGroupNorm_half<FuseSwish, H, W, C, G>(
+          output, input, gamma, beta, N, eps, stream);
+    }
   } else {
-    return invokeWelfordGroupNorm<FuseSwish, H, W, C, G>(
+    return invokeWelfordGroupNorm_half<FuseSwish, H, W, C, G>(
         output, input, gamma, beta, N, eps, stream);
   }
 

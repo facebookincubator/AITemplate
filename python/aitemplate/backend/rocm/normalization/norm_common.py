@@ -23,7 +23,6 @@ from typing import Any, Dict, OrderedDict
 
 import jinja2
 
-from ... import builder
 from ...target import Target
 
 FUNC_CALL_PARAM_TEMPLATE = jinja2.Template("(void *)({{name}})")
@@ -337,7 +336,7 @@ def gen_profiler(
     eps = func_attrs.get("eps", "1e-5")
 
     op_instance = func_attrs["op_instance"]
-    file_paris = []
+    file_pairs = []
     for op_name, op in op_instance.items():
 
         config = emit_instance(op)
@@ -392,12 +391,8 @@ def gen_profiler(
             continue
         with open(src_path, "w") as fo:
             fo.write(code)
-        file_paris.append((src_path, obj_path))
-
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_paris, target.compile_cmd(executable=True))
+        file_pairs.append((src_path, obj_path))
+    return file_pairs
 
 
 # no longer used by layernorm

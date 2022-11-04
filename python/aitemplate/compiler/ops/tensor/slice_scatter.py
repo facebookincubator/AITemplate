@@ -16,6 +16,8 @@
 Slice_scatter.
 """
 
+from aitemplate.compiler.stable_set import StableSet
+
 from .... import backend
 from ....backend import registry
 from ...base import Operator
@@ -58,15 +60,15 @@ class slice_scatter(Operator):
 
         self._attrs["outputs"] = cat_op._attrs["outputs"]
         for y in self._attrs["outputs"]:
-            y._attrs["src_ops"] = {self}
+            y._attrs["src_ops"] = StableSet({self})
 
         for op in self._attrs["slice_ops"]:
-            op._attrs["outputs"][0]._attrs["src_ops"] = set()
-            op._attrs["outputs"][0]._attrs["dst_ops"] = set()
+            op._attrs["outputs"][0]._attrs["src_ops"] = StableSet()
+            op._attrs["outputs"][0]._attrs["dst_ops"] = StableSet()
 
         for x in cat_op._attrs["inputs"]:
-            x._attrs["src_ops"] = set()
-            x._attrs["dst_ops"] = set()
+            x._attrs["src_ops"] = StableSet()
+            x._attrs["dst_ops"] = StableSet()
 
     def __init__(self, cat_op: Operator) -> None:
         super().__init__()
@@ -88,6 +90,9 @@ class slice_scatter(Operator):
 
     def __call__(self):
         raise RuntimeError("op {} cannot be called directly".format(self._attrs["op"]))
+
+    def _get_op_attributes(self):
+        raise NotImplementedError("slice_scatter get op attribute not implemented")
 
     def _get_func(self, fmt_str):
         target = backend.target.Target.current()

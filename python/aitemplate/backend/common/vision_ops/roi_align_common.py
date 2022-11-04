@@ -23,10 +23,10 @@ import jinja2
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}roi_align_launcher<float, {{num_rois}}, {{pooled_size}}>(
-{{indent}}    in_ptr,
-{{indent}}    rois_ptr,
-{{indent}}    out_ptr,
+{{indent}}roi_align_launcher<{{library_dtype}}, float, {{num_rois}}, {{pooled_size}}>(
+{{indent}}    static_cast<const {{library_dtype}}*>(in_ptr),
+{{indent}}    static_cast<const {{library_dtype}}*>(rois_ptr),
+{{indent}}    static_cast<{{library_dtype}}*>(out_ptr),
 {{indent}}    NI,
 {{indent}}    HI,
 {{indent}}    WI,
@@ -212,10 +212,10 @@ constexpr __host__ __device__ inline integer ceil_div(integer n, integer m) {
 }
 
 
-template <typename T, int64_t num_rois, int pool_size>
-void roi_align_launcher({{elem_input_type}}* input,
-                      {{elem_input_type}}* rois,
-                      {{elem_output_type}}* output,
+template <typename LibraryT, typename T, int64_t num_rois, int pool_size>
+void roi_align_launcher(const LibraryT* input,
+                        const LibraryT* rois,
+                        LibraryT* output,
                       const {{index_type}} N,
                       const {{index_type}} H,
                       const {{index_type}} W,
@@ -243,9 +243,9 @@ void roi_align_launcher({{elem_input_type}}* input,
 } // namespace
 
 void {{function_name}} (
-    {{elem_input_type}}* in_ptr,
-    {{elem_input_type}}* rois_ptr,
-    {{elem_output_type}}* out_ptr,
+    const void* in_ptr,
+    const void* rois_ptr,
+    void* out_ptr,
     {{index_type}}* batch,
     {{index_type}}* in_h,
     {{index_type}}* in_w,
@@ -273,9 +273,9 @@ void {{function_name}} (
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  {{elem_input_type}}*,
-  {{elem_input_type}}*,
-  {{elem_output_type}}*,
+  const void*,
+  const void*,
+  void*,
   {{index_type}}*,
   {{index_type}}*,
   {{index_type}}*,
@@ -295,9 +295,9 @@ void {{func_name}}(
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
-{{indent}}    static_cast<{{elem_input_type}}*>({{in_ptr}}),
-{{indent}}    static_cast<{{elem_input_type}}*>({{rois_ptr}}),
-{{indent}}    static_cast<{{elem_output_type}}*>({{out_ptr}}),
+{{indent}}    {{in_ptr}},
+{{indent}}    {{rois_ptr}},
+{{indent}}    {{out_ptr}},
 {{indent}}    {{p_batch}},
 {{indent}}    {{p_in_h}},
 {{indent}}    {{p_in_w}},
@@ -330,16 +330,10 @@ def gen_function_decl(func_attrs, backend_spec):
     str
         Rendered function declaration stmt
     """
-    x = func_attrs["inputs"][0]
-    y = func_attrs["outputs"][0]
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
     return FUNC_DECL_TEMPLATE.render(
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
         func_name=func_attrs["name"],
-        elem_input_type=input_type,
-        elem_output_type=output_type,
     )
 
 
@@ -364,9 +358,6 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
     y = func_attrs["outputs"][0]
     yshape = y._attrs["shape"]
 
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
-
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         in_ptr=x._attrs["name"],
@@ -386,7 +377,5 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
         if func_attrs["continuous_coordinate"]
         else "false",
         backend_spec=backend_spec,
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         indent=indent,
     )

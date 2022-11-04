@@ -167,7 +167,7 @@ class bmm_softmax_bmm_permute(bmm):
         self._set_depth()
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b, b1)
-        self._extract_epilogue_alignment(output_shape)
+
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
@@ -176,9 +176,18 @@ class bmm_softmax_bmm_permute(bmm):
             b, m, o = output_shape
             d1 = self._attrs["shape"][0]
             output_shape = [b.value() // d1, m, d1, o]
+            self._extract_epilogue_alignment(output_shape)
             return reshape()(output, output_shape)
         else:
             raise NotImplementedError(
                 "{} is not implemented!".format(self._attrs["layout"])
             )
         return output
+
+    def _get_op_attributes(self):
+        return {
+            "causal": self._attrs["op"] == "bmm_softmax_bmm_permute_causal",
+            "layout": self._attrs["layout"].split("_")[-1],
+            "scale": self._attrs["scale"],
+            "shape": self._attrs["shape"],
+        }

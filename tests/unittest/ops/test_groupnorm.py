@@ -39,6 +39,7 @@ class GroupnormTestCase(unittest.TestCase):
         use_size_op=False,
         eps=1e-5,
         use_swish=False,
+        copy_op=False,
     ):
         test_name = "group_norm_swish" if use_swish else "group_norm"
         logger.info(
@@ -65,7 +66,10 @@ class GroupnormTestCase(unittest.TestCase):
         )
 
         op_name = "group_norm_swish" if use_swish else "group_norm"
-        X4 = getattr(ops, op_name)(num_groups, num_channels)(X1, X2, X3, eps)
+        OP = getattr(ops, op_name)(num_groups, num_channels)
+        if copy_op:
+            OP = getattr(ops, op_name)(**OP._get_op_attributes())
+        X4 = OP(X1, X2, X3, eps)
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
 
@@ -110,17 +114,26 @@ class GroupnormTestCase(unittest.TestCase):
         )
         self.test_count += 1
 
-    def test_layernorm(self):
+    def test_groupnorm(self):
         self._test_groupnorm()
+        self._test_groupnorm(x_shape=[3, 3, 1, 4], num_groups=2, eps=1e-5)
+        self._test_groupnorm(x_shape=[7, 13, 9, 12], num_groups=4, eps=1e-5)
         self._test_groupnorm(x_shape=[1, 16, 16, 8192], num_groups=32, eps=1e-3)
         self._test_groupnorm(x_shape=[3, 64, 64, 128], num_groups=16, eps=1e-5)
         self._test_groupnorm(x_shape=[3, 33, 64, 120], num_groups=10, eps=1e-5)
         self._test_groupnorm(x_shape=[8, 34, 10, 72], num_groups=6, eps=1e-5)
         self._test_groupnorm(x_shape=[1, 8, 1, 64], num_groups=32, eps=1e-5)
         self._test_groupnorm(x_shape=[1, 8, 1, 4], num_groups=2, eps=1e-5)
+        self._test_groupnorm(x_shape=[1, 8, 1, 4], num_groups=2, eps=1e-5, copy_op=True)
 
-    def test_layernorm_swish(self):
+    def test_groupnorm_swish(self):
         self._test_groupnorm(use_swish=True)
+        self._test_groupnorm(
+            x_shape=[3, 3, 1, 4], num_groups=2, eps=1e-5, use_swish=True
+        )
+        self._test_groupnorm(
+            x_shape=[7, 13, 9, 12], num_groups=4, eps=1e-5, use_swish=True
+        )
 
         shapes = [
             (2, 16, 16, 1280),
@@ -143,6 +156,9 @@ class GroupnormTestCase(unittest.TestCase):
 
         for shape in shapes:
             self._test_groupnorm(x_shape=shape, num_groups=32, eps=1e-5, use_swish=True)
+            self._test_groupnorm(
+                x_shape=shape, num_groups=32, eps=1e-5, use_swish=True, copy_op=True
+            )
 
 
 if __name__ == "__main__":
