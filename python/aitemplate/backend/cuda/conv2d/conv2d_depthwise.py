@@ -15,6 +15,7 @@
 """
 Codegen for conv2d_depthwise.
 """
+from collections import OrderedDict
 import jinja2
 import re
 
@@ -293,7 +294,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 def conv_dw_instance(op_def):
     op_def = op_def.replace("DefaultConv2dFprop", "DefaultDepthwiseFprop")
-    op_def = op_def.replace("kOptimized", "kAnalytic")
+    # op_def = op_def.replace("kOptimized", "kAnalytic")
     return op_def
 
 
@@ -309,20 +310,14 @@ def emit_instance(op, f_instance_convertor=conv_dw_instance):
 def apply_special_config(func_attrs, op):
     import cutlass_lib
 
-    x = func_attrs["inputs"][0]
-    in_ch = x._attrs["shape"][-1]._attrs["values"][0]
+    # x = func_attrs["inputs"][0]
+    # in_ch = x._attrs["shape"][-1]._attrs["values"][0]
 
-    if in_ch == 3:
-        # By default we don't use it since the perf is worse than pad4+fixchannel
-        op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.FewChannels
-        op.A.alignment = 1
-        op.B.alignment = 1
-        op.tile_description.stages = 2
-    elif in_ch in [2, 4, 8]:
-        op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.FixedChannels
-        op.A.alignment = in_ch
-        op.B.alignment = in_ch
-        op.tile_description.stages = 3
+    op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.Analytic
+    op.A.alignment = 1
+    op.B.alignment = 1
+    op.tile_description.stages = 2
+    op.tile_description.math_instruction.instruction_shape = [1,1,1]
     return op
 
 def extract_config(func_attrs):
@@ -354,7 +349,7 @@ def extract_config(func_attrs):
             op.element_epilogue = acc_type
             op = apply_special_config(func_attrs, op)
             # set C alignment
-            for i in [8, 4, 2, 1]:
+            for i in [4, 2, 1]:
                 op = copy.deepcopy(op)
                 op.C.alignment = i
                 ret.append(op)
@@ -380,7 +375,7 @@ def extract_config(func_attrs):
 @registry.reg("cuda.conv2d_depthwise.config")
 def conv2d_depthwise_config(func_attrs, dtype="float16"):
     """Populates conv2d_depthwise cutlass configs into 'op_instance' field."""
-    func_attrs["op_instance"] = common.extract_config(func_attrs)
+    func_attrs["op_instance"] = extract_config(func_attrs)  # ommon.extract_config(func_attrs)
 
 
 @registry.reg("cuda.conv2d_depthwise.gen_profiler")
