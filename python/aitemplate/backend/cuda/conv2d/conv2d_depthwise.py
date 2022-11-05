@@ -16,8 +16,10 @@
 Codegen for conv2d_depthwise.
 """
 import jinja2
+import re
 
 from ... import registry
+from ...target import Target
 from . import common
 
 # pylint: disable=C0103,C0415,W0613,C0301
@@ -64,7 +66,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <string>
 #include <stdexcept>
 #include "cutlass/cutlass.h"
-#include "cutlass/conv/kernel/default_conv2d_fprop.h"
+#include "cutlass/conv/kernel/default_depthwise_fprop.h"
 #include "cutlass/conv/device/implicit_gemm_convolution.h"
 #include "cutlass/util/host_tensor.h"
 #include "cutlass/util/reference/host/tensor_fill.h"
@@ -126,13 +128,14 @@ void {{function_name}} (
 
   cutlass::conv::Conv2dProblemSize problem_size(
     {i32_batch, i32_in_h, i32_in_w, i32_in_ch},
-        {i32_out_ch, i32_kernel_h, i32_kernel_w, i32_in_ch},
+        {i32_out_ch, i32_kernel_h, i32_kernel_w, 1},
         {pad, pad, pad, pad},
         {stride, stride},
         {dilation, dilation},
         {i32_out_batch, i32_out_h, i32_out_w, i32_out_ch},
         cutlass::conv::Mode::kCrossCorrelation,
-        1
+        1,
+        i32_in_ch
   );
 
   {{exec_paths}}
@@ -288,6 +291,91 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 """
 )
 
+def conv_dw_instance(op_def):
+    op_def = op_def.replace("DefaultConv2dFprop", "DefaultDepthwiseFprop")
+    op_def = op_def.replace("kOptimized", "kAnalytic")
+    return op_def
+
+
+def emit_instance(op, f_instance_convertor=conv_dw_instance):
+    """Emits cutlass instance."""
+    import cutlass_lib
+
+    emiter = cutlass_lib.conv2d_operation.EmitConv2dInstance()
+    op_def = emiter.emit(op)
+    op_def = f_instance_convertor(op_def)
+    return op_def
+
+def apply_special_config(func_attrs, op):
+    import cutlass_lib
+
+    x = func_attrs["inputs"][0]
+    in_ch = x._attrs["shape"][-1]._attrs["values"][0]
+
+    if in_ch == 3:
+        # By default we don't use it since the perf is worse than pad4+fixchannel
+        op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.FewChannels
+        op.A.alignment = 1
+        op.B.alignment = 1
+        op.tile_description.stages = 2
+    elif in_ch in [2, 4, 8]:
+        op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.FixedChannels
+        op.A.alignment = in_ch
+        op.B.alignment = in_ch
+        op.tile_description.stages = 3
+    return op
+
+def extract_config(func_attrs):
+    import copy
+
+    import cutlass_lib
+
+    def f_proc_op_special(op):
+        ret = []
+        data_type = cutlass_lib.library.DataType.f16
+        acc_type = cutlass_lib.library.DataType.f32
+        # check target use fp16 acc
+        if "use_fp16_acc" in Target.current()._kwargs:
+            if Target.current()._kwargs["use_fp16_acc"]:
+                acc_type = cutlass_lib.library.DataType.f16
+
+        if (
+            op.A.element == data_type
+            and op.B.element == data_type
+            and op.C.element == data_type
+            and op.iterator_algorithm == cutlass_lib.library.IteratorAlgorithm.Optimized
+            and op.accumulator_type() == acc_type
+        ):
+
+            op = copy.deepcopy(op)
+            # set epilogue
+            epilogue_name = func_attrs["epilogue"]
+            op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epilogue_name]
+            op.element_epilogue = acc_type
+            op = apply_special_config(func_attrs, op)
+            # set C alignment
+            for i in [8, 4, 2, 1]:
+                op = copy.deepcopy(op)
+                op.C.alignment = i
+                ret.append(op)
+        return ret
+
+    op_kind = cutlass_lib.library.OperationKind.Conv2d
+    conv_kind = cutlass_lib.library.ConvKind.Fprop
+    ret = []
+    conv2d_ops = OrderedDict()
+    extract_ops = list(Target.current()._operators[op_kind].items())
+
+    for _, value in extract_ops:
+        op = value[0]
+        if op.conv_kind == conv_kind:
+            ret = f_proc_op_special(op)
+            if len(ret) > 0:
+                for op_inst in ret:
+                    key = common.kernel_name(op_inst)
+                    conv2d_ops[key] = op_inst
+    return conv2d_ops
+
 
 @registry.reg("cuda.conv2d_depthwise.config")
 def conv2d_depthwise_config(func_attrs, dtype="float16"):
@@ -318,7 +406,7 @@ def gen_profiler(func_attrs, workdir, shape_template):
     )
     file_pairs = []
     for op_name, op in op_instance.items():
-        config = common.emit_instance(op)
+        config = emit_instance(op)
         config_name = common.extract_config_name(config)
         name = "DeviceConvFwdInstance"
         instance = INSTANCE_TEMPLATE.render(
@@ -358,6 +446,7 @@ def gen_function(
         exec_cond_remplate,
         shape_eval_template,
         shape_save_template,
+        f_emit_instance=emit_instance
     )
 
 

@@ -15,7 +15,7 @@
 """
 Fused conv2d_depthwise op.
 """
-from typing import Tuple
+from typing import Tuple, List
 
 from ...base import Tensor
 from .conv2d import conv2d
@@ -41,6 +41,7 @@ class conv2d_depthwise(conv2d):
         """
         super().__init__(stride, pad, dilate=dilate, group=group)
         self._attrs["op"] = "conv2d_depthwise"
+        # self._attrs["has_profiler"] = False
 
     def __call__(self, x: Tensor, w: Tensor):
         """Call conv2d_depthwise with tensors x, w, b
@@ -65,6 +66,11 @@ class conv2d_depthwise(conv2d):
         self._extract_epilogue_alignment(output_shape)
         self._attrs["outputs"] = [output]
         return output
+
+    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+        if w[0] != self._attrs["group"]:
+            raise RuntimeError("W Shape mismatch for conv2d_depthwise")
+        return super()._infer_shape(x, w)
 
     @staticmethod
     def is_valid_inputs(x: Tensor, w: Tensor, b: Tensor) -> Tuple[bool, str]:

@@ -123,7 +123,10 @@ def extract_config(func_attrs, f_proc_op=None):
             if len(ret) > 0:
                 for op_inst in ret:
                     key = kernel_name(op_inst)
+                    print(op_inst)
+                    print(op_inst.tile_description)
                     conv2d_ops[key] = op_inst
+    booo
     return conv2d_ops
 
 

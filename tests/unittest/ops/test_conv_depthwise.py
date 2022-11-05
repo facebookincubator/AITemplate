@@ -15,6 +15,7 @@
 import unittest
 
 import torch
+import logging
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
@@ -23,7 +24,7 @@ from aitemplate.testing import detect_target
 
 class ConvDepthwiseTestCase(unittest.TestCase):
     def test_fp16(self, batch=4):
-        groups = 16
+        groups = 32
         size = (12,12)
         target = detect_target()
         X = Tensor(
@@ -33,7 +34,7 @@ class ConvDepthwiseTestCase(unittest.TestCase):
             is_input=True,
         )
         W = Tensor(
-            shape=[32, 3, 3, 32//groups], dtype="float16", name="input_1", is_input=True
+            shape=[32, 3, 3, 1], dtype="float16", name="input_1", is_input=True
         )
         OP = ops.conv2d_depthwise(stride=1, pad=1, dilate=1, group=groups)
         Y = OP(X, W)
@@ -43,7 +44,7 @@ class ConvDepthwiseTestCase(unittest.TestCase):
         return
 
         X_pt = torch.randn(batch, 32, *size).cuda().half()
-        W_pt = torch.randn(32, 32//groups, 3, 3).cuda().half()
+        W_pt = torch.randn(32, 1, 3, 3).cuda().half()
         Y_pt = torch.nn.functional.conv2d(X_pt, W_pt, padding=1, groups=groups)
         x = X_pt.permute((0, 2, 3, 1)).contiguous()
         w = W_pt.permute((0, 2, 3, 1)).contiguous()
