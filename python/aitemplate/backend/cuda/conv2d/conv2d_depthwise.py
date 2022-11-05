@@ -294,6 +294,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 def conv_dw_instance(op_def):
     op_def = op_def.replace("DefaultConv2dFprop", "DefaultDepthwiseFprop")
+    op_def = op_def.replace("OpClassTensorOp", "OpClassSimt")
     # op_def = op_def.replace("kOptimized", "kAnalytic")
     return op_def
 
@@ -318,6 +319,8 @@ def apply_special_config(func_attrs, op):
     op.B.alignment = 1
     op.tile_description.stages = 2
     op.tile_description.math_instruction.instruction_shape = [1,1,1]
+    op.tile_description.threadblock_shape[-1] = 8
+    # op.arch = cutlass_lib.library.OpcodeClass.Simt
     return op
 
 def extract_config(func_attrs):
