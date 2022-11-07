@@ -41,7 +41,6 @@ class ConvDepthwiseTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "conv2d_dw")
-        return
 
         X_pt = torch.randn(batch, 32, *size).cuda().half()
         W_pt = torch.randn(32, 1, 3, 3).cuda().half()
