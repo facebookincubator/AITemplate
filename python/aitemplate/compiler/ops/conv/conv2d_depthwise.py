@@ -41,10 +41,9 @@ class conv2d_depthwise(conv2d):
         """
         super().__init__(stride, pad, dilate=dilate, group=group)
         self._attrs["op"] = "conv2d_depthwise"
-        # self._attrs["has_profiler"] = False
 
     def __call__(self, x: Tensor, w: Tensor):
-        """Call conv2d_depthwise with tensors x, w, b
+        """Call conv2d_depthwise with tensors x, w
 
         Parameters
         ----------
@@ -73,7 +72,7 @@ class conv2d_depthwise(conv2d):
         return super()._infer_shape(x, w)
 
     @staticmethod
-    def is_valid_inputs(x: Tensor, w: Tensor, b: Tensor) -> Tuple[bool, str]:
+    def is_valid_inputs(x: Tensor, w: Tensor) -> Tuple[bool, str]:
         x_shape = x._attrs["shape"]
         if len(x_shape) != 4:
             return False, f"x should be 4D: {x_shape=}"
@@ -81,16 +80,6 @@ class conv2d_depthwise(conv2d):
         w_shape = w._attrs["shape"]
         if len(w_shape) != 4:
             return False, f"w should be 4D: {w_shape=}"
-
-        b_shape = b._attrs["shape"]
-        if len(b_shape) != 1:
-            return False, f"b should be 1D: {b_shape=}"
-
-        if b_shape[0] != w_shape[0]:
-            return (
-                False,
-                f"out channels in bias does not match: {b_shape[0]=} != {w_shape[0]=}",
-            )
 
         # No need to check compatibility of x/w. This function is only used
         # for fusing conv/elementwise into conv_bias. If x and w were not compatible,

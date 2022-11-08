@@ -380,7 +380,7 @@ def conv2d_depthwise_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.conv2d_depthwise.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
+def gen_profiler(func_attrs, workdir, shape_template, exec_template=EXEC_TEMPLATE, src_template=SRC_TEMPLATE, profiler_template=PROFILER_TEMPLATE):
     """Codegen for conv2d_depthwise profiler."""
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
@@ -408,17 +408,17 @@ def gen_profiler(func_attrs, workdir, shape_template):
         instance = INSTANCE_TEMPLATE.render(
             config_name=config_name, name=name, config=config
         )
-        exec_program = EXEC_TEMPLATE.render(
+        exec_program = exec_template.render(
             indent="  ", is_profiler=True, instance=name
         )
-        op_func = SRC_TEMPLATE.render(
+        op_func = src_template.render(
             instances=instance,
             function_name="conv",
             dtype="cutlass::half_t",
             shape_func="",
             exec_paths=exec_program,
         )
-        code = PROFILER_TEMPLATE.render(
+        code = profiler_template.render(
             op_func=op_func, shape_func=shape_func, name=name
         )
         common.add_profiler(file_pairs, workdir, op_type, op_name, code)
