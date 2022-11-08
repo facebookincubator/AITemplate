@@ -124,7 +124,7 @@ void {{function_name}} (
 
   using cutlass::layout::TensorNHWC;
   TensorNHWC layout_A(TensorNHWC::packed(cutlass::make_Coord(i32_batch, i32_in_h, i32_in_w, i32_in_ch)));
-  TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(i32_out_ch, i32_kernel_h, i32_kernel_w, i32_in_ch)));
+  TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(i32_out_ch, i32_kernel_h, i32_kernel_w, 1)));
   TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(i32_out_batch, i32_out_h, i32_out_w, i32_out_ch)));
 
   cutlass::conv::Conv2dProblemSize problem_size(
@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
   cudaStream_t stream = nullptr;
 
   cutlass::HostTensor<ElementInputA, typename {{name}}::LayoutA> x({NI, HI, WI, CI});
-  cutlass::HostTensor<ElementInputB, typename {{name}}::LayoutB> w({CO, KH, KW, CI});
+  cutlass::HostTensor<ElementInputB, typename {{name}}::LayoutB> w({CO, KH, KW, 1u});
   cutlass::HostTensor<ElementOutput, typename {{name}}::LayoutC> y({NO, HO, WO, CO});
 
   //
