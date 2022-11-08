@@ -51,7 +51,7 @@ class conv2d_depthwise(conv2d):
         x : Tensor
             in shape (N, H, W, C_in)
         w : Tensor
-            in shape (C_out, K_h, K_w, C_in)
+            in shape (C_out, K_h, K_w, 1)
 
         Returns
         -------
