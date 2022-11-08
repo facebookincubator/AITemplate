@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 """
-conv2d bias module
+conv2d depthwise bias module
 """
 from .common_conv2d_bias_act import Conv2dBiasAct
 
