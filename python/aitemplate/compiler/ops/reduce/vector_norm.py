@@ -57,3 +57,11 @@ class vector_norm(reduce_base):
         super().__init__(dim, keepdim, dtype)
         self._attrs["op"] = "vector_norm"
         self._attrs["ord_kind"] = str(ord_kind)
+
+    def _get_op_attributes(self):
+        return {
+            "dim": self._attrs["reduction_axes"],
+            "dtype": self._attrs["output_type"],
+            "keepdim": self._attrs["keepdim"],
+            "ord_kind": self._attrs["ord_kind"],
+        }

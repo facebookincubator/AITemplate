@@ -22,7 +22,7 @@ from aitemplate.testing import detect_target
 
 
 class ConvTestCase(unittest.TestCase):
-    def test_fp16(self, batch=4):
+    def _test_fp16(self, batch=4, copy_op=False):
         target = detect_target()
         X = Tensor(
             shape=[IntImm(batch), 28, 28, 128],
@@ -34,10 +34,12 @@ class ConvTestCase(unittest.TestCase):
             shape=[256, 3, 3, 128], dtype="float16", name="input_1", is_input=True
         )
         OP = ops.conv2d(stride=1, pad=1, dilate=1)
+        if copy_op:
+            OP = ops.conv2d(**OP._get_op_attributes())
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "conv2d")
+        module = compile_model(Y, target, "./tmp", f"conv2d_{copy_op}")
 
         X_pt = torch.randn(batch, 128, 28, 28).cuda().half()
         W_pt = torch.randn(256, 128, 3, 3).cuda().half()
@@ -51,6 +53,10 @@ class ConvTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
         else:
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+
+    def test_fp16(self):
+        self._test_fp16()
+        self._test_fp16(copy_op=True)
 
 
 if __name__ == "__main__":

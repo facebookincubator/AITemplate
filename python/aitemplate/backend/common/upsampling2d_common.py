@@ -23,12 +23,12 @@ import jinja2
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}bilinear_upsampling_luncher(
-{{indent}}    in_ptr,
+{{indent}}bilinear_upsampling_launcher(
+{{indent}}    static_cast<const {{dtype}}*>(in_ptr),
 {% if bias_add %}
-  {{indent}}    res_ptr,
+  {{indent}}    static_cast<const {{dtype}}*>(res_ptr),
 {% endif %}
-{{indent}}    out_ptr,
+{{indent}}    static_cast<{{dtype}}*>(out_ptr),
 {{indent}}    NI,
 {{indent}}    HI,
 {{indent}}    WI,
@@ -200,11 +200,12 @@ constexpr __host__ __device__ inline integer ceil_div(integer n, integer m) {
   return (n + m - 1) / m;
 }
 
-void bilinear_upsampling_luncher({{elem_input_type}}* input,
+template<typename ELEM_T>
+void bilinear_upsampling_launcher(const ELEM_T* input,
                     {% if bias_add %}
-                      {{elem_input_type}}* input_res,
+                      const ELEM_T* input_res,
                     {% endif %}
-                      {{elem_output_type}}* output,
+                      ELEM_T* output,
                       const {{index_type}} N,
                       const {{index_type}} H,
                       const {{index_type}} W,
@@ -257,11 +258,11 @@ void bilinear_upsampling_luncher({{elem_input_type}}* input,
 } // namespace
 
 void {{function_name}} (
-    {{elem_input_type}}* in_ptr,
+    const void* in_ptr,
     {% if bias_add %}
-      {{elem_input_type}}* res_ptr,
+    const void* res_ptr,
     {% endif %}
-    {{elem_output_type}}* out_ptr,
+    void* out_ptr,
     {{index_type}}* batch,
     {{index_type}}* in_h,
     {{index_type}}* in_w,
@@ -284,11 +285,11 @@ void {{function_name}} (
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  {{elem_input_type}}*,
+  const void*,
   {% if bias_add %}
-    {{elem_input_type}}*,
+  const void*,
   {% endif %}
-  {{elem_output_type}}*,
+  void*,
   {{index_type}}*,
   {{index_type}}*,
   {{index_type}}*,
@@ -304,11 +305,11 @@ void {{func_name}}(
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
-{{indent}}    static_cast<{{elem_input_type}}*>({{in_ptr}}),
+{{indent}}    {{in_ptr}},
 {% if bias_add %}
-  {{indent}}    static_cast<{{elem_input_type}}*>({{res_ptr}}),
+{{indent}}    {{res_ptr}},
 {% endif %}
-{{indent}}    static_cast<{{elem_output_type}}*>({{out_ptr}}),
+{{indent}}    {{out_ptr}},
 {{indent}}    {{p_batch}},
 {{indent}}    {{p_in_h}},
 {{indent}}    {{p_in_w}},
@@ -337,16 +338,10 @@ def gen_function_decl(func_attrs, backend_spec, bias_add=False):
     str
         Rendered function declaration stmt
     """
-    x = func_attrs["inputs"][0]
-    y = func_attrs["outputs"][0]
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
     return FUNC_DECL_TEMPLATE.render(
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
         func_name=func_attrs["name"],
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         bias_add=bias_add,
     )
 
@@ -383,14 +378,10 @@ def gen_function_call(func_attrs, backend_spec, indent="  ", bias_add=False):
     xshape = x._attrs["shape"]
     y = func_attrs["outputs"][0]
     yshape = y._attrs["shape"]
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
     if bias_add:
         r = func_attrs["inputs"][1]
         return FUNC_CALL_TEMPLATE.render(
             func_name=func_attrs["name"],
-            elem_input_type=input_type,
-            elem_output_type=output_type,
             index_type=backend_spec.index_type,
             in_ptr=x._attrs["name"],
             res_ptr=r._attrs["name"],
@@ -408,8 +399,6 @@ def gen_function_call(func_attrs, backend_spec, indent="  ", bias_add=False):
     else:
         return FUNC_CALL_TEMPLATE.render(
             func_name=func_attrs["name"],
-            elem_input_type=input_type,
-            elem_output_type=output_type,
             index_type=backend_spec.index_type,
             in_ptr=x._attrs["name"],
             out_ptr=y._attrs["name"],

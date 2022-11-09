@@ -268,7 +268,7 @@ def groupnorm_gen_profiler(
             shapes[dim_idx], IntImm
         ), f"groupnorm requires reduction dim {dim_idx=} to be static"
 
-    norm_common.gen_profiler(
+    return norm_common.gen_profiler(
         func_attrs,
         workdir,
         5,  # rank

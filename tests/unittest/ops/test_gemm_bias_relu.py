@@ -20,7 +20,7 @@ from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 
-class GEMMTestCase(unittest.TestCase):
+class GEMMBiasReluTestCase(unittest.TestCase):
     def test_gemm_rcr_bias_relu(self):
         M = 128
         K = 1024

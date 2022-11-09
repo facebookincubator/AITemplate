@@ -19,6 +19,8 @@ Util functions for graph transformations.
 from collections import deque
 from typing import Dict, List, Union
 
+from aitemplate.compiler.stable_set import StableSet
+
 from ...utils import graph_utils, logger
 from ..base import Operator, Tensor
 from .mark_param_tensor import mark_param_tensor
@@ -242,8 +244,8 @@ def remove_tensor_from_sorted_graph(tensor: Tensor) -> None:
     Disconnects the tensor from others so that sanitize_sorted_graph()
     could remove it.
     """
-    tensor._attrs["src_ops"] = set()
-    tensor._attrs["dst_ops"] = set()
+    tensor._attrs["src_ops"] = StableSet()
+    tensor._attrs["dst_ops"] = StableSet()
     tensor._attrs["is_input"] = False
     tensor._attrs["is_output"] = False
 

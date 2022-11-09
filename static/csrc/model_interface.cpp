@@ -40,20 +40,57 @@
     return AITemplateError::AITemplateFailure;             \
   }
 
+namespace ait {
+namespace {
+class DefaultAllocator : public AITemplateAllocator {
+ public:
+  void* Allocate(size_t n_bytes) override {
+    void* result;
+    DEVICE_CHECK(DeviceMalloc(&result, n_bytes));
+    return result;
+  }
+
+  void Free(void* ptr) override {
+    DEVICE_CHECK(FreeDeviceMemory(ptr));
+  }
+};
+
+class TrackingAllocator : public DefaultAllocator {
+ public:
+  void* Allocate(size_t n_bytes) override {
+    auto* result = DefaultAllocator::Allocate(n_bytes);
+    num_bytes_ += n_bytes;
+    return result;
+  }
+
+  size_t NumBytesAllocated() const {
+    return num_bytes_;
+  }
+
+ private:
+  size_t num_bytes_ = 0;
+};
+
+DefaultAllocator default_allocator;
+} // namespace
+} // namespace ait
+
 extern "C" {
 
 AITemplateError AITemplateModelContainerCreate(
     AITemplateModelHandle* ret,
-    size_t num_runtimes) {
+    size_t num_runtimes,
+    AITemplateAllocator* allocator) {
   if (num_runtimes == 0) {
     LOG(ERROR) << "num_runtimes must be positive, but got 0";
     return AITemplateError::AITemplateFailure;
   }
   RETURN_ERROR_IF_NULL(ret)
+  AITemplateAllocator& allocator_ref =
+      allocator == nullptr ? ait::default_allocator : *allocator;
   CONVERT_EXCEPTION_TO_ERROR_CODE({
-    auto* m = ait::CreateModelContainer(num_runtimes);
+    auto* m = ait::CreateModelContainer(num_runtimes, allocator_ref);
     *ret = reinterpret_cast<AITemplateModelHandle>(m);
-    return AITemplateError::AITemplateSuccess;
   })
 }
 
@@ -62,7 +99,6 @@ AITemplateError AITemplateModelContainerDelete(AITemplateModelHandle handle) {
   CONVERT_EXCEPTION_TO_ERROR_CODE({
     auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
     delete m;
-    return AITemplateError::AITemplateSuccess;
   });
 }
 
@@ -226,4 +262,43 @@ AITemplateError AITemplateModelContainerGetNumRuntimes(
   auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
   CONVERT_EXCEPTION_TO_ERROR_CODE({ *num_runtimes_out = m->GetNumRuntimes(); })
 }
+
+AITemplateError AITemplateAllocatorCreate(
+    AITemplateAllocator** allocator_out,
+    AITemplateAllocatorType allocator_type) {
+  RETURN_ERROR_IF_NULL(allocator_out);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({
+    switch (allocator_type) {
+      case AITemplateAllocatorType::kDefault:
+        *allocator_out = new ait::DefaultAllocator();
+        break;
+      case AITemplateAllocatorType::kTracking:
+        *allocator_out = new ait::TrackingAllocator();
+        break;
+      default:
+        throw std::runtime_error("Unrecognized allocator type");
+    }
+  });
+}
+
+AITemplateError AITemplateAllocatorDelete(AITemplateAllocator* allocator) {
+  RETURN_ERROR_IF_NULL(allocator);
+  delete allocator;
+  return AITemplateError::AITemplateSuccess;
+}
+
+AITemplateError AITemplateTrackingAllocatorGetNumBytes(
+    AITemplateAllocator* allocator,
+    size_t* num_bytes_out) {
+  RETURN_ERROR_IF_NULL(allocator);
+  RETURN_ERROR_IF_NULL(num_bytes_out);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({
+    auto* tracking_allocator = dynamic_cast<ait::TrackingAllocator*>(allocator);
+    if (tracking_allocator == nullptr) {
+      throw std::runtime_error("Allocator was not a tracking allocator!");
+    }
+    *num_bytes_out = tracking_allocator->NumBytesAllocated();
+  });
+}
+
 } // extern "C"

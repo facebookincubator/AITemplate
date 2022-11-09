@@ -13,6 +13,7 @@
 #  limitations under the License.
 #
 import contextlib
+import ctypes
 import itertools
 import unittest
 from typing import Callable, Optional, Tuple
@@ -32,6 +33,7 @@ from aitemplate.compiler.base import (
 )
 from aitemplate.compiler.model import (
     AITData,
+    AITemplateAllocatorKind,
     AITemplateMemcpyKind,
     Model,
     torch_to_ait_data,
@@ -1210,7 +1212,7 @@ class ModelAPITestCase(unittest.TestCase):
         module.run_with_tensors([], [output_data])
 
         expected = const_1_pt * const_1_pt * const_2_pt
-        torch.testing.assert_allclose(output_data, expected)
+        self.assertTrue(torch.allclose(output_data, expected))
 
     def test_set_constant_fails_wrong_dtype(self):
         constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
@@ -1402,6 +1404,46 @@ class ModelAPITestCase(unittest.TestCase):
             x_ait = module.numpy_to_ait_data(x)
             module.free_gpu_memory(x_ait.data_ptr)
             # Make sure we don't double-free when we exit.
+
+    def test_custom_allocator(self):
+        x = Tensor([1], dtype="float16", is_input=True)
+        y = x * x
+        z = y * y
+        z._attrs["is_output"] = True
+        for allocator_kind in (
+            AITemplateAllocatorKind.DEFAULT,
+            AITemplateAllocatorKind.TRACKING,
+        ):
+            with compile_model(
+                z,
+                detect_target(),
+                "./tmp",
+                f"test_custom_allocator_{allocator_kind.value}",
+                allocator_kind=AITemplateAllocatorKind.TRACKING,
+            ) as module:
+                allocator = module.DLL.allocator_handle
+                self.assertIsNotNone(allocator.value)
+
+                if allocator_kind == AITemplateAllocatorKind.TRACKING:
+                    num_bytes = ctypes.c_size_t()
+                    module.DLL.AITemplateTrackingAllocatorGetNumBytes(
+                        allocator, ctypes.byref(num_bytes)
+                    )
+                    self.assertGreater(num_bytes.value, 0)
+
+                x_pt = (
+                    torch.randn(
+                        1,
+                    )
+                    .half()
+                    .cuda()
+                )
+                y_pt = x_pt * x_pt
+                z_pt = y_pt * y_pt
+
+                z_ait = torch.empty_like(x_pt)
+                module.run_with_tensors([x_pt], [z_ait])
+                self.assertTrue(z_ait.equal(z_pt))
 
 
 if __name__ == "__main__":

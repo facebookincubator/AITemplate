@@ -16,10 +16,14 @@
 build a test module from a tensor
 """
 import os
+from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
+from aitemplate.compiler.model import AITemplateAllocatorKind
+from aitemplate.compiler.transform.profile import elapsed_dt_sec
 from aitemplate.utils import graph_utils, logger
+from aitemplate.utils.serialization.serdes_code import dump_program
 
 from .base import DynamicProfileStrategy, Tensor
 
@@ -89,6 +93,10 @@ def compile_model(
     num_runtimes: int = AIT_DEFAULT_NUM_RUNTIMES,
     profile_dir: str = None,
     constants: Optional[Dict[str, TorchTensor]] = None,
+    allocator_kind: Optional[AITemplateAllocatorKind] = None,
+    check_all_nan_and_inf: bool = False,
+    check_all_outputs: bool = False,
+    dump_ait_to_py: Optional[str] = None,
 ) -> Model:
     """Compiles a model and generates a .so file.
 
@@ -111,9 +119,17 @@ def compile_model(
     dll_name: str
         The output .so name.
     num_runtimes: int
-            How many runtimes should be stored in the internal pool. This
-            determines how many inferences can happen concurrently. By
-            default, set to 2. Must be positive.
+        How many runtimes should be stored in the internal pool. This
+        determines how many inferences can happen concurrently. By
+        default, set to 2. Must be positive.
+    allocator_kind: AITemplateAllocatorKind, optional
+        The GPU allocator to use. If none is specified, use the default allocator.
+    check_all_nan_and_inf : bool, optional
+        Whether or not to check this tensor is nan or inf during runtime.
+    check_all_outputs : bool, optional
+        Whether or not to print this tensor's value out during runtime.
+    dump_ait_to_py: str, optional
+        The path where the AIT graph is dumped into a .py file.
 
     Returns
     -------
@@ -132,6 +148,10 @@ def compile_model(
     test_name = test_name.replace(",", "_")
     test_dir = os.path.join(workdir, test_name)
     profile_dir = workdir if profile_dir is None else profile_dir
+
+    if dump_ait_to_py:
+        dump_program(tensor, dump_ait_to_py)
+
     if int(recompile) == 1:
         os.makedirs(test_dir, exist_ok=True)
         with target:
@@ -160,8 +180,12 @@ def compile_model(
                 graph, test_dir, "mark_param_tensor"
             )
 
+            start_t = datetime.now()
             graph = compiler.transform.optimize_graph(graph, test_dir)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "optimize_graph")
+            logger.info(
+                __name__, f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}"
+            )
 
             compiler.transform.mark_special_views(graph)
             compiler.transform.refine_graph(graph)
@@ -178,11 +202,15 @@ def compile_model(
             )
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "profile")
 
+            start_t = datetime.now()
             constant_folding_workdir = os.path.join(workdir, test_name)
             os.makedirs(constant_folding_workdir, exist_ok=True)
             graph = compiler.transform.constant_folding(graph, constant_folding_workdir)
             graph_utils.dump_graph_debug_str_to_file(
                 graph, test_dir, "constant_folding"
+            )
+            logger.info(
+                __name__, f"folded constants elapsed time: {elapsed_dt_sec(start_t)}"
             )
 
             _verify_outputs_still_in_graph(graph, output_tensors)
@@ -192,6 +220,7 @@ def compile_model(
                 workspace,
             ) = compiler.transform.memory_planning(graph)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "memory_planning")
+
             file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
 
             # It's possible that the original output tensor has been replaced with a new tensor.
@@ -215,22 +244,21 @@ def compile_model(
                 workdir,
                 output_tensors,
                 test_name,
+                check_all_nan_and_inf,
+                check_all_outputs,
             )
             file_pairs.extend(main_pairs)
 
+            start_t = datetime.now()
             compile_engine = backend.builder.Builder()
-            if logger.is_debug():
-                compile_engine.gen_makefile(file_pairs, dll_name, workdir, test_name)
-
-            compile_engine.build_objs(
-                file_pairs,
-                backend.target.Target.current().compile_cmd(False),
-                backend.target.Target.current().binary_compile_cmd(),
-            )
-            compile_engine.build_so(
-                os.path.join(workdir, test_name, dll_name), [p[1] for p in file_pairs]
+            compile_engine.make(file_pairs, dll_name, workdir, test_name)
+            logger.info(
+                __name__,
+                f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",
             )
 
-    module = Model(os.path.join(workdir, test_name, dll_name), num_runtimes)
+    module = Model(
+        os.path.join(workdir, test_name, dll_name), num_runtimes, allocator_kind
+    )
     module.debug_sorted_graph = graph
     return module

@@ -24,7 +24,7 @@ from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils
 
 
-class GEMMTestCase(unittest.TestCase):
+class GEMMBiasTanhTestCase(unittest.TestCase):
     def _test_rcr(self, Ms, test_name):
         K = 1024
         N = 64

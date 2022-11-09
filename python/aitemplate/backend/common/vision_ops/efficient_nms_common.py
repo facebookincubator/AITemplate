@@ -21,13 +21,9 @@ from typing import Any, Dict
 
 import jinja2
 
-from ... import builder
-from ...target import Target
 from .efficient_nms_kernel import kernel
 
 # pylint: disable=C0301
-
-FUNC_CALL_INT64_PARAM_TEMPLATE = jinja2.Template("reinterpret_cast<int64_t*>({{name}})")
 
 FUNC_TEMPLATE = jinja2.Template(
     """
@@ -96,7 +92,7 @@ int main(int argc, char** argv) {
   int batchSize = std::stoi(argv[1]);
   int numScoreElements = std::stoi(argv[2]);
   int numClasses = std::stoi(argv[3]);
-  GLOBAL_WORKSPACE_SIZE = EfficientNMSWorkspaceSize<half>(batchSize, numScoreElements, numClasses);
+  GLOBAL_WORKSPACE_SIZE = EfficientNMSWorkspaceSize<{{elem_input_type}}>(batchSize, numScoreElements, numClasses);
 
   std::cout << "TIME:" << runtime_ms << std::endl;
   std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
@@ -106,12 +102,12 @@ int main(int argc, char** argv) {
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-void {{func_name}}(int64_t* num_detections,
-                   half* detection_boxes,
-                   half* detection_scores,
-                   int64_t* detection_classe,
-                   const half* proposals,
-                   const half* fgScores,
+void {{func_name}}(void* num_detections,
+                   void* detection_boxes,
+                   void* detection_scores,
+                   void* detection_classe,
+                   const void* proposals,
+                   const void* fgScores,
                    int64_t* batch,
                    int64_t* num_rois,
                    int64_t* num_classes,
@@ -147,7 +143,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{nmsMaxOut}},
 {{indent}}    {{iouThreshold}},
 {{indent}}    {{minBoxSize}},
-{{indent}}    global_workspace, stream /* default stream */
+{{indent}}    global_workspace_, stream /* default stream */
 {{indent}});
     """
 )
@@ -155,9 +151,16 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 def gen_function(func_attrs: Dict[str, Any], header_files, backend_spec) -> str:
     """the function for generating nms kernel"""
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     return FUNC_TEMPLATE.render(
         header_files=header_files,
-        kernel=kernel.render(prefix=backend_spec.prefix, cub=backend_spec.cub),
+        kernel=kernel.render(
+            prefix=backend_spec.prefix,
+            cub=backend_spec.cub,
+            elem_input_type=elem_input_type,
+        ),
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"], prefix=backend_spec.prefix
         ),
@@ -178,21 +181,12 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
     assert len(func_attrs["outputs"]) == 4
     assert len(func_attrs["inputs"]) == 2
 
-    num_detections = FUNC_CALL_INT64_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][0]._attrs["name"]
-    )
-    detection_boxes = backend_spec.cast_to_half_ptr_template.render(
-        name=func_attrs["outputs"][1]._attrs["name"]
-    )
-    detection_scores = backend_spec.cast_to_half_ptr_template.render(
-        name=func_attrs["outputs"][2]._attrs["name"]
-    )
-    detection_classes = FUNC_CALL_INT64_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][3]._attrs["name"]
-    )
+    num_detections = func_attrs["outputs"][0]._attrs["name"]
+    detection_boxes = func_attrs["outputs"][1]._attrs["name"]
+    detection_scores = func_attrs["outputs"][2]._attrs["name"]
+    detection_classes = func_attrs["outputs"][3]._attrs["name"]
     (input_name, score_name) = (
-        backend_spec.cast_to_half_ptr_template.render(name=input_tensor._attrs["name"])
-        for input_tensor in func_attrs["inputs"]
+        input_tensor._attrs["name"] for input_tensor in func_attrs["inputs"]
     )
 
     x = func_attrs["inputs"][0]
@@ -235,16 +229,21 @@ def gen_profiler(func_attrs, workdir, header_files, backend_spec):
     """the function for generating profiler for nms op"""
     op_type = func_attrs["op"]
     file_pairs = []
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     code = PROFILER_TEMPLATE.render(
         header_files=header_files,
-        kernel=kernel.render(prefix=backend_spec.prefix, cub=backend_spec.cub),
+        elem_input_type=elem_input_type,
+        kernel=kernel.render(
+            prefix=backend_spec.prefix,
+            cub=backend_spec.cub,
+            elem_input_type=elem_input_type,
+        ),
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"], prefix=backend_spec.prefix
         ),
     )
     op_name = func_attrs["op"]
     add_profiler(file_pairs, workdir, op_type, op_name, code)
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_pairs, target.compile_cmd(executable=True))
+    return file_pairs

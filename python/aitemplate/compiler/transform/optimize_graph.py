@@ -24,9 +24,11 @@ from .apply_padding import apply_padding
 from .fuse_conv_elementwise import fuse_conv_elementwise
 from .fuse_group_ops import fuse_group_ops
 from .fuse_mm_elementwise import fuse_mm_elementwise
+from .fuse_mm_reshape_permute import fuse_mm_reshape_permute
 from .fuse_ops import fuse_ops
 from .fuse_parallel_gemms import fuse_parallel_gemms
-from .fuse_permute_bmm import fuse_permute_bmm
+from .fuse_permute_bmm_and_gemm import fuse_permute_bmm_and_gemm
+from .split_large_concat_ops import split_large_concat_ops
 from .transform_memory_ops import transform_memory_ops
 from .transform_odd_alignment import transform_odd_alignment
 from .transform_special_ops import transform_special_ops
@@ -37,6 +39,7 @@ def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
     """Applies graph optimizations, including
 
     - fuse permute and bmm
+    - fuse permute and gemm
     - transform odd alignment
     - fuse conv and elementwise
     - fuse gemm and elementwise
@@ -62,10 +65,11 @@ def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
     """
 
     funcs = [
-        fuse_permute_bmm,
+        fuse_permute_bmm_and_gemm,
         transform_odd_alignment,
         fuse_conv_elementwise,
         fuse_mm_elementwise,
+        fuse_mm_reshape_permute,
         transform_memory_ops,
         fuse_ops,
         # need to run before transform_strided_ops to fuse strided ops + concat
@@ -77,6 +81,7 @@ def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
         transform_special_ops,
         apply_padding,
         transform_strided_ops,
+        split_large_concat_ops,
         transform_memory_ops,
     ]
 

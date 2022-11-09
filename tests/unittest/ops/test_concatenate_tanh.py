@@ -320,15 +320,15 @@ class ConcatenateTestCase(unittest.TestCase):
             input_shapes=([1, 3, 1], [2, 3, 1], [3, 3, 1]),
         )
 
-        # self._run_concatenate(concatenate_op=tensor.cat(),
+        # self._run_concatenate(concatenate_op=ops.concatenate(),
         #                       input_shapes=([12, 3, 4, 5], [3, 3, 4, 5], [7, 3, 4, 5]), dim=0)
-        # self._run_concatenate(concatenate_op=tensor.cat(),
+        # self._run_concatenate(concatenate_op=ops.concatenate(),
         #                       input_shapes=([2, 3, 4, 5], [2, 3, 4, 5], [2, 3, 4, 5]), dim=1)
-        # self._run_concatenate(concatenate_op=tensor.cat(),
+        # self._run_concatenate(concatenate_op=ops.concatenate(),
         #                       input_shapes=([2, 3, 9, 5], [2, 3, 4, 5], [2, 3, 1, 5]), dim=2)
-        # self._run_concatenate(concatenate_op=tensor.cat(),
+        # self._run_concatenate(concatenate_op=ops.concatenate(),
         #                       input_shapes=([2, 3, 4, 5], [2, 3, 4, 3], [2, 3, 4, 5]), dim=3)
-        # self._run_concatenate(concatenate_op=tensor.cat(),
+        # self._run_concatenate(concatenate_op=ops.concatenate(),
         #                       input_shapes=([1, 3, 1], [2, 3, 1], [3, 3, 1]))
 
     def test_masked_cat(self):

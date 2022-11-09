@@ -90,10 +90,16 @@ class elementwise(Operator):
             arg for arg in converted_args if not arg.is_a_const_num()
         ]
         self._set_depth()
+        # for some reason aten converters fail if uncommented
+        # we will need this for fp32 support
+        # dtype = self._attrs["args"][0]._attrs["dtype"]
         output_shape = self._infer_shapes(*converted_args)
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         return output
+
+    def _get_op_attributes(self):
+        return {"func_enum": self._attrs["func"]}
 
     def replace_input_tensor(self, old_tensor, new_tensor) -> None:
         super().replace_input_tensor(old_tensor, new_tensor)

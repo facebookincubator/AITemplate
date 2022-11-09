@@ -20,6 +20,25 @@ from .module import Module
 
 
 class Upsampling2d(Module):
+    r"""
+    Applies a 2D bilinear upsampling to an input signal composed of several input
+    channels.
+
+    To specify the scale, it takes the :attr:`scale_factor` as it's constructor argument.
+
+    * :attr:`scale_factor` (float): multiplier for spatial size.
+
+    * :attr:`mode` (str): the upsampling algorithm: one of ``'nearest'``,
+      ``'linear'``, ``'bilinear'``, ``'bicubic'`` and ``'trilinear'``.
+      Currently we support ``'bilinear'`` and  ``'nearest'`` mode.
+
+    Args:
+        input (Tensor [N, H, W, C]): the input data.
+
+    Return:
+        Tensor [N, H_out, W_out, C].
+    """
+
     def __init__(self, scale_factor, mode):
         super().__init__()
         self.op = upsampling2d(scale_factor, mode)
@@ -31,6 +50,8 @@ class Upsampling2d(Module):
 
 
 class Upsampling2dAdd(Module):
+    r"""Applies Upsampling2d + add."""
+
     def __init__(self, scale_factor, mode):
         super().__init__()
         self.op = upsampling2d_add(scale_factor, mode)

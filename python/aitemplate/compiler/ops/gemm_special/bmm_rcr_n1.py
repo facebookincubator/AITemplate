@@ -45,7 +45,6 @@ class bmm_rcr_n1(bmm_rcr):
     def is_valid_shape(a: Tensor, b: Tensor):
         """
         Check input a/b is valid for bmm_rcr_n1.
-
         Requirements:
             1) matching dimension of a/b (where a is row major, b is column major)
             2) dim N of b needs to be 1

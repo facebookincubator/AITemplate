@@ -214,7 +214,7 @@ def apply_padding(sorted_graph: List[Tensor], workdir: str = None) -> List[Tenso
 
             # Replaces the old op with the new op.
             for tensor_input in op._attrs["inputs"]:
-                tensor_input._attrs["dst_ops"].remove(op)
+                tensor_input._attrs["dst_ops"].discard(op)
             new_op = type(op)()
             new_op._attrs["split_k"] = op._attrs["split_k"]
             if "alpha" in op._attrs:

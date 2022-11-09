@@ -31,12 +31,16 @@ def var_decl(name, value=0, indent="  "):
     return VAR_TEMPLATE.render(name=name, value=value, indent=indent)
 
 
-@registry.reg("rocm.lib.ptr_decl")
-def ptr_decl(name, dtype="float16", indent="  "):
+@registry.reg("rocm.lib.void_ptr_decl")
+def void_ptr_decl(name, dtype="float16", indent="  "):
+    # FIXME: we should just print void* after we support general tensor type, e.g.
+    # return PTR_TEMPLATE.render(name=name, dtype="void*", indent=indent)
     if dtype == "float16":
         type_string = "ck::half_t*"
     elif dtype == "int64":
         type_string = "int64_t*"
+    elif dtype == "bool":
+        type_string = "bool*"
     else:
         raise NotImplementedError
     return PTR_TEMPLATE.render(name=name, dtype=type_string, indent=indent)

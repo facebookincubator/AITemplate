@@ -43,32 +43,45 @@ def _get_problem_info(**kwargs):
 
 @registry.reg("cuda.perm021fc_ccr.config")
 def gemm_ccr_config(func_attrs, dtype="float16"):
-    def fproc_f16(op):
+    def fproc(op):
         import cutlass_lib
 
-        return common.default_fproc_f16(
+        from ...backend_spec import CUDASpec
+
+        backend_spec = CUDASpec()
+        elem_type = backend_spec.dtype_to_lib_type(
+            func_attrs["inputs"][0]._attrs["dtype"]
+        )
+
+        return common.default_fproc(
             op=op,
             a_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             b_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             c_layout=cutlass_lib.library.LayoutType.RowMajor,
+            elem_type=elem_type,
             epiligue_name=func_attrs["epilogue"],
         )
 
-    func_attrs["op_instance"] = common.extract_config(fproc_f16)
+    func_attrs["op_instance"] = common.extract_config(fproc)
 
 
 @registry.reg("cuda.perm021fc_ccr.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     args_parser = bmm_common.ARGS_PARSER_TEMPLATE.render(
         a_dims=["B", "K", "M"], b_dims=["1", "N", "K"], c_dims=["B", "M", "N"]
     )
 
-    mm_info = _get_problem_info(alpha_value=func_attrs.get("alpha", 1))
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    mm_info = _get_problem_info(
+        alpha_value=func_attrs.get("alpha", 1),
+    )
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
 
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common.SRC_TEMPLATE,
         problem_args,
@@ -82,8 +95,12 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
 ):
-    mm_info = _get_problem_info(alpha_value=func_attrs.get("alpha", 1))
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    mm_info = _get_problem_info(
+        alpha_value=func_attrs.get("alpha", 1),
+    )
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
 
     return bmm_common.gen_function(
         func_attrs,

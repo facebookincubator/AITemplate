@@ -43,8 +43,13 @@ EXEC_COND_TEMPLATE = jinja2.Template(
 {{indent}}    } else {
 {{indent}}      throw std::runtime_error("reduce_small_axis: invalid rank rank");
 {{indent}}    }
-{{indent}}    reduce_mean_launcher_small_axis<cst_n>(
-{{indent}}          output, input, b, m, batch_stride_input,
+{{indent}}    reduce_mean_launcher_small_axis<{{elem_output_type}},
+{{indent}}                                    {{elem_input_type}},
+{{indent}}                                    {{elem_compute_type}},
+{{indent}}                                    cst_n>(
+{{indent}}          static_cast<{{elem_output_type}}*>(output),
+{{indent}}          static_cast<{{elem_input_type}}*>(input),
+{{indent}}          b, m, batch_stride_input,
 {{indent}}          batch_stride_output, stream);
 {{indent}}    return;
 {{indent}}  } else {
@@ -88,12 +93,12 @@ __global__ void reduce_small_in_v_out_v(
   size_t output_idx = block_batch * batch_stride_output + idx;
   ElemT *this_output = get_strided_address_at_idx<ElemT, ElemT>(output, output_idx);
 
-  assert(sizeof(ReadVecT) % sizeof(ElemT) == 0);
+  static_assert(sizeof(ReadVecT) % sizeof(ElemT) == 0);
   constexpr int n_read_elems_in_v = sizeof(ReadVecT) / sizeof(ElemT);
   // number of original elements
   constexpr int64_t num_elems_per_thread = num_rows_per_thread * num_cols;
   // number of vector elements
-  assert(num_elems_per_thread % n_read_elems_in_v == 0);
+  static_assert(num_elems_per_thread % n_read_elems_in_v == 0);
   constexpr int64_t num_elems_per_thread_v =
       num_elems_per_thread / n_read_elems_in_v;
 
@@ -122,10 +127,10 @@ __global__ void reduce_small_in_v_out_v(
   };
 
   ElemT reduced_elems[num_rows_per_thread];
-  assert(num_elems_per_thread % num_cols == 0);
+  static_assert(num_elems_per_thread % num_cols == 0);
   CUTLASS_PRAGMA_UNROLL
   for (int64_t i = 0; i < num_elems_per_thread / num_cols; i++) {
-    assert(num_elems_per_thread % num_rows_per_thread == 0);
+    static_assert(num_elems_per_thread % num_rows_per_thread == 0);
     FragmentCompute frag_compute = FragmentCompute(0);
     CUTLASS_PRAGMA_UNROLL
     for (int64_t j = 0; j < num_cols; j++) {
@@ -159,10 +164,13 @@ __global__ void reduce_small_in_v_out_v(
 {% endif %}
 }
 
-template <int64_t num_cols>
+template <typename ElemOutputType,
+          typename ElemInputType,
+          typename ElemComputeType,
+          int64_t num_cols>
 void reduce_mean_launcher_small_axis(
-  {{elem_output_type}} *output,
-  {{elem_input_type}} *input,
+  ElemOutputType *output,
+  ElemInputType *input,
   int64_t num_batches,
   int64_t num_rows,
   int64_t batch_stride_input,
@@ -170,16 +178,16 @@ void reduce_mean_launcher_small_axis(
   cudaStream_t stream
 ) {
   constexpr int64_t num_read_v =
-      sizeof({{read_vec_type}}) / sizeof({{elem_input_type}});
+      sizeof({{read_vec_type}}) / sizeof(ElemInputType);
   constexpr int64_t row_gcd = std::gcd(num_cols, num_read_v);
   constexpr int64_t num_rows_per_thread = num_read_v / row_gcd;
 {% if output_accessor.is_contiguous %}
   constexpr int64_t num_write_bytes_v =
-      num_rows_per_thread * sizeof({{elem_output_type}});
+      num_rows_per_thread * sizeof(ElemOutputType);
 {% else %}
   constexpr int64_t num_write_bytes_v =
       std::min(num_rows_per_thread, static_cast<int64_t>({{output_access_alignment}})) *
-      sizeof({{elem_output_type}});
+      sizeof(ElemOutputType);
 {% endif %}
 
   assert(num_rows % num_rows_per_thread == 0);
@@ -191,8 +199,8 @@ void reduce_mean_launcher_small_axis(
 
 #define HANDLE_ONE_WRITE_VEC(write_bytes, write_vec_type) \\
     case write_bytes:                                     \\
-      reduce_small_in_v_out_v<{{elem_input_type}},        \\
-                              {{elem_compute_type}},      \\
+      reduce_small_in_v_out_v<ElemInputType,              \\
+                              ElemComputeType,            \\
                               {{read_vec_type}},          \\
                               write_vec_type,             \\
                               num_rows_per_thread,        \\
@@ -219,9 +227,10 @@ void reduce_mean_launcher_small_axis(
   LAUNCH_CHECK_REDUCE();
 }
 
+template <typename ElemOutputType, typename ElemInputType>
 void reduce_mean_launcher_small_axis_column_major(
-  {{elem_output_type}} *output,
-  {{elem_input_type}} *input,
+  ElemOutputType *output,
+  ElemInputType *input,
   int64_t num_batches,
   int64_t num_rows,
   int64_t num_columns,
@@ -396,6 +405,9 @@ def get_exec_cond_and_kernel(
     exec_cond = EXEC_COND_TEMPLATE.render(
         indent="  ",
         func_name=func_attrs["name"],
+        elem_output_type=output_type,
+        elem_input_type=input_type,
+        elem_compute_type=acc_type,
         reduction_dim_upperbound=reduction_dim_upperbound,
         reduction_dim_val=reduction_dim_val,
         static_small_reduction_dim=valid_static_small_reduction_dim,
@@ -415,9 +427,6 @@ def get_exec_cond_and_kernel(
         reduce_op=reduce_op,
         prologue_code=prologue_code,
         epilogue_scalar_code=epilogue_scalar_code,
-        elem_input_type=input_type,
-        elem_compute_type=acc_type,
-        elem_output_type=output_type,
         read_vec_type=read_vec_type,
         output_accessor=output_accessors[0],
         output_access_alignment=output_alignment,

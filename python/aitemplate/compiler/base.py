@@ -26,6 +26,9 @@ from typing import Any, Dict, List, Set, Union
 
 import numpy as np
 
+from aitemplate.compiler.dtype import get_dtype_size, normalize_dtype
+
+from aitemplate.compiler.stable_set import StableSet
 from aitemplate.utils.torch_utils import torch_dtype_to_string
 
 from ..utils.tensor_utils import wrap_dim
@@ -42,7 +45,6 @@ class Node(ABC):
         Initializes self._attrs field, which is a dict that stores
         all attributes for this Node.
         Basic attributes include:
-
             * name: str, name of the node.
             * depth: int, depth of the node in a graph. None if this is not applicable.
             * nop: bool, marks whether this node is a no-operation.
@@ -204,35 +206,6 @@ class IntImm(IntVar):
         return str(self.value())
 
 
-_DTYPE2BYTE = {
-    "float16": 2,
-    "float32": 4,
-    "float": 4,
-    "int": 4,
-    "int32": 4,
-    "int64": 8,
-}
-
-
-def get_dtype_size(dtype: str) -> int:
-    """Returns size (in bytes) of the given dtype str.
-
-    Parameters
-    ----------
-    dtype: str
-        A data type string.
-
-    Returns
-    ----------
-    int
-        Size (in bytes) of this dtype.
-    """
-
-    if dtype not in _DTYPE2BYTE:
-        raise KeyError(f"Unknown dtype: {dtype}. Expected one of {_DTYPE2BYTE.keys()}")
-    return _DTYPE2BYTE[dtype]
-
-
 def get_aligned_size(shape: List[IntVar], dtype: str, alignment: int = 64) -> int:
     """Returns aligned size (in bytes) of given shape and dtype.
 
@@ -277,14 +250,7 @@ class _ConstantTensorData(ABC):
 
     def __init__(self, dtype: str):
         super().__init__()
-        self.dtype = self._normalize_dtype(dtype)
-
-    def _normalize_dtype(self, dtype: str) -> str:
-        if dtype == "int":
-            return "int32"
-        if dtype == "float":
-            return "float32"
-        return dtype
+        self.dtype = normalize_dtype(dtype)
 
     @abstractmethod
     def to_bytes(self) -> bytes:
@@ -303,7 +269,7 @@ class _ConstantTensorData(ABC):
         return len(self.to_bytes())
 
     def is_dtype(self, dtype: str) -> bool:
-        return self._normalize_dtype(dtype) == self.dtype
+        return normalize_dtype(dtype) == self.dtype
 
     def __len__(self) -> int:
         return self.size()
@@ -365,13 +331,15 @@ class Tensor(Node):
         self,
         shape: List[IntVar],
         name: str = None,
-        src_ops: Set[Node] = None,
-        dst_ops: Set[Node] = None,
+        src_ops: StableSet[Node] = None,
+        dst_ops: StableSet[Node] = None,
         dtype: str = "float16",
         is_input: bool = False,
         is_output: bool = False,
         value: Any = None,
         is_view_of: Any = None,
+        check_nan_and_inf: bool = False,
+        check_outputs: bool = False,
     ) -> None:
         """Initializes a Tensor.
 
@@ -400,12 +368,20 @@ class Tensor(Node):
             empty list, this Tensor is used to represent a number.
         is_view_of : Any, optional
             Whether this Tensor is a view of another Tensor.
+        check_nan_and_inf : bool, optional
+            Whether or not to check this tensor is nan or inf during runtime.
+        check_outputs : bool, optional
+            Whether or not to print this tensor's value out during runtime.
         """
         super().__init__()
         self._attrs["shape"] = self._convert_shape(shape)
         self._attrs["name"] = name
-        self._attrs["src_ops"] = src_ops if src_ops is not None else set()
-        self._attrs["dst_ops"] = dst_ops if dst_ops is not None else set()
+        self._attrs["src_ops"] = (
+            StableSet(src_ops) if src_ops is not None else StableSet()
+        )
+        self._attrs["dst_ops"] = (
+            StableSet(dst_ops) if dst_ops is not None else StableSet()
+        )
         self._attrs["dtype"] = dtype
         self._attrs["is_output"] = is_output
         self._attrs["is_input"] = is_input
@@ -436,6 +412,9 @@ class Tensor(Node):
 
         # Data to be bound for constant folding. See _bind_data.
         self._attrs["data"] = None
+
+        self._attrs["check_nan_and_inf"] = check_nan_and_inf
+        self._attrs["check_outputs"] = check_outputs
 
     def __str__(self) -> str:
         output = {}
@@ -511,7 +490,7 @@ class Tensor(Node):
 
         if with_shape:
             shapes = ", ".join([dim.pseudo_code() for dim in self._attrs["shape"]])
-            args.append(f"shape={shapes}")
+            args.append(f"shape=[{shapes}]")
 
         data = self._attrs["data"]
         if data is not None:
@@ -627,6 +606,7 @@ class IntVarTensor(Tensor):
             name,
             src_ops,
             dst_ops,
+            dtype=dtype,
             is_input=is_input,
             is_output=is_output,
         )
@@ -634,6 +614,30 @@ class IntVarTensor(Tensor):
 
     def pseudo_code(self, with_shape=True) -> str:
         return f"IntVarTensor({self._attrs['int_var'].pseudo_code()})"
+
+    def __add__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_ADD")(self, other)
+
+    def __radd__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_ADD")(other, self)
+
+    def __sub__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_SUB")(self, other)
+
+    def __rsub__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_SUB")(other, self)
+
+    def __mul__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_MUL")(self, other)
+
+    def __rmul__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_MUL")(other, self)
+
+    def __truediv__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_DIV")(self, other)
+
+    def __rtruediv__(self, other: Any) -> Tensor:
+        return OP_REGISTRY.get("INT_DIV")(other, self)
 
 
 class DynamicProfileStrategy(Enum):

@@ -28,6 +28,7 @@ C: [M, N]
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from ...common import gemm_common
 from ...target import Target
 from ..gemm_universal import common
@@ -38,9 +39,9 @@ from ..gemm_universal import common
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
+  void*,
+  void*,
+  void*,
   {% for i in range(a_ndim) %}
   int64_t*,
   {% endfor %}
@@ -81,10 +82,10 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}gemm_rrr_small_nk_launcher<{{N}}, {{K}}>(
-{{indent}}    a_ptr,
-{{indent}}    b_ptr,
-{{indent}}    c_ptr,
+{{indent}}gemm_rrr_small_nk_launcher<{{elem_input_type}}, {{N}}, {{K}}>(
+{{indent}}    ({{elem_input_type}}*)a_ptr,
+{{indent}}    ({{elem_input_type}}*)b_ptr,
+{{indent}}    ({{elem_input_type}}*)c_ptr,
 {{indent}}    M,
 {{indent}}    use_fp16_acc,
 {{indent}}    stream
@@ -96,6 +97,8 @@ EXEC_TEMPLATE = jinja2.Template(
 
 SRC_TEMPLATE = jinja2.Template(
     """
+#include <iostream>
+#include <type_traits>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
@@ -107,10 +110,8 @@ namespace {
 // B matrix: K x N
 // C tile: 8 x N
 template<int num_thread, int N, int K, bool USE_FP16_ACC>
-__global__ void gemm_rrr_small_nk_kernel(float4* a_ptr,
-                                         float4* b_ptr,
-                                         float4* c_ptr,
-                                         int M) {
+__global__ void gemm_rrr_small_nk_kernel_half(
+    float4* a_ptr, float4* b_ptr, float4* c_ptr, int M) {
   int idx = blockIdx.x * num_thread + threadIdx.x;
 
   if (idx >= (M + 7) / 8) {
@@ -223,40 +224,48 @@ __global__ void gemm_rrr_small_nk_kernel(float4* a_ptr,
 }
 
 // N <= 8, K <= 8
-template<int N, int K>
-void gemm_rrr_small_nk_launcher(cutlass::half_t* a_ptr,
-                         cutlass::half_t* b_ptr,
-                         cutlass::half_t* c_ptr,
+template<typename ElemT, int N, int K>
+void gemm_rrr_small_nk_launcher(ElemT* a_ptr,
+                         ElemT* b_ptr,
+                         ElemT* c_ptr,
                          int M,
                          bool use_fp16_acc,
                          cudaStream_t stream) {
+  constexpr int num_elems_in_float4 = sizeof(float4) / sizeof(ElemT);
   const int nthread = 256;
   dim3 thread_block(nthread);
-  const int n_element_per_t = nthread * 8;
+  constexpr int n_element_per_t = nthread * num_elems_in_float4;
   dim3 grid((M + n_element_per_t - 1) / n_element_per_t);
-  if(use_fp16_acc) {
-    gemm_rrr_small_nk_kernel<nthread, N, K, true><<<grid, thread_block, 0, stream>>>(
-      (float4*)a_ptr,
-      (float4*)b_ptr,
-      (float4*)c_ptr,
-      M
-    );
+  if constexpr (std::is_same<ElemT, half>::value) {
+    if(use_fp16_acc) {
+      gemm_rrr_small_nk_kernel_half<nthread, N, K, true><<<grid, thread_block, 0, stream>>>(
+        (float4*)a_ptr,
+        (float4*)b_ptr,
+        (float4*)c_ptr,
+        M
+      );
+    } else {
+      gemm_rrr_small_nk_kernel_half<nthread, N, K, false><<<grid, thread_block, 0, stream>>>(
+        (float4*)a_ptr,
+        (float4*)b_ptr,
+        (float4*)c_ptr,
+        M
+      );
+    }
   } else {
-    gemm_rrr_small_nk_kernel<nthread, N, K, false><<<grid, thread_block, 0, stream>>>(
-      (float4*)a_ptr,
-      (float4*)b_ptr,
-      (float4*)c_ptr,
-      M
-    );
+    auto msg = std::string("Got error: unsupported elem type ") +
+      " at " + __FILE__ + ": " + std::to_string(__LINE__);
+    std::cerr << msg << std::endl;
+    throw std::runtime_error(msg);
   }
 }
 
 } // namespace
 
 void {{function_name}} (
-    cutlass::half_t* a_ptr,
-    cutlass::half_t* b_ptr,
-    cutlass::half_t* c_ptr,
+    void* a_ptr,
+    void* b_ptr,
+    void* c_ptr,
     {% for i in range(a_ndim) %}
     int64_t *a_dim{{loop.index0}},
     {% endfor %}
@@ -299,11 +308,17 @@ def gen_function(func_attrs, exec_cond_template, dim_info_dict):
         weight_ndims=2,
         output_ndims=c_ndim,
     )
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     if n == 0 or k == 0:
         # avoid "zero-sized variable not allowed in device code" error
         exec_paths = ""
     else:
-        exec_paths = EXEC_TEMPLATE.render(indent="  ", N=n, K=k)
+        exec_paths = EXEC_TEMPLATE.render(
+            indent="  ", elem_input_type=elem_input_type, N=n, K=k
+        )
     return SRC_TEMPLATE.render(
         function_name=func_name,
         shape_function=shape_func,

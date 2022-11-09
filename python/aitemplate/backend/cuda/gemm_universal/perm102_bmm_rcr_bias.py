@@ -17,6 +17,7 @@ Codegen functions for perm102_bmm_rcr_bias, which computes
 C[m, b, n](row) = bmm(A[m, b, k](row), B[b, n, k](col)) + bias[n].
 """
 from ... import registry
+from ...backend_spec import CUDASpec
 from . import bmm_common, common, common_bias, perm102_bmm_rcr
 from .perm102_bmm_rcr import get_output_addr_calculator
 
@@ -45,13 +46,18 @@ def _get_default_problem_info(**kwargs):
 
 # Currently only has output Tensor Accessor support.
 def _get_strided_problem_info(func_attrs):
+    backend_spec = CUDASpec()
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+
     return bmm_common.Bmm_problem_info(
         alpha_value=func_attrs.get("alpha", 1),
         beta_value=1,
         a_ptr="(a_ptr)",
         b_ptr="(b_ptr)",
         bias_ptr="(bias_ptr)",
-        c_ptr="(c_ptr + output_offset)",
+        c_ptr="(" + elem_output_type + "*)(c_ptr) + output_offset",
         a_batch_stride="K",
         b_batch_stride="N * K",
         bias_batch_stride="N",
@@ -69,22 +75,27 @@ def gemm_rcr_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.perm102_bmm_rcr_bias.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     args_parser = bmm_common.ARGS_PARSER_TEMPLATE.render(
         a_dims=["M", "B", "K"], b_dims=["B", "N", "K"], c_dims=["M", "B", "N"]
     )
 
-    mm_info = _get_default_problem_info(alpha_value=func_attrs.get("alpha", 1))
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    mm_info = _get_default_problem_info(
+        alpha_value=func_attrs.get("alpha", 1),
+    )
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
 
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common_bias.SRC_TEMPLATE,
         problem_args,
         args_parser,
-        bias_ptr_arg="memory_pool->RequestHalfTensorByIdx(3)",
+        bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
     )
 
 
@@ -97,7 +108,9 @@ def gen_function(
     bmm_problem_info = _get_strided_problem_info(func_attrs)
 
     # broadcasting is not supported
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=bmm_problem_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=bmm_problem_info,
+    )
 
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)

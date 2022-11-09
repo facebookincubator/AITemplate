@@ -22,12 +22,9 @@ from typing import Any, Dict
 import jinja2
 
 from .... import registry
+from ....backend_spec import CUDASpec
 
 # pylint: disable=C0301
-
-FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<half*>(&({{name}}->raw()))"
-)
 
 FUNC_CALL_INT64_PARAM_TEMPLATE = jinja2.Template("reinterpret_cast<int64_t*>({{name}})")
 
@@ -48,7 +45,8 @@ namespace {
 {{func_signature}}
 {
 
-    batched_nms_launcher<half>(0, instance_num, keep_n, iou_threshold, input, workspace, output, mask);
+    batched_nms_launcher<{{elem_input_type}}>(
+        0, instance_num, keep_n, iou_threshold, input, workspace, output, mask);
 }
     """
 )
@@ -56,7 +54,7 @@ namespace {
 FUNC_SIGNATURE = jinja2.Template(
     """
 void {{func_name}}(int64_t* output,
-                   const half* input,
+                   const void* input,
                    const int instance_num,
                    const int keep_n,
                    const float iou_threshold,
@@ -80,7 +78,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{keep_n}},
 {{indent}}    {{iou_threshold}},
 {{indent}}    {{mask}},
-{{indent}}    global_workspace, stream /* default stream */
+{{indent}}    global_workspace_, stream /* default stream */
 {{indent}});
     """
 )
@@ -96,7 +94,12 @@ def get_custom_libs() -> str:
 
 @registry.reg("cuda.batched_nms.gen_function")
 def batched_nms_gen_function(func_attrs: Dict[str, Any]) -> str:
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     return FUNC_TEMPLATE.render(
+        elem_input_type=elem_input_type,
         custom_libs=get_custom_libs(),
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
     )
@@ -118,9 +121,7 @@ def batched_nms_gen_function_call(func_attrs, indent="  "):
     output_name = FUNC_CALL_INT64_PARAM_TEMPLATE.render(
         name=func_attrs["outputs"][0]._attrs["name"]
     )
-    input_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["inputs"][0]._attrs["name"]
-    )
+    input_name = func_attrs["inputs"][0]._attrs["name"]
     tmp_name = FUNC_CALL_INT64_PARAM_TEMPLATE.render(
         name=func_attrs["inputs"][1]._attrs["name"]
     )

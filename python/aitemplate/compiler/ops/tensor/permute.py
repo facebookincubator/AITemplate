@@ -15,11 +15,12 @@
 """
 permute op
 """
-from typing import Sequence
+from typing import List, Sequence
 
+from .... import backend
+from ....backend import registry
 from ....utils.tensor_utils import wrap_dim
-
-from ...base import Operator, Tensor
+from ...base import IntVar, Operator, Tensor
 from .permute021 import permute021
 from .permute102 import permute102
 from .permute210 import permute210
@@ -34,14 +35,19 @@ class permute(Operator):
         super().__init__()
         self._attrs["op"] = "permute"
 
+    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+        """Infers shapes for permute."""
+
+        output_shapes = []
+        input_shapes = x.shape()
+        for dim in self._attrs["dims"]:
+            output_shapes.append(input_shapes[dim])
+        return output_shapes
+
     def __call__(self, x: Tensor, dims: Sequence[int]) -> Tensor:
-        if len(dims) != 3:
-            raise NotImplementedError(
-                "Permute op doesn't support permute pattern {}".format(dims)
-            )
         dims = list(dims)
         for i, dim in enumerate(dims):
-            dims[i] = wrap_dim(dim, 3)
+            dims[i] = wrap_dim(dim, x._rank())
 
         if dims == [0, 2, 1]:
             return permute021()(x)
@@ -49,6 +55,24 @@ class permute(Operator):
             return permute102()(x)
         if dims == [2, 1, 0]:
             return permute210()(x)
-        raise NotImplementedError(
-            "Permute op doesn't support permute pattern {}".format(dims)
+
+        self._attrs["dims"] = dims
+        self._attrs["inputs"] = [x]
+        self._set_depth()
+
+        output_shapes = self._infer_shapes(x)
+        output = Tensor(output_shapes, src_ops={self})
+        self._attrs["outputs"] = [output]
+
+        # TODO: support output TensorAccessor
+        return output
+
+    def gen_function(self) -> str:
+        target = backend.target.Target.current()
+        func_key = "{target}.{op}.gen_function".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        return func(
+            self._attrs,
         )

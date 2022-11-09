@@ -166,6 +166,16 @@ class pool2d_base(Operator):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        target_attrs = ["stride", "pad", "kernel_size", "reduce_func"]
+        attr = {}
+
+        for target_attr in target_attrs:
+            if target_attr in self._attrs:
+                attr[target_attr] = self._attrs[target_attr]
+
+        return attr
+
     def gen_function(self) -> str:
         target = backend.target.Target.current()
         func_key = "{target}.{op}.gen_function".format(

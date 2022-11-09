@@ -78,6 +78,9 @@ class pad_last_dim(Operator):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        return {"ndim": self._attrs["ndim"], "out_dim": self._attrs["out_dim"]}
+
     def gen_function(self) -> str:
         target = backend.target.Target.current()
         template_path = target.template_path()

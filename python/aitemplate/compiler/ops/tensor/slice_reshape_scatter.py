@@ -19,6 +19,7 @@ Slice_reshape_scatter.
 from .... import backend
 from ....backend import registry
 from ...base import IntImm, IntVar, Operator
+from ...stable_set import StableSet
 
 # pylint: disable=C0103,C0415,W0221
 
@@ -97,15 +98,15 @@ class slice_reshape_scatter(Operator):
             y._attrs["src_ops"].add(self)
 
         for op in self._attrs["slice_ops"]:
-            op._attrs["outputs"][0]._attrs["src_ops"] = set()
-            op._attrs["outputs"][0]._attrs["dst_ops"] = set()
+            op._attrs["outputs"][0]._attrs["src_ops"] = StableSet()
+            op._attrs["outputs"][0]._attrs["dst_ops"] = StableSet()
 
         for x in cat_op._attrs["inputs"]:
-            x._attrs["src_ops"] = set()
-            x._attrs["dst_ops"] = set()
+            x._attrs["src_ops"] = StableSet()
+            x._attrs["dst_ops"] = StableSet()
         for y in cat_op._attrs["outputs"]:
-            y._attrs["src_ops"] = set()
-            y._attrs["dst_ops"] = set()
+            y._attrs["src_ops"] = StableSet()
+            y._attrs["dst_ops"] = StableSet()
 
     def __init__(
         self, cat_op: Operator, reshape_op: Operator, cat_op_2: Operator

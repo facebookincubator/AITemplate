@@ -54,6 +54,7 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
         num_heads=12,
         causal=False,
         test_name="ck_attn",
+        copy_op=False,
     ):
         target = detect_target()
         batch_dim = shape_utils.gen_int_var_min_max(bs, name="batch_size")
@@ -71,6 +72,8 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
         scale = head_dim**-0.5
 
         OP = ops.bmm_softmax_bmm_permute(shape=(num_heads,), scale=scale, causal=causal)
+        if copy_op:
+            OP = ops.bmm_softmax_bmm_permute(**OP._get_op_attributes())
         Y = OP(X, B0, B1)
 
         Y._attrs["name"] = "output_0"
@@ -123,7 +126,9 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
             #     [X_pt, W_pt, B1_pt], [y], count=200, repeat=2
             # )
 
-    def _test_b2b(self, bs, ms, N, K, D, head_dim=64, test_name="ck_attn"):
+    def _test_b2b(
+        self, bs, ms, N, K, D, head_dim=64, test_name="ck_attn", copy_op=False
+    ):
         target = detect_target()
         batch_dim = shape_utils.gen_int_var_min_max(bs, name="batch_size")
         m_dim = shape_utils.gen_int_var_min_max(ms, name="m")
@@ -140,6 +145,8 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
         scale = head_dim**-0.5
 
         OP = ops.bmm_softmax_bmm(scale=scale)
+        if copy_op:
+            OP = ops.bmm_softmax_bmm(OP._get_op_attributes())
         Y = OP(X, B0, B1)
 
         Y._attrs["name"] = "output_0"
@@ -175,6 +182,9 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
         self._test_bmm_permute([24], [49], N=49, K=64, D=64, test_name="static")
         self._test_bmm_permute([24], [1020], N=1020, K=64, D=128, test_name="static")
         self._test_bmm_permute(
+            [24], [1020], N=1020, K=64, D=128, test_name="static_copy_op", copy_op=True
+        )
+        self._test_bmm_permute(
             [32], [49], N=49, K=64, D=64, num_heads=4, test_name="static"
         )
         self._test_bmm_permute(
@@ -182,6 +192,17 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
         )
         self._test_bmm_permute(
             [12], [64], N=64, K=64, D=64, num_heads=12, causal=True, test_name="static"
+        )
+        self._test_bmm_permute(
+            [12],
+            [64],
+            N=64,
+            K=64,
+            D=64,
+            num_heads=12,
+            causal=True,
+            test_name="static_copy_op",
+            copy_op=True,
         )
 
 

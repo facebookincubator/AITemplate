@@ -22,6 +22,7 @@ from functools import partial
 
 import jinja2
 
+from ...backend_spec import CUDASpec
 from ...common import gemm_common
 from ...target import Target
 
@@ -70,16 +71,16 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     1,
 {% endif %}
     {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
-    (void*) (a_ptr + input_a_offset),
-    (void*) (b_ptr + input_b_offset),
-    (void*) d0_ptr,
+    ({{elem_input_type}}*)(a_ptr) + input_a_offset,
+    ({{elem_input_type}}*)(b_ptr) + input_b_offset,
+    ({{elem_output_type}}*)(d0_ptr),
 {% if has_d1 %}
-    (void*) d1_ptr,
+    ({{elem_output_type}}*)(d1_ptr),
 {% else %}
     nullptr,
 {% endif %}
-    (void*) (c_ptr + output_offset),
-    (void*) bias_ptr,
+    ({{elem_output_type}}*) (c_ptr) + output_offset,
+    ({{elem_input_type}}*) (bias_ptr),
     nullptr,
     /*batch_stride_A*/ input_a_batch_stride,
     /*batch_stride_B*/ input_b_batch_stride,
@@ -113,16 +114,16 @@ PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     1,
 {% endif %}
     {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
-    (void*) a_ptr,
-    (void*) b_ptr,
-    (void*) d0_ptr,
+    ({{elem_input_type}}*) a_ptr,
+    ({{elem_input_type}}*) b_ptr,
+    ({{elem_output_type}}*) d0_ptr,
 {% if has_d1 %}
-    (void*) d1_ptr,
+    ({{elem_output_type}}*) d1_ptr,
 {% else %}
     nullptr,
 {% endif %}
-    (void*) (c_ptr + output_offset),
-    (void*) bias_ptr,
+    ({{elem_output_type}}*) (c_ptr) + output_offset,
+    ({{elem_input_type}}*) bias_ptr,
     nullptr,
     /*batch_stride_A*/ 0,
     /*batch_stride_B*/ 0,
@@ -173,15 +174,21 @@ SRC_TEMPLATE = jinja2.Template(
 
 {{instances}}
 
+{% if is_profiler %}
+template <typename GemmInstance>
 void {{function_name}} (
-    cutlass::half_t* a_ptr,
-    cutlass::half_t* b_ptr,
-    cutlass::half_t* bias_ptr,
-    cutlass::half_t* d0_ptr,
-{% if has_d1 %}
-    cutlass::half_t* d1_ptr,
+    GemmInstance& gemm_op,
+{% else %}
+void {{function_name}} (
 {% endif %}
-    cutlass::half_t* c_ptr,
+    void* a_ptr,
+    void* b_ptr,
+    void* bias_ptr,
+    void* d0_ptr,
+{% if has_d1 %}
+    void* d1_ptr,
+{% endif %}
+    void* c_ptr,
     uint8_t* workspace,
 {% if support_split_k %}
     int split_k,
@@ -229,14 +236,14 @@ void {{function_name}} (
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
+  void*,
+  void*,
+  void*,
+  void*,
 {% if has_d1 %}
-  cutlass::half_t*,
+  void*,
 {% endif %}
-  cutlass::half_t*,
+  void*,
   uint8_t*,
 {% if support_split_k %}
     int,
@@ -262,6 +269,9 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}{
 {{indent}}{{local_dim_defs}}
 {{indent}}{{func_name}}(
+{% if is_profiler %}
+{{indent}}    gemm_op,
+{% endif %}
 {{indent}}    {{a_ptr}},
 {{indent}}    {{b_ptr}},
 {{indent}}    {{bias_ptr}},
@@ -270,7 +280,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{d1_ptr}},
 {% endif %}
 {{indent}}    {{c_ptr}},
-{{indent}}    global_workspace,
+{{indent}}    global_workspace_,
 {% if support_split_k %}
 {{indent}} {{split_k}},
 {% endif %}
@@ -313,13 +323,13 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
   // need to tune it for other devices
   int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
 
-  memory_pool->AllocateHalfTensor(a_ptr_sz, mem_pool_sz);  // a_ptr: index 0
-  memory_pool->AllocateHalfTensor(b_ptr_sz, mem_pool_sz);  // b_ptr: index 1
-  memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // c_ptr: index 2
-  memory_pool->AllocateHalfTensor(c_dim1, mem_pool_sz);  // bias_ptr: index 3
-  memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // d0 ptr: index 4
+  memory_pool->AllocateTensor(a_ptr_sz, mem_pool_sz);  // a_ptr: index 0
+  memory_pool->AllocateTensor(b_ptr_sz, mem_pool_sz);  // b_ptr: index 1
+  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz);  // c_ptr: index 2
+  memory_pool->AllocateTensor(c_dim1, mem_pool_sz);  // bias_ptr: index 3
+  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz);  // d0 ptr: index 4
 {% if has_d1 %}
-  memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // d1 ptr: index 5
+  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz);  // d1 ptr: index 5
 {% endif %}
 """
 )
@@ -386,12 +396,13 @@ def gemm_bias_broadcast_instance(
 
 
 def gemm_bias_broadcast_config(func_attrs, layout, dtype="float16"):
-    common.make_fproc_f16(func_attrs, layout)
+    common.make_fproc(func_attrs, layout)
 
 
 def gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     dim_info_dict,
     layout,
     unary_op1,
@@ -399,6 +410,16 @@ def gen_profiler(
     binary_op2,
     unary_op2,
 ):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    elem_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     op_type = func_attrs["op"]
     support_split_k = _support_split_k(func_attrs)
     op_instance = func_attrs["op_instance"]
@@ -412,8 +433,29 @@ def gen_profiler(
         indent=2, dtype="int64_t", dim_info_dict=dim_info_dict, is_ptr=True
     )
 
-    file_pairs = []
-    for op_name, op in op_instance.items():
+    instance_name_base = "GemmInstance"
+    exec_program = common.EXEC_TEMPLATE.render(
+        indent="  ",
+        instance=instance_name_base,
+        is_profiler=True,
+        problem_args=PROFILER_PROBLEM_ARGS_TEMPLATE.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+            support_split_k=support_split_k,
+            layout=layout,
+            has_d1=has_d1,
+        ),
+    )
+    input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        output_ndims=ndims,
+    )
+
+    function_name = "gemm"
+    instances = []
+    benchmark_instances = []
+    for instance_idx, (op_name, op) in enumerate(op_instance.items()):
         config = common.emit_instance(
             op,
             for_profiler=True,
@@ -427,64 +469,95 @@ def gen_profiler(
             ),
         )
         config_name = common.extract_config_name(config)
-        name = "GemmInstance"
+        instance_name = f"{instance_name_base}_{instance_idx}"
+        gemm_op = f"gemm_op_{instance_idx}"
         instance = common.INSTANCE_TEMPLATE.render(
-            config_name=config_name, name=name, config=config
+            config_name=config_name, name=instance_name, config=config
         )
-        exec_program = common.EXEC_TEMPLATE.render(
+        benchmark_instance = common.BENCHMARK_INSTANCE_TEMPLATE.render(
             indent="  ",
-            instance=name,
-            is_profiler=True,
-            problem_args=PROFILER_PROBLEM_ARGS_TEMPLATE.render(
-                support_split_k=support_split_k, layout=layout, has_d1=has_d1
-            ),
-        )
-        input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
-            input_ndims=ndims,
-            weight_ndims=ndims,
-            output_ndims=ndims,
-        )
-        op_func = SRC_TEMPLATE.render(
-            instances=instance,
-            function_name="gemm",
-            input_ndims=ndims,
-            weight_ndims=ndims,
-            shape_eval=shape_func,
-            input_output_checks=input_output_checks,
-            exec_paths=exec_program,
-            output_addr_calculator=common.DEFAULT_OUTPUT_ADDR_CALCULATOR.render(
-                stride_dim="N"
-            ),
-            support_split_k=support_split_k,
-            has_d1=has_d1,
-        )
-        func_call = FUNC_CALL_TEMPLATE.render(
-            func_name="gemm",
-            a_ptr="memory_pool->RequestHalfTensorByIdx(0)",
-            b_ptr="memory_pool->RequestHalfTensorByIdx(1)",
-            c_ptr="memory_pool->RequestHalfTensorByIdx(2)",
-            d0_ptr="memory_pool->RequestHalfTensorByIdx(4)",
-            d1_ptr="memory_pool->RequestHalfTensorByIdx(5)",
-            bias_ptr="memory_pool->RequestHalfTensorByIdx(3)",
+            instance_name=instance_name,
+            gemm_op=gemm_op,
+            gemm_op_name=op_name,
+            func_name=f"benchmark_{function_name}",
+            a_ptr="memory_pool->RequestTensorByIdx(0)",
+            b_ptr="memory_pool->RequestTensorByIdx(1)",
+            c_ptr="memory_pool->RequestTensorByIdx(2)",
+            d_ptr="memory_pool->RequestTensorByIdx(4)",
+            d1_ptr="memory_pool->RequestTensorByIdx(5)",
+            bias_ptr="memory_pool->RequestTensorByIdx(3)",
             adims=adims,
             bdims=bdims,
             cdims=cdims,
             support_split_k=support_split_k,
             split_k="split_k",
+            has_bias=True,
+            has_d=True,
             has_d1=has_d1,
         )
-        code = common.PROFILER_TEMPLATE.render(
-            op_func=op_func,
-            args_parse=ARGS_PARSER_TEMPLATE.render(
-                layout=layout, support_split_k=support_split_k
-            ),
-            func_call=func_call,
-            name=name,
-            tensor_decl=TENSOR_DECL_TEMPLATE.render(name=name, has_d1=has_d1),
-        )
-        common.add_profiler(file_pairs, workdir, op_type, op_name, code)
+        instances.append(instance)
+        benchmark_instances.append(benchmark_instance)
+    op_func = SRC_TEMPLATE.render(
+        is_profiler=True,
+        instances="\n".join(instances),
+        function_name=function_name,
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        shape_eval=shape_func,
+        input_output_checks=input_output_checks,
+        exec_paths=exec_program,
+        output_addr_calculator=common.DEFAULT_OUTPUT_ADDR_CALCULATOR.render(
+            stride_dim="N"
+        ),
+        support_split_k=support_split_k,
+        has_d1=has_d1,
+    )
+    benchmark_adims = ["a_dim" + str(i) for i in range(ndims)]
+    benchmark_bdims = ["b_dim" + str(i) for i in range(ndims)]
+    benchmark_cdims = ["c_dim" + str(i) for i in range(ndims)]
+    func_call = FUNC_CALL_TEMPLATE.render(
+        is_profiler=True,
+        func_name="gemm",
+        a_ptr="a_ptr",
+        b_ptr="b_ptr",
+        c_ptr="c_ptr",
+        d0_ptr="d_ptr",
+        d1_ptr="d1_ptr",
+        bias_ptr="bias_ptr",
+        adims=benchmark_adims,
+        bdims=benchmark_bdims,
+        cdims=benchmark_cdims,
+        support_split_k=support_split_k,
+        split_k="split_k",
+        has_d1=has_d1,
+    )
+    code = common.PROFILER_TEMPLATE.render(
+        op_func=op_func,
+        has_bias=True,
+        has_d=True,
+        has_d1=has_d1,
+        support_split_k=support_split_k,
+        args_parse=ARGS_PARSER_TEMPLATE.render(
+            layout=layout, support_split_k=support_split_k
+        ),
+        function_name=function_name,
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        output_ndims=ndims,
+        func_call=func_call,
+        name=instance_name_base,
+        tensor_decl=TENSOR_DECL_TEMPLATE.render(has_d1=has_d1),
+        benchmark_instances="\n".join(benchmark_instances),
+        elem_type=elem_type,
+    )
+    # FIXME: remove file_pairs once we have make -j ready for building
+    # an entire graph
+    file_pairs = []
+    common.add_profiler(file_pairs, workdir, op_type, profiler_filename, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)
 
 
 def gen_function(
@@ -497,6 +570,13 @@ def gen_function(
     binary_op2,
     unary_op2,
 ):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
     input_addr_calculator = gemm_rcr.get_input_addr_calculator(func_attrs)
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
@@ -504,7 +584,11 @@ def gen_function(
     support_split_k = _support_split_k(func_attrs)
     has_d1 = common.has_d1(func_attrs)
     problem_args = PROBLEM_ARGS_TEMPLATE.render(
-        layout=layout, support_split_k=support_split_k, has_d1=has_d1
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+        layout=layout,
+        support_split_k=support_split_k,
+        has_d1=has_d1,
     )
     return common.gen_function(
         func_attrs,

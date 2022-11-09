@@ -29,11 +29,7 @@ class conv2d_bias_relu_few_channels(special_conv2d_bias_activation):
         super().__init__("relu", stride, pad, dilate, auto_padding)
 
     def _get_op_attributes(self):
-        target_attrs = ["dilate", "pad", "stride"]
-        attr = {}
-
-        for target_attr in target_attrs:
-            if target_attr in self._attrs:
-                attr[target_attr] = self._attrs[target_attr]
+        attr = super()._get_op_attributes()
+        del attr["activation"]
 
         return attr

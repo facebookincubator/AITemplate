@@ -25,7 +25,7 @@ def hard_swish(x):
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class GEMMTestCase(unittest.TestCase):
+class GEMMBiasHardSwishTestCase(unittest.TestCase):
     def test_rcr(self):
         M = 128
         K = 1024

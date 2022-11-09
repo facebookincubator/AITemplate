@@ -17,6 +17,8 @@ common templates for conv_bias_activation subgraph
 """
 import jinja2
 
+from aitemplate.backend.backend_spec import CUDASpec
+
 from . import common
 
 # pylint: disable=C0103,C0301
@@ -34,10 +36,10 @@ EXEC_TEMPLATE = jinja2.Template(
 //  TODO: cast to right dtype
 {{indent}}typename {{instance}}::Arguments arguments{
 {{indent}}    problem_size,
-{{indent}}    {(cutlass::half_t*)(in_ptr), layout_A},
-{{indent}}    {(cutlass::half_t*)(weight_ptr), layout_B},
-{{indent}}    {(cutlass::half_t*)(bias_ptr), cutlass::layout::TensorNHWC::Stride(0)},
-{{indent}}    {(cutlass::half_t*)(out_ptr), layout_C},
+{{indent}}    {static_cast<{{dtype}}*>(in_ptr), layout_A},
+{{indent}}    {static_cast<{{dtype}}*>(weight_ptr), layout_B},
+{{indent}}    {static_cast<{{dtype}}*>(bias_ptr), cutlass::layout::TensorNHWC::Stride(0)},
+{{indent}}    {static_cast<{{dtype}}*>(out_ptr), layout_C},
 {{indent}}    {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
 {{indent}}};
 {{indent}}{{instance}} implicit_gemm_op;
@@ -89,10 +91,10 @@ SRC_TEMPLATE = jinja2.Template(
 {{instances_def}}
 
 void {{function_name}} (
-    cutlass::half_t* in_ptr,
-    cutlass::half_t* weight_ptr,
-    cutlass::half_t* out_ptr,
-    cutlass::half_t* bias_ptr,
+    void* in_ptr,
+    void* weight_ptr,
+    void* out_ptr,
+    void* bias_ptr,
     uint8_t* workspace,
     int64_t* batch,
     int64_t* out_ch,
@@ -177,10 +179,10 @@ int main(int argc, char** argv) {
   cutlass::HostTensor<ElementOutput, typename {{name}}::LayoutC> y({NO, HO, WO, CO});
   //
   // warmup
-  conv((cutlass::half_t*) x.device_data(),
-       (cutlass::half_t*) w.device_data(),
-       (cutlass::half_t*) y.device_data(),
-       (cutlass::half_t*) b.device_data(),
+  conv(x.device_data(),
+       w.device_data(),
+       y.device_data(),
+       b.device_data(),
        global_workspace,
        &NI,
        &CO,
@@ -200,12 +202,12 @@ int main(int argc, char** argv) {
   for (auto & event : events) {
     cudaEventCreate(&event);
   }
-  cudaEventRecord(events[0]);
+  cudaEventRecord(events[0], stream);
   for (int i = 0; i < 5; ++i) {
-      conv((cutlass::half_t*) x.device_data(),
-       (cutlass::half_t*) w.device_data(),
-       (cutlass::half_t*) y.device_data(),
-       (cutlass::half_t*) b.device_data(),
+      conv(x.device_data(),
+       w.device_data(),
+       y.device_data(),
+       b.device_data(),
        global_workspace,
        &NI,
        &CO,
@@ -222,7 +224,7 @@ int main(int argc, char** argv) {
        pad,
        stream);
   }
-  cudaEventRecord(events[1]);
+  cudaEventRecord(events[1], stream);
   cudaEventSynchronize(events[1]);
   float runtime_ms = 0;
   cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
@@ -245,10 +247,10 @@ int main(int argc, char** argv) {
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
+  void*,
+  void*,
+  void*,
+  void*,
   uint8_t*,
   int64_t*,
   int64_t*,
@@ -275,7 +277,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{weight_ptr}},
 {{indent}}    {{out_ptr}},
 {{indent}}    {{bias_ptr}},
-{{indent}}    global_workspace,
+{{indent}}    global_workspace_,
 {{indent}}    {{p_batch}},
 {{indent}}    {{p_out_ch}},
 {{indent}}    {{p_in_ch}},
@@ -314,6 +316,9 @@ def gen_profiler(func_attrs, workdir, shape_template, extra_header=""):
         dilate="dilation",
         pad="pad",
     )
+
+    backend_spec = CUDASpec()
+    dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
     file_pairs = []
     for op_name, op in op_instance.items():
         config = common.emit_instance(op)
@@ -324,12 +329,14 @@ def gen_profiler(func_attrs, workdir, shape_template, extra_header=""):
             config_name=config_name, name=name, config=config
         )
         exec_program = EXEC_TEMPLATE.render(
-            indent="  ", is_profiler=True, instance=name
+            indent="  ",
+            is_profiler=True,
+            instance=name,
+            dtype=dtype,
         )
         op_func = SRC_TEMPLATE.render(
             instances=instance,
             function_name="conv",
-            dtype="cutlass::half_t",
             shape_func="",
             exec_paths=exec_program,
             extra_header=extra_header,
@@ -339,7 +346,7 @@ def gen_profiler(func_attrs, workdir, shape_template, extra_header=""):
         )
         common.add_profiler(file_pairs, workdir, op_type, op_name, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)
 
 
 def gen_function_call(func_attrs, indent="  "):

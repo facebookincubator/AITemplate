@@ -21,6 +21,8 @@ from typing import List
 
 import jinja2
 
+from aitemplate.compiler.stable_set import StableSet
+
 from ....backend import registry
 from ....backend.target import Target
 from ....utils import logger
@@ -77,7 +79,6 @@ class group_gemm_rcr(common.gemm):
 
     .. highlight:: python
     .. code-block:: python
-
         # group 1
         A1 = torch.randn(M1, K1).cuda().half()
         B1 = torch.randn(N1, K1).cuda().half()
@@ -153,7 +154,7 @@ class group_gemm_rcr(common.gemm):
         """a temporary function to concatenate strided outputs"""
         cat_op = concatenate()
         cat_output = cat_op(outputs, dim=output_stride_dim)
-        cat_output._attrs["src_ops"] = [self]
+        cat_output._attrs["src_ops"] = StableSet([self])
         offset = 0
         for idx, output_tensor in enumerate(outputs):
             self._attrs["output_accessors"][idx].update_base_tensor(
@@ -197,7 +198,7 @@ class group_gemm_rcr(common.gemm):
         for a, b in operand_groups:
             op = gemm_rcr()
             c = op(a, b)
-            c._attrs["src_ops"] = [self]
+            c._attrs["src_ops"] = StableSet([self])
             a._attrs["dst_ops"].remove(op)
             b._attrs["dst_ops"].remove(op)
             epilogue_alignment = min(
@@ -297,7 +298,11 @@ class group_gemm_rcr(common.gemm):
                 target=target.name(), op=self._attrs["op"]
             )
             func = registry.get(func_key)
-            func(self._attrs, workdir, self.shape_eval_template)
+            profiler_filename = self._get_profiler_filename()
+            logger.info(__name__, f"generating {profiler_filename=}")
+            return func(
+                self._attrs, workdir, profiler_filename, self.shape_eval_template
+            )
 
     def gen_function(self) -> str:
         """Generate function for the op

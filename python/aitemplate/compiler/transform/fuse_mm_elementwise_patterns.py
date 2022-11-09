@@ -26,6 +26,8 @@ from ..ops.gemm_universal import (
     gemm_rcr_bias_add_add,
     gemm_rcr_bias_add_add_relu,
     gemm_rcr_bias_add_relu,
+    gemm_rcr_bias_fast_gelu,
+    gemm_rcr_bias_gelu,
     gemm_rcr_bias_mul,
     gemm_rcr_bias_mul_add,
     gemm_rcr_bias_mul_tanh,
@@ -96,6 +98,20 @@ def get_patterns():
                 elementwise(FuncEnum.TANH),
             ),
             gemm_rcr_bias_tanh,
+        ),
+        (
+            (
+                gemm_rcr_bias(),
+                elementwise(FuncEnum.GELU),
+            ),
+            gemm_rcr_bias_gelu,
+        ),
+        (
+            (
+                gemm_rcr_bias(),
+                elementwise(FuncEnum.FASTGELU),
+            ),
+            gemm_rcr_bias_fast_gelu,
         ),
     ]
 

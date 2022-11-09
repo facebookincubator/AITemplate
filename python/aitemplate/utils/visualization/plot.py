@@ -15,9 +15,10 @@
 """
 Graph visualization tool for AITemplate
 """
-
 import json
+import os
 
+from aitemplate import compiler
 from aitemplate.utils.visualization import op_attr_factory, pydot
 from aitemplate.utils.visualization.web_template import (
     INDEX_TEMPLATE,
@@ -89,22 +90,30 @@ def _gen_op_modal(op) -> str:
     return modal_src
 
 
-def plot_graph(sorted_graph, file_path: str, network_name: str = "") -> None:
-    """Plot a sorted graph into an interactive HTML page.
-
-    The sorted graph must be named.
-    The HTML can be opened in Chrome directly.
+def plot_graph(tensors, file_path: str) -> None:
+    """
+    Plot AIT graph.
 
     Parameters
     ----------
-    sorted_graph : List[Tensor]
-        output of sorted graph / other optimization pass.
+    tensors : Union[Tensor, List[Tensor]]
+        An output Tensor, or a list of output Tensors of AIT graph.
     file_path : str
-        output HTML path
-    network_name : str, optional
-        the name of network, will appear in navigation bar, by default ""
+        Output file path, currently we support the following extension:
+            - html
+            - format supported by graphviz
     """
     dot_graph = pydot.Dot(graph_type="digraph")
+    _, ext = os.path.splitext(file_path)
+    if ext == "":
+        raise ValueError("Please provide a file extension in path to plot.")
+
+    ext = ext[1:]
+    if ext != "html" and ext not in dot_graph.formats:
+        raise ValueError(f"Unsupported extension '{ext}' to plot!")
+
+    sorted_graph = compiler.transform.toposort(tensors)
+    compiler.transform.name_graph(sorted_graph)
 
     op_set = {}
     tensor_set = {}
@@ -114,10 +123,6 @@ def plot_graph(sorted_graph, file_path: str, network_name: str = "") -> None:
     for tensor in sorted_graph:
         tensor_node = None
         tensor_name = tensor._attrs["name"]
-        if tensor_name is None:
-            raise RuntimeError(
-                "Input sorted_graph must be named. Try to run name_graph pass on it."
-            )
         if tensor in tensor_set:
             tensor_node = tensor_set[tensor]
         else:
@@ -143,10 +148,6 @@ def plot_graph(sorted_graph, file_path: str, network_name: str = "") -> None:
         for src_op in tensor.src_ops():
             op_node = None
             op_name = src_op._attrs["name"]
-            if op_name is None:
-                raise RuntimeError(
-                    "Input sorted_graph must be named. Try to run name_graph pass on it."
-                )
             if src_op in op_set:
                 op_node = op_set[src_op]
             else:
@@ -166,10 +167,6 @@ def plot_graph(sorted_graph, file_path: str, network_name: str = "") -> None:
         for dst_op in tensor.dst_ops():
             op_node = None
             op_name = dst_op._attrs["name"]
-            if op_name is None:
-                raise RuntimeError(
-                    "Input sorted_graph must be named. Try to run name_graph pass on it."
-                )
             if dst_op in op_set:
                 op_node = op_set[dst_op]
             else:
@@ -186,17 +183,24 @@ def plot_graph(sorted_graph, file_path: str, network_name: str = "") -> None:
                 # add modal
                 modal_set.append(_gen_op_modal(dst_op))
             dot_graph.add_edge(pydot.Edge(tensor_node, op_node))
-    dot_src = dot_graph.to_string()
-    modal_src = "\n".join(modal_set)
-    items_src = [f'"{item}"' for item in items]
-    popover_src = json.dumps(popover_data)
-    index = INDEX_TEMPLATE.render(
-        dot_src=dot_src,
-        modals=modal_src,
-        network_name=network_name,
-        items=items_src,
-        popover_data=popover_src,
-    )
 
-    with open(file_path, "w") as fo:
-        fo.write(index)
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
+    if ext == "html":
+        basename = os.path.splitext(os.path.basename(file_path))[0]
+        dot_src = dot_graph.to_string()
+        modal_src = "\n".join(modal_set)
+        items_src = [f'"{item}"' for item in items]
+        popover_src = json.dumps(popover_data)
+        index = INDEX_TEMPLATE.render(
+            dot_src=dot_src,
+            modals=modal_src,
+            network_name=basename,
+            items=items_src,
+            popover_data=popover_src,
+        )
+
+        with open(file_path, "w") as fo:
+            fo.write(index)
+    else:
+        dot_graph.write(file_path, format=ext)

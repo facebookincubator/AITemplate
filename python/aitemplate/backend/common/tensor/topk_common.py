@@ -21,9 +21,6 @@ from typing import Any, Dict, List, Tuple
 
 import jinja2
 
-from ... import builder
-from ...target import Target
-
 # pylint: disable=C0301
 
 FUNC_CALL_INT64_PARAM_TEMPLATE = jinja2.Template("reinterpret_cast<int64_t*>({{name}})")
@@ -40,7 +37,7 @@ namespace {
 
 {{func_signature}}
 {
-    topk_launcher<half>(stream, elem_cnt, instance_size, instance_num, top_k, input, workspace, output);
+    topk_launcher<{{dtype}}>(stream, elem_cnt, instance_size, instance_num, top_k, input, workspace, output);
 }
     """
 )
@@ -64,10 +61,10 @@ int main(int argc, char** argv) {
   int instance_num = std::stoi(argv[3]);
 
   float runtime_ms = 0;
-  const int64_t sorted_in_aligned_bytes = GetAlignedSize(elem_cnt * sizeof(half));
+  const int64_t sorted_in_aligned_bytes = GetAlignedSize(elem_cnt * sizeof({{dtype}}));
   const int64_t indices_aligned_bytes = GetAlignedSize(elem_cnt * sizeof(int64_t));
   const int64_t sorted_indices_aligned_bytes = indices_aligned_bytes;
-  int64_t temp_storage_bytes = InferTempStorageForSortPairsDescending<half, int64_t>(instance_size, instance_num);
+  int64_t temp_storage_bytes = InferTempStorageForSortPairsDescending<{{dtype}}, int64_t>(instance_size, instance_num);
   GLOBAL_WORKSPACE_SIZE  =  GetAlignedSize(sorted_in_aligned_bytes + indices_aligned_bytes + sorted_indices_aligned_bytes + temp_storage_bytes);
   std::cout << "TIME:" << runtime_ms << std::endl;
   std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
@@ -78,7 +75,7 @@ int main(int argc, char** argv) {
 FUNC_SIGNATURE = jinja2.Template(
     """
 void {{func_name}}(int64_t* output,
-                   const half* input,
+                   const void* input,
                    const {{index_type}} elem_cnt,
                    const {{index_type}} instance_size,
                    const {{index_type}} instance_num,
@@ -102,7 +99,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{instance_size}},
 {{indent}}    {{instance_num}},
 {{indent}}    {{top_k}},
-{{indent}}    global_workspace, stream /* default stream */
+{{indent}}    global_workspace_, stream /* default stream */
 {{indent}});
     """
 )
@@ -624,12 +621,14 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     """
     index_type = backend_spec.index_type
     prefix = backend_spec.prefix
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
     return FUNC_TEMPLATE.render(
         header_files=header_files,
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"], index_type=index_type, prefix=prefix
         ),
         kernel=KERNEL_TEMPLATE.render(cub=backend_spec.cub, prefix=prefix),
+        dtype=dtype,
     )
 
 
@@ -681,9 +680,7 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> 
     output_name = FUNC_CALL_INT64_PARAM_TEMPLATE.render(
         name=func_attrs["outputs"][0]._attrs["name"]
     )
-    input_name = backend_spec.cast_to_half_ptr_template.render(
-        name=func_attrs["inputs"][0]._attrs["name"]
-    )
+    input_name = func_attrs["inputs"][0]._attrs["name"]
 
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
@@ -754,16 +751,16 @@ def gen_profiler(
     file_pairs = []
     index_type = backend_spec.index_type
     prefix = backend_spec.prefix
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
+
     code = PROFILER_TEMPLATE.render(
         header_files=header_files,
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"], index_type=index_type, prefix=prefix
         ),
         kernel=KERNEL_TEMPLATE.render(cub=backend_spec.cub, prefix=prefix),
+        dtype=dtype,
     )
     op_name = func_attrs["op"]
     add_profiler(file_pairs, workdir, op_type, op_name, code)
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_pairs, target.compile_cmd(executable=True))
+    return file_pairs

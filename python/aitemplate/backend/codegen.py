@@ -28,11 +28,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from aitemplate.backend.main_templates import MODEL_CONTAINER_TEMPLATE, MODEL_TEMPLATE
 from aitemplate.compiler.base import Operator
+from aitemplate.compiler.dtype import dtype_to_enumerator, get_dtype_size
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from aitemplate.compiler.transform.memory_planning import Workspace
+from aitemplate.utils import logger
 
-from ..compiler.base import get_dtype_size, IntImm, IntVar, Tensor
+from ..compiler.base import IntImm, IntVar, IntVarTensor, Tensor
 from . import registry
 from .target import Target
 
@@ -44,6 +46,7 @@ DTYPE_TO_POINTERTYPE: Dict[str, str] = {
     "int": "int32_t*",
     "int32": "int32_t*",
     "int64": "int64_t*",
+    "bool": "bool*",
 }
 
 
@@ -61,10 +64,12 @@ def gen_profiler(sorted_graph: list[Tensor], workdir: str, dynamic_profiling_str
         Pass-through to gen_profiler kernels of nodes in the graph.
         See also: :func:`~aitemplate.compiler.transform.profile.profile`
     """
+    results = []
     for node in sorted_graph:
         for func in node.src_ops():
             if "has_profiler" in func._attrs and func._attrs["has_profiler"]:
-                func.gen_profiler(workdir, dynamic_profiling_strategy)
+                results.append(func.gen_profiler(workdir, dynamic_profiling_strategy))
+    return results
 
 
 def gen_function_src(
@@ -100,6 +105,7 @@ def gen_function_src(
                 with open(src_path, "w") as fo:
                     fo.write(func.gen_function())
                 exist_func.add(fname)
+    logger.info(__name__, f"generated {len(file_pairs)} function srcs")
     return file_pairs
 
 
@@ -171,22 +177,6 @@ def set_value_from_map(map_name: Any, var_name: Any, indent: str = "    ") -> st
     return f'{indent}{value} = static_cast<decltype({value})>({map_name}["{key}"]);'
 
 
-def dtype_to_enumerator(dtype):
-    def _impl(dtype):
-        if dtype == "float16":
-            return "kHalf"
-        elif dtype == "float32" or dtype == "float":
-            return "kFloat"
-        elif dtype == "int32" or dtype == "int":
-            return "kInt"
-        elif dtype == "int64":
-            return "kLong"
-        else:
-            raise AssertionError(f"unknown dtype {dtype}")
-
-    return f"AITemplateDtype::{_impl(dtype)}"
-
-
 def count_inputs_outputs(graph):
     n_inputs = n_outputs = 0
     for node in graph:
@@ -217,7 +207,7 @@ def check_not_null(
     if tensor_idx is None:
         check = name
     else:
-        check = f"params[{tensor_idx}].ptr"
+        check = f"params_[{tensor_idx}].ptr"
 
     shape = ["1"]
     lower_bound_is_zero = False
@@ -249,7 +239,7 @@ if ({condition}) {{
 
 def device_copy(dst_tensor: Tensor, src_tensor: Tensor, dst_idx: int) -> str:
     src_name = src_tensor._attrs["name"]
-    dst_ptr = f"params[{dst_idx}].ptr"
+    dst_ptr = f"params_[{dst_idx}].ptr"
     shape = ["1"]
     for dim in dst_tensor._attrs["shape"]:
         if isinstance(dim, IntImm):
@@ -271,10 +261,12 @@ class ModelContainerGenerator:
         num_outputs: int,
         constants_data_file: io.BytesIO,
         output_name_to_idx: Dict[str, int],
+        check_all_nan_and_inf: bool = False,
+        check_all_outputs: bool = False,
     ):
         self.target = Target.current()
         self.f_var_decl = registry.get(self.target.name() + ".lib.var_decl")
-        self.f_ptr_decl = registry.get(self.target.name() + ".lib.ptr_decl")
+        self.f_ptr_decl = registry.get(self.target.name() + ".lib.void_ptr_decl")
 
         self.constants_data_file = constants_data_file
 
@@ -321,6 +313,12 @@ class ModelContainerGenerator:
             num_outputs,
         )
 
+        self.check_all_nan_and_inf = check_all_nan_and_inf
+        self.check_all_outputs = check_all_outputs
+
+        # This records whether or not we should debug header.
+        self.debug_header = False
+
     def _tensor_slice_func(
         self,
         node: Tensor,
@@ -351,7 +349,7 @@ class ModelContainerGenerator:
             for dim in tensor._attrs["shape"]
         )
         self.set_up_param_dynamic_shapes.append(
-            set_value(f"params[{idx}].shape_ptrs", f"{{{param_shape_init}}}")
+            set_value(f"params_[{idx}].shape_ptrs", f"{{{param_shape_init}}}")
         )
         name = tensor._attrs["name"]
         self.set_up_param_names.append(set_value(f"param_names_[{idx}]", f'"{name}"'))
@@ -384,7 +382,7 @@ class ModelContainerGenerator:
             self.owned_constants_init.append(constant_info)
             self.constants_data_size += num_bytes
             self.num_constants += 1
-        else:
+        elif not isinstance(tensor, IntVarTensor):
             # Unbound constant. We will expect the user to set this via SetConstant.
             self.set_up_constant_names.append(
                 set_value(
@@ -393,7 +391,8 @@ class ModelContainerGenerator:
                 )
             )
             self._record_param_tensor_info(
-                tensor, self.unbound_constant_idx + self.num_inputs + self.num_outputs
+                tensor,
+                self.unbound_constant_idx + self.num_inputs + self.num_outputs,
             )
             self.unbound_constant_idx += 1
             self.set_inputs.append(check_not_null(tensor))
@@ -413,7 +412,7 @@ class ModelContainerGenerator:
         self.set_inputs.append(
             set_value(
                 name,
-                f"static_cast<decltype({name})>(params[{self.input_idx}].ptr)",
+                f"static_cast<decltype({name})>(params_[{self.input_idx}].ptr)",
             )
         )
         self.set_inputs.append(check_not_null(tensor))
@@ -444,7 +443,7 @@ class ModelContainerGenerator:
             self.set_inputs.append(
                 set_value(
                     name,
-                    f"static_cast<decltype({name})>(params[{ptr_idx}].ptr)",
+                    f"static_cast<decltype({name})>(params_[{ptr_idx}].ptr)",
                 )
             )
 
@@ -488,7 +487,7 @@ class ModelContainerGenerator:
             self.set_inputs.append(
                 set_value(
                     name,
-                    f"static_cast<decltype({name})>(params[{self.input_idx}].ptr)",
+                    f"static_cast<decltype({name})>(params_[{self.input_idx}].ptr)",
                 )
             )
             self._record_param_tensor_info(tensor, self.input_idx)
@@ -525,6 +524,9 @@ class ModelContainerGenerator:
 
     def _process_src_ops(self, node: Tensor) -> None:
         funcs = node.src_ops()
+        if len(funcs) == 0:
+            return
+
         for func in funcs:
             f_func_decl = registry.get(
                 ".".join((self.target.name(), func._attrs["op"], "func_decl"))
@@ -550,12 +552,36 @@ class ModelContainerGenerator:
                     self.state_record.add(func._attrs["name"])
             self._process_dims_for_op(func)
 
+        if self.check_all_nan_and_inf or node._attrs.get("check_nan_and_inf", False):
+            self._append_check_nan_and_inf(node)
+        if self.check_all_outputs or node._attrs.get("check_outputs", False):
+            self._append_check_outputs(node)
+
+    def _append_check_nan_and_inf(self, node: Tensor):
+        self.debug_header = True
+        tensor_name = node._attrs["name"]
+        elem_cnt = "*".join([shape.pseudo_code() for shape in node.shape()])
+        self.func_seq.append(
+            f'    InvokeInfAndNanChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
+        )
+
+    def _append_check_outputs(self, node: Tensor):
+        self.debug_header = True
+        tensor_name = node._attrs["name"]
+        elem_cnt = "*".join([shape.pseudo_code() for shape in node.shape()])
+        self.func_seq.append(
+            f'    InvokeOutputsChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
+        )
+
     def append_tensor(self, node: Tensor) -> None:
         if node._attrs["nop"]:
             return
         name = node._attrs["name"]
         dtype = node._attrs["dtype"]
-        self.tensor_decl.append(self.f_ptr_decl(name=name, dtype=dtype))
+        if isinstance(node, IntVarTensor):
+            self.tensor_decl.append(self.f_var_decl(name=name))
+        else:
+            self.tensor_decl.append(self.f_ptr_decl(name=name, dtype=dtype))
 
         is_param = node._attrs["is_param"]
         is_output = node._attrs["is_output"]
@@ -576,14 +602,14 @@ class ModelContainerGenerator:
         elif has_output_aliases:
             # Special case: internal tensor that aliases an output.
             self._codegen_output_aliases_tensor(node)
-        elif not is_view:
+        elif not is_view and not isinstance(node, IntVarTensor):
             # Normal, internal tensor that is not a view: point it to the
             # internal blob of memory
             assert (
                 node._attrs["offset"] >= 0
             ), f"Non-parameter node '{name}' must have non-negative offset"
             self.tensor_slice.append(self._tensor_slice_func(node, "blob_ptr"))
-        else:
+        elif not isinstance(node, IntVarTensor):
             # Normal view, point it to the same memory as whatever it
             # aliases
             self.set_inputs.append(set_value(name, view._attrs["name"]))
@@ -621,6 +647,7 @@ class ModelContainerGenerator:
             function_state="\n".join(self.function_state),
             target_has_graph_mode=target_has_graph_mode,
             unique_workspace_size=self.workspace.unique_size,
+            debug_header=self.debug_header,
         )
 
         result["model-generated.h"] = model_def
@@ -678,6 +705,8 @@ def gen_library_src(  # noqa: C901
     workdir: str,
     output_tensors: List[Tensor],
     model_name: str = "",
+    check_all_nan_and_inf: bool = False,
+    check_all_outputs: bool = False,
 ) -> list[Tuple[str, str]]:
     """Generate model driver source code files for the given graph
 
@@ -722,6 +751,8 @@ def gen_library_src(  # noqa: C901
         num_outputs,
         constants_data_file,
         output_name_to_index,
+        check_all_nan_and_inf,
+        check_all_outputs,
     )
     for node in sorted_graph:
         model_container_generator.append_tensor(node)
@@ -741,4 +772,5 @@ def gen_library_src(  # noqa: C901
     for fname in sources:
         to_build.append((fname, to_obj_name(fname)))
 
+    logger.info(__name__, f"generated {len(to_build)} library srcs")
     return to_build

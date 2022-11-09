@@ -21,21 +21,19 @@ from typing import Any, Dict, List
 
 import jinja2
 
+from ...backend_spec import CUDASpec
 from ...target import Target
-
-FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<half*>(&({{name}}->raw()))"
-)
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-cudaError_t {{func_name}}(half* output,
-                          half* input,
-                          half* gamma,
-                          half* beta,
+cudaError_t {{func_name}}(void* output,
+                          void* input,
+                          void* gamma,
+                          void* beta,
                           int N,
                           const float eps,
                           const int max_smem_size,
+                          void* workspace,
                           cudaStream_t stream)
     """
 )
@@ -51,7 +49,8 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}{
 {{indent}}  {{func_name}}(
 {{indent}}     {{output}}, {{input}}, {{gamma}}, {{beta}}, {{N}},
-{{indent}}     {{eps}}, max_smem_size, stream /* default stream */
+{{indent}}     {{eps}}, max_smem_size_, global_workspace_,
+{{indent}}  stream /* default stream */
 {{indent}}  );
 {{indent}}}
     """
@@ -69,11 +68,15 @@ FUNC_TEMPLATE = jinja2.Template(
 #include "cutlass/cutlass.h"
 #include "cutlass/fast_math.h"
 #include "logging.h"
+#include <math_constants.h>
+#include <assert.h>
 
 
 {{gamma_beta_const_defs}}
 
 namespace {
+
+{{helper_libs}}
 
 {{custom_libs}}
 
@@ -81,14 +84,16 @@ namespace {
 
 {{func_signature}}
 {
-    return invokeGroupNorm<{{FuseSwish}}, {{H}}, {{W}}, {{C}}, {{G}}>(
-            output,
-            input,
-            gamma,
-            beta,
+
+    return invokeGroupNorm_{{elem_input_type}}<{{FuseSwish}}, {{H}}, {{W}}, {{C}}, {{G}}>(
+            static_cast<{{elem_input_type}}*>(output),
+            static_cast<{{elem_input_type}}*>(input),
+            static_cast<{{elem_input_type}}*>(gamma),
+            static_cast<{{elem_input_type}}*>(beta),
             N,
             eps,
             max_smem_size,
+            workspace,
             stream);
 }
     """
@@ -113,15 +118,15 @@ def get_input_names(func_attrs: Dict[str, Any]) -> List[str]:
         beta = inputs[idx]
         idx += 1
 
-    input_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(name=x._attrs["name"])
+    input_name = x._attrs["name"]
     if gamma is None:
         gamma_name = "nullptr"
     else:
-        gamma_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(name=gamma._attrs["name"])
+        gamma_name = gamma._attrs["name"]
     if beta is None:
         beta_name = "nullptr"
     else:
-        beta_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(name=beta._attrs["name"])
+        beta_name = beta._attrs["name"]
 
     return (input_name, gamma_name, beta_name)
 
@@ -135,11 +140,19 @@ def groupnorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     C = input_shape[3].value()
     G = func_attrs["num_groups"]
 
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     return FUNC_TEMPLATE.render(
+        helper_libs=Target.current().get_custom_libs(
+            os.path.dirname(__file__), "layer_norm.cuh"
+        ),
         custom_libs=Target.current().get_custom_libs(
             os.path.dirname(__file__), "groupnorm_kernel.cuh"
         ),
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
+        elem_input_type=elem_input_type,
         FuseSwish="true" if use_swish else "false",
         H=H,
         W=W,
@@ -161,9 +174,7 @@ def groupnorm_gen_func_call(func_attrs: Dict[str, Any], indent="  ") -> str:
         func_attrs["inputs"]
     ), "expected at least 1 inputs but got {}".format(len(func_attrs["inputs"]))
 
-    output_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][0]._attrs["name"]
-    )
+    output_name = func_attrs["outputs"][0]._attrs["name"]
     (input_name, gamma_name, beta_name) = get_input_names(func_attrs)
     input_shape = func_attrs["inputs"][0]._attrs["shape"]
     eps = func_attrs["eps"]

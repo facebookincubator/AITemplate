@@ -104,6 +104,12 @@ class batched_nms(Operator):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        return {
+            "iou_threshold": self._attrs["iou_threshold"],
+            "keep_n": self._attrs["keep_n"],
+        }
+
     def gen_function(self) -> str:
         """call backend function"""
         target = backend.target.Target.current()

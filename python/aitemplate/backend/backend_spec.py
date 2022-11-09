@@ -26,8 +26,24 @@ from ..compiler.ops.common.epilogue import FuncEnum
 from .target import Target
 
 
-@dataclass
 class BackendSpec:
+    pass
+
+
+@dataclass
+class CPUBackendSpec(BackendSpec):
+    func_enum_to_func_name: Dict[FuncEnum, str] = field(
+        default_factory=lambda: {
+            FuncEnum.ADD: "+",
+            FuncEnum.SUB: "-",
+            FuncEnum.MUL: "*",
+            FuncEnum.DIV: "/",
+        }
+    )
+
+
+@dataclass
+class GPUBackendSpec(BackendSpec):
     dtype_to_backend_fp16_dtype: Dict[str, str] = field(
         default_factory=lambda: {
             "float16": "half",
@@ -70,7 +86,6 @@ class BackendSpec:
             "float",
         ]
     )
-
     func_enum_to_func_name: Dict[FuncEnum, Dict[str, str]] = field(
         default_factory=lambda: {
             FuncEnum.ADD: {
@@ -174,6 +189,24 @@ class BackendSpec:
                 "half": "hsilu",
                 "float": "fsilu",
             },
+            FuncEnum.POW: {
+                "half2": "h2pow",
+                "half": "hpow",
+                "float": "fpow",
+            },
+            FuncEnum.GELU: {
+                "half": "hgelu",
+                "float": "fgelu",
+            },
+            FuncEnum.FASTGELU: {
+                "half": "h_fast_gelu",
+                "float": "f_fast_gelu",
+            },
+            FuncEnum.SOFTPLUS: {
+                "half2": "h2softplus",
+                "half": "hsoftplus",
+                "float": "fsoftplus",
+            },
         }
     )
 
@@ -183,10 +216,10 @@ class BackendSpec:
         dtype: str,
         num_elements_to_backend_type_list: List[Tuple[int, str]],
     ) -> str:
-        if dtype != "float16":
+        if dtype not in ("float16", "float"):
             raise NotImplementedError("Unsupported dtype {}!".format(dtype))
-        for num, backend_type in num_elements_to_backend_type_list:
-            if num_elements % num == 0:
+        for alignment, backend_type in num_elements_to_backend_type_list:
+            if num_elements % alignment == 0:
                 return backend_type
         raise RuntimeError(
             "Failed to infer data type! num_elements: {}, num_elements_to_backend_type_list: {}".format(
@@ -216,9 +249,12 @@ class BackendSpec:
     def dtype_to_backend_type(self, dtype: str):
         return self.get_dtype_to_dtype(dtype, self.dtype_to_backend_dtype)
 
+    def dtype_to_lib_type(self, dtype: str):
+        raise NotImplementedError
+
 
 @dataclass
-class ROCMSpec(BackendSpec):
+class ROCMSpec(GPUBackendSpec):
     backend_name = "rocm"
     index_type = "int64_t"
     prefix = "hip"
@@ -250,7 +286,7 @@ class ROCMSpec(BackendSpec):
 
 
 @dataclass
-class CUDASpec(BackendSpec):
+class CUDASpec(GPUBackendSpec):
     backend_name = "cuda"
     index_type = "int64_t"
     prefix = "cuda"

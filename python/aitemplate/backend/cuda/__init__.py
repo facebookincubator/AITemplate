@@ -19,6 +19,7 @@ CUDA backend codegen functions.
 from . import cuda_common, lib_template, target_def, utils
 from .common import *
 from .conv2d import *
+from .conv3d import *
 from .elementwise import *
 from .embedding import *
 from .gemm_special import *

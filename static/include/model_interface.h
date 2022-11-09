@@ -63,6 +63,7 @@ enum class AITemplateDtype {
   kFloat,
   kInt,
   kLong,
+  kBool,
 };
 
 struct AITData {
@@ -89,6 +90,8 @@ inline size_t AITemplateDtypeSizeBytes(AITemplateDtype dtype) {
       return 4;
     case AITemplateDtype::kLong:
       return 8;
+    case AITemplateDtype::kBool:
+      return 1;
     case AITemplateDtype::kUnset:
       throw std::runtime_error("Unset dtype has no size!");
   }
@@ -97,10 +100,37 @@ inline size_t AITemplateDtypeSizeBytes(AITemplateDtype dtype) {
 struct AITemplateStreamOpaque {};
 using AITemplateStreamHandle = AITemplateStreamOpaque*;
 
+// Allocator to use for GPU mallocs and frees. Allocations will only happen
+// when the ModelContainer is created.
+class AITemplateAllocator {
+ public:
+  virtual void* Allocate(size_t nbytes) = 0;
+  virtual void Free(void* ptr) = 0;
+
+  virtual ~AITemplateAllocator() = default;
+};
+
+// Some custom allocators are provided. They can be created by passing
+// an enum into the AITemplateAllocatorCreate() function.
+enum class AITemplateAllocatorType {
+  // The default allocator just uses the backend's default malloc/free.
+  kDefault = 0,
+  // The tracking allocator is like the default allocator, but it keeps
+  // track of how many bytes it has allocated. Mainly used for testing.
+  kTracking,
+};
+
 extern "C" {
 
-AIT_EXPORT AITemplateError
-AITemplateModelContainerCreate(AITemplateModelHandle* ret, size_t num_runtimes);
+// Create a ModelContainer. See model_container.h for all the details.
+// Some important high-level notes:
+// * If allocator is null, a default allocator is used (forwards to
+//   {cuda/hip}{Malloc/Free}).
+// * We assume that the allocator lives at least as long as the ModelContainer.
+AIT_EXPORT AITemplateError AITemplateModelContainerCreate(
+    AITemplateModelHandle* ret,
+    size_t num_runtimes,
+    AITemplateAllocator* allocator = nullptr);
 
 AIT_EXPORT AITemplateError
 AITemplateModelContainerDelete(AITemplateModelHandle handle);
@@ -180,5 +210,17 @@ AIT_EXPORT AITemplateError AITemplateModelContainerGetOutputDtype(
 AIT_EXPORT AITemplateError AITemplateModelContainerGetNumRuntimes(
     AITemplateModelHandle handle,
     size_t* num_runtimes_out);
+
+AIT_EXPORT AITemplateError AITemplateAllocatorCreate(
+    AITemplateAllocator** allocator_out,
+    AITemplateAllocatorType allocator_type);
+
+AIT_EXPORT AITemplateError
+AITemplateAllocatorDelete(AITemplateAllocator* allocator_out);
+
+// Get the number of bytes allocated; mainly used for testing.
+AIT_EXPORT AITemplateError AITemplateTrackingAllocatorGetNumBytes(
+    AITemplateAllocator* allocator,
+    size_t* num_bytes_out);
 
 } // extern "C"

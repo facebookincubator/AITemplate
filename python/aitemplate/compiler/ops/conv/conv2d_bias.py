@@ -72,3 +72,13 @@ class conv2d_bias(conv2d_bias_activation):
         super().__init__("identity", stride, pad, dilate=dilate, group=group)
         self._attrs["op"] = "conv2d_bias"
         self._attrs["epilogue"] = "LinearCombination"
+
+    def _get_op_attributes(self):
+        target_attrs = ["dilate", "group", "pad", "stride"]
+        attr = {}
+
+        for target_attr in target_attrs:
+            if target_attr in self._attrs:
+                attr[target_attr] = self._attrs[target_attr]
+
+        return attr
