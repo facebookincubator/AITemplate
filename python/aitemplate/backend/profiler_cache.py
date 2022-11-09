@@ -43,7 +43,7 @@ class CacheMode(enum.Enum):
 
 GEMM_INIT_TEMPLATE = jinja2.Template(
     """
- CREATE TABLE IF NOT EXISTS {{dev}}_gemm (
+ CREATE TABLE IF NOT EXISTS {{dev}}_gemm_{{version}} (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   exec_entry VARCHAR(8192) NOT NULL,
   exec_entry_sha1 VARCHAR(64) NOT NULL,
@@ -71,7 +71,7 @@ GEMM_INIT_TEMPLATE = jinja2.Template(
 GEMM_QUERY_TEMPLATE = jinja2.Template(
     """
 SELECT algo, workspace, split_k
-FROM {{dev}}_gemm
+FROM {{dev}}_gemm_{{version}}
 WHERE
 dtype_a={{dtype_a}} AND
 dtype_b={{dtype_b}} AND
@@ -90,7 +90,7 @@ exec_entry_sha1='{{exec_entry_sha1}}';
 
 GEMM_INSERT_TEMPLATE = jinja2.Template(
     """
-INSERT INTO {{dev}}_gemm (
+INSERT INTO {{dev}}_gemm_{{version}} (
     exec_entry,
     exec_entry_sha1,
     dtype_a,
@@ -126,16 +126,6 @@ VALUES (
     {{split_k}},
     '{{pshape}}'
 );
-"""
-)
-
-GEMM_ENTRY_QUERY = jinja2.Template(
-    """
-SELECT id
-FROM {{dev}}_gemm
-WHERE
-op_type='{{op_type}}' AND
-exec_entry_sha1='{{exec_entry_sha1}}';
 """
 )
 
@@ -248,6 +238,142 @@ VALUES (
 """
 )
 
+CONV3D_INIT_TEMPLATE = jinja2.Template(
+    """
+ CREATE TABLE IF NOT EXISTS {{dev}}_conv3d (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  exec_entry VARCHAR(8192) NOT NULL,
+  exec_entry_sha1 VARCHAR(64) NOT NULL,
+  dtype_a INTEGER NOT NULL,
+  dtype_b INTEGER NOT NULL,
+  dtype_c INTEGER NOT NULL,
+  dtype_acc INTEGER NOT NULL,
+  major_a INTEGER NOT NULL,
+  major_b INTEGER NOT NULL,
+  major_c INTEGER NOT NULL,
+  kd INTEGER NOT NULL,
+  kh INTEGER NOT NULL,
+  kw INTEGER NOT NULL,
+  co INTEGER NOT NULL,
+  stride_d INTEGER NOT NULL,
+  stride_h INTEGER NOT NULL,
+  stride_w INTEGER NOT NULL,
+  pad_d INTEGER NOT NULL,
+  pad_h INTEGER NOT NULL,
+  pad_w INTEGER NOT NULL,
+  dilate_d INTEGER NOT NULL,
+  dilate_h INTEGER NOT NULL,
+  dilate_w INTEGER NOT NULL,
+  op_type VARCHAR(512) NOT NULL,
+  epilogue VARCHAR(512) NOT NULL,
+  device VARCHAR(16) NOT NULL,
+  algo VARCHAR(512) NOT NULL,
+  workspace INTEGER DEFAULT 0,
+  duration FLOAT DEFAULT -1,
+  split_k INTEGER DEFAULT 1,
+  template_ver INTEGER NOT NULL DEFAULT 290,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+"""
+)
+
+CONV3D_QUERY_TEMPLATE = jinja2.Template(
+    """
+SELECT algo, workspace
+FROM {{dev}}_conv3d
+WHERE
+dtype_a={{dtype_a}} AND
+dtype_b={{dtype_b}} AND
+dtype_c={{dtype_c}} AND
+dtype_acc={{dtype_acc}} AND
+major_a={{major_a}} AND
+major_b={{major_b}} AND
+major_c={{major_c}} AND
+kd={{kd}} AND
+kh={{kh}} AND
+kw={{kw}} AND
+co={{co}} AND
+stride_d={{stride_d}} AND
+stride_h={{stride_h}} AND
+stride_w={{stride_w}} AND
+pad_d={{pad_d}} AND
+pad_h={{pad_h}} AND
+pad_w={{pad_w}} AND
+dilate_d={{dilate_d}} AND
+dilate_h={{dilate_h}} AND
+dilate_w={{dilate_w}} AND
+op_type='{{op_type}}' AND
+device='{{device}}' AND
+epilogue={{epilogue}} AND
+split_k={{split_k}} AND
+exec_entry_sha1='{{exec_entry_sha1}}';
+"""
+)
+
+CONV3D_INSERT_TEMPLATE = jinja2.Template(
+    """
+INSERT INTO {{dev}}_conv3d (
+    exec_entry,
+    exec_entry_sha1,
+    dtype_a,
+    dtype_b,
+    dtype_c,
+    dtype_acc,
+    major_a,
+    major_b,
+    major_c,
+    kd,
+    kh,
+    kw,
+    co,
+    stride_d,
+    stride_h,
+    stride_w,
+    pad_d,
+    pad_h,
+    pad_w,
+    dilate_d,
+    dilate_h,
+    dilate_w,
+    op_type,
+    epilogue,
+    device,
+    algo,
+    workspace,
+    split_k
+)
+VALUES (
+    '{{exec_entry}}',
+    '{{exec_entry_sha1}}',
+    {{dtype_a}},
+    {{dtype_b}},
+    {{dtype_c}},
+    {{dtype_acc}},
+    {{major_a}},
+    {{major_b}},
+    {{major_c}},
+    {{kd}},
+    {{kh}},
+    {{kw}},
+    {{co}},
+    {{stride_d}},
+    {{stride_h}},
+    {{stride_w}},
+    {{pad_d}},
+    {{pad_h}},
+    {{pad_w}},
+    {{dilate_d}},
+    {{dilate_h}},
+    {{dilate_w}},
+    '{{op_type}}',
+    {{epilogue}},
+    '{{device}}',
+    '{{algo}}',
+    {{workspace}},
+    {{split_k}}
+);
+"""
+)
 
 NORM_INIT_TEMPLATE = jinja2.Template(
     """
@@ -315,6 +441,20 @@ VALUES (
 )
 
 
+CHECK_TABLE_EXISTENCE_TEMPLATE = jinja2.Template(
+    """
+SELECT name FROM sqlite_master WHERE type='table' AND name='{{table_name}}';
+"""
+)
+
+
+QUERY_ALL_TABLES_TEMPLATE = jinja2.Template(
+    """
+SELECT name FROM sqlite_master WHERE type='table';
+"""
+)
+
+
 class ProfileCacheDB(object):
     r"""Local SQLite profile cache database."""
 
@@ -338,6 +478,19 @@ class ProfileCacheDB(object):
         self._target = target
         self._mode = CacheMode.LOCAL
         self._db_commit_flag = False
+        # Some design rationales:
+        #   * Each table maintains it own version number. This can avoid re-creating
+        #     tables that are not involved with the breaking changes.
+        #   * We only keep a single table (i.e. version) for each category (
+        #     gemm, conv and norm) to simplify how we handle breaking changes
+        #     and rollbacks caused by failures in the updated version.
+        #     For example, if we keep multiple versions (i.e. tables) for gemm,
+        #     we would have to consider how we were going to maintain those versions.
+        #     We could choose the old working version upon rollback, but we might
+        #     leave some content from the failing version in the db. How are we
+        #     going to update the db if we update the version again, and so on.
+        # TODO: add similar version control for conv and norm
+        self._gemm_cache_version = 1
         if uri is not None:
             self._mode = CacheMode.REMOTE
         if self._mode == CacheMode.LOCAL:
@@ -352,17 +505,60 @@ class ProfileCacheDB(object):
         """Creates table in cache."""
         self._create_gemm_table()
         self._create_conv_table()
+        self._create_conv3d_table()
         self._create_norm_table()
+
+    def get_profile_gemm_cache_version(self) -> int:
+        return self._gemm_cache_version
 
     def _create_gemm_table(self):
         """Creates gemm table."""
-        sql = GEMM_INIT_TEMPLATE.render(dev=self._target)
+        if not self._gemm_table_version_matches():
+            logger.info(__name__, "temporarily keep old cache versions")
+            # FIXME: will delete unmatched version once we get into production
+            # self._delete_existing_table("gemm")
+
+        logger.info(
+            __name__,
+            f"Trying to make a new gemm table with {self._gemm_cache_version=}",
+        )
+        sql = GEMM_INIT_TEMPLATE.render(
+            dev=self._target, version=self._gemm_cache_version
+        )
         self._cur.execute(sql)
         self._con.commit()
+
+    def _delete_existing_table(self, table_kind):
+        """Delete an existing table in the db"""
+        sql = QUERY_ALL_TABLES_TEMPLATE.render()
+        self._cur.execute(sql)
+        all_tables = self._cur.fetchall()
+        if len(all_tables) == 0:
+            logger.info(__name__, "deleting table: skip empty table")
+            return
+
+        target_tables = [
+            table[0]
+            for table in all_tables
+            if table[0].startswith(f"{self._target}_{table_kind}")
+        ]
+        assert len(target_tables) != 0, f"no {table_kind} table exists"
+        # To simplify the logic, we only keep a single table for each kind
+        assert (
+            len(target_tables) == 1
+        ), f"expected only one {table_kind} table but got {target_tables=}"
+        logger.info(__name__, f"deleting table {target_tables[0]=}")
+        self._cur.execute(f"DROP TABLE {target_tables[0]}")
 
     def _create_conv_table(self):
         """Creates conv table."""
         sql = CONV_INIT_TEMPLATE.render(dev=self._target)
+        self._cur.execute(sql)
+        self._con.commit()
+
+    def _create_conv3d_table(self):
+        """Creates conv3d table."""
+        sql = CONV3D_INIT_TEMPLATE.render(dev=self._target)
         self._cur.execute(sql)
         self._con.commit()
 
@@ -371,6 +567,24 @@ class ProfileCacheDB(object):
         sql = NORM_INIT_TEMPLATE.render(dev=self._target)
         self._cur.execute(sql)
         self._con.commit()
+
+    def _if_table_exists(self, table_name):
+        """check if a table exists"""
+        sql = CHECK_TABLE_EXISTENCE_TEMPLATE.render(table_name=table_name)
+        self._cur.execute(sql)
+        tables = self._cur.fetchall()
+        return len(tables) > 0
+
+    def _gemm_table_version_matches(self):
+        table_name = f"{self._target}_gemm_{self._gemm_cache_version}"
+        if self._if_table_exists(table_name):
+            logger.info(__name__, f"{table_name=} exists in the db")
+            return True
+        else:
+            logger.info(
+                __name__, f"{table_name=} does not exist in the db, version mismatch!"
+            )
+            return False
 
     def _query(self, sql: str) -> Tuple[str, int]:
         """a function to query op from cache
@@ -410,7 +624,9 @@ class ProfileCacheDB(object):
         Tuple
             profiling results
         """
-        sql = GEMM_QUERY_TEMPLATE.render(dev=self._target, **args)
+        sql = GEMM_QUERY_TEMPLATE.render(
+            dev=self._target, version=self._gemm_cache_version, **args
+        )
         return self._query(sql)
 
     def query_conv(self, args: Dict[str, Any]) -> Tuple[str, int]:
@@ -428,6 +644,23 @@ class ProfileCacheDB(object):
             profiling results
         """
         sql = CONV_QUERY_TEMPLATE.render(dev=self._target, **args)
+        return self._query(sql)
+
+    def query_conv3d(self, args: Dict[str, Any]) -> Tuple[str, int]:
+        """a function to query conv op epilogue from cache,
+        here we use the same sql table for conv and gemm
+
+        Parameters
+        ----------
+        args : Dict
+            Conv3d query entry
+
+        Returns
+        -------
+        Tuple
+            profiling results
+        """
+        sql = CONV3D_QUERY_TEMPLATE.render(dev=self._target, **args)
         return self._query(sql)
 
     def query_normalization(self, args: Dict[str, Any]) -> Tuple[str, int]:
@@ -475,6 +708,7 @@ class ProfileCacheDB(object):
         """
         query_sql = GEMM_QUERY_TEMPLATE.render(
             dev=self._target,
+            version=self._gemm_cache_version,
             dtype_a=args["dtype_a"],
             dtype_b=args["dtype_b"],
             dtype_c=args["dtype_c"],
@@ -489,7 +723,9 @@ class ProfileCacheDB(object):
             pshape=args["pshape"],
             exec_entry_sha1=args["exec_entry_sha1"],
         )
-        insert_sql = GEMM_INSERT_TEMPLATE.render(dev=self._target, **args)
+        insert_sql = GEMM_INSERT_TEMPLATE.render(
+            dev=self._target, version=self._gemm_cache_version, **args
+        )
         self._insert(query_sql, insert_sql)
 
     def insert_conv(self, args: Dict[str, Any]) -> None:
@@ -524,6 +760,47 @@ class ProfileCacheDB(object):
             exec_entry_sha1=args["exec_entry_sha1"],
         )
         insert_sql = CONV_INSERT_TEMPLATE.render(dev=self._target, **args)
+        self._insert(query_sql, insert_sql)
+
+    def insert_conv3d(self, args: Dict[str, Any]) -> None:
+        """a function to insert conv op epilogue into cache,
+        here we use the same sql table for conv and gemm
+
+        Parameters
+        ----------
+        args : Dict
+            Conv Record Entry
+
+        """
+        query_sql = CONV3D_QUERY_TEMPLATE.render(
+            dev=self._target,
+            dtype_a=args["dtype_a"],
+            dtype_b=args["dtype_b"],
+            dtype_c=args["dtype_c"],
+            dtype_acc=args["dtype_acc"],
+            major_a=args["major_a"],
+            major_b=args["major_b"],
+            major_c=args["major_c"],
+            kd=args["kd"],
+            kh=args["kh"],
+            kw=args["kw"],
+            co=args["co"],
+            stride_d=args["stride_d"],
+            stride_h=args["stride_h"],
+            stride_w=args["stride_w"],
+            pad_d=args["pad_d"],
+            pad_h=args["pad_h"],
+            pad_w=args["pad_w"],
+            dilate_d=args["dilate_d"],
+            dilate_h=args["dilate_h"],
+            dilate_w=args["dilate_w"],
+            op_type=args["op_type"],
+            device=args["device"],
+            epilogue=args["epilogue"],
+            split_k=args["split_k"],
+            exec_entry_sha1=args["exec_entry_sha1"],
+        )
+        insert_sql = CONV3D_INSERT_TEMPLATE.render(dev=self._target, **args)
         self._insert(query_sql, insert_sql)
 
     def insert_normalization(self, args: Dict[str, Any]) -> None:

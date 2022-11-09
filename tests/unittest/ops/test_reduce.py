@@ -19,9 +19,10 @@ import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
-from aitemplate.frontend import Tensor
+from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import dtype_to_torch_dtype, get_random_torch_tensor
+from aitemplate.utils import shape_utils
 
 logger = logging.getLogger(__name__)
 
@@ -360,6 +361,88 @@ class ReduceTestCase(unittest.TestCase):
             keepdim=False,
             input_type="float16",
             output_type="float16",
+        )
+
+    def _run_batched_reduce(
+        self,
+        *,
+        test_name,
+        reduce_op,
+        torch_reduce_op,
+        dim,
+        batch_sizes,
+        non_batch_shape,
+        keepdim,
+        input_type="float16",
+        output_type=None,
+    ):
+        torch.manual_seed(0)
+        logger.info(f"Test {batch_sizes=}, {non_batch_shape=}, {dim=}")
+        target = detect_target()
+
+        batch0_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_0")
+        non_batch_dims = [IntImm(d) for d in non_batch_shape]
+        input_tensor_shape = [batch0_dim] + non_batch_dims
+        X = Tensor(
+            shape=input_tensor_shape, dtype=input_type, name="input_0", is_input=True
+        )
+
+        if keepdim is None:
+            op = reduce_op(dim, dtype=output_type)
+        else:
+            op = reduce_op(dim, keepdim=keepdim, dtype=output_type)
+        Y = op(X)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+
+        dll_name = f"test_{self.test_count}.so"
+        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        for batch_size in batch_sizes:
+            input_shape = [batch_size] + non_batch_shape
+            X_pt = get_random_torch_tensor(input_shape, input_type)
+            dtype_pt = dtype_to_torch_dtype(output_type)
+            if keepdim is None:
+                Y_pt = torch_reduce_op(X_pt, dim, dtype=dtype_pt)
+            else:
+                Y_pt = torch_reduce_op(X_pt, dim, keepdim=keepdim, dtype=dtype_pt)
+
+            y = torch.empty(Y_pt.size()).cuda().half()
+            module.run_with_tensors([X_pt], [y])
+            y_pt = Y_pt.cpu().numpy()
+
+            np.testing.assert_allclose(y_pt, y.cpu().numpy(), atol=1e-2, rtol=1e-2)
+            self.test_count += 1
+
+    def _run_batched_reduce_sum(
+        self,
+        *,
+        dim,
+        batch_sizes,
+        non_batch_shape,
+        keepdim,
+        input_type="float16",
+        output_type=None,
+    ):
+        self._run_batched_reduce(
+            test_name="reduce_sum_batched",
+            reduce_op=ops.reduce_sum,
+            torch_reduce_op=torch.sum,
+            dim=dim,
+            batch_sizes=batch_sizes,
+            non_batch_shape=non_batch_shape,
+            keepdim=keepdim,
+            input_type=input_type,
+            output_type=output_type,
+        )
+
+    def test_batched_reduce_sum(self):
+        self._run_batched_reduce_sum(
+            dim=1,
+            batch_sizes=[10, 2048],
+            non_batch_shape=[2, 1944],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
         )
 
 

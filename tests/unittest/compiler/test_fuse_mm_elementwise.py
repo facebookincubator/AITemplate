@@ -738,6 +738,12 @@ class FuseGemmRcrBiasActivationCase(unittest.TestCase):
         elif activation == "tanh":
             ait_func = FuncEnum.TANH
             pt_func = torch.tanh
+        elif activation == "gelu":
+            ait_func = FuncEnum.GELU
+            pt_func = torch.nn.functional.gelu
+        elif activation == "fast_gelu":
+            ait_func = FuncEnum.FASTGELU
+            pt_func = torch.nn.functional.gelu
         else:
             raise AssertionError("Activation not supported")
 
@@ -1004,6 +1010,26 @@ class FuseGemmRcrBiasActivationCase(unittest.TestCase):
             "gemm_rcr_bias_tanh",
             False,
             "gemm_rcr_bias_tanh_need_align",
+        )
+
+    def test_gemm_rcr_bias_gelu(self):
+        self._test_gemm_rcr_bias_activation(
+            [8, 32],
+            16,
+            8,
+            "gelu",
+            "gemm_rcr_bias_gelu",
+            True,
+            "gemm_rcr_bias_gelu_basic_decomposed",
+        )
+        self._test_gemm_rcr_bias_activation(
+            [8, 32],
+            16,
+            8,
+            "fast_gelu",
+            "gemm_rcr_bias_fast_gelu",
+            True,
+            "gemm_rcr_bias_fast_gelu_basic_decomposed",
         )
 
 

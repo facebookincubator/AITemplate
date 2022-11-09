@@ -20,25 +20,15 @@ import jinja2
 from ... import registry
 from .. import cuda_common
 
-CAST_TO_CONST_HALF_PTR_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<const half*>(&({{name}}->raw()))"
-)
-
-
 CAST_TO_CONST_INDEX_PTR_TEMPLATE = jinja2.Template(
     "reinterpret_cast<const {{index_type}}*>({{name}})"
-)
-
-
-CAST_TO_HALF_PTR_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<half*>(&({{name}}->raw()))"
 )
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-    {{elem_output_type}} * /*output*/,
-    const {{elem_input_type}} * /*input*/,
+    void * /*output*/,
+    const void * /*input*/,
     const {{index_type}} * /*indices*/,
     int64_t *[] /*output_shape*/,
     const int64_t * /*input_shape*/,
@@ -133,10 +123,10 @@ gather_kernel(
 
   constexpr unsigned read_t_sz = sizeof(READ_T);
   constexpr unsigned elem_t_sz = sizeof(ELEM_T);
-  assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
+  static_assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
   constexpr int n_of_elem_t = read_t_sz / elem_t_sz;
-  assert(sizeof(READ_INDEX_T) % sizeof(INDEX_TYPE) == 0);
-  assert(n_of_elem_t == (sizeof(READ_INDEX_T) / sizeof(INDEX_TYPE)));
+  static_assert(sizeof(READ_INDEX_T) % sizeof(INDEX_TYPE) == 0);
+  static_assert(n_of_elem_t == (sizeof(READ_INDEX_T) / sizeof(INDEX_TYPE)));
   // number of READ_T elements per thread
   constexpr int reads_per_thread_in_read_t = ElemsPerThread / n_of_elem_t;
   const int num_elems_in_read_t = num_output_elems / n_of_elem_t;
@@ -230,7 +220,7 @@ EXEC_COND_TEMPLATE = jinja2.Template(
                                    {{rank}}/*Rank*/,
                                    {{elems_per_thread}}/*ElemsPerThread*/,
 {{indent}}                         {{threads_per_block}}/*THREADS_PER_BLOCK*/>(
-{{indent}}    output, input, indices, input_shape, index_shape, gather_dim, stream);
+{{indent}}    static_cast<{{elem_type}}*>(output), static_cast<const {{elem_type}}*>(input), indices, input_shape, index_shape, gather_dim, stream);
 {{indent}}  return;
 {{indent}}}
 """
@@ -242,8 +232,8 @@ SRC_TEMPLATE = jinja2.Template(
 {{kernel_src}}
 
 void {{func_name}}(
-    {{elem_output_type}}* output,
-    const {{elem_input_type}}* input,
+    void* output,
+    const void* input,
     const INDEX_TYPE* indices,
     int64_t *output_shape[],
     const int64_t *input_shape,
@@ -327,16 +317,10 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 @registry.reg("cuda.gather.func_decl")
 def gen_function_decl(func_attrs):
     inputs = func_attrs["inputs"]
-    x = inputs[0]
     index = inputs[1]
-    y = func_attrs["outputs"][0]
-    input_type = cuda_common.dtype_to_cuda_type(x._attrs["dtype"])
     index_type = cuda_common.dtype_to_cuda_type(index._attrs["dtype"])
-    output_type = cuda_common.dtype_to_cuda_type(y._attrs["dtype"])
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_attrs["name"],
-        elem_output_type=output_type,
-        elem_input_type=input_type,
         index_type=index_type,
     )
 
@@ -353,6 +337,9 @@ def gen_function(func_attrs):
     index_type = cuda_common.dtype_to_cuda_type(index._attrs["dtype"])
     output_type = cuda_common.dtype_to_cuda_type(y._attrs["dtype"])
 
+    if input_type != output_type:
+        raise TypeError("input type must equal to output type")
+
     # TODO: consider to add profiling paths for tuning
     # elems_per_thread and threads_per_block
     exec_paths = EXEC_COND_TEMPLATE.render(
@@ -367,8 +354,6 @@ def gen_function(func_attrs):
     return SRC_TEMPLATE.render(
         kernel_src=kernel_src,
         func_name=func_attrs["name"],
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         exec_paths=exec_paths,
     )
 
@@ -389,11 +374,9 @@ def gen_function_call(func_attrs, indent="  "):
     y_dims = _dims(y, ref="&")
 
     index_type = cuda_common.dtype_to_cuda_type(index._attrs["dtype"])
-    casted_x_ptr = CAST_TO_CONST_HALF_PTR_TEMPLATE.render(name=x._attrs["name"])
     casted_index_ptr = CAST_TO_CONST_INDEX_PTR_TEMPLATE.render(
         index_type=index_type, name=index._attrs["name"]
     )
-    casted_y_ptr = CAST_TO_HALF_PTR_TEMPLATE.render(name=y._attrs["name"])
 
     return FUNC_CALL_TEMPLATE.render(
         indent=indent,
@@ -404,8 +387,8 @@ def gen_function_call(func_attrs, indent="  "):
         output_dims=y_dims,
         input_dims=x_dims,
         index_dims=index_dims,
-        output_ptr=casted_y_ptr,
-        input_ptr=casted_x_ptr,
+        output_ptr=y._attrs["name"],
+        input_ptr=x._attrs["name"],
         index_ptr=casted_index_ptr,
         gather_dim=gather_dim,
         rank=len(x._attrs["shape"]),

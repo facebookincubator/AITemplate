@@ -24,14 +24,14 @@ from parameterized import param, parameterized
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class GEMMTestCase(unittest.TestCase):
+class GroupGEMMRcrTestCase(unittest.TestCase):
     @parameterized.expand(
         [
             param(False, "group_gemm_rcr_run_once"),
             param(True, "group_gemm_rcr_run_twice"),
         ]
     )
-    def test_rcr_foo(self, run_twice: bool, test_name: str):
+    def test_rcr(self, run_twice: bool, test_name: str):
         M = 256
         K1 = 128
         N1 = 60

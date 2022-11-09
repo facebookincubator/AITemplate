@@ -19,6 +19,8 @@ from .transposed_conv2d_bias_act import ConvTranspose2dBiasAct
 
 
 class ConvTranspose2dBiasRelu(ConvTranspose2dBiasAct):
+    r"""Applies a 2D transposed convolution with bias + relu."""
+
     def __init__(
         self,
         in_channels,

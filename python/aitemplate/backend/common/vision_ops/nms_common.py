@@ -21,8 +21,6 @@ from typing import Any, Dict, List
 
 import jinja2
 
-from ... import builder
-from ...target import Target
 from .nms_kernel import KERNEL_TEMPLATE
 
 # pylint: disable=C0301
@@ -43,7 +41,9 @@ const int T_SIZE = {{T_SIZE}}; //(preNmsTopN + blockSize - 1) / blockSize - 1;
 
     const int N = *batch;
     const int R = *num_rois;
-    nmsGpu<half, half>(stream, N, R, preNmsTop, nmsMaxOut, iouThreshold, minBoxSize, fgScores, proposals, workspace, rois);
+    nmsGpu<{{elem_scores_type}}, {{elem_rois_type}}>(
+        stream, N, R, preNmsTop, nmsMaxOut, iouThreshold, minBoxSize,
+        fgScores, proposals, workspace, rois);
 }
     """
 )
@@ -70,9 +70,9 @@ int main(int argc, char** argv) {
 
   float runtime_ms = 0;
   const int64_t offsets_bytes = GetCudaAlignedSize((instance_num+1) * sizeof(int64_t));
-  const int64_t scores_bytes = GetCudaAlignedSize(elem_cnt * sizeof(half));
-  const int64_t boxes_bytes = GetCudaAlignedSize(elem_cnt * 4 * sizeof(half));
-  int64_t temp_storage_bytes = InferTempStorageForSortPairsDescending<half, int64_t>(instance_num, instance_size);
+  const int64_t scores_bytes = GetCudaAlignedSize(elem_cnt * sizeof({{elem_scores_type}}));
+  const int64_t boxes_bytes = GetCudaAlignedSize(elem_cnt * 4 * sizeof({{elem_rois_type}}));
+  int64_t temp_storage_bytes = InferTempStorageForSortPairsDescending<{{elem_scores_type}}, int64_t>(instance_num, instance_size);
 
   GLOBAL_WORKSPACE_SIZE = GetCudaAlignedSize(offsets_bytes + scores_bytes + boxes_bytes + temp_storage_bytes);
 
@@ -84,9 +84,9 @@ int main(int argc, char** argv) {
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-void {{func_name}}(half* rois,
-                   const half* proposals,
-                   const half* fgScores,
+void {{func_name}}(void* rois,
+                   const void* proposals,
+                   const void* fgScores,
                    int64_t* batch,
                    int64_t* num_rois,
                    const {{index_type}} preNmsTop,
@@ -114,7 +114,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{nmsMaxOut}},
 {{indent}}    {{iouThreshold}},
 {{indent}}    {{minBoxSize}},
-{{indent}}    global_workspace, stream /* default stream */
+{{indent}}    global_workspace_, stream /* default stream */
 {{indent}});
     """
 )
@@ -129,8 +129,16 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     else:
         cuda_hmaxmin = False
 
+    elem_rois_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_scores_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][1]._attrs["dtype"]
+    )
     return FUNC_TEMPLATE.render(
         T_SIZE=t_size,
+        elem_scores_type=elem_scores_type,
+        elem_rois_type=elem_rois_type,
         header_files=header_files,
         kernel=KERNEL_TEMPLATE.render(
             prefix=backend_spec.prefix, cub=backend_spec.cub, cuda_hmaxmin=cuda_hmaxmin
@@ -159,12 +167,9 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent: str) -> 
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 2
 
-    output_name = backend_spec.cast_to_half_ptr_template.render(
-        name=func_attrs["outputs"][0]._attrs["name"]
-    )
+    output_name = func_attrs["outputs"][0]._attrs["name"]
     (input_name, score_name) = (
-        backend_spec.cast_to_half_ptr_template.render(name=input_tensor._attrs["name"])
-        for input_tensor in func_attrs["inputs"]
+        input_tensor._attrs["name"] for input_tensor in func_attrs["inputs"]
     )
 
     x = func_attrs["inputs"][0]
@@ -215,8 +220,16 @@ def gen_profiler(
     else:
         cuda_hmaxmin = False
 
+    elem_rois_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_scores_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][1]._attrs["dtype"]
+    )
     code = PROFILER_TEMPLATE.render(
         T_SIZE=t_size,
+        elem_scores_type=elem_scores_type,
+        elem_rois_type=elem_rois_type,
         header_files=header_files,
         kernel=KERNEL_TEMPLATE.render(
             prefix=backend_spec.prefix, cub=backend_spec.cub, cuda_hmaxmin=cuda_hmaxmin
@@ -229,7 +242,4 @@ def gen_profiler(
     )
     op_name = func_attrs["op"]
     add_profiler(file_pairs, workdir, op_type, op_name, code)
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_pairs, target.compile_cmd(executable=True))
+    return file_pairs

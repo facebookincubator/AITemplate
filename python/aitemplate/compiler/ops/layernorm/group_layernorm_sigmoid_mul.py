@@ -26,7 +26,6 @@ from .group_layernorm import group_layernorm
 class group_layernorm_sigmoid_mul(group_layernorm):
     """group_layernorm_sigmoid_mul.
     For each group, we expect each input to have shapes:
-
         Input shape: [M0, M1, ..., Mp, N1, N2, ..., ND]
         Normalized_shape: [N1, N2, ..., ND]
         Gamma/Beta, if not None, have the same shape as normalized_shape.

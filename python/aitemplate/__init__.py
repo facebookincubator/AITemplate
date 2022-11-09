@@ -12,8 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import logging
-import os
 import sys
 
 from . import backend, compiler, frontend, testing, utils
@@ -25,18 +23,4 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
 
 __all__ = ["backend", "compiler", "frontend", "testing", "utils"]
 
-root_logger = logging.getLogger(__name__)
-info_handle = logging.StreamHandler()
-formatter = logging.Formatter("%(asctime)s %(levelname)s <%(name)s> %(message)s")
-info_handle.setFormatter(formatter)
-root_logger.addHandler(info_handle)
-root_logger.propagate = False
-
-DEFAULT_LOGLEVEL = logging.getLogger().level
-log_level_str = os.environ.get("LOGLEVEL", None)
-LOG_LEVEL = (
-    getattr(logging, log_level_str.upper())
-    if log_level_str is not None
-    else DEFAULT_LOGLEVEL
-)
-root_logger.setLevel(LOG_LEVEL)
+root_logger = utils.logger.setup_logger(__name__)

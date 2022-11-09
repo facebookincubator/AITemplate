@@ -60,6 +60,52 @@ class GEMMTestCase(unittest.TestCase):
             self._test_rcr([8], 0, 4, "zero_k")
             self._test_rcr([0], 8, 4, "zero_m")
 
+    def _test_rcr_dynamic_n(self, ms, k, ns, test_name):
+        target = detect_target()
+        X = Tensor(
+            shape=[shape_utils.gen_int_var_min_max(ms), k],
+            dtype="float16",
+            name="input_0",
+            is_input=True,
+        )
+        W = Tensor(
+            shape=[shape_utils.gen_int_var_min_max(ns), k],
+            dtype="float16",
+            name="input_1",
+            is_input=True,
+        )
+        OP = ops.gemm_rcr()
+        Y = OP(X, W)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+        module = compile_model(Y, target, "./tmp", "gemm_rcr_{}".format(test_name))
+
+        for m in ms:
+            for n in ns:
+                X_pt = torch.randn(m, k).cuda().half()
+                W_pt = torch.randn(n, k).cuda().half()
+                Y_pt = torch.nn.functional.linear(X_pt, W_pt)
+
+                inputs = {"input_0": X_pt, "input_1": W_pt}
+                y = torch.empty([m, n]).cuda().half()
+                module.run_with_tensors(inputs, [y])
+
+                # from aitemplate.testing.benchmark_pt import benchmark_torch_function
+                # module.benchmark_with_tensors(inputs, [y], count=1000)
+                # t = benchmark_torch_function(1000, torch.nn.functional.linear, X_pt, W_pt)
+                # print(f"pt: {t} ms")
+
+                if X_pt.nelement() == 0 or W_pt.nelement() == 0:
+                    pass
+                else:
+                    self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+
+    def test_rcr_dynamic_n(self):
+        self._test_rcr([16, 1 * 29, 64], 256, 300000, "umia_einsum_1")
+        self._test_rcr_dynamic_n(
+            [16, 1 * 29, 64], 256, [100000, 300000], "umia_einsum_dynamic_n"
+        )
+
     def _test_3d_2d_rcr(self, m0s, m1s, k, n, test_name):
         target = detect_target()
         X = Tensor(

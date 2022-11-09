@@ -195,7 +195,7 @@ def layernorm_gen_profiler(
         shapes[dim], IntImm
     ), "layernorm requires reduction dim to be static"
 
-    norm_common.gen_profiler(
+    return norm_common.gen_profiler(
         func_attrs,
         workdir,
         2,  # rank

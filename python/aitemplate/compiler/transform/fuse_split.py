@@ -17,6 +17,8 @@ Perform transformations on ops which support strided inputs / outputs.
 """
 from typing import List
 
+from aitemplate.compiler.stable_set import StableSet
+
 from ...utils import graph_utils, logger
 from ..base import IntImm, IntVar, Operator, Tensor
 from . import transform_strided_ops_utils, transform_utils
@@ -126,7 +128,7 @@ def _fuse_split_and_group_gemm(  # noqa: C901
             == split_input._attrs["shape"][split_dim]._attrs["values"][0]
         )
         # some final updates
-        split_input._attrs["dst_ops"] = [group_gemm_op]
+        split_input._attrs["dst_ops"] = StableSet([group_gemm_op])
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 

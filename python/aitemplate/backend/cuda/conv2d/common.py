@@ -16,11 +16,14 @@
 common template for conv2d
 """
 import re
+
 from collections import OrderedDict
 from hashlib import sha1
 from typing import List
 
 import jinja2
+
+from aitemplate.backend.backend_spec import CUDASpec
 
 from ...target import Target
 from ..gemm_universal.common import add_profiler, build_profiler  # noqa: F401
@@ -153,15 +156,19 @@ def gen_function(
     inst_def_flag = set()
     instances = {}
     instance_decl = ""
+    backend_spec = CUDASpec()
+    dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
     for key, value in exec_path.items():
         fname = "f" + sha1(key.encode()).hexdigest()
+
+        emit_instance = f_emit_instance(op_instance[value])
         if value not in inst_def_flag:
-            config = f_emit_instance(op_instance[value])
             inst_def_flag.add(value)
+            config = emit_instance
         else:
             config = ""
         inst = instance_template.render(
-            config=config, name=fname, config_name=extract_config_name(config)
+            config=config, name=fname, config_name=extract_config_name(emit_instance)
         )
         instances[key] = inst
         instance_decl += inst
@@ -191,13 +198,16 @@ def gen_function(
     exec_paths = ""
     for key in instances:
         fname = "f" + sha1(key.encode()).hexdigest()
-        program = exec_template.render(indent="    ", instance=fname)
+        program = exec_template.render(
+            indent=" " * 4,
+            instance=fname,
+            dtype=dtype,
+        )
         exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return src_template.render(
         instances=instance_decl,
         function_name=func_name,
-        dtype="cutlass::half_t",
         shape_function=shape_func,
         exec_paths=exec_paths,
         extra_header=extra_header,

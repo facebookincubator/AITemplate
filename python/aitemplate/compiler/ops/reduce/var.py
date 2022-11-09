@@ -50,3 +50,11 @@ class var(reduce_base):
         super().__init__(dim, keepdim, dtype)
         self._attrs["op"] = "var"
         self._attrs["unbiased"] = unbiased
+
+    def _get_op_attributes(self):
+        return {
+            "dim": self._attrs["reduction_axes"],
+            "dtype": self._attrs["output_type"],
+            "keepdim": self._attrs["keepdim"],
+            "unbiased": self._attrs["unbiased"],
+        }

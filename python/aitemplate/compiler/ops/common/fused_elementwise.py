@@ -110,7 +110,7 @@ class fused_elementwise(Operator):
         self._attrs["original_outputs"] = list(self._attrs["outputs"])
 
         for tensor in tmp_inputs | tmp_outputs:
-            tensor._attrs["src_ops"] = set(tensor._attrs["src_ops"]) - ops
+            tensor._attrs["src_ops"] = tensor._attrs["src_ops"] - ops
             tensor._attrs["dst_ops"] = tensor._attrs["dst_ops"] - ops
         for tensor in external_inputs:
             tensor._attrs["dst_ops"].add(self)
@@ -143,6 +143,9 @@ class fused_elementwise(Operator):
         self._update_inputs_outputs()
         self._set_depth()
         self._check_constant()
+
+    def _get_op_attributes(self):
+        return {"elementwise_ops": self._attrs["elementwise_ops"]}
 
     def gen_function(self) -> str:
         target = backend.target.Target.current()

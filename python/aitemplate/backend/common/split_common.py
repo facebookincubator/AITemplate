@@ -20,9 +20,9 @@ import jinja2
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-    {{elem_output_type}} *[] /*outputs*/,
+    void *[] /*outputs*/,
     {{index_type}} **[] /*output_shapes*/,
-    const {{elem_input_type}} * /*input*/,
+    const void * /*input*/,
     const {{index_type}} * /*input_shape*/,
     {{index_type}} /*num_splits*/,
     {{index_type}} [] /*split_sizes*/,
@@ -127,9 +127,9 @@ split_kernel(
   int64_t split_dim_size = output_meta.split_dim_sizes[blockIdx.y];
   int64_t input_offset = output_offset * input_split_dim_stride;
 
-  unsigned read_t_sz = sizeof(READ_T);
-  unsigned elem_t_sz = sizeof(ELEM_T);
-  assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
+  unsigned constexpr read_t_sz = sizeof(READ_T);
+  unsigned constexpr elem_t_sz = sizeof(ELEM_T);
+  static_assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
   {{index_type}} n_of_elem_t = read_t_sz / elem_t_sz;
   // number of READ_T elements per thread
   {{index_type}} reads_per_thread_in_read_t = ElemsPerThread / n_of_elem_t;
@@ -196,9 +196,9 @@ static inline LoadVecType get_vec_type(
 template <typename ELEM_T, {{index_type}} Rank, {{index_type}} NumSplits,
           {{index_type}} ElemsPerThread, {{index_type}} ThreadsPerBlock>
 void split_kernel_launcher(
-    ELEM_T *outputs[],
+    void *outputs[],
     {{index_type}} *output_shapes[],
-    const ELEM_T *input,
+    const void *input,
     const {{index_type}} *input_shape,
     const {{index_type}} split_dim,
     {{prefix}}Stream_t stream
@@ -217,7 +217,7 @@ void split_kernel_launcher(
   {{index_type}} offset = 0;
   LoadVecType min_vec_type = LoadVecType::VT_FLOAT4;
   for ({{index_type}} i = 0; i < NumSplits; i++) {
-    output_meta.outputs[i] = outputs[i];
+    output_meta.outputs[i] = static_cast<ELEM_T*>(outputs[i]);
     output_meta.split_dim_offsets[i] = offset;
     output_meta.split_dim_sizes[i] = output_shapes[i][split_dim];
     output_meta.num_elems[i] = get_num_elems(output_shapes[i], Rank);
@@ -246,7 +246,7 @@ void split_kernel_launcher(
       }                                                                \\
       split_kernel<vec_type, ELEM_T, Rank, NumSplits, ElemsPerThread>  \\
         <<<grid_config, ThreadsPerBlock, 0, stream>>>(                 \\
-            input,                                                     \\
+            static_cast<const ELEM_T*>(input),                         \\
             input_meta,                                                \\
             output_meta,                                               \\
             split_dim,                                                 \\
@@ -309,9 +309,9 @@ SRC_TEMPLATE = jinja2.Template(
     """
 {{kernel_src}}
 void {{func_name}}(
-    {{elem_output_type}}* outputs[],
+    void* outputs[],
     {{index_type}} **output_shapes[],
-    const {{elem_input_type}}* input,
+    const void* input,
     const {{index_type}} *input_shape,
     {{index_type}} num_splits,
     {{index_type}} split_sizes[],
@@ -390,7 +390,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{
 
-{{indent}}  {{output_elem_type}} *outputs[] = {
+{{indent}}  void *outputs[] = {
 {{indent}}    {{outputs}}
 {{indent}}  };
 
@@ -431,21 +431,17 @@ def gen_function_decl(func_attrs, backend_spec):
     ----------
     func_attrs : Dict[str, Any]
         Stores the operation attributes.
+    backend_spec : BackendSpec
+        Cuda/Rocm type definitions
     Returns
     -------
     str
         Rendered function declaration.
     """
-    x = func_attrs["inputs"][0]
-    y = func_attrs["outputs"][0]
-    input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
     return FUNC_DECL_TEMPLATE.render(
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
         func_name=func_attrs["name"],
-        elem_output_type=output_type,
-        elem_input_type=input_type,
     )
 
 
@@ -470,6 +466,9 @@ def gen_function(func_attrs, backend_spec):
     input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
     output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
 
+    if input_type != output_type:
+        raise NotImplementedError("input type must equal to output type")
+
     # TODO: consider to add profiling paths for tuning
     # elems_per_thread and threads_per_block
     exec_paths = EXEC_COND_TEMPLATE.render(
@@ -490,8 +489,6 @@ def gen_function(func_attrs, backend_spec):
     return SRC_TEMPLATE.render(
         kernel_src=kernel_src,
         func_name=func_attrs["name"],
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         exec_paths=exec_paths,
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
@@ -515,16 +512,10 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
     """
     x = func_attrs["inputs"][0]
     outputs = func_attrs["outputs"]
-    y = outputs[0]
     split_dim = func_attrs["split_dim"]
     num_splits = len(func_attrs["split_sizes"])
 
-    output_names = ",\n      ".join(
-        [
-            backend_spec.cast_to_half_ptr_template.render(name=i._attrs["name"])
-            for i in outputs
-        ]
-    )
+    output_names = ",\n      ".join([i._attrs["name"] for i in outputs])
 
     output_shape_defs = []
     output_shape_names = []
@@ -545,22 +536,18 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
 
     x_shape = x._attrs["shape"]
     x_dims = ", ".join([dim._attrs["name"] for dim in x_shape])
-    casted_x_ptr = backend_spec.cast_to_const_half_ptr_template.render(
-        name=x._attrs["name"]
-    )
 
     split_sizes = ", ".join([str(i) for i in func_attrs["split_sizes"]])
 
     return FUNC_CALL_TEMPLATE.render(
         indent=indent,
-        output_elem_type=backend_spec.dtype_to_backend_type(y._attrs["dtype"]),
         outputs=output_names,
         output_shape_defs="".join(output_shape_defs),
         output_shapes=", ".join(output_shape_names),
         input_dims=x_dims,
         func_name=func_attrs["name"],
         input_name=x._attrs["name"],
-        input_ptr=casted_x_ptr,
+        input_ptr=x._attrs["name"],
         split_dim=split_dim,
         rank=len(x._attrs["shape"]),
         num_splits=num_splits,

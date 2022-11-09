@@ -19,6 +19,7 @@ A[RowMajor], B[ColMajor], bias[RowMajor]
 """
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from ...common import gemm_common
 from . import bmm_common, common
 from .layout import RCR
@@ -47,11 +48,11 @@ def _get_default_problem_info(**kwargs):
 
 @registry.reg("cuda.bmm_rcr.config")
 def bmm_rcr_config(func_attrs, dtype="float16"):
-    common.make_fproc_f16(func_attrs, RCR)
+    common.make_fproc(func_attrs, RCR)
 
 
 @registry.reg("cuda.bmm_rcr.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     a_dims = bmm_common.reverse_dim_info_mapping(
         dim_info_dict, gemm_common.Source.INPUT, 0
     )
@@ -66,16 +67,21 @@ def gen_profiler(func_attrs, workdir, dim_info_dict):
         a_dims=a_dims, b_dims=b_dims, c_dims=c_dims
     )
 
-    mm_info = _get_default_problem_info(alpha_value=func_attrs.get("alpha", 1))
+    mm_info = _get_default_problem_info(
+        alpha_value=func_attrs.get("alpha", 1),
+    )
     a_shapes = func_attrs["input_accessors"][0].original_shapes
     b_shapes = func_attrs["input_accessors"][1].original_shapes
     bmm_common._update_stride_info(mm_info, a_shapes, b_shapes)
 
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
 
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common.SRC_TEMPLATE,
         problem_args,
@@ -89,6 +95,14 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
 ):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+
     input_a_batch_stride_dim = "M * K"
     input_a_stride_k_dim = "K"
     input_a_offset = 0
@@ -151,10 +165,10 @@ def gen_function(
 
     bmm_problem_info = bmm_common.Bmm_problem_info(
         alpha_value=func_attrs.get("alpha", 1),
-        a_ptr="(a_ptr + input_a_offset)",
-        b_ptr="(b_ptr + input_b_offset)",
-        bias_ptr="(c_ptr + output_offset)",
-        c_ptr="(c_ptr + output_offset)",
+        a_ptr="(" + elem_input_type + "*)(a_ptr) + input_a_offset",
+        b_ptr="(" + elem_input_type + "*)(b_ptr) + input_b_offset",
+        bias_ptr="(" + elem_output_type + "*)(c_ptr) + output_offset",
+        c_ptr="(" + elem_output_type + "*)(c_ptr) + output_offset",
         a_batch_stride="input_a_batch_stride",
         b_batch_stride="input_b_batch_stride",
         bias_batch_stride="output_batch_stride",
@@ -168,7 +182,9 @@ def gen_function(
     b_shapes = func_attrs["input_accessors"][1].original_shapes
     bmm_common._update_stride_info(bmm_problem_info, a_shapes, b_shapes)
 
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=bmm_problem_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=bmm_problem_info,
+    )
 
     return bmm_common.gen_function(
         func_attrs,

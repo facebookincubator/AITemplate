@@ -23,7 +23,7 @@ from aitemplate.testing import detect_target
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class GEMMTestCase(unittest.TestCase):
+class GEMMRrrSmallNKTestCase(unittest.TestCase):
     def _test_rrr(self, M, N, K, use_fp16_acc=True):
         target = detect_target(use_fp16_acc=use_fp16_acc)
         X = Tensor(shape=[*M, K], dtype="float16", name="input_0", is_input=True)

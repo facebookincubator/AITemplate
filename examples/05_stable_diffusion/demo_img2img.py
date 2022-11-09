@@ -17,9 +17,9 @@ from io import BytesIO
 import click
 import requests
 import torch
-from PIL import Image
 
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
+from PIL import Image
 from pipeline_stable_diffusion_img2img_ait import StableDiffusionImg2ImgAITPipeline
 
 

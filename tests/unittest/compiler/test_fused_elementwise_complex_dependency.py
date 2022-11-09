@@ -99,6 +99,92 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [r2])
         self.assertTrue(torch.allclose(r2, r2_pt, atol=1e-2, rtol=1e-2))
 
+    def test_fused_elementwise_non_elementwise_ops(self):
+        r"""
+                X0   X1 (3)
+                 \   /
+                  Add_1 (R0)   X2
+                   |    \      /
+                   |      Add_2 (R1, is_output)
+                  / \      /
+        (R3) reshape   Sub_1 (R2)
+               |
+              Add_3 (R4)
+
+
+            Add_1, Add_2, and Sub_1 should be fused together.
+        """
+
+        M = 10
+        N = 4
+        X0 = Tensor(
+            shape=[M, N],
+            dtype="float16",
+            name="X0",
+            is_input=True,
+        )
+        X1 = Tensor(
+            shape=[],
+            dtype="float16",
+            name="X1",
+            value=3.0,
+        )
+        X2 = Tensor(
+            shape=[M, N],
+            dtype="float16",
+            name="X2",
+            is_input=True,
+        )
+
+        R0 = ops.elementwise(FuncEnum.ADD)(X0, X1)  # Add_1
+        R1 = ops.elementwise(FuncEnum.ADD)(R0, X2)  # Add_2
+        R2 = ops.elementwise(FuncEnum.SUB)(R0, R1)
+        R3 = ops.reshape()(R0, [-1])
+        R4 = ops.elementwise(FuncEnum.ADD)(R3, R3)  # Add3
+        R1._attrs["name"] = "R1"
+        R1._attrs["is_output"] = True
+        R2._attrs["name"] = "R2"
+        R2._attrs["is_output"] = True
+        R4._attrs["name"] = "R4"
+        R4._attrs["is_output"] = True
+
+        target = detect_target()
+        module = compile_model(
+            [R1, R2, R4],
+            target,
+            "./tmp",
+            "test_fused_elementwise_non_elementwise_ops",
+        )
+        debug_sorted_graph = module.debug_sorted_graph
+        sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
+        self.assertEqual(len(sorted_ops), 4)
+
+        x0_pt = torch.rand(M, N).cuda().half()
+        x2_pt = torch.rand(M, N).cuda().half()
+
+        r0_pt = x0_pt + 3
+        r1_pt = r0_pt + x2_pt
+        r2_pt = r0_pt - r1_pt
+        r3_pt = r0_pt.reshape([-1])
+        r4_pt = r3_pt + r3_pt
+
+        r1 = torch.empty(r1_pt.shape).cuda().half()
+        r2 = torch.empty([M, N]).cuda().half()
+        r4 = torch.empty(r4_pt.shape).cuda().half()
+
+        input_name_to_idx_mapping = module.get_input_name_to_index_map()
+        inputs = [None] * len(input_name_to_idx_mapping)
+        input_name_to_pt_mapping = {
+            "X0": x0_pt,
+            "X2": x2_pt,
+        }
+        for input_name, pt in input_name_to_pt_mapping.items():
+            inputs[input_name_to_idx_mapping[input_name]] = pt
+        module.run_with_tensors(inputs, {"R1": r1, "R2": r2, "R4": r4})
+        self.assertTrue(torch.allclose(r1, r1_pt, atol=1e-2, rtol=1e-2))
+        self.assertTrue(torch.allclose(r2, r2_pt, atol=1e-2, rtol=1e-2))
+        self.assertTrue(torch.allclose(r4, r4_pt, atol=1e-2, rtol=1e-2))
+
     def test_fused_elementwise_indirect_input_dependency(self):
         r"""
             X0   X1

@@ -237,11 +237,6 @@ class concatenate(Operator):
                     raise RuntimeError(
                         f'Expected input_masks at {idx} to be True for {self._attrs["name"]}'
                     )
-                if curr_input_accessors[curr_idx].stride_dim is not None:
-                    raise RuntimeError(
-                        f"Cannot remove an input (idx: {curr_idx}) with a valid "
-                        f'TensorAccessor for {self._attrs["name"]}'
-                    )
                 self._attrs["input_masks"][orig_idx] = False
                 idx += 1
             else:

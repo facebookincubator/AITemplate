@@ -20,11 +20,11 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
 import jinja2
+from aitemplate.backend.backend_spec import BackendSpec
 
 from ...compiler.base import IntImm, IntVar, Operator, Tensor
 from ...compiler.tensor_accessor import TensorAccessor
 from ...utils import shape_utils
-from ..backend_spec import BackendSpec
 from . import tensor_accessor_codegen
 
 CONSTANT_TEMPLATE = jinja2.Template(
@@ -96,11 +96,11 @@ KERNEL_WRITE_OUTPUT_TEMPLATE = jinja2.Template(
 KERNEL_TEMPLATE = jinja2.Template(
     """
 __global__ void
-{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} int n_elements) {
+{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{index_type}} n_elements) {
   const int bid = blockIdx.x;
   const int tid = threadIdx.x;
-  const int idx = bid * FUSED_ELE_THREAD_SIZE + tid;
-  const int idx_elem = idx * N_ELEMENTS_PER_THREAD;
+  const {{index_type}} idx = bid * FUSED_ELE_THREAD_SIZE + tid;
+  const {{index_type}} idx_elem = idx * N_ELEMENTS_PER_THREAD;
   if (idx_elem >= n_elements) {
     return;
   }
@@ -115,8 +115,8 @@ __global__ void
     """
 )
 
-FUNC_DECL_INPUT_PARAM_TEMPLATE = jinja2.Template("const {{data_t}}* input{{idx}}")
-FUNC_DECL_OUTPUT_PARAM_TEMPLATE = jinja2.Template("{{data_t}}* output{{idx}}")
+FUNC_DECL_INPUT_PARAM_TEMPLATE = jinja2.Template("const void* input{{idx}}")
+FUNC_DECL_OUTPUT_PARAM_TEMPLATE = jinja2.Template("void* output{{idx}}")
 KERNEL_CALL_INPUT_PARAM_TEMPLATE = jinja2.Template(
     "reinterpret_cast<const {{read_t}}*>(input{{idx}})"
 )
@@ -140,7 +140,7 @@ namespace {
 
 }  // namespace
 
-void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims_decl}} int n_elements, {{prefix}}Stream_t stream) {
+void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims_decl}} {{index_type}} n_elements, {{prefix}}Stream_t stream) {
     if (n_elements == 0) {
       return;
     }
@@ -157,14 +157,14 @@ void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims_de
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
-void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} int n_elements, {{prefix}}Stream_t stream);
+void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{index_type}} n_elements, {{prefix}}Stream_t stream);
     """
 )
 
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{
-    {{indent}}int {{func_name}}_n_elements = {{calculate_n}};
+    {{indent}}{{index_type}} {{func_name}}_n_elements = {{calculate_n}};
     {{indent}}invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{func_name}}_n_elements, {{stream}});
 {{indent}}}
     """
@@ -357,14 +357,10 @@ def _get_types_and_sizes(
 
     # Handle input broadcast.
     output_shape = output_accessors[0].original_shapes
-    dtype = "float16"
+    dtype = inputs[0]._attrs["dtype"]
     input_broadcast_sizes = []
     min_num_elements = None
-    for input_tensor, input_accessor in zip(inputs, input_accessors):
-        if input_tensor._attrs["dtype"] != "float16":
-            raise NotImplementedError(
-                "Unsupported dtype {}!".format(input_tensor._attrs["dtype"])
-            )
+    for input_accessor in input_accessors:
         input_shape = input_accessor.original_shapes
         broadcastable, _ = shape_utils.get_broadcast_max_shape(
             output_shape, input_shape
@@ -433,7 +429,7 @@ def _parse_func_metadata(
     op_type = backend_spec.get_backend_type(
         alignment, dtype, backend_spec.op_num_elements_to_backend_type
     )
-    data_type = backend_spec.get_fp16_dtype(dtype)
+    data_type = backend_spec.dtype_to_backend_type(dtype)
     sub_func_metadata, op_type = _get_sub_func_metadata(
         ops, data_type, op_type, backend_spec
     )
@@ -645,6 +641,7 @@ def _gen_kernel_function(
 
     kernel_func = KERNEL_TEMPLATE.render(
         func_name=func_attrs["name"],
+        index_type=index_type,
         output_params=output_params_decl,
         input_params=input_params_decl,
         dynamic_dims=_gen_dynamic_dim_str(
@@ -699,17 +696,13 @@ def fused_elementwise_gen_function(
     )
     output_params_decl = ",".join(
         [
-            FUNC_DECL_OUTPUT_PARAM_TEMPLATE.render(
-                data_t=fused_elementwise_metadata.data_t, idx=i
-            )
+            FUNC_DECL_OUTPUT_PARAM_TEMPLATE.render(idx=i)
             for i, _ in enumerate(fused_elementwise_metadata.outputs)
         ]
     )
     input_params_decl = ",".join(
         [
-            FUNC_DECL_INPUT_PARAM_TEMPLATE.render(
-                data_t=fused_elementwise_metadata.data_t, idx=i
-            )
+            FUNC_DECL_INPUT_PARAM_TEMPLATE.render(idx=i)
             for i, _ in enumerate(fused_elementwise_metadata.inputs)
         ]
     )
@@ -737,6 +730,7 @@ def fused_elementwise_gen_function(
 
     function = FUNC_TEMPLATE.render(
         prefix=backend_spec.prefix,
+        index_type=backend_spec.index_type,
         head=backend_spec.header_src_template.render(extra_header=head_template),
         constant=constant,
         custom_libs=custom_libs,
@@ -787,23 +781,20 @@ def fused_elementwise_gen_function_decl(
     )
     output_params_decl = ",".join(
         [
-            FUNC_DECL_OUTPUT_PARAM_TEMPLATE.render(
-                data_t=fused_elementwise_metadata.data_t, idx=i
-            )
+            FUNC_DECL_OUTPUT_PARAM_TEMPLATE.render(idx=i)
             for i, _ in enumerate(fused_elementwise_metadata.outputs)
         ]
     )
     input_params_decl = ",".join(
         [
-            FUNC_DECL_INPUT_PARAM_TEMPLATE.render(
-                data_t=fused_elementwise_metadata.data_t, idx=i
-            )
+            FUNC_DECL_INPUT_PARAM_TEMPLATE.render(idx=i)
             for i, _ in enumerate(fused_elementwise_metadata.inputs)
         ]
     )
 
     function_decl = FUNC_DECL_TEMPLATE.render(
         prefix=backend_spec.prefix,
+        index_type=backend_spec.index_type,
         func_name=func_name,
         output_params=output_params_decl,
         input_params=input_params_decl,
@@ -840,27 +831,9 @@ def fused_elementwise_gen_function_call(
         backend_spec,
     )
 
-    output_params_vec = []
-    for output in outputs:
-        if output._attrs["dtype"] != "float16":
-            raise NotImplementedError(
-                "Unsupported dtype {}".format(output._attrs["dtype"])
-            )
-        output_params_vec.append(
-            backend_spec.cast_to_half_ptr_template.render(name=output._attrs["name"])
-        )
-    output_params = ",".join(output_params_vec)
+    output_params = ",".join([output._attrs["name"] for output in outputs])
 
-    input_params_vec = []
-    for inp in inputs:
-        if inp._attrs["dtype"] != "float16":
-            raise NotImplementedError(
-                "Unsupported dtype {}".format(inp._attrs["dtype"])
-            )
-        input_params_vec.append(
-            backend_spec.cast_to_half_ptr_template.render(name=inp._attrs["name"])
-        )
-    input_params = ",".join(input_params_vec)
+    input_params = ",".join([input._attrs["name"] for input in inputs])
 
     num_elements_calculator = _gen_int_var_product_str(
         output_accessors[0].original_shapes
@@ -869,6 +842,7 @@ def fused_elementwise_gen_function_call(
     return FUNC_CALL_TEMPLATE.render(
         stream=backend_spec.stream,
         func_name=func_attrs["name"],
+        index_type=backend_spec.index_type,
         calculate_n=num_elements_calculator,
         output_params=output_params,
         input_params=input_params,

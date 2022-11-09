@@ -19,7 +19,7 @@ import numpy as np
 
 from aitemplate import backend, compiler
 
-from aitemplate.compiler.base import _NumpyConstantTensorData, Tensor
+from aitemplate.compiler.base import _NumpyConstantTensorData, IntVarTensor, Tensor
 from aitemplate.compiler.model import AITData, Model
 from aitemplate.compiler.transform.transform_utils import replace_tensor
 from aitemplate.utils import logger
@@ -75,7 +75,8 @@ def _extract_foldable_subgraph(
         elif tensor._attrs["is_param"]:
             # Params that do not have bound data cannot be folded.
             continue
-
+        elif isinstance(tensor, IntVarTensor):
+            continue
         foldable = all(
             inp._attrs["name"] in foldable_node_names
             for op in tensor._attrs["src_ops"]
@@ -123,15 +124,8 @@ def _constant_folding_impl(
     )
     file_pairs.extend(main_pairs)
     compile_engine = backend.builder.Builder()
-    compile_engine.build_objs(
-        file_pairs,
-        backend.target.Target.current().compile_cmd(False),
-        backend.target.Target.current().binary_compile_cmd(),
-    )
-
-    so_name = os.path.join(constant_folding_workdir, "test.so")
-    compile_engine.build_so(so_name, [p[1] for p in file_pairs])
-
+    so_name = os.path.join(constant_folding_workdir, "constant_folding.so")
+    compile_engine.make(file_pairs, "constant_folding.so", workdir, "constant_folding")
     module = Model(so_name, num_runtimes=1)
 
     outputs = {}

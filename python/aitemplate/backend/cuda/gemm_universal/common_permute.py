@@ -17,13 +17,13 @@ Common codegen functions for gemm + permute.
 """
 
 import re
-from collections import OrderedDict
+from functools import partial
 from hashlib import sha1
 
 import jinja2
 
+from ...backend_spec import CUDASpec
 from ...common import gemm_common
-from ...target import Target
 from ..gemm_universal import common
 
 # pylint: disable=C0301,C0415,R1705
@@ -63,6 +63,9 @@ def kernel_name(op, func_attrs):
     if len(shape) == 1:
         perm_type = "perm4d"
         perm_shape = f"{shape[0]}"
+    elif len(shape) == 2:
+        perm_type = "perm4d"
+        perm_shape = f"{shape[0]}_{shape[1]}"
     elif len(shape) == 3:
         perm_type = "perm5d"
         perm_shape = f"{shape[0]}_{shape[1]}_{shape[2]}"
@@ -83,63 +86,8 @@ def kernel_name(op, func_attrs):
     return name.replace("\n", "")
 
 
-def default_fproc_f16(
-    *, op, a_layout, b_layout, c_layout, epiligue_name, permute_layout
-):
-    """Generates new op_instances by adding alignment info, permute_layout, etc."""
-    import copy
-
-    import cutlass_lib
-
-    ret = []
-    data_type = cutlass_lib.library.DataType.f16
-    acc_type = cutlass_lib.library.DataType.f32
-    # check target use fp16 acc
-    if "use_fp16_acc" in Target.current()._kwargs:
-        if Target.current()._kwargs["use_fp16_acc"]:
-            acc_type = cutlass_lib.library.DataType.f16
-    if (
-        op.A.element == data_type
-        and op.B.element == data_type
-        and op.C.element == data_type
-        and op.accumulator_type() == acc_type
-        and op.A.layout == a_layout
-        and op.B.layout == b_layout
-    ):
-        op = copy.deepcopy(op)
-        # set output major
-        op.C.layout = c_layout
-        # set epilogue
-        op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epiligue_name]
-        op.element_epilogue = acc_type
-        op.permute_layout = cutlass_lib.library.EpiloguePermuteLayoutName[
-            permute_layout
-        ]
-        # set C alignment
-        for i in [8, 4, 2, 1]:
-            op = copy.deepcopy(op)
-            op.C.alignment = i
-            ret.append(op)
-    return ret
-
-
 def extract_config(f_proc_op, func_attrs):
-    import cutlass_lib
-
-    op_kind = cutlass_lib.library.OperationKind.Gemm
-    gemm_kind = cutlass_lib.library.GemmKind.Universal
-    gemm_ops = OrderedDict()
-    extract_ops = list(Target.current()._operators[op_kind].items())
-
-    for _, value in extract_ops:
-        op = value[0]
-        if op.gemm_kind == gemm_kind:
-            ret = f_proc_op(op)
-            if len(ret) > 0:
-                for op_inst in ret:
-                    key = kernel_name(op_inst, func_attrs)
-                    gemm_ops[key] = op_inst
-    return gemm_ops
+    return common.extract_config(f_proc_op, partial(kernel_name, func_attrs=func_attrs))
 
 
 def gemm_permute_instance(op_def, func_attrs, for_profiler):
@@ -262,6 +210,7 @@ def gen_function(
 def gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     dim_info_dict,
     src_template,
     problem_args_template,
@@ -272,6 +221,16 @@ def gen_profiler(
     bias_ptr_arg=None,
     extra_code="",
 ):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    elem_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
 
@@ -283,69 +242,109 @@ def gen_profiler(
         indent=2, dtype="int64_t", dim_info_dict=dim_info_dict, is_ptr=True
     )
 
-    file_pairs = []
     has_bias = bias_ptr_arg is not None
-    for op_name, op in op_instance.items():
+    instance_name_base = "GemmInstance"
+    exec_program = common.EXEC_TEMPLATE.render(
+        indent="  ",
+        instance=instance_name_base,
+        is_profiler=True,
+        support_split_k=support_split_k,
+        problem_args=problem_args_template.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+        ),
+    )
+    input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        output_ndims=ndims,
+    )
+
+    function_name = "gemm"
+    instances = []
+    benchmark_instances = []
+    for instance_idx, (op_name, op) in enumerate(op_instance.items()):
         config = emit_instance(
             op, for_profiler=True, emit_kernel=emit_kernel, func_attrs=func_attrs
         )
         config_name = common.extract_config_name(config)
-        name = "GemmInstance"
+        instance_name = f"{instance_name_base}_{instance_idx}"
+        gemm_op = f"gemm_op_{instance_idx}"
         instance = common.INSTANCE_TEMPLATE.render(
-            config_name=config_name, name=name, config=config
+            config_name=config_name, name=instance_name, config=config
         )
-        exec_program = common.EXEC_TEMPLATE.render(
+        benchmark_instance = common.BENCHMARK_INSTANCE_TEMPLATE.render(
             indent="  ",
-            instance=name,
-            is_profiler=True,
-            support_split_k=support_split_k,
-            problem_args=problem_args_template.render(),
-        )
-        input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
-            input_ndims=ndims,
-            weight_ndims=ndims,
-            output_ndims=ndims,
-        )
-        op_func = src_template.render(
-            instances=instance,
-            function_name="gemm",
-            input_ndims=2,
-            weight_ndims=2,
-            output_ndims=2,
-            shape_eval=shape_func,
-            input_output_checks=input_output_checks,
-            exec_paths=exec_program,
-            output_addr_calculator=output_addr_calculator,
-            support_split_k=support_split_k,
-            extra_code=extra_code,
-        )
-        func_call = common.FUNC_CALL_TEMPLATE.render(
-            func_name="gemm",
-            a_ptr="memory_pool->RequestHalfTensorByIdx(0)",
-            b_ptr="memory_pool->RequestHalfTensorByIdx(1)",
+            instance_name=instance_name,
+            gemm_op=gemm_op,
+            gemm_op_name=op_name,
+            func_name=f"benchmark_{function_name}",
+            a_ptr="memory_pool->RequestTensorByIdx(0)",
+            b_ptr="memory_pool->RequestTensorByIdx(1)",
             has_bias=has_bias,
             bias_ptr=bias_ptr_arg,
-            c_ptr="memory_pool->RequestHalfTensorByIdx(2)",
+            c_ptr="memory_pool->RequestTensorByIdx(2)",
+            support_split_k=support_split_k,
             split_k="split_k",
             adims=adims,
             bdims=bdims,
             cdims=cdims,
         )
-        # TODO: Render args_parse by caller.
-        args_parse = (
-            args_parser_template
-            if isinstance(args_parser_template, str)
-            else args_parser_template.render()
-        )
-        code = common.PROFILER_TEMPLATE.render(
-            op_func=op_func,
-            args_parse=args_parse,
-            func_call=func_call,
-            name=name,
-            tensor_decl=common.TENSOR_DECL_TEMPLATE.render(
-                name=name, has_bias=has_bias
-            ),
-        )
-        common.add_profiler(file_pairs, workdir, op_type, op_name, code)
+        instances.append(instance)
+        benchmark_instances.append(benchmark_instance)
+    op_func = src_template.render(
+        is_profiler=True,
+        instances="\n".join(instances),
+        function_name=function_name,
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        output_ndims=ndims,
+        shape_eval=shape_func,
+        input_output_checks=input_output_checks,
+        exec_paths=exec_program,
+        output_addr_calculator=output_addr_calculator,
+        support_split_k=support_split_k,
+        extra_code=extra_code,
+    )
+    benchmark_adims = ["a_dim" + str(i) for i in range(ndims)]
+    benchmark_bdims = ["b_dim" + str(i) for i in range(ndims)]
+    benchmark_cdims = ["c_dim" + str(i) for i in range(ndims)]
+    func_call = common.FUNC_CALL_TEMPLATE.render(
+        is_profiler=True,
+        func_name=function_name,
+        a_ptr="a_ptr",
+        b_ptr="b_ptr",
+        has_bias=has_bias,
+        bias_ptr="bias_ptr",
+        c_ptr="c_ptr",
+        split_k="split_k",
+        adims=benchmark_adims,
+        bdims=benchmark_bdims,
+        cdims=benchmark_cdims,
+    )
+    # TODO: Render args_parse by caller.
+    args_parse = (
+        args_parser_template
+        if isinstance(args_parser_template, str)
+        else args_parser_template.render()
+    )
+    code = common.PROFILER_TEMPLATE.render(
+        op_func=op_func,
+        has_bias=has_bias,
+        support_split_k=support_split_k,
+        args_parse=args_parse,
+        function_name=function_name,
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        output_ndims=ndims,
+        func_call=func_call,
+        tensor_decl=common.TENSOR_DECL_TEMPLATE.render(has_bias=has_bias),
+        benchmark_instances="\n".join(benchmark_instances),
+        elem_type=elem_type,
+    )
+    # FIXME: remove file_pairs once we have make -j ready for building
+    # an entire graph
+    file_pairs = []
+    common.add_profiler(file_pairs, workdir, op_type, profiler_filename, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)

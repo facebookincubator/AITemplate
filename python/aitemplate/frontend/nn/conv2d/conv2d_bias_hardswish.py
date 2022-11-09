@@ -19,6 +19,8 @@ from .common_conv2d_bias_act import Conv2dBiasAct
 
 
 class Conv2dBiasHardswish(Conv2dBiasAct):
+    r"""Applies 2D convolution with bias + hardswish."""
+
     def __init__(
         self,
         in_channels,

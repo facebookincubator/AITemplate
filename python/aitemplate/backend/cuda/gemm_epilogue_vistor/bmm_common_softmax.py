@@ -67,7 +67,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{d_ptr}},
 {{indent}}    {{n_ptr}},
 {{indent}}    {{soft_ptr}},
-{{indent}}    global_workspace,
+{{indent}}    global_workspace_,
 {{indent}}    {{a_dim0_ptr}},
 {{indent}}    {{a_dim1_ptr}},
 {{indent}}    {{a_dim2_ptr}},
@@ -182,7 +182,7 @@ def gen_profiler(
         )
         common.add_profiler(file_pairs, workdir, op_type, op_name, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)
 
 
 def gen_function_decl(func_attrs):

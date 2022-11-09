@@ -88,7 +88,7 @@ class nmsTestCase(unittest.TestCase):
 
         return torch.tensor(boxes).cuda().half(), torch.tensor(scores).cuda().half()
 
-    def test_nms(
+    def _test_nms(
         self,
         N=30,
         preNmsTop=30,
@@ -97,6 +97,7 @@ class nmsTestCase(unittest.TestCase):
         minBoxSize=0,
         num_classes=1,
         test_name="proposal_nms",
+        copy_op=False,
     ):
         target = detect_target()
 
@@ -114,16 +115,19 @@ class nmsTestCase(unittest.TestCase):
             is_input=True,
         )
 
-        X4 = ops.nms(
+        OP = ops.nms(
             preNmsTop=preNmsTop,
             nmsMaxOut=nmsMaxOut,
             iouThreshold=iouThreshold,
             minBoxSize=minBoxSize,
-        )(X1, X2)
+        )
+        if copy_op:
+            OP = ops.nms(**OP._get_op_attributes())
+        X4 = OP(X1, X2)
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
 
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = compile_model(X4, target, "./tmp", test_name + str(copy_op))
 
         boxes, scores = self._create_tensors(N)
         idxs = torch.randint(0, num_classes, (N,)).cuda().half()
@@ -149,7 +153,13 @@ class nmsTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(ref_box.cuda(), y, atol=1e-2, rtol=1e-2))
 
-    def test_topk_nms(self, batch_size=1, N=30, topK=30, iou=0.5, test_name="topk_nms"):
+    def test_nms(self):
+        self._test_nms()
+        self._test_nms(copy_op=True)
+
+    def _test_topk_nms(
+        self, batch_size=1, N=30, topK=30, iou=0.5, test_name="topk_nms", copy_op=False
+    ):
 
         target = detect_target()
         if target.name() == "rocm":
@@ -171,7 +181,10 @@ class nmsTestCase(unittest.TestCase):
             )
             score_inds = ops.topk(k=topK)(X_scores)
             bboxes = ops.batch_gather()(X_boxes, score_inds)
-            keep = ops.batched_nms(iou_threshold=iou, keep_n=N)(bboxes)
+            OP = ops.batched_nms(iou_threshold=iou, keep_n=N)
+            if copy_op:
+                OP = ops.batched_nms(**OP._get_op_attributes())
+            keep = OP(bboxes)
             return keep, score_inds
 
         Y = model()
@@ -201,6 +214,10 @@ class nmsTestCase(unittest.TestCase):
         index = keep.nonzero()[0]
         y = score_inds[index]
         np.testing.assert_allclose(y_np, y, atol=1e-2, rtol=1e-2)
+
+    def test_topk_nms(self):
+        self._test_topk_nms()
+        self._test_topk_nms(copy_op=True)
 
 
 if __name__ == "__main__":

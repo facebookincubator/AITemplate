@@ -23,6 +23,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, TypeVar, U
 
 import numpy as np
 
+from aitemplate.compiler.dtype import dtype_str_to_enum
 from aitemplate.utils.torch_utils import torch_dtype_to_string
 
 # Controls how many runtimes will be used in ModelContainer by default.
@@ -32,18 +33,6 @@ from aitemplate.utils.torch_utils import torch_dtype_to_string
 # in both Model.__init__ and compile_model. Changing it will have no
 # effect since Python default arguments only get evaluated once.
 AIT_DEFAULT_NUM_RUNTIMES = 1
-
-# pylint: disable=C0103
-
-DTYPE_TO_BYTES: Dict[str, str] = {
-    "float16": 2,
-    "float32": 4,
-    "float": 4,
-    "int": 4,
-    "int32": 4,
-    "int64": 8,
-}
-
 
 # Stand-in for torch.Tensor. Use a TypeVar for some APIs since we can't introduce
 # a torch dependency.
@@ -134,6 +123,11 @@ class AITemplateMemcpyKind(enum.Enum):
     DeviceToDevice = 2
 
 
+class AITemplateAllocatorKind(enum.Enum):
+    DEFAULT = 0
+    TRACKING = 1
+
+
 class AITData(NamedTuple):
     """
     Input or output tensor for Model.run. We require the extra data for safety
@@ -161,22 +155,36 @@ class _CFormatAITData(ctypes.Structure):
 
 
 class Model(object):
-    """AITemplate Python runtime binding."""
-
     class _DLLWrapper:
-        def __init__(self, lib_path: str, num_runtimes: int):
+        def __init__(
+            self,
+            lib_path: str,
+            num_runtimes: int,
+            allocator_kind: Optional[AITemplateAllocatorKind],
+        ):
             self.lib_path = lib_path
             self.DLL = ctypes.cdll.LoadLibrary(lib_path)
 
             self.handle = ctypes.c_void_p()
+            self.allocator_handle = ctypes.c_void_p()
+            if allocator_kind is not None:
+                self.DLL.AITemplateAllocatorCreate(
+                    ctypes.byref(self.allocator_handle),
+                    ctypes.c_int(allocator_kind.value),
+                )
+
             self.DLL.AITemplateModelContainerCreate(
-                ctypes.pointer(self.handle), ctypes.c_size_t(num_runtimes)
+                ctypes.pointer(self.handle),
+                ctypes.c_size_t(num_runtimes),
+                self.allocator_handle,
             )
             self.is_open = True
 
         def close(self):
             if self.is_open:
                 self.DLL.AITemplateModelContainerDelete(self.handle)
+                if self.allocator_handle:
+                    self.DLL.AITemplateAllocatorDelete(self.allocator_handle)
                 _dlclose(self.DLL)
                 self.is_open = False
 
@@ -193,7 +201,12 @@ class Model(object):
 
             return _wrapped_func
 
-    def __init__(self, lib_path: str, num_runtimes: int = AIT_DEFAULT_NUM_RUNTIMES):
+    def __init__(
+        self,
+        lib_path: str,
+        num_runtimes: int = AIT_DEFAULT_NUM_RUNTIMES,
+        allocator_kind: Optional[AITemplateAllocatorKind] = None,
+    ):
         """
         Instantiates a wrapper around the C++ model_interface.
 
@@ -205,11 +218,13 @@ class Model(object):
             How many runtimes should be stored in the internal pool. This
             determines how many inferences can happen concurrently. By
             default, set to 2. Must be positive.
+        allocator_kind : AITemplateAllocatorKind, optional
+            What type of allocator to use when allocating GPU memory.
         """
         if num_runtimes <= 0:
             raise ValueError(f"num_runtimes must be positive, but got {num_runtimes}")
 
-        self.DLL = self._DLLWrapper(lib_path, num_runtimes)
+        self.DLL = self._DLLWrapper(lib_path, num_runtimes, allocator_kind)
         self.handle = self.DLL.handle
         self.lib_path = self.DLL.lib_path
 
@@ -220,19 +235,6 @@ class Model(object):
         # The corresponding sorted_graph. Optional. For debugging purpose.
         self.debug_sorted_graph = None
 
-        # Maps dtype strings to AITemplateDtype enum in model_interface.h.
-        # Must be kept in sync!
-        # We can consider defining an AITemplateDtype enum to use on the Python
-        # side at some point, but stick to strings for now to keep things consistent
-        # with other Python APIs.
-        self._DTYPE_TO_ENUM = {
-            "float16": 1,
-            "float32": 2,
-            "float": 2,
-            "int": 3,
-            "int32": 3,
-            "int64": 4,
-        }
         self._output_name_to_index = self._construct_output_name_to_index_map()
         self._input_name_to_index = self._construct_input_name_to_index_map()
         self._output_ndims = [
@@ -268,13 +270,6 @@ class Model(object):
             raise RuntimeError(f"Didn't find 'lib_path' property in {d}")
         self.__init__(d["lib_path"])
 
-    def _dtype_str_to_enum(self, dtype: str) -> int:
-        if dtype not in self._DTYPE_TO_ENUM:
-            raise ValueError(
-                f"Got unsupported input dtype {dtype}! Supported dtypes are: {list(self._DTYPE_TO_ENUM.keys())}"
-            )
-        return self._DTYPE_TO_ENUM[dtype]
-
     def _convert_single_param_to_c_format(self, param: AITData) -> _CFormatAITData:
         pointer, shape, dtype = param
         c_pointer = ctypes.c_void_p(pointer)
@@ -282,7 +277,7 @@ class Model(object):
         for j, dim in enumerate(shape):
             c_shape_data[j] = ctypes.c_longlong(dim)
         c_shape = _AITemplateShape(c_shape_data, ctypes.c_size_t(len(shape)))
-        c_dtype = self._dtype_str_to_enum(dtype)
+        c_dtype = dtype_str_to_enum(dtype)
         return _CFormatAITData(c_pointer, c_shape, c_dtype)
 
     def _convert_params_to_c_format(self, params: List[AITData]):

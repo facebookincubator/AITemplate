@@ -22,7 +22,7 @@ from aitemplate.testing import detect_target
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class BMMTestCase(unittest.TestCase):
+class BMMRrrK1TanhTestCase(unittest.TestCase):
     def _test_rrr(self, B, M, K, N, test_name):
         target = detect_target()
         X = Tensor(shape=[B, M, K], dtype="float16", name="input_0", is_input=True)

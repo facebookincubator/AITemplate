@@ -159,6 +159,16 @@ class flash_attention(Operator):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        target_attrs = ["batch_size", "dropout", "max_seq_len", "causal"]
+        attr = {}
+
+        for target_attr in target_attrs:
+            if target_attr in self._attrs:
+                attr[target_attr] = self._attrs[target_attr]
+
+        return attr
+
     def _gen_exec_key(self, shape):
         """rendering shape info"""
         return self.exec_key_template.render(

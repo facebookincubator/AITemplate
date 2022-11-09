@@ -46,22 +46,30 @@ def _get_problem_info(**kwargs):
 
 @registry.reg("cuda.bmm_crr.config")
 def bmm_crr_config(func_attrs, dtype="float16"):
-    def fproc_f16(op):
+    def fproc(op):
         import cutlass_lib
 
-        return common.default_fproc_f16(
+        from ...backend_spec import CUDASpec
+
+        backend_spec = CUDASpec()
+        elem_type = backend_spec.dtype_to_lib_type(
+            func_attrs["inputs"][0]._attrs["dtype"]
+        )
+
+        return common.default_fproc(
             op=op,
             a_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             b_layout=cutlass_lib.library.LayoutType.RowMajor,
             c_layout=cutlass_lib.library.LayoutType.RowMajor,
+            elem_type=elem_type,
             epiligue_name=func_attrs["epilogue"],
         )
 
-    func_attrs["op_instance"] = common.extract_config(fproc_f16)
+    func_attrs["op_instance"] = common.extract_config(fproc)
 
 
 @registry.reg("cuda.bmm_crr.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     a_dims = bmm_common.reverse_dim_info_mapping(
         dim_info_dict, gemm_common.Source.INPUT, 0
     )
@@ -76,16 +84,21 @@ def gen_profiler(func_attrs, workdir, dim_info_dict):
         a_dims=a_dims, b_dims=b_dims, c_dims=c_dims
     )
 
-    mm_info = _get_problem_info(alpha_value=func_attrs.get("alpha", 1))
+    mm_info = _get_problem_info(
+        alpha_value=func_attrs.get("alpha", 1),
+    )
     a_shapes = func_attrs["input_accessors"][0].original_shapes
     b_shapes = func_attrs["input_accessors"][1].original_shapes
     bmm_common._update_stride_info(mm_info, a_shapes, b_shapes)
 
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
 
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common.SRC_TEMPLATE,
         problem_args,
@@ -99,12 +112,16 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
 ):
-    mm_info = _get_problem_info(alpha_value=func_attrs.get("alpha", 1))
+    mm_info = _get_problem_info(
+        alpha_value=func_attrs.get("alpha", 1),
+    )
     a_shapes = func_attrs["input_accessors"][0].original_shapes
     b_shapes = func_attrs["input_accessors"][1].original_shapes
     bmm_common._update_stride_info(mm_info, a_shapes, b_shapes)
 
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
     return bmm_common.gen_function(
         func_attrs,
         exec_cond_template,

@@ -71,6 +71,12 @@ class conv2d_bias_activation(conv2d):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        attrs = super()._get_op_attributes()
+        attrs.update({"activation": self._attrs["op"].split("_")[-1]})
+
+        return attrs
+
     @staticmethod
     def is_valid_inputs(x: Tensor, w: Tensor, b: Tensor) -> Tuple[bool, str]:
         x_shape = x._attrs["shape"]

@@ -38,6 +38,7 @@ class VarTestCase(unittest.TestCase):
         keepdim=False,
         input_type="float16",
         output_type=None,
+        copy_op=False,
     ):
         torch.manual_seed(0)
         logging.info(
@@ -49,6 +50,8 @@ class VarTestCase(unittest.TestCase):
         X = Tensor(shape=input_shape, dtype=input_type, name="input_0", is_input=True)
 
         op = ops.var(dim=dim, unbiased=unbiased, keepdim=keepdim, dtype=output_type)
+        if copy_op:
+            op = ops.var(**op._get_op_attributes())
         Y = op(X)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
@@ -80,6 +83,16 @@ class VarTestCase(unittest.TestCase):
         self._run_var(dim=1, unbiased=True, input_shape=[3, 2050, 2], keepdim=True)
         self._run_var(dim=0, unbiased=True, input_shape=[3001, 4, 2], keepdim=True)
         self._run_var(dim=-1, unbiased=True, input_shape=[1, 1000000, 6], keepdim=False)
+        self._run_var(
+            dim=0, unbiased=True, input_shape=[3001, 4, 2], keepdim=True, copy_op=True
+        )
+        self._run_var(
+            dim=-1,
+            unbiased=True,
+            input_shape=[1, 1000000, 6],
+            keepdim=False,
+            copy_op=True,
+        )
 
     def _run_batched_var(
         self, *, dim, unbiased, keepdim=False, input_type="float16", output_type=None

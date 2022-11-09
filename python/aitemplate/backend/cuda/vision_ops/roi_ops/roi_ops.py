@@ -20,9 +20,9 @@ import jinja2
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
+  const void*,
+  const void*,
+  void*,
   int64_t*,
   int64_t*,
   int64_t*,

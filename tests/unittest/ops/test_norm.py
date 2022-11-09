@@ -39,6 +39,7 @@ class VectorNormTestCase(unittest.TestCase):
         keepdim=False,
         input_type="float16",
         output_type=None,
+        copy_op=False,
     ):
         torch.manual_seed(0)
         logging.info(
@@ -52,6 +53,8 @@ class VectorNormTestCase(unittest.TestCase):
         op = ops.vector_norm(
             ord_kind=ord_kind, dim=dim, keepdim=keepdim, dtype=output_type
         )
+        if copy_op:
+            op = ops.vector_norm(**op._get_op_attributes())
         Y = op(X)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
@@ -87,6 +90,16 @@ class VectorNormTestCase(unittest.TestCase):
             keepdim=keepdim,
             input_type=input_type,
             output_type=output_type,
+        )
+        self._run_vector_norm(
+            test_name="l2_norm_copy_op",
+            ord_kind=2,
+            dim=dim,
+            input_shape=input_shape,
+            keepdim=keepdim,
+            input_type=input_type,
+            output_type=output_type,
+            copy_op=True,
         )
 
     def test_l2_norm(self):

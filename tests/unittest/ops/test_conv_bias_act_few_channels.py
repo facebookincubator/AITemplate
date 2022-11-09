@@ -28,7 +28,7 @@ def hard_swish(x):
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class ConvBiasReluTestCase(unittest.TestCase):
-    def test_relu(self, HH=224, WW=224, CI=4, CO=64, batch=1):
+    def _test_relu(self, HH=224, WW=224, CI=4, CO=64, batch=1, copy_op=False):
         KK = 7
         stride = 2
         pad = 3
@@ -44,6 +44,8 @@ class ConvBiasReluTestCase(unittest.TestCase):
         )
         B = Tensor(shape=[CO], dtype="float16", name="input_2", is_input=True)
         OP = ops.conv2d_bias_relu_few_channels(stride=stride, pad=pad, dilate=1)
+        if copy_op:
+            OP = ops.conv2d_bias_relu_few_channels(**OP._get_op_attributes())
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
@@ -63,7 +65,11 @@ class ConvBiasReluTestCase(unittest.TestCase):
         y_transpose = y.permute((0, 3, 1, 2))
         self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
-    def test_hardswish(self, HH=224, WW=224, CI=4, CO=64, batch=1):
+    def test_relu(self):
+        self._test_relu()
+        self._test_relu(copy_op=True)
+
+    def _test_hardswish(self, HH=224, WW=224, CI=4, CO=64, batch=1, copy_op=False):
         KK = 7
         stride = 2
         pad = 3
@@ -79,6 +85,8 @@ class ConvBiasReluTestCase(unittest.TestCase):
         )
         B = Tensor(shape=[CO], dtype="float16", name="input_2", is_input=True)
         OP = ops.conv2d_bias_hardswish_few_channels(stride=stride, pad=pad, dilate=1)
+        if copy_op:
+            OP = ops.conv2d_bias_hardswish_few_channels(**OP._get_op_attributes())
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
@@ -97,6 +105,10 @@ class ConvBiasReluTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         y_transpose = y.permute((0, 3, 1, 2))
         self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
+
+    def test_hardswish(self):
+        self._test_hardswish()
+        self._test_hardswish(copy_op=True)
 
 
 if __name__ == "__main__":

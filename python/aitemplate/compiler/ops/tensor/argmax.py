@@ -19,6 +19,7 @@ import itertools
 import os
 import re
 from collections import OrderedDict
+from operator import itemgetter
 from typing import List
 
 import jinja2
@@ -121,7 +122,7 @@ class argmax(Operator):
             target=target.name(), op=self._attrs["op"]
         )
         func = registry.get(func_key)
-        func(self._attrs, workdir)
+        return func(self._attrs, workdir)
 
     def _gen_exec_key(self, shape: List[int]):
         """rending the shape info"""
@@ -164,12 +165,13 @@ class argmax(Operator):
         runner.join()
         result = runner.pull()
 
-        out = sorted(result, key=lambda x: x[1])
-        if len(out) == 0:
+        if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " + "" + "failed. " "Results: {}.".format(result)
+                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
-        workspace = out[0][1].workspace
+
+        out = min(result, key=itemgetter(1))
+        workspace = out[1].workspace
         return workspace
 
     def profile(
@@ -179,7 +181,6 @@ class argmax(Operator):
         dynamic_profiling_strategy=None,
     ):
         """Get the Argmax Op workspace
-
         Parameters
         ----------
         workdir : str, optional

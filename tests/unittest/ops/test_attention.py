@@ -109,6 +109,35 @@ def attention_pt(X_pt, W_pt, B_pt, nheads, d, seqlen):
     return Y_pt
 
 
+def ref_cross_attention(q, k, v, attn_bias=None, drop_mask=None, p=0.0):
+    if q.ndim == 4:
+        assert p == 0.0
+        return ref_attention_bmhk(q, k, v, attn_bias=attn_bias)
+    q = q.float()
+    k = k.float()
+    v = v.float()
+
+    q = q * (1 / q.shape[-1] ** 0.5)
+    attn = q @ k.transpose(-2, -1)
+    attn = attn.softmax(-1)
+    if drop_mask is not None:
+        attn = attn * (drop_mask / (1 - p))
+    return attn @ v
+
+
+def ref_attention_bmhk(q, k, v, attn_bias):
+    assert q.ndim == 4
+
+    def T(t):
+        return t.permute((0, 2, 1, 3)).reshape(
+            [t.shape[0] * t.shape[2], t.shape[1], t.shape[3]]
+        )
+
+    out = ref_cross_attention(T(q), T(k), T(v), attn_bias)
+    out = out.reshape([q.shape[0], q.shape[2], q.shape[1], v.shape[3]])
+    return out.permute((0, 2, 1, 3))
+
+
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class attentionTestCase(unittest.TestCase):
     def _test_flash_attention(
@@ -124,6 +153,7 @@ class attentionTestCase(unittest.TestCase):
         test_name="attention",
         rebuild=True,
         benchmark_pt=False,
+        copy_op=False,
     ):
 
         d = n // nheads
@@ -173,12 +203,18 @@ class attentionTestCase(unittest.TestCase):
             name="cu_seqlens",
             is_input=True,
         )
-        Y = ops.flash_attention(
+
+        flash_attention_op = ops.flash_attention(
             batch_size=batch_size,
             dropout=dropout_p,
             max_seq_len=max_seqlen_in_batch,
             causal=causal,
-        )(X1, X2)
+        )
+        if copy_op:
+            flash_attention_op = ops.flash_attention(
+                **flash_attention_op._get_op_attributes()
+            )
+        Y = flash_attention_op(X1, X2)
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
 
@@ -193,9 +229,20 @@ class attentionTestCase(unittest.TestCase):
         inputs = {"qkv": x1, "cu_seqlens": x2}
         y = torch.empty([total, num_heads, head_size]).cuda().half()
         module.run_with_tensors(inputs, [y])
-        y = y.reshape((batch_size, -1, nheads, d))
 
-        self.assertTrue(torch.allclose(y_pt, y, atol=1e-3, rtol=1e-3))
+        # Warm up.
+        for _ in range(5):
+            module.run_with_tensors(inputs, [y])
+        # Benchmark.
+        time_per_iter_ms, time_std, _ = module.benchmark_with_tensors(
+            inputs,
+            [y],
+            count=100,
+        )
+        logger.info(__file__, "benchmark flash-attn time: {0}".format(time_per_iter_ms))
+
+        y = y.reshape((batch_size, -1, nheads, d))
+        self.assertTrue(torch.allclose(y_pt, y, atol=1e-1, rtol=1e-1))
 
         if benchmark_pt:
             from aitemplate.testing.benchmark_pt import benchmark_torch_function
@@ -216,6 +263,9 @@ class attentionTestCase(unittest.TestCase):
     def test_flash_attention(self):
         if detect_target().name() == "cuda":
             self._test_flash_attention(test_name="flash_attention")
+            self._test_flash_attention(
+                test_name="flash_attention_copy_op", copy_op=True
+            )
 
     def _test_attention(self, test_name, rebuild=True, benchmark=False):
         target = detect_target()
@@ -287,6 +337,284 @@ class attentionTestCase(unittest.TestCase):
     def test_attention(self):
         if detect_target().name() == "rocm":
             self._test_attention(test_name="attention")
+
+    def _test_mem_eff_attention(
+        self,
+        batch_size=16,
+        nheads=16,
+        seqlen=1024,
+        n=1024,
+        dropout_p=0.0,
+        causal=False,
+        dtype=torch.float16,
+        device="cuda",
+        test_name="attention",
+        rebuild=True,
+        benchmark_ait=False,
+        benchmark_pt=False,
+        copy_op=False,
+        use_perm=True,
+    ):
+        d = n // nheads
+
+        x = torch.randn(
+            batch_size, seqlen, n, device="cuda", dtype=dtype, requires_grad=True
+        )
+        Wqkv = torch.nn.Linear(nheads * d, 3 * nheads * d, device=device, dtype=dtype)
+
+        lengths = torch.tensor(
+            [seqlen] * batch_size, dtype=torch.int, device="cuda"
+        ).reshape(-1, 1)
+        attention_mask_bool = (
+            repeat(torch.arange(seqlen, device="cuda"), "s -> b s", b=batch_size)
+            < lengths
+        )
+        attention_mask = torch.zeros(batch_size, seqlen, device="cuda", dtype=dtype)
+        attention_mask = rearrange(attention_mask, "b s -> b 1 1 s")
+
+        x_unpad, indices, cu_seqlens, max_seqlen_in_batch = unpad_input(
+            x, attention_mask_bool
+        )
+        qkv_unpad = (
+            rearrange(Wqkv(x_unpad), "nnz (t h d) -> nnz t h d", t=3, h=nheads)
+            .detach()
+            .requires_grad_()
+        )
+        qkv = (
+            rearrange(Wqkv(x), "b s (t h d) -> b s t h d", t=3, h=nheads)
+            .detach()
+            .requires_grad_()
+        )
+        q, k, v = torch.split(qkv, 1, dim=2)
+        output = attention_ref(qkv, attention_mask_bool, dropout_p, causal=causal)
+        y_pt = output.detach()
+
+        total, _, num_heads, head_size = qkv_unpad.shape
+
+        Q = Tensor(
+            shape=[batch_size, num_heads, seqlen, head_size],
+            dtype="float16",
+            name="q",
+            is_input=True,
+        )
+        K = Tensor(
+            shape=[batch_size, num_heads, seqlen, head_size],
+            dtype="float16",
+            name="k",
+            is_input=True,
+        )
+        V = Tensor(
+            shape=[batch_size, num_heads, seqlen, head_size],
+            dtype="float16",
+            name="v",
+            is_input=True,
+        )
+
+        flash_attention_op = ops.mem_eff_attention(
+            causal=causal,
+        )
+        if copy_op:
+            flash_attention_op = ops.mem_eff_attention(
+                **flash_attention_op._get_op_attributes()
+            )
+
+        Y = flash_attention_op(Q, K, V)
+
+        Y._attrs["is_output"] = True
+        Y._attrs["name"] = "output"
+
+        if rebuild:
+            target = detect_target()
+            module = compile_model(Y, target, "./tmp", test_name)
+        else:
+            module = Model(os.path.join("./tmp", test_name, "test.so"))
+
+        q = torch.permute(q, (0, 3, 2, 1, 4)).reshape(
+            batch_size, num_heads, seqlen, head_size
+        )
+        k = torch.permute(k, (0, 3, 2, 1, 4)).reshape(
+            batch_size, num_heads, seqlen, head_size
+        )
+        v = torch.permute(v, (0, 3, 2, 1, 4)).reshape(
+            batch_size, num_heads, seqlen, head_size
+        )
+
+        inputs = {
+            "q": q.detach().half().cuda().contiguous(),
+            "k": k.detach().half().cuda().contiguous(),
+            "v": v.detach().half().cuda().contiguous(),
+        }
+
+        y = torch.empty([batch_size, seqlen, num_heads, head_size]).cuda().half()
+        module.run_with_tensors(inputs, [y])
+
+        if benchmark_ait:
+            # Warm up.
+            for _ in range(5):
+                module.run_with_tensors(inputs, [y])
+            # Benchmark AIT
+            time_per_iter_ms, time_std, _ = module.benchmark_with_tensors(
+                inputs,
+                [y],
+                count=100,
+            )
+            logger.info(
+                __file__, "benchmark eff-mem-attn time: {0}".format(time_per_iter_ms)
+            )
+
+        self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-1, rtol=1e-1))
+
+        if benchmark_pt:
+            from aitemplate.testing.benchmark_pt import benchmark_torch_function
+
+            func = attention_ref
+            args = (
+                qkv.cuda().half(),
+                attention_mask_bool.cuda(),
+                dropout_p,
+                False,
+                False,
+            )
+            duration = benchmark_torch_function(100, func, *args)
+            print(
+                f"PT:  BS: {batch_size}, Time per iter: {duration:.2f}ms, QPS: {batch_size / duration:.2f}"
+            )
+
+    def test_mem_eff_attention(self):
+        if detect_target().name() == "cuda":
+            for use_perm in [False, True]:
+                self._test_mem_eff_attention(
+                    use_perm=use_perm, test_name="mem_eff_attention"
+                )
+                self._test_mem_eff_attention(
+                    causal=True, test_name="mem_eff_attention_causal"
+                )
+                # self._test_mem_eff_attention(batch_size=1, nheads=8, seqlen=8, n=64, use_perm=use_perm, test_name="mem_eff_attention1")
+                # self._test_mem_eff_attention(batch_size=16, nheads=8, seqlen=8, n=512, use_perm=use_perm, test_name="mem_eff_attention2")
+                # self._test_mem_eff_attention(batch_size=16, nheads=8, seqlen=8, n=1024, use_perm=use_perm, test_name="mem_eff_attention3")
+                # self._test_mem_eff_attention(batch_size=16, nheads=8, seqlen=16, n=1024, use_perm=use_perm, test_name="mem_eff_attention4")
+                # self._test_mem_eff_attention(batch_size=1, nheads=8, seqlen=16, n=64, use_perm=use_perm, test_name="mem_eff_attention5")
+
+    def _test_cross_attention(
+        self,
+        batch_size=16,
+        num_heads=16,
+        seqlen=1024,
+        seqlen_kv=1024,
+        head_size=64,
+        head_size_v=64,
+        dropout_p=0.0,
+        causal=False,
+        dtype=torch.float16,
+        device="cuda",
+        test_name="attention",
+        rebuild=True,
+        benchmark_ait=False,
+        benchmark_pt=False,
+        copy_op=False,
+    ):
+        q = torch.randn(
+            batch_size,
+            seqlen,
+            num_heads,
+            head_size,
+            device="cuda",
+            dtype=dtype,
+        )
+        k = torch.randn(
+            batch_size,
+            seqlen_kv,
+            num_heads,
+            head_size,
+            device="cuda",
+            dtype=dtype,
+        )
+        v = torch.randn(
+            batch_size,
+            seqlen_kv,
+            num_heads,
+            head_size_v,
+            device="cuda",
+            dtype=dtype,
+        )
+
+        output = ref_cross_attention(q, k, v)
+        y_pt = output.detach()
+
+        Q = Tensor(
+            shape=[batch_size, num_heads, seqlen, head_size],
+            dtype="float16",
+            name="q",
+            is_input=True,
+        )
+        K = Tensor(
+            shape=[batch_size, num_heads, seqlen_kv, head_size],
+            dtype="float16",
+            name="k",
+            is_input=True,
+        )
+        V = Tensor(
+            shape=[batch_size, num_heads, seqlen_kv, head_size_v],
+            dtype="float16",
+            name="v",
+            is_input=True,
+        )
+
+        flash_attention_op = ops.mem_eff_attention(
+            causal=causal,
+        )
+        if copy_op:
+            flash_attention_op = ops.flash_attention(
+                **flash_attention_op._get_op_attributes()
+            )
+        Y = flash_attention_op(Q, K, V)
+        Y._attrs["is_output"] = True
+        Y._attrs["name"] = "output"
+
+        if rebuild:
+            target = detect_target()
+            module = compile_model(Y, target, "./tmp", test_name)
+        else:
+            module = Model(os.path.join("./tmp", test_name, "test.so"))
+
+        q = torch.permute(q, (0, 2, 1, 3))
+        k = torch.permute(k, (0, 2, 1, 3))
+        v = torch.permute(v, (0, 2, 1, 3))
+
+        inputs = {
+            "q": q.detach().half().cuda().contiguous(),
+            "k": k.detach().half().cuda().contiguous(),
+            "v": v.detach().half().cuda().contiguous(),
+        }
+        y = torch.empty([batch_size, seqlen, num_heads, head_size_v]).cuda().half()
+        module.run_with_tensors(inputs, [y])
+
+        if benchmark_ait:
+            # Warm up.
+            for _ in range(5):
+                module.run_with_tensors(inputs, [y])
+            # Benchmark AIT
+            time_per_iter_ms, time_std, _ = module.benchmark_with_tensors(
+                inputs,
+                [y],
+                count=100,
+            )
+            logger.info(
+                __file__, "benchmark cross-attn time: {0}".format(time_per_iter_ms)
+            )
+
+        self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-1, rtol=1e-1))
+
+    def test_cross_attention(self):
+        if detect_target().name() == "cuda":
+            self._test_cross_attention(test_name="cross_attention")
+            self._test_cross_attention(
+                seqlen=1024,
+                seqlen_kv=768,
+                head_size=64,
+                head_size_v=64,
+                test_name="cross_attention2",
+            )
 
 
 if __name__ == "__main__":

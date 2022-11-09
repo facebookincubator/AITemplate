@@ -22,6 +22,7 @@ https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_onli
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from . import reduce_3d
 
 
@@ -259,7 +260,11 @@ def var_gen_function(func_attrs) -> str:
         returns the rendered code for the complete implementation of this var op
     """
     bessel = "true" if func_attrs["unbiased"] else "false"
-    acc_type = "WelfordData<cutlass::half_t, {}>".format(bessel)
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    acc_type = f"WelfordData<{elem_input_type}, {bessel}>"
     return reduce_3d.gen_function(
         func_attrs,
         "cutlass::welford_op",

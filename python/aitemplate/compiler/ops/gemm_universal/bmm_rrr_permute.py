@@ -36,7 +36,6 @@ class bmm_rrr_permute(bmm_rrr):
 
     .. highlight:: python
     .. code-block:: python
-
         X_pt = torch.randn(B, M, K).cuda().half()
         W_pt = torch.randn(B, K, N).cuda().half()
 
@@ -88,7 +87,6 @@ class bmm_rrr_permute(bmm_rrr):
         self._set_depth()
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b)
-        self._extract_epilogue_alignment(output_shape)
 
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
@@ -98,8 +96,15 @@ class bmm_rrr_permute(bmm_rrr):
             b, m, n = output_shape
             d1 = self._attrs["shape"][0]
             output_shape = [b.value() // d1, m, d1, n]
+            self._extract_epilogue_alignment(output_shape)
             return reshape()(output, output_shape)
         else:
             raise NotImplementedError(
                 "{} is not implemented!".format(self._attrs["layout"])
             )
+
+    def _get_op_attributes(self):
+        return {
+            "layout": self._attrs["layout"].split("_")[-1],
+            "shape": tuple(map(int, self._attrs["permute_shape"].split("_"))),
+        }

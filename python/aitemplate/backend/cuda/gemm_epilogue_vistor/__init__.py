@@ -13,6 +13,18 @@
 #  limitations under the License.
 #
 
-from . import bmm_rcr_softmax, gemm_rcr_bias_softmax, gemm_rcr_softmax
+from . import (
+    bmm_rcr_softmax,
+    dual_gemm_rcr_fast_gelu,
+    dual_gemm_rcr_silu,
+    gemm_rcr_bias_softmax,
+    gemm_rcr_softmax,
+)
 
-__all__ = ["bmm_rcr_softmax", "gemm_rcr_bias_softmax", "gemm_rcr_softmax"]
+__all__ = [
+    "bmm_rcr_softmax",
+    "gemm_rcr_bias_softmax",
+    "gemm_rcr_softmax",
+    "dual_gemm_rcr_silu",
+    "dual_gemm_rcr_fast_gelu",
+]

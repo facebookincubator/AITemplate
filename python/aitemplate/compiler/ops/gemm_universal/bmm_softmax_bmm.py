@@ -157,3 +157,6 @@ class bmm_softmax_bmm(bmm):
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output
+
+    def _get_op_attributes(self):
+        return {"scale": self._attrs["scale"]}

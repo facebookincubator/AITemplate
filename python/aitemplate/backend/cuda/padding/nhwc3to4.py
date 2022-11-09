@@ -18,14 +18,15 @@ CUDA codegen for nhwc3to4 op
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 
 # pylint: disable=C0301,W0613,W0612
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
+  void*,
+  void*,
   int64_t*,
   int64_t*,
   int64_t*,
@@ -56,9 +57,9 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}nhwc3to4_launcher(
-{{indent}}    in_ptr,
-{{indent}}    out_ptr,
+{{indent}}nhwc3to4_launcher<{{elem_input_type}}>(
+{{indent}}    static_cast<const {{elem_input_type}}*>(in_ptr),
+{{indent}}    static_cast<{{elem_input_type}}*>(out_ptr),
 {{indent}}    NI,
 {{indent}}    HI,
 {{indent}}    WI,
@@ -106,8 +107,9 @@ __global__ void nhwc_padding_channel_3To4_kernel(const int32_t n,
   }
 }
 
-void nhwc3to4_launcher(cutlass::half_t* in_ptr,
-                       cutlass::half_t* out_ptr,
+template <typename ElemT>
+void nhwc3to4_launcher(const ElemT* in_ptr,
+                       ElemT* out_ptr,
                        int NI,
                        int HI,
                        int WI,
@@ -120,9 +122,9 @@ void nhwc3to4_launcher(cutlass::half_t* in_ptr,
   const int max_input_element = nhwc / element_in_Tio;
   const int max_output_element = nhw * 4 / element_in_Tio;
   const int4 zero_io = {0, 0, 0, 0};
-  const cutlass::half_t zero_element = static_cast<cutlass::half_t>(0.0f);
+  const ElemT zero_element = static_cast<ElemT>(0.0f);
   dim3 grid((nhwc + 192 * element_in_Tio - 1)/(192 * element_in_Tio));
-  nhwc_padding_channel_3To4_kernel<int4, cutlass::half_t, element_in_Tio><<<grid, block, 0, stream>>>
+  nhwc_padding_channel_3To4_kernel<int4, ElemT, element_in_Tio><<<grid, block, 0, stream>>>
           (NI, HI, WI,
           (const int4 *)in_ptr,
           (int4 *)out_ptr,
@@ -133,8 +135,8 @@ void nhwc3to4_launcher(cutlass::half_t* in_ptr,
 }
 
 void {{function_name}} (
-    cutlass::half_t* in_ptr,
-    cutlass::half_t* out_ptr,
+    void* in_ptr,
+    void* out_ptr,
     int64_t* batch,
     int64_t* in_h,
     int64_t* in_w,
@@ -172,6 +174,10 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
         [description]
     """
     func_name = func_attrs["name"]
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     shape_eval_func = shape_eval_template.render(
         indent="  ",
         dtype="int64_t ",
@@ -186,9 +192,12 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
         y_dim2="*out_w",
     )
     shape_func = shape_eval_func + shape_save_func
-    exec_paths = EXEC_TEMPLATE.render()
+    exec_paths = EXEC_TEMPLATE.render(elem_input_type=elem_input_type)
     return SRC_TEMPLATE.render(
-        function_name=func_name, shape_function=shape_func, exec_paths=exec_paths
+        function_name=func_name,
+        elem_input_type=elem_input_type,
+        shape_function=shape_func,
+        exec_paths=exec_paths,
     )
 
 

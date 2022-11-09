@@ -35,15 +35,15 @@ import jinja2
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  {{lib_dtype}}*,
-  {{lib_dtype}}*,
-  int64_t*,
-  int64_t*,
-  int64_t*,
-  int64_t*,
-  int64_t*,
-  int64_t*,
-  {{prefix}}Stream_t
+  const void* /* input */,
+  void* /* output */,
+  int64_t* /* x_dim0 */,
+  int64_t* /* x_dim1 */,
+  int64_t* /* x_dim2 */,
+  int64_t* /* y_dim0 */,
+  int64_t* /* y_dim1 */,
+  int64_t* /* y_dim2 */,
+  {{prefix}}Stream_t /* stream */
 );
 """
 )
@@ -51,8 +51,8 @@ void {{func_name}}(
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
-{{indent}}    static_cast<{{lib_dtype}}*>({{in_ptr}}),
-{{indent}}    static_cast<{{lib_dtype}}*>({{out_ptr}}),
+{{indent}}    {{in_ptr}},
+{{indent}}    {{out_ptr}},
 {{indent}}    {{x_dim0}},
 {{indent}}    {{x_dim1}},
 {{indent}}    {{x_dim2}},
@@ -158,8 +158,8 @@ __global__ void permute210_kernel(T *output,
   }
 }
 
-void permute210_launcher({{lib_dtype}}* in_ptr,
-                         {{lib_dtype}}* out_ptr,
+void permute210_launcher(const void* in_ptr,
+                         void* out_ptr,
                          int x_dim0,
                          int x_dim1,
                          int x_dim2,
@@ -167,8 +167,8 @@ void permute210_launcher({{lib_dtype}}* in_ptr,
   dim3 grid((x_dim2 + (TILE_SIZE-1))/TILE_SIZE, x_dim1, (x_dim0 + (TILE_SIZE-1))/TILE_SIZE);
   dim3 block(TILE_SIZE, TILE_SIZE/4);
   permute210_kernel<{{lib_dtype}}><<<grid, block, 0, stream>>>(
-    out_ptr,
-    (const {{lib_dtype}}*)in_ptr,
+    static_cast<{{lib_dtype}}*>(out_ptr),
+    static_cast<const {{lib_dtype}}*>(in_ptr),
     x_dim0,
     x_dim1,
     x_dim2
@@ -177,8 +177,8 @@ void permute210_launcher({{lib_dtype}}* in_ptr,
 } // namespace
 
 void {{function_name}} (
-    {{lib_dtype}}* in_ptr,
-    {{lib_dtype}}* out_ptr,
+    const void* in_ptr,
+    void* out_ptr,
     int64_t* x_dim0,
     int64_t* x_dim1,
     int64_t* x_dim2,
@@ -244,12 +244,9 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
         Function declaration
     """
     func_name = func_attrs["name"]
-    x = func_attrs["inputs"][0]
-    xdtype = x._attrs["dtype"]
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_name,
         prefix=backend_spec.prefix,
-        lib_dtype=backend_spec.dtype_to_lib_type(xdtype),
     )
 
 
@@ -271,7 +268,6 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> 
     """
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
-    xdtype = x._attrs["dtype"]
     y = func_attrs["outputs"][0]
     yshape = y._attrs["shape"]
     return FUNC_CALL_TEMPLATE.render(
@@ -285,5 +281,4 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> 
         y_dim1="&" + yshape[1]._attrs["name"],
         y_dim2="&" + yshape[2]._attrs["name"],
         indent=indent,
-        lib_dtype=backend_spec.dtype_to_lib_type(xdtype),
     )

@@ -53,6 +53,7 @@ class RoiAlignTestCase(unittest.TestCase):
         im_shape=(512, 512),
         rebuild=True,
         bench=False,
+        copy_op=False,
     ):
         HH, WW = im_shape
         target = detect_target()
@@ -81,6 +82,8 @@ class RoiAlignTestCase(unittest.TestCase):
             continuous_coordinate=True,
             im_shape=im_shape,
         )
+        if copy_op:
+            OP = ops.multi_level_roi_align(**OP._get_op_attributes())
         Y = OP(P2, P3, P4, P5, R)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
@@ -193,6 +196,17 @@ class RoiAlignTestCase(unittest.TestCase):
             pooled_size=7,
             rebuild=1,
             test_name="fpn_roi_align",
+        )
+        self._test_fpn_roi_align(
+            boxes,
+            features,
+            CC=C,
+            num_rois=boxes.shape[0],
+            im_shape=(H, W),
+            pooled_size=7,
+            rebuild=1,
+            test_name="fpn_roi_align_copy_op",
+            copy_op=True,
         )
 
 

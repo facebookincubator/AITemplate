@@ -69,3 +69,68 @@ class ConvRecordEntry:
     algo: str
     workspace: int
     split_k: int
+
+
+@dataclass
+class Conv3dQueryEntry:
+    """Query Entry"""
+
+    dtype_a: int
+    dtype_b: int
+    dtype_c: int
+    dtype_acc: int
+    major_a: int
+    major_b: int
+    major_c: int
+    kd: int
+    kh: int
+    kw: int
+    co: int
+    stride_d: int
+    stride_h: int
+    stride_w: int
+    pad_d: int
+    pad_h: int
+    pad_w: int
+    dilate_d: int
+    dilate_h: int
+    dilate_w: int
+    op_type: str
+    device: str
+    epilogue: int
+    split_k: int
+    exec_entry_sha1: str
+
+
+@dataclass
+class Conv3dRecordEntry:
+    """Record Entry"""
+
+    exec_entry: str
+    exec_entry_sha1: str
+    dtype_a: int
+    dtype_b: int
+    dtype_c: int
+    dtype_acc: int
+    major_a: int
+    major_b: int
+    major_c: int
+    kd: int
+    kh: int
+    kw: int
+    co: int
+    stride_d: int
+    stride_h: int
+    stride_w: int
+    pad_d: int
+    pad_h: int
+    pad_w: int
+    dilate_d: int
+    dilate_h: int
+    dilate_w: int
+    op_type: str
+    epilogue: int
+    device: str
+    algo: str
+    workspace: int
+    split_k: int

@@ -87,6 +87,18 @@ def _find_fusable_elementwise_ops(op: Operator) -> Set[Operator]:
     for op in dependent_ops:
         if op._attrs["op"] != "elementwise":
             to_be_removed_set.add(op)
+        else:
+            # Assuming there are two elementwise ops, op1 and op2, where op1 is a
+            # parent op of op2. If op1's output is an output tensor, or if op1 is
+            # consumed by other non-elementwise ops, op1 cannot be fused with op2.
+            output = op._attrs["outputs"][0]
+            if output._attrs["is_output"]:
+                to_be_removed_set.add(op)
+                continue
+            for next_op in output.dst_ops():
+                if next_op._attrs["op"] != "elementwise":
+                    to_be_removed_set.add(op)
+
     dependent_ops = dependent_ops - to_be_removed_set
 
     # Then get all connected elementwise ops at the last layer.

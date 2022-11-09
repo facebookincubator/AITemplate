@@ -17,6 +17,8 @@ Codegen functions for max_pool2d.
 """
 import jinja2
 
+from aitemplate.backend.backend_spec import CUDASpec
+
 from ... import registry
 from . import pool2d
 
@@ -26,8 +28,8 @@ from . import pool2d
 EXEC_TEMPLATE = jinja2.Template(
     """
 {{indent}}max_pooling_launcher<{{kernel_size}}, {{stride}}, {{padding}}>(
-{{indent}}    in_ptr,
-{{indent}}    out_ptr,
+{{indent}}    static_cast<const {{dtype}}*>(in_ptr),
+{{indent}}    static_cast<{{dtype}}*>(out_ptr),
 {{indent}}    NI,
 {{indent}}    HI,
 {{indent}}    WI,
@@ -133,8 +135,8 @@ __global__ void max_pool_f16_nhwc_kernel(const half2* input,
   }
 }
 
-template <int kernel_size, int stride, int pad>
-void max_pooling_launcher(cutlass::half_t* input,
+template<int kernel_size, int stride, int pad>
+void max_pooling_launcher(const cutlass::half_t* input,
                           cutlass::half_t* output,
                           int NI,
                           int HI,
@@ -142,7 +144,8 @@ void max_pooling_launcher(cutlass::half_t* input,
                           int CI,
                           int HO,
                           int WO,
-                          cudaStream_t stream) {
+                          cudaStream_t stream)
+{
   const int block_ch = 4;
   const int block_w = 4;
   const int block_h = 4;
@@ -159,8 +162,8 @@ void max_pooling_launcher(cutlass::half_t* input,
 } // namespace
 
 void {{function_name}} (
-    cutlass::half_t* in_ptr,
-    cutlass::half_t* out_ptr,
+    const void* in_ptr,
+    void* out_ptr,
     int64_t* batch,
     int64_t* in_h,
     int64_t* in_w,
@@ -189,7 +192,8 @@ def gen_function(
 ):
     func_name = func_attrs["name"]
     exec_path = func_attrs["exec_path"]
-
+    backend_spec = CUDASpec()
+    dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
     shape_eval_func = shape_eval_template.render(
         indent="  ",
         dtype="int64_t ",
@@ -217,6 +221,7 @@ def gen_function(
             kernel_size=func_attrs["kernel_size"],
             padding=func_attrs["pad"],
             stride=func_attrs["stride"],
+            dtype=dtype,
         )
         exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst

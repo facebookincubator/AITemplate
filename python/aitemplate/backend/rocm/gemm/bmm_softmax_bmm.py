@@ -186,7 +186,7 @@ def bmm_gen_profiler(func_attrs, workdir, dim_info_dict):
         Generated from bmm._extract_dims().
         Used to store mapping between dim_names to input / output tensor dims.
     """
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs=func_attrs,
         workdir=workdir,
         args_parse=ARGS_PARSER_TEMPLATE.render(),
