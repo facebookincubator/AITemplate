@@ -242,7 +242,7 @@ class attentionTestCase(unittest.TestCase):
         logger.info(__file__, "benchmark flash-attn time: {0}".format(time_per_iter_ms))
 
         y = y.reshape((batch_size, -1, nheads, d))
-        self.assertTrue(torch.allclose(y_pt, y, atol=1e-3, rtol=1e-3))
+        self.assertTrue(torch.allclose(y_pt, y, atol=1e-1, rtol=1e-1))
 
         if benchmark_pt:
             from aitemplate.testing.benchmark_pt import benchmark_torch_function
@@ -462,7 +462,7 @@ class attentionTestCase(unittest.TestCase):
                 __file__, "benchmark eff-mem-attn time: {0}".format(time_per_iter_ms)
             )
 
-        self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-3, rtol=1e-3))
+        self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-1, rtol=1e-1))
 
         if benchmark_pt:
             from aitemplate.testing.benchmark_pt import benchmark_torch_function
@@ -603,7 +603,7 @@ class attentionTestCase(unittest.TestCase):
                 __file__, "benchmark cross-attn time: {0}".format(time_per_iter_ms)
             )
 
-        self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-3, rtol=1e-3))
+        self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-1, rtol=1e-1))
 
     def test_cross_attention(self):
         if detect_target().name() == "cuda":

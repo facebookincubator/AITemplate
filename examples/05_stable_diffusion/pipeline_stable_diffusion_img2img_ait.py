@@ -12,6 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
+# flakes8: noqa
 import inspect
 import os
 from typing import List, Optional, Union
@@ -346,7 +348,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             if isinstance(self.scheduler, LMSDiscreteScheduler):
                 sigma = self.scheduler.sigmas[t_index]
                 # the model input needs to be scaled to match the continuous ODE formulation in K-LMS
-                latent_model_input = latent_model_input / ((sigma ** 2 + 1) ** 0.5)
+                latent_model_input = latent_model_input / ((sigma**2 + 1) ** 0.5)
                 latent_model_input = latent_model_input.to(self.unet.dtype)
                 t = t.to(self.unet.dtype)
 
