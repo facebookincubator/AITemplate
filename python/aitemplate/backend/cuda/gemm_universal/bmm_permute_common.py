@@ -94,7 +94,7 @@ def gen_profiler(
             gemm_op=gemm_op,
             gemm_op_name=op_name,
             func_name=f"benchmark_{function_name}",
-            a_ptr="memory_pool->RequestfTensorByIdx(0)",
+            a_ptr="memory_pool->RequestTensorByIdx(0)",
             b_ptr="memory_pool->RequestTensorByIdx(1)",
             has_bias=has_bias,
             bias_ptr=bias_ptr_arg,
