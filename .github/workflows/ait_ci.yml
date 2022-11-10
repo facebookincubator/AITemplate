@@ -1,0 +1,127 @@
+name: AITemplate_ci
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: rocm
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Get CPU info on Ubuntu
+      if: contains(runner.os, 'linux')
+      run: |
+        cat /proc/cpuinfo
+    - name: Get env vars
+      run: |
+        echo GITHUB_WORKFLOW   = $GITHUB_WORKFLOW
+        echo HOME              = $HOME
+        echo GITHUB_ACTION     = $GITHUB_ACTION
+        echo GITHUB_ACTIONS    = $GITHUB_ACTIONS
+        echo GITHUB_REPOSITORY = $GITHUB_REPOSITORY
+        echo GITHUB_EVENT_NAME = $GITHUB_EVENT_NAME
+        echo GITHUB_EVENT_PATH = $GITHUB_EVENT_PATH
+        echo GITHUB_WORKSPACE  = $GITHUB_WORKSPACE
+        echo GITHUB_SHA        = $GITHUB_SHA
+        echo GITHUB_REF        = $GITHUB_REF
+        export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+        echo GIT_BRANCH        = $GIT_BRANCH
+        c++ --verbose
+    - name: Build AITemplate
+      run: |
+        rocm-smi
+        rocminfo | grep "gfx"
+        export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+        git clone --recursive -b $GIT_BRANCH https://github.com/ROCmSoftwarePlatform/AITemplate.git
+        cd AITemplate
+        DOCKER_BUILDKIT=1 ./docker/build.sh rocm
+        docker run --network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v $HOME:/dockerx/ ait:latest
+        export ROCM_PATH=/opt/rocm
+        export ROC_USE_FGS_KERNARG=0
+        # clean up and reinstall ait
+        pip3 uninstall -y aitemplate
+        cd python
+        rm -rf dist build
+        python3 setup.py bdist_wheel
+        pip3 install dist/*.whl
+        #install necessary python modules
+        pip3 install timm
+        pip3 uninstall -y torch 
+        pip3 install torch --extra-index-url https://download.pytorch.org/whl/rocm5.1.1
+        python3 -m pip install transformers click
+        python3 -c "import torch; print(torch.__version__)"
+        #run examples
+    - name: Run Resnet-50 Tests
+      run: |
+        echo "Running RESNET50 tests"
+        cd $GITHUB_WORKSPACE/AITemplate/examples/01_resnet-50
+        # populate log headers
+        export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+        echo -n "hostname: ">resnet50.log; hostname >> resnet50.log
+        echo -n "GPU_arch: " >> resnet50.log; rocminfo | grep "Name:" | grep "gfx" >> resnet50.log
+        rocminfo | grep "Compute Unit:" >> resnet50.log
+        echo "git_branch: $GIT_BRANCH" >> resnet50.log
+        git show --summary | grep commit >> resnet50.log
+        /opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> resnet50.log
+        HIP_VISIBLE_DEVICES=0,1 python3 benchmark_ait.py 2>&1 | tee -a resnet50.log
+        # test 2 gcd
+        for BATCH_SIZE in 1 2 4 8 16 32 64 128 256
+        do
+          HIP_VISIBLE_DEVICES=0 python3 benchmark_ait.py --batch-size $BATCH_SIZE 2>&1 | tee -a resnet50.log &
+          HIP_VISIBLE_DEVICES=1 python3 benchmark_ait.py --batch-size $BATCH_SIZE 2>&1 | tee -a resnet50.log
+        done
+        ## BERT
+    - name: Run BERT Tests
+      run: |
+        echo "Running BERT tests"
+        cd $GITHUB_WORKSPACE/AITemplate/examples/03_bert
+        # populate log headers
+        export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+        echo -n "hostname: ">bert.log; hostname >> bert.log
+        echo -n "GPU_arch: " >> bert.log; rocminfo | grep "Name:" | grep "gfx" >> bert.log
+        rocminfo | grep "Compute Unit:" >> bert.log
+        echo "git_branch: $GIT_BRANCH" >> bert.log
+        git show --summary | grep commit >> bert.log
+        /opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> bert.log
+        # profiling
+        for sq in 64 128 384 512 1024
+        do
+           HIP_VISIBLE_DEVICES=0,1 python3 benchmark_ait.py --seq-length $sq 2>&1 | tee -a bert.log
+        done
+        # VIT
+    - name: Run VIT Tests
+      run: |
+        echo "Running VIT tests"
+        cd $GITHUB_WORKSPACE/AITemplate/examples/04_vit
+        # populate log headers
+        export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+        echo -n "hostname: ">vit.log; hostname >> vit.log
+        echo -n "GPU_arch: " >> vit.log; rocminfo | grep "Name:" | grep "gfx" >> vit.log
+        rocminfo | grep "Compute Unit:" >> vit.log
+        echo "git_branch: $GIT_BRANCH" >> vit.log
+        git show --summary | grep commit >> vit.log
+        /opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> vit.log
+        # profiling
+        HIP_VISIBLE_DEVICES=0,1 python3 benchmark_ait.py 2>&1 | tee -a vit.log
+        # test 2 gcd
+        for BATCH_SIZE in 1 2 4 8 16 32 64 128 256
+        do
+           HIP_VISIBLE_DEVICES=0 python3 benchmark_ait.py --batch-size $BATCH_SIZE 2>&1 | tee -a vit.log &
+           HIP_VISIBLE_DEVICES=1 python3 benchmark_ait.py --batch-size $BATCH_SIZE 2>&1 | tee -a vit.log
+        done
+    - name: Archive logs
+      uses: actions/upload-artifact@v3
+      with:
+        name: test results
+        path: AITemplate/examples/*/*.log
+    - name: Process the test results
+      run: |
+        echo "processing the test results"
+        cd $GITHUB_WORKSPACE/AITemplate/examples/
+        pip3 install --upgrade pip
+        pip3 install sqlalchemy pymysql pandas sshtunnel
+        export dbuser=${{ secrets.DBUSER }}
+        export dbpassword=${{ secrets.DBPASSWORD }}
+        python3 process_results.py 
+
