@@ -15,12 +15,9 @@
 """
 Codegen for conv2d_depthwise.
 """
-from collections import OrderedDict
 import jinja2
-import re
 
 from ... import registry
-from ...target import Target
 from . import common, conv2d_depthwise as cdw
 
 # pylint: disable=C0103,C0415,W0613,C0301
