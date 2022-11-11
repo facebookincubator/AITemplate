@@ -23,6 +23,7 @@ C[RowMajor]: [B, M, N]
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from ...common import gemm_common
 from ..gemm_universal import common
 
@@ -31,9 +32,9 @@ from ..gemm_universal import common
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
+  void*,
+  void*,
+  void*,
   {% for i in range(3) %}
   int64_t*,
   {% endfor %}
@@ -71,10 +72,10 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}bmm_rrr_k1_tanh_launcher(
-{{indent}}    a_ptr,
-{{indent}}    b_ptr,
-{{indent}}    c_ptr,
+{{indent}}bmm_rrr_k1_tanh_launcher<{{elem_input_type}}>(
+{{indent}}    ({{elem_input_type}}*)a_ptr,
+{{indent}}    ({{elem_input_type}}*)b_ptr,
+{{indent}}    ({{elem_input_type}}*)c_ptr,
 {{indent}}    B,
 {{indent}}    M,
 {{indent}}    N,
@@ -86,6 +87,7 @@ EXEC_TEMPLATE = jinja2.Template(
 
 SRC_TEMPLATE = jinja2.Template(
     """
+#include <iostream>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
@@ -97,6 +99,10 @@ SRC_TEMPLATE = jinja2.Template(
 
 namespace {
 
+template <typename T>
+__device__ T fast_tanh(T x);
+
+template <>
 __device__ half fast_tanh(half x) {
   #if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && (__CUDA_ARCH__ >= 750)
 
@@ -108,7 +114,7 @@ __device__ half fast_tanh(half x) {
   #endif
 }
 
-template<int num_thread>
+template<typename ElemT, int num_thread>
 __global__ void bmm_rrr_k1_tanh_kernel(const float4* a_ptr,
                                   const float4* b_ptr,
                                   float4* c_ptr,
@@ -116,58 +122,75 @@ __global__ void bmm_rrr_k1_tanh_kernel(const float4* a_ptr,
                                   const int M,
                                   const int N) {
   // TODO: check boundary
-  half tmp[64];
+  constexpr int num_elems_in_float4 = sizeof(float4) / sizeof(ElemT);
+  ElemT tmp[num_elems_in_float4 * num_elems_in_float4];
   int idx = blockIdx.x * num_thread + threadIdx.x;
   int m = idx % M;
   int b = idx / M;
   int a_idx_base = b * M + m;
   float4 a_vec = __ldg(a_ptr + a_idx_base);
-  half* a_vec_ptr = (half*)(&a_vec);
+  ElemT* a_vec_ptr = (ElemT*)(&a_vec);
   for (int n = 0; n < N; ++n) {
     int b_idx_base = b * N + n;
     float4 b_vec = __ldg(b_ptr + b_idx_base);
-    half* b_vec_ptr = (half*)(&b_vec);
-    for (int i = 0; i < 8; ++i) {
+    ElemT* b_vec_ptr = (ElemT*)(&b_vec);
+    for (int i = 0; i < num_elems_in_float4; ++i) {
       CUTLASS_PRAGMA_UNROLL
-      for (int j = 0; j < 8; ++j) {
-        tmp[i * 8 + j] = fast_tanh(__hmul(a_vec_ptr[i], b_vec_ptr[j]));
+      for (int j = 0; j < num_elems_in_float4; ++j) {
+        tmp[i * num_elems_in_float4 + j] = fast_tanh(__hmul(a_vec_ptr[i], b_vec_ptr[j]));
       }
     }
     CUTLASS_PRAGMA_UNROLL
-    for (int i = 0; i < 8; ++i) {
-        int c_idx = (b * M * 8  + m * 8 + i) * N  + n;
-        c_ptr[c_idx] = *((const float4*)(tmp + i * 8));
+    for (int i = 0; i < num_elems_in_float4; ++i) {
+        int c_idx = (b * M * num_elems_in_float4  + m * num_elems_in_float4 + i) * N  + n;
+        c_ptr[c_idx] = *((const float4*)(tmp + i * num_elems_in_float4));
     }
   }
 }
 
 
-void bmm_rrr_k1_tanh_launcher(cutlass::half_t* a_ptr,
-                         cutlass::half_t* b_ptr,
-                         cutlass::half_t* c_ptr,
+template <typename ElemT>
+void bmm_rrr_k1_tanh_launcher(ElemT* a_ptr,
+                         ElemT* b_ptr,
+                         ElemT* c_ptr,
                          int B,
                          int M,
                          int N,
                          cudaStream_t stream) {
+  constexpr int num_elems_in_float4 = sizeof(float4) / sizeof(ElemT);
+  if (M % num_elems_in_float4 != 0) {
+     auto msg = std::string("Got error: ") + std::to_string(M) + "%" +
+       std::to_string(num_elems_in_float4) + " != 0 " +
+       " at " + __FILE__ + ": " + std::to_string(__LINE__);
+     std::cerr << msg << std::endl;
+     throw std::runtime_error(msg);
+  }
+  if (N % num_elems_in_float4 != 0) {
+     auto msg = std::string("Got error: ") + std::to_string(N) + "%" +
+       std::to_string(num_elems_in_float4) + " != 0 " +
+       " at " + __FILE__ + ": " + std::to_string(__LINE__);
+     std::cerr << msg << std::endl;
+     throw std::runtime_error(msg);
+  }
   const int nthread = 256;
   dim3 thread_block(nthread);
-  dim3 grid(B * M / nthread / 8);
-  bmm_rrr_k1_tanh_kernel<nthread><<<grid, thread_block, 0, stream>>>(
+  dim3 grid(B * M / nthread / num_elems_in_float4);
+  bmm_rrr_k1_tanh_kernel<ElemT, nthread><<<grid, thread_block, 0, stream>>>(
     (const float4*)a_ptr,
     (const float4*)b_ptr,
     (float4*) c_ptr,
     B,
-    M / 8,
-    N / 8
+    M / num_elems_in_float4,
+    N / num_elems_in_float4
   );
 }
 
 } // namespace
 
 void {{function_name}} (
-    cutlass::half_t* a_ptr,
-    cutlass::half_t* b_ptr,
-    cutlass::half_t* c_ptr,
+    void* a_ptr,
+    void* b_ptr,
+    void* c_ptr,
     {% for i in range(3) %}
     int64_t *a_dim{{loop.index0}},
     {% endfor %}
@@ -199,7 +222,11 @@ def gen_function(func_attrs, exec_cond_template, dim_info_dict):
         weight_ndims=3,
         output_ndims=3,
     )
-    exec_paths = EXEC_TEMPLATE.render()
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    exec_paths = EXEC_TEMPLATE.render(elem_input_type=elem_input_type)
     return SRC_TEMPLATE.render(
         function_name=func_name,
         shape_function=shape_func,

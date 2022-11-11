@@ -144,7 +144,7 @@ def gen_profiler(
     extra_code : str
         Extra code for self-defined operators.
     """
-    common.gen_profiler(
+    return common.gen_profiler(
         func_attrs,
         workdir,
         dim_info_dict,

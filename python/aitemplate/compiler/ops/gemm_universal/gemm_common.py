@@ -15,6 +15,7 @@
 """
 Common functions/classes for GEMM ops
 """
+import itertools
 import math
 import os
 import re
@@ -23,19 +24,26 @@ from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha1
 from operator import itemgetter
-from typing import Dict, List, Union
+from typing import Any, Dict, List, Union
 
 import jinja2
 
+from aitemplate.backend.profiler_runner import ProfileResult
+
 from .... import backend
 from ....backend import registry
-from ....backend.target import Target
 from ....utils import logger
+from ....utils.alignment import find_max_alignment
 from ...base import DynamicProfileStrategy, ExecItem, IntImm, IntVar, Operator, Tensor
 from ...tensor_accessor import TensorAccessor
 from .cache_entry import GemmQueryEntry, GemmRecordEntry
 
 # pylint: disable=C0103,R1711,W0102,W0221,E1120
+
+
+def split_k_result_getter(result):
+    return result[1].duration
+
 
 EXEC_COND_TEMPLATE = jinja2.Template(
     """
@@ -182,19 +190,28 @@ class gemm(Operator):
         self._attrs["permute_shape"] = ""
         self.exec_cond_template = EXEC_COND_TEMPLATE
 
-    def _extract_epilogue_alignment(self, output_shape: List[IntVar]) -> None:
+    def _extract_epilogue_alignment(
+        self, output_shape: List[Any], dynamic_profiling_strategy=None
+    ) -> None:
         epilogue_dim = output_shape[-1]
-        if not isinstance(epilogue_dim, IntImm):
-            raise RuntimeError(
-                f"Gemm output last dimension must be static! gemm: {self._attrs}"
-            )
-        shape = epilogue_dim._attrs["values"][0]
-        if shape % 8 == 0:
-            self._attrs["epilogue_alignment"] = 8
-        elif shape % 4 == 0:
-            self._attrs["epilogue_alignment"] = 4
-        elif shape % 2 == 0:
-            self._attrs["epilogue_alignment"] = 2
+        if isinstance(epilogue_dim, int):
+            shape = epilogue_dim
+        elif not isinstance(epilogue_dim, IntImm):
+            # The alignment inferred here will be set to 1 during codegen.
+            if dynamic_profiling_strategy is None:
+                return
+            elif dynamic_profiling_strategy == DynamicProfileStrategy.MAX:
+                shape = epilogue_dim.upper_bound()
+            elif dynamic_profiling_strategy == DynamicProfileStrategy.MIN:
+                shape = epilogue_dim.lower_bound()
+            else:
+                raise RuntimeError(
+                    f"Unsupported dynamic profiling strategy: {dynamic_profiling_strategy}"
+                )
+        else:
+            shape = epilogue_dim._attrs["values"][0]
+
+        self._attrs["epilogue_alignment"] = find_max_alignment(shape)
         return
 
     def _infer_shapes(self, a: Tensor, b: Tensor):
@@ -358,6 +375,21 @@ class gemm(Operator):
                 )
             )
 
+    def _get_profiler_filename(self):
+        """
+        generate a filename for a profiler that benchmarks multiple GEMM instances
+        """
+        target = backend.target.Target.current()
+        op_type = self._attrs["op"]
+        all_op_names = list(self._attrs["op_instance"].keys())
+        encoded_str = sha1((";".join(all_op_names)).encode("utf-8")).hexdigest()
+        # we don't use cache
+        if target.use_dummy_profiling_results():
+            return f"{op_type}_{encoded_str}"
+        else:
+            cache_ver = target.get_profile_cache_version("gemm")
+            return f"{op_type}_{encoded_str}_{cache_ver}"
+
     def _should_build_profiler(
         self, workloads: List[str], new_op_instance: OrderedDict
     ):
@@ -439,6 +471,15 @@ class gemm(Operator):
         func_key = "{target}.{op}.filter".format(
             target=target.name(), op=self._attrs["op"]
         )
+
+        # Update epilogue alignment here because it may be different depending on the profiling strategy.
+        # Note that this alignment is only used in profiling and will be updated
+        # during the final codegen.
+        # gemm_permute ops have special output alignment rules, skip here.
+        if "layout" not in self._attrs:
+            output_shape = self._attrs["output_accessors"][0].original_shapes
+            self._extract_epilogue_alignment(output_shape, dynamic_profiling_strategy)
+
         filter_func = registry.get(func_key)
         # run compile-time filter
         new_op_instance = OrderedDict(
@@ -463,10 +504,19 @@ class gemm(Operator):
                 target=target.name(), op=self._attrs["op"]
             )
             func = registry.get(func_key)
-            func(self._attrs, workdir, self._extract_dims(for_profiling=True))
+            profiler_filename = self._get_profiler_filename()
+            logger.info(__name__, f"generating {profiler_filename=}")
+            return func(
+                self._attrs,
+                workdir,
+                profiler_filename,
+                self._extract_dims(for_profiling=True),
+            )
 
-    def _gen_profile_cmd(self, profiler_prefix, cfg, exec_key, fbuild_cmd):
-        exe_path = os.path.join(profiler_prefix, cfg)
+    def _gen_profile_cmd(
+        self, profiler_prefix, profiler_filename, exec_key, fbuild_cmd
+    ):
+        exe_path = os.path.join(profiler_prefix, profiler_filename)
         if not os.access(exe_path, os.X_OK):
             raise RuntimeError("Profiler %s is not executable" % exe_path)
         cmd_args = fbuild_cmd(exec_key)
@@ -506,7 +556,7 @@ class gemm(Operator):
                 self._attrs["f_ab_alignment"](int(m), int(n), int(k))
                 for m, n, k in zip(all_m, all_n, all_k)
             ]
-            ab_alignment = sorted(all_ab_alignments)[0]
+            ab_alignment = min(all_ab_alignments)
         else:
             # exec_key may contain batch dimension, which we don't care here
             m, n, k = gemm_inverse_key_func(exec_key)[-3:]
@@ -518,7 +568,12 @@ class gemm(Operator):
                 )
         return ab_alignment
 
-    def _profile_single_workload(self, profiler_prefix, exec_key, devices):
+    def _profile_single_workload(self, profiler_prefix, exec_key, profiler_runner):
+        """
+        Schedule profilers for given profiler path and gemm shape (exec_key)
+        or get the result from cache
+        or use dummy result in CI
+        """
         target = backend.target.Target.current()
         tmp_key = next(iter(self._attrs["op_instance"].keys()))
         tmp_op = self._attrs["op_instance"][tmp_key]
@@ -553,7 +608,10 @@ class gemm(Operator):
                 f'Load profiling result for {self._attrs["name"]} '
                 f"from cache: {cache_value}",
             )
-            return cache_value
+            self._attrs["exec_path"][exec_key].algo = cache_value[0]
+            self._attrs["workspace"] = max(self._attrs["workspace"], cache_value[1])
+            self._attrs["split_k"] = cache_value[2]
+            return
         if target.use_dummy_profiling_results():
             op_type = self._attrs["op"]
             raise Exception(
@@ -562,86 +620,46 @@ class gemm(Operator):
                 f"{op_type} {exec_entry_sha1}.\n",
                 "To bypass, you need to make it available in the db table.",
             )
-        # do real profile
-        content = list(self._attrs["op_instance"].keys())
-        runner = backend.profiler_runner.Runner(devices, self._attrs["name"])
+        profiler_filename = self._get_profiler_filename()
 
-        results = []
+        def _gen_callback(split_k):
+            def process_result_callback(result, postprocessing_delegate):
+                postprocessing_delegate.add_instance(
+                    (result, self._attrs, profiler_filename, exec_key, split_k)
+                )
+
+            return process_result_callback
+
+        command = self._gen_profile_cmd(profiler_prefix, profiler_filename, exec_key)
+
         if self._attrs["op"].startswith("group_gemm") or self._attrs["op"].startswith(
             "bmm"
         ):
-            for cfg in content:
-                command = self._gen_profile_cmd(profiler_prefix, cfg, exec_key)
-                runner.push(cfg, command)
-            runner.join()
-            result = runner.pull()
-            results += [item + (1,) for item in result]
+            profiler_runner.push(command, _gen_callback(split_k=1))
         else:
             m, n, k = gemm_inverse_key_func(exec_key)[-3:]
-            for split_k in self._split_k_search_space(m, n, k):
-                for cfg in content:
-                    command = self._gen_profile_cmd(profiler_prefix, cfg, exec_key)
-                    command.append(str(split_k))
-                    logger.debug(__name__, "profiling cmd: {}".format(command))
-                    runner.push(cfg, command)
-                runner.join()
-                result = runner.pull()
-                results += [item + (split_k,) for item in result]
-
-        out = sorted(results, key=lambda x: x[1].duration)
-        if len(out) == 0:
-            raise RuntimeError(
-                "Profile workload: " + "" + "failed. " "Results: {}.".format(result)
-            )
-        best_algo = out[0][0]
-        workspace = out[0][1].workspace
-        split_k = out[0][2]
-        # cache
-        cache_record = GemmRecordEntry(
-            exec_entry=exec_key,
-            exec_entry_sha1=exec_entry_sha1,
-            dtype_a=tmp_op.A.element.value,
-            dtype_b=tmp_op.B.element.value,
-            dtype_c=tmp_op.C.element.value,
-            dtype_acc=tmp_op.accumulator_type().value,
-            major_a=tmp_op.A.layout.value,
-            major_b=tmp_op.B.layout.value,
-            major_c=tmp_op.C.layout.value,
-            op_type=self._attrs["op"],
-            epilogue=tmp_op.epilogue_functor.value,
-            device=target._arch,
-            algo=best_algo,
-            workspace=workspace,
-            split_k=split_k,
-            pshape=self._attrs["permute_shape"],
-        )
-        Target.current().insert_profile_cache("gemm", cache_record.__dict__)
-        logger.info(__name__, f"Selected kernel: {best_algo}, {workspace}, {split_k}")
-        return (best_algo, workspace, split_k)
+            if "split_k_hints" in self._attrs:
+                split_k_search_space = self._attrs["split_k_hints"]
+            else:
+                split_k_search_space = self._split_k_search_space(m, n, k)
+            for split_k in split_k_search_space:
+                gemm_command = command + [str(split_k)]
+                profiler_runner.push(gemm_command, _gen_callback(split_k))
 
     def profile(
         self,
+        profiler_runner,
         workdir="./",
-        devices=None,
-        dynamic_profiling_strategy=None,
     ):
         """Selects the fastest kernel configurations.
 
         Parameters
         ----------
-        workdir : str, optional
-            Base dir to keep profiling source codes, by default "./"
-        devices: list, optional
-            Devices used for profiling, by default device 0 will be used.
-        dynamic_profiling_strategy: DynamicProfileStrategy, optional
-            Unused (profiles are generated at compile time), by default None.
-            Call site in :func:`~aitemplate.compiler.transform.profile.profile`
-            uses this parameter for each op, so it cannot be removed until all
-            profile generation is done at compile time.
+        profiler_runner: ProfilerRunner
+            Profiler runner to schedule async profiler jobs,
+        workdir : str
+            Base dir to keep profiling source codes, by default "./"running on separate GPU devices concurrently
         """
-
-        if devices is None:
-            devices = [0]
 
         workloads = list(self._attrs["exec_path"].keys())
         profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
@@ -672,16 +690,7 @@ class gemm(Operator):
                 # we have cached best algo
                 return
             else:
-                best_algo, workspace, split_k = self._profile_single_workload(
-                    profiler_prefix, wkl, devices
-                )
-                self._attrs["exec_path"][wkl].algo = best_algo
-                self._attrs["workspace"] = max(self._attrs["workspace"], workspace)
-                self._attrs["split_k"] = split_k
-                logger.debug(
-                    __name__,
-                    "Profile best split-k: {}".format(split_k),
-                )
+                self._profile_single_workload(profiler_prefix, wkl, profiler_runner)
 
     def gen_function(self) -> str:
         """Generates the function code for the gemm op for the current target.
@@ -760,3 +769,97 @@ class gemm(Operator):
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output
+
+
+def _profiler_results_groupby_key(instance):
+    return (
+        instance[1]["name"],  # unique op name
+        instance[2],  # profiler executable
+        instance[3],  # profiler key (gemm shape)
+    )
+
+
+def _profiler_group_reduce_min_key(group):
+    return group[0][1]  # elapsed runtime
+
+
+class GemmProfilerPostprocessingDelegate:
+    """
+    Object which collects profiler results after profiler executables complete,
+    updates profiler results cache and the gemm nodes' attrs after all profilers complete.
+    """
+
+    def __init__(self):
+        """
+        Initialize storage for profiler results
+        Instance=(
+            ProfileResult=(best_algo, elapsed_runtime, workspace),
+            func_attrs,
+            profiler_filename,
+            exec_key,
+            split_k,
+        )
+        """
+        self._instances = []
+
+    def add_instance(self, instance: ProfileResult):
+        """
+        As a profiler executable completes, collect the result
+        """
+        self._instances.append(instance)
+
+    def postprocess_results(self):
+        """
+        When all profiler executables complete, find the best instance
+        (min runtime per op name, profiler executable and exec_key (i.e. gemm shape mnk)
+        across multiple split_k values)
+        The best instance is cached, and written into corresponding gemm nodes in the graph
+        """
+        target = backend.target.Target.current()
+        for _, group in itertools.groupby(
+            self._instances,
+            key=_profiler_results_groupby_key,
+        ):
+            min_runtime_results = min(group, key=_profiler_group_reduce_min_key)
+            (
+                (best_algo, runtime, workspace),
+                func_attrs,
+                profiler_filename,
+                exec_key,
+                split_k,
+            ) = min_runtime_results
+
+            func_attrs["exec_path"][exec_key].algo = best_algo
+            func_attrs["workspace"] = max(func_attrs["workspace"], workspace)
+            func_attrs["split_k"] = split_k
+
+            logger.info(
+                __name__,
+                f"Profiler ({profiler_filename} {exec_key}) selected kernel: "
+                f"{best_algo=} {workspace=} {split_k=}",
+            )
+
+            tmp_op = next(iter(func_attrs["op_instance"].values()))
+            exec_entry_sha1 = sha1(exec_key.encode("utf-8")).hexdigest()
+            cache_record = GemmRecordEntry(
+                exec_entry=exec_key,
+                exec_entry_sha1=exec_entry_sha1,
+                dtype_a=tmp_op.A.element.value,
+                dtype_b=tmp_op.B.element.value,
+                dtype_c=tmp_op.C.element.value,
+                dtype_acc=tmp_op.accumulator_type().value,
+                major_a=tmp_op.A.layout.value,
+                major_b=tmp_op.B.layout.value,
+                major_c=tmp_op.C.layout.value,
+                op_type=func_attrs["op"],
+                epilogue=tmp_op.epilogue_functor.value,
+                device=target._arch,
+                algo=best_algo,
+                workspace=workspace,
+                split_k=split_k,
+                pshape=func_attrs["permute_shape"],
+            )
+            try:
+                target.insert_profile_cache("gemm", cache_record.__dict__)
+            except Exception as e:
+                logger.warning(__name__, e)

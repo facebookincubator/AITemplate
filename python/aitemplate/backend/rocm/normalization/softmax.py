@@ -153,7 +153,7 @@ def softmax_gen_profiler(
         shapes[dim], IntImm
     ), "softmax requires reduction dim to be static"
 
-    norm_common.gen_profiler(
+    return norm_common.gen_profiler(
         func_attrs,
         workdir,
         rank,

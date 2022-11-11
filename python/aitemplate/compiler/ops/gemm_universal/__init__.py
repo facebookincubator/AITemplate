@@ -43,6 +43,7 @@ from .gemm_rcr_bias_sigmoid_mul import gemm_rcr_bias_sigmoid_mul
 from .gemm_rcr_bias_sigmoid_mul_tanh import gemm_rcr_bias_sigmoid_mul_tanh
 from .gemm_rcr_bias_swish import gemm_rcr_bias_swish
 from .gemm_rcr_bias_tanh import gemm_rcr_bias_tanh
+from .gemm_rcr_fast_gelu import gemm_rcr_fast_gelu
 from .gemm_rcr_permute import gemm_rcr_permute
 from .gemm_rrr import gemm_rrr
 from .gemm_rrr_bias import gemm_rrr_bias

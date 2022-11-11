@@ -15,6 +15,6 @@
 """
 (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 """
-from . import fused_elementwise
+from . import fused_elementwise, int_elementwise
 
-__all__ = ["fused_elementwise"]
+__all__ = ["fused_elementwise", "int_elementwise"]

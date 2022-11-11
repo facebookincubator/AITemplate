@@ -42,6 +42,7 @@ from . import (
     gemm_rcr_bias_sigmoid_mul_tanh,
     gemm_rcr_bias_swish,
     gemm_rcr_bias_tanh,
+    gemm_rcr_fast_gelu,
     gemm_rcr_permute,
     gemm_rrr,
     gemm_rrr_permute,

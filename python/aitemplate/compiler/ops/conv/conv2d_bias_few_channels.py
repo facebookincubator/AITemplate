@@ -31,11 +31,7 @@ class conv2d_bias_few_channels(special_conv2d_bias_activation):
         self._attrs["epilogue"] = "LinearCombination"
 
     def _get_op_attributes(self):
-        target_attrs = ["dilate", "pad", "stride"]
-        attr = {}
-
-        for target_attr in target_attrs:
-            if target_attr in self._attrs:
-                attr[target_attr] = self._attrs[target_attr]
+        attr = super()._get_op_attributes()
+        del attr["activation"]
 
         return attr

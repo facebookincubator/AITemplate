@@ -15,13 +15,16 @@
 """
 Base operator definition for reduce-family ops.
 """
+import itertools
+
 from typing import List
 
 from .... import backend
 from ....backend import registry
 from ....utils import logger, shape_utils
 from ....utils.tensor_utils import wrap_dim
-from ...base import get_dtype_size, IntImm, IntVar, Operator, Tensor
+from ...base import IntImm, IntVar, Operator, Tensor
+from ...dtype import get_dtype_size
 from ...tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0221
@@ -155,46 +158,60 @@ class reduce_base(Operator):
             if last_dim % vec_len == 0:
                 vector_length = vec_len
                 break
-        extent_affine = []
         num_dims = 4
-        # Use dim's upper-bound for computing workspace size
-        shape_dims = [d.upper_bound() for d in shape]
-        rank = len(shape_dims)
+        rank = len(shape)
         assert (
             rank <= num_dims
         ), f"expected rank <= num_dims, but got {rank=}, {num_dims=}"
         # adjust reduction axis
         reduction_axis = num_dims - rank + reduction_axis
-        prefix_dims = [1] * (num_dims - rank)
-        shape_dims = prefix_dims + shape_dims
-        # normalize extent_affine list
-        # reference: TensorReduction construction in cutlass
-        # reduction/device/tensor_reduce.h
-        if reduction_axis == 0:
-            extent_affine.append(shape_dims[1])
-            extent_affine.append(shape_dims[2])
-            extent_affine.append(shape_dims[0])
-            extent_affine.append(shape_dims[3])
-        elif reduction_axis == 1:
-            extent_affine.append(shape_dims[0])
-            extent_affine.append(shape_dims[2])
-            extent_affine.append(shape_dims[1])
-            extent_affine.append(shape_dims[3])
-        elif reduction_axis == 2:
-            extent_affine.append(shape_dims[0])
-            extent_affine.append(shape_dims[1])
-            extent_affine.append(shape_dims[2])
-            extent_affine.append(shape_dims[3])
-        else:
-            # note that we already ruled out non-col-reduction kernels so that
-            # reduction_axis would never be 3. Consequently, we would never
-            # invoke contiguous tensor_reduce kernels.
-            raise RuntimeError(
-                f"Expected reduction_axis to be within [0, 2], but got {reduction_axis=}"
+        all_shape_dims = [
+            list(range(d.lower_bound(), d.upper_bound() + 1)) for d in shape
+        ]
+        max_ws = 0
+        # Go through cartesian product of all possible dynamic dim values
+        # to find the maximum workspace size. It might be a bit heavy
+        # for some cases. However, it's OK for our current use cases where
+        # we have a single dynamic axis within a range of several thousand.
+        # Moreover, we would remove this entire estimation once we have
+        # our own row-reduction kernel.
+        for one_dims in itertools.product(*all_shape_dims):
+            extent_affine = []
+            prefix_dims = [1] * (num_dims - rank)
+            # Use dim's upper-bound for computing workspace size
+            shape_dims = prefix_dims + list(one_dims)
+            # normalize extent_affine list
+            # reference: TensorReduction construction in cutlass
+            # reduction/device/tensor_reduce.h
+            if reduction_axis == 0:
+                extent_affine.append(shape_dims[1])
+                extent_affine.append(shape_dims[2])
+                extent_affine.append(shape_dims[0])
+                extent_affine.append(shape_dims[3])
+            elif reduction_axis == 1:
+                extent_affine.append(shape_dims[0])
+                extent_affine.append(shape_dims[2])
+                extent_affine.append(shape_dims[1])
+                extent_affine.append(shape_dims[3])
+            elif reduction_axis == 2:
+                extent_affine.append(shape_dims[0])
+                extent_affine.append(shape_dims[1])
+                extent_affine.append(shape_dims[2])
+                extent_affine.append(shape_dims[3])
+            else:
+                # note that we already ruled out non-col-reduction kernels so that
+                # reduction_axis would never be 3. Consequently, we would never
+                # invoke contiguous tensor_reduce kernels.
+                raise RuntimeError(
+                    f"Expected reduction_axis to be within [0, 2], but got {reduction_axis=}"
+                )
+            max_ws = max(
+                max_ws,
+                self._compute_ws_size_strided(
+                    extent_affine, reduction_axis, vector_length, dtype
+                ),
             )
-        return self._compute_ws_size_strided(
-            extent_affine, reduction_axis, vector_length, dtype
-        )
+        return max_ws
 
     def __call__(self, x: Tensor) -> Tensor:
         self._attrs["inputs"] = [x]
@@ -239,6 +256,13 @@ class reduce_base(Operator):
             logger.info(__name__, f'allocating {ws_size} for tensor {x._attrs["name"]}')
             self._attrs["workspace"] = ws_size
         return output
+
+    def _get_op_attributes(self):
+        return {
+            "dim": self._attrs["reduction_axes"],
+            "dtype": self._attrs["output_type"],
+            "keepdim": self._attrs["keepdim"],
+        }
 
     def gen_function(self) -> str:
         target = backend.target.Target.current()

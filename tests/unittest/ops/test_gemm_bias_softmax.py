@@ -20,6 +20,7 @@ import torch
 from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.utils import logger
 
 
 # @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -29,6 +30,10 @@ class GEMMTestCase(unittest.TestCase):
         self, M=16, K=64, N=24, rebuild=True, test_name="gemm_bias_softmax"
     ):
         target = detect_target()
+        if type(target).__name__ == "FBCUDA":
+            logger.warning(__file__, "Skip this test for special profiling requirement")
+            return
+
         X = Tensor(shape=[M, K], dtype="float16", name="input_0", is_input=True)
         W = Tensor(shape=[N, K], dtype="float16", name="input_1", is_input=True)
         B = Tensor(shape=[N], dtype="float16", name="input_2", is_input=True)

@@ -22,7 +22,6 @@ from hashlib import sha1
 
 import jinja2
 
-from ... import builder
 from ...common import gemm_common
 from ...target import Target
 
@@ -619,7 +618,7 @@ def gen_profiler(
     if func_attrs.get("shape") is not None:
         pdims = ["p_dim" + str(i) for i in range(len(func_attrs["shape"]))]
     extra_shape_func = extra_shape_template.render(indent="  ")
-    file_paris = []
+    file_pairs = []
     has_d0_flag = has_d0(func_attrs)
     has_d1_flag = has_d1(func_attrs)
     for op_name, op in op_instance.items():
@@ -696,12 +695,8 @@ def gen_profiler(
             continue
         with open(src_path, "w") as fo:
             fo.write(code)
-        file_paris.append((src_path, obj_path))
-
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_paris, target.compile_cmd(executable=True))
+        file_pairs.append((src_path, obj_path))
+    return file_pairs
 
 
 def gen_function(

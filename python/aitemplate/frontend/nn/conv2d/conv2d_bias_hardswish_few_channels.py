@@ -13,13 +13,16 @@
 #  limitations under the License.
 #
 """
-conv2d bias hardswish module
+conv2d bias hardswish module for few channels
 """
 from .special_conv2d_bias_act import SpecialConv2dBiasAct
 
 
 class Conv2dBiasHardswishFewChannels(SpecialConv2dBiasAct):
-    """functions for the op with conv2d+bias+hardswish pattern"""
+    r"""Applies 2D convolution with bias + hardswish for few channels.
+
+    This layer equals to Conv2dBiasHardswish but has improved performance for in_channels < 8.
+    """
 
     def __init__(
         self,

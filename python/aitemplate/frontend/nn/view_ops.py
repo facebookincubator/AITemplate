@@ -20,11 +20,20 @@ from .module import Module
 
 
 class Reshape(Module):
+    """
+    Returns a tensor with the same data and number of elements as input, but with the
+    specified shape. Inputs must be contiguous.
+
+    A single dimension may be -1, in which case it’s inferred from the remaining
+    dimensions and the number of elements in input.
+    """
+
     def __init__(self):
         super().__init__()
         self.op = reshape()
 
     def forward(self, *args):
+        """Reshaped the input to given size."""
         assert len(args) == 2
         x = args[0]
         shape = args[1]
@@ -32,11 +41,20 @@ class Reshape(Module):
 
 
 class View(Module):
+    """
+    Placeholder for View layer. The current implementation is the same as Reshape.
+    Returns a tensor with the same data and number of elements as input, but with the specified shape. Inputs must be contiguous.
+
+    A single dimension may be -1, in which case it’s inferred from the remaining
+    dimensions and the number of elements in input.
+    """
+
     def __init__(self):
         super().__init__()
         self.op = reshape()
 
     def forward(self, *args):
+        """Creates a view (copy) of the input with given shape."""
         assert len(args) == 2
         x = args[0]
         shape = args[1]
@@ -44,11 +62,18 @@ class View(Module):
 
 
 class Flatten(Module):
+    """
+    Flattens input by reshaping it into a one-dimensional tensor. If start_dim or end_dim
+    are passed, only dimensions starting with start_dim and ending with end_dim are
+    flattened. The order of elements in input is unchanged.
+    """
+
     def __init__(self, start_dim=0, end_dim=-1):
         super().__init__()
         self.op = flatten(start_dim, end_dim)
 
     def forward(self, *args):
+        """Flattens the input with specified start and end dims."""
         assert len(args) == 1
         x = args[0]
         return self.op(x)

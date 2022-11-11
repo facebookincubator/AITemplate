@@ -99,7 +99,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         y = torch.empty((M, N)).cuda().half()
         mod.run_with_tensors({"input_0": input_0_pt}, {"y": y})
 
-        self.assertTrue(torch.equal(y, y_pt))
+        torch.testing.assert_close(y, y_pt, atol=1e-1, rtol=1e-1)
 
         # The apply_padding graph pass will add padding to both the input and the
         # weight in this case with concatenate(). The concatenate for the weight
@@ -143,7 +143,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         z = torch.empty((M, N)).cuda().half()
         mod.run_with_tensors({}, {"z": z})
 
-        self.assertTrue(torch.equal(z, z_pt))
+        torch.testing.assert_close(z, z_pt, atol=1e-1, rtol=1e-1)
 
         # The entire graph is turned into a constant.
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=1)
@@ -213,7 +213,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         z = torch.empty((M, N)).cuda().half()
         mod.run_with_tensors({}, {"z": z})
 
-        self.assertTrue(torch.equal(z, z_pt))
+        torch.testing.assert_close(z, z_pt, atol=1e-1, rtol=1e-1)
 
         # The entire graph is turned into a constant.
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=1)

@@ -27,7 +27,6 @@ class group_gemm_rcr_bias_sigmoid(group_gemm_rcr_bias):
 
     .. highlight:: python
     .. code-block:: python
-
         # group 1
         A1 = torch.randn(M1, K1).cuda().half()
         B1 = torch.randn(N1, K1).cuda().half()

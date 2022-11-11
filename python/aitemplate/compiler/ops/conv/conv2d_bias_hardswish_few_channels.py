@@ -27,3 +27,9 @@ class conv2d_bias_hardswish_few_channels(special_conv2d_bias_activation):
     def __init__(self, stride, pad, dilate=1, auto_padding=True) -> None:
         """Initializes conv2d_bias_relu_few_channels"""
         super().__init__("hardswish", stride, pad, dilate, auto_padding)
+
+    def _get_op_attributes(self):
+        attr = super()._get_op_attributes()
+        del attr["activation"]
+
+        return attr

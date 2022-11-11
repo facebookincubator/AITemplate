@@ -28,10 +28,10 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
         problem_count,
         threadblock_count,
         {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
-        ptr_A,
-        ptr_B,
-        ptr_bias,
-        ptr_C,
+        ({{elem_input_type}}**)(ptr_A),
+        ({{elem_input_type}}**)(ptr_B),
+        ({{elem_input_type}}**)(ptr_bias),
+        ({{elem_output_type}}**)ptr_C,
         lda,
         ldb,
         ldc,
@@ -43,10 +43,16 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 def gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     shape_template,
 ):
-    group_common.gen_profiler(
-        func_attrs, workdir, shape_template, PROBLEM_ARGS_TEMPLATE, has_bias=True
+    return group_common.gen_profiler(
+        func_attrs,
+        workdir,
+        profiler_filename,
+        shape_template,
+        PROBLEM_ARGS_TEMPLATE,
+        has_bias=True,
     )
 
 

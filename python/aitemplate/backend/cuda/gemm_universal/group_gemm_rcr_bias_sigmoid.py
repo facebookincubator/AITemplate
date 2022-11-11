@@ -27,8 +27,10 @@ def group_rcr_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.group_gemm_rcr_bias_sigmoid.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
-    group_common_bias.gen_profiler(func_attrs, workdir, shape_template)
+def gen_profiler(func_attrs, workdir, profiler_filename, shape_template):
+    return group_common_bias.gen_profiler(
+        func_attrs, workdir, profiler_filename, shape_template
+    )
 
 
 @registry.reg("cuda.group_gemm_rcr_bias_sigmoid.gen_function")

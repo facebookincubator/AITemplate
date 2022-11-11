@@ -70,3 +70,9 @@ class conv2d_bias_sigmoid(conv2d_bias_activation):
         """
         super().__init__("sigmoid", stride, pad, dilate=dilate, group=group)
         self._attrs["epilogue"] = "LinearCombinationSigmoid"
+
+    def _get_op_attributes(self):
+        attr = super()._get_op_attributes()
+        del attr["activation"]
+
+        return attr

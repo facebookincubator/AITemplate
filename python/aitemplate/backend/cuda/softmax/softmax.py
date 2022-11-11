@@ -24,17 +24,11 @@ import jinja2
 from ....compiler.base import IntImm
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from ...target import Target
 
 # pylint: disable=C0301, C0116
 
-FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<cutlass::half_t*>(&({{name}}->raw()))"
-)
-
-FUNC_CALL_FP32_PARAM_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<float*>(&({{name}}->raw()))"
-)
 
 # input size: [M, K]
 # We put if else condition here to avoid long compilation time.
@@ -72,8 +66,11 @@ namespace {
     const int m0_by_n_threads = m0 * n_threads;
     dim3 block(n_threads);
     dim3 grid((m + m0_by_n_threads - 1) / m0_by_n_threads);
+    Arguments<{{dtype}}> args = {
+      static_cast<{{dtype}}*>(input), static_cast<{{dtype}}*>(output)
+    };
     softmax_small_k<{{dtype}}, float4, n_threads, {{K}}, {{m}}>
-        <<<grid, block, 0, stream>>>({input, output}, m);
+        <<<grid, block, 0, stream>>>(args, m);
   {% elif K % 8 == 0 %}
     {% if K/8 <=32 %}
       int thread_group_width = -1;
@@ -233,8 +230,8 @@ SHAPE_FUNCTIONS = jinja2.Template(
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-void {{func_name}}({{dtype}}* input,
-                   {{dtype}}* output,
+void {{func_name}}(void* input,
+                   void* output,
 {% for idx in range(input_ndim - 1) %}
                    int64_t* in_{{idx}},
 {% endfor %}
@@ -266,7 +263,6 @@ def get_func_signature(func_attrs: Dict[str, Any]) -> str:
     input_ndim = func_attrs["inputs"][0]._rank()
     return FUNC_SIGNATURE.render(
         func_name=func_attrs["name"],
-        dtype="cutlass::half_t",
         input_ndim=input_ndim,
     ).strip()
 
@@ -302,13 +298,17 @@ def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
 
     k = shapes[dim].value()
 
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     return FUNC_TEMPLATE.render(
         custom_libs=Target.current().get_custom_libs(
             os.path.dirname(__file__), "softmax.cuh"
         ),
         func_signature=get_func_signature(func_attrs),
         shape_functions=SHAPE_FUNCTIONS.render(input_ndim=rank),
-        dtype="cutlass::half_t",
+        dtype=elem_input_type,
         K=k,
         m=find_tile_size(k),
     )
@@ -324,12 +324,8 @@ def softmax_gen_function_call(func_attrs, indent="  "):
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 1
 
-    input_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["inputs"][0]._attrs["name"]
-    )
-    output_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][0]._attrs["name"]
-    )
+    input_name = func_attrs["inputs"][0]._attrs["name"]
+    output_name = func_attrs["outputs"][0]._attrs["name"]
 
     shapes = func_attrs["inputs"][0]._attrs["shape"]
     assert (

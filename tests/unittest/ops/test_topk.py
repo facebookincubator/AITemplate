@@ -32,7 +32,13 @@ class topkTestCase(unittest.TestCase):
         return scores.reshape(shape).cuda().half()
 
     def _test_topk(
-        self, batch_size=1, shape=(2, 500), dim=0, topK=100, test_name="topk"
+        self,
+        batch_size=1,
+        shape=(2, 500),
+        dim=0,
+        topK=100,
+        test_name="topk",
+        copy_op=False,
     ):
 
         o_shape = list(shape)
@@ -44,7 +50,10 @@ class topkTestCase(unittest.TestCase):
             name="X",
             is_input=True,
         )
-        X4 = ops.topk(k=topK)(X1)
+        OP = ops.topk(k=topK)
+        if copy_op:
+            OP = ops.topk(**OP._get_op_attributes())
+        X4 = OP(X1)
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
 
@@ -61,11 +70,31 @@ class topkTestCase(unittest.TestCase):
 
     def test_topk_heap(self):
         self._test_topk(shape=(2000,), topK=100, test_name="topk_heap")
+        self._test_topk(
+            shape=(2000,), topK=100, test_name="topk_heap_copy_op", copy_op=True
+        )
         self._test_topk(shape=(4, 500), topK=100, dim=1, test_name="topk_heap2")
+        self._test_topk(
+            shape=(4, 500),
+            topK=100,
+            dim=1,
+            test_name="topk_heap2_copy_op",
+            copy_op=True,
+        )
 
     def test_topk_sort(self):
         self._test_topk(shape=(2000,), topK=300, test_name="topk_sort")
+        self._test_topk(
+            shape=(2000,), topK=300, test_name="topk_sort_copy_op", copy_op=True
+        )
         self._test_topk(shape=(4, 500), topK=200, dim=1, test_name="topk_sort2")
+        self._test_topk(
+            shape=(4, 500),
+            topK=200,
+            dim=1,
+            test_name="topk_sort2_copy_op",
+            copy_op=True,
+        )
 
 
 if __name__ == "__main__":

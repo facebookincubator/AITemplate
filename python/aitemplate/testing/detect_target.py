@@ -36,13 +36,12 @@ def _detect_cuda():
         )
         stdout, stderr = proc.communicate()
         stdout = stdout.decode("utf-8")
-        if "A100" in stdout or "RTX 30" in stdout or "A30" in stdout or "A10" in stdout:
+        if "A100" in stdout or "RTX 30" in stdout or "A30" in stdout:
             return "80"
+        if "V100" in stdout:
+            return "70"
         if "T4" in stdout:
-            if os.environ.get("CI_FLAG", None) == "CIRCLECI":
-                return "75"
-            else:
-                return None
+            return "75"
         return None
     except Exception:
         return None
@@ -77,7 +76,6 @@ def detect_target(**kwargs):
             return CUDA(arch=FLAG, **kwargs)
         else:
             return ROCM(arch=FLAG, **kwargs)
-
     doc_flag = os.getenv("BUILD_DOCS", None)
     if doc_flag is not None:
         return CUDA(arch="80", **kwargs)

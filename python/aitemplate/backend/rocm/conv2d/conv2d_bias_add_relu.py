@@ -103,7 +103,7 @@ def conv2d_gen_profiler(func_attrs, workdir, shape_template):
         The template is passed from compiler/ops/pool.
     """
     extra_code = EXTRA_CODE.render()
-    common.gen_profiler(
+    return common.gen_profiler(
         func_attrs=func_attrs,
         workdir=workdir,
         shape_template=shape_template,

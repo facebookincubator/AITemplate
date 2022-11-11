@@ -15,6 +15,7 @@
 #pragma once
 
 #include "model-generated.h"
+#include "model_interface.h"
 #include "raii_wrapper.h"
 
 #include <condition_variable>
@@ -36,7 +37,8 @@ class ModelContainerBase {
       size_t num_inputs,
       size_t num_outputs,
       size_t num_unbound_constants,
-      size_t params_size);
+      size_t params_size,
+      AITemplateAllocator& allocator);
 
  protected:
   // The set of unbound constants/weights/parameters. These are constants which
@@ -66,7 +68,9 @@ class ModelContainerBase {
 // codegened (the parameters passed to the ctor are determined
 // at compilation time)
 class ModelContainer;
-ModelContainer* CreateModelContainer(size_t num_runtimes);
+ModelContainer* CreateModelContainer(
+    size_t num_runtimes,
+    AITemplateAllocator& allocator);
 
 // Each ModelContainer contains num_models Models. Inference runs
 // can be started by invoking Run() with lists of pre-allocated
@@ -93,6 +97,13 @@ ModelContainer* CreateModelContainer(size_t num_runtimes);
 //
 // Note that if there are no models available for inference, Run() will block
 // until one becomes available.
+//
+// ModelContainer optionally takes an allocator argument, which it will use to
+// allocate the space for the buffers used for intermediate tensors and
+// constants. If it is nullptr, the default allocator will be used (e.g. just
+// {cuda/hip}{Malloc/Free}).
+// Important: we assume that the allocator lives until the ModelContainer is
+// destroyed. The default allocator has a static lifetime.
 class ModelContainer : ModelContainerBase {
  public:
   ModelContainer(
@@ -102,7 +113,8 @@ class ModelContainer : ModelContainerBase {
       size_t num_inputs,
       size_t num_outputs,
       size_t num_unbound_constants,
-      size_t params_size);
+      size_t params_size,
+      AITemplateAllocator& allocator);
 
   void Run(
       const AITData* inputs,
@@ -172,6 +184,8 @@ class ModelContainer : ModelContainerBase {
       bool graph_mode,
       size_t count,
       int64_t** output_shapes_out);
+
+  AITemplateAllocator& allocator_;
 
   std::vector<Model> models_;
   std::vector<Model*> available_models_;

@@ -22,9 +22,9 @@ from . import tensor_accessor_codegen
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-    {{elem_output_type}} * /*output*/,
+    void * /*output*/,
     {{index_type}} *[] /*output_shape*/,
-    const {{elem_input_type}} *[] /*inputs*/,
+    const void *[] /*inputs*/,
     const {{index_type}} *[], /* real_input_shapes, representing shapes of those inputs
                                  whose masks are False, i.e. inputs that will be
                                  copied to the output tensor by concat.*/
@@ -161,7 +161,7 @@ concatenate_kernel(
 
   constexpr unsigned read_t_sz = sizeof(READ_T);
   constexpr unsigned elem_t_sz = sizeof(ELEM_T);
-  assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
+  static_assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
   constexpr INDEX_T n_of_elem_t = read_t_sz / elem_t_sz;
   // number of READ_T elements per thread
   INDEX_T reads_per_thread_in_read_t = ElemsPerThread / n_of_elem_t;
@@ -225,9 +225,9 @@ static inline LoadVecType get_vec_type({{index_type}} dim_size) {
 template <typename ELEM_T, typename INDEX_T, {{index_type}} Rank, {{index_type}} NumInputs,
           {{index_type}} ElemsPerThread, {{index_type}} ThreadsPerBlock>
 void concatenate_kernel_launcher(
-    ELEM_T *output,
+    void *output,
     const {{index_type}} *output_shape,
-    const ELEM_T *inputs[],
+    const void *inputs[],
     const {{index_type}} *real_input_shapes[],
     const TensorAccessor *input_accessors[],
     const int64_t concat_dim_offsets[],
@@ -248,7 +248,7 @@ void concatenate_kernel_launcher(
   INDEX_T max_num_input_elems = 0;
   for (INDEX_T i = 0; i < NumInputs; i++) {
     INDEX_T num_elems = get_num_elems(real_input_shapes[i], Rank);
-    input_meta.inputs[i] = inputs[i];
+    input_meta.inputs[i] = static_cast<const ELEM_T*>(inputs[i]);
     input_meta.input_accessors[i] = *(input_accessors[i]);
     input_meta.concat_dim_offsets[i] = concat_dim_offsets[i];
     input_meta.concat_dim_values[i] = real_input_shapes[i][concat_dim];
@@ -272,7 +272,7 @@ void concatenate_kernel_launcher(
       }                                                                     \\
       concatenate_kernel<vec_type, ELEM_T, INDEX_T, Rank, NumInputs, ElemsPerThread> \\
         <<<grid_config, ThreadsPerBlock, 0, stream>>>(                      \\
-            output,                                                         \\
+            static_cast<ELEM_T*>(output),                                   \\
             output_meta,                                                    \\
             input_meta,                                                     \\
             concat_dim,                                                     \\
@@ -309,9 +309,9 @@ DUMMY_KERNEL_TEMPLATE = jinja2.Template(
 {{header_src}}
 
 void {{func_name}}(
-    {{elem_output_type}} *output,
+    void *output,
     {{index_type}} *output_shape[],
-    const {{elem_input_type}} *inputs[],
+    const void *inputs[],
     const {{index_type}} *real_input_shapes[],
     const {{index_type}} *all_input_shapes[],
     const bool input_masks[],
@@ -322,6 +322,7 @@ void {{func_name}}(
     {{index_type}} num_all_inputs,
     {{prefix}}Stream_t stream
     ) {
+  // DO NOTHING
 }
 """
 )
@@ -406,9 +407,9 @@ SRC_TEMPLATE = jinja2.Template(
 {{kernel_src}}
 
 void {{func_name}}(
-    {{elem_output_type}} *output,
+    void *output,
     {{index_type}} *output_shape[],
-    const {{elem_input_type}} *inputs[],
+    const void *inputs[],
     const {{index_type}} *real_input_shapes[], /* real_input_shapes, representing
                                  shapes of those inputs whose masks are False,
                                  i.e. inputs that will be copied to the output
@@ -520,7 +521,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{
 
-{{indent}}  const {{input_elem_type}} *inputs[] = {
+{{indent}}  const void *inputs[] = {
 {{indent}}    {{inputs}}
 {{indent}}  };
 
@@ -579,16 +580,8 @@ def gen_function_decl(func_attrs, backend_spec):
     str
         Rendered function declaration.
     """
-    # get dtype from orig_x in case actual "inputs" is turned into empty
-    # by some transformation
-    orig_x = func_attrs["original_inputs"][0]
-    y = func_attrs["outputs"][0]
-    input_type = backend_spec.dtype_to_backend_type(orig_x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_attrs["name"],
-        elem_output_type=output_type,
-        elem_input_type=input_type,
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
     )
@@ -691,8 +684,6 @@ def gen_function(
         return SRC_TEMPLATE.render(
             kernel_src=kernel_src,
             func_name=func_attrs["name"],
-            elem_input_type=input_type,
-            elem_output_type=output_type,
             exec_paths=exec_paths,
             index_type=backend_spec.index_type,
             prefix=backend_spec.prefix,
@@ -700,8 +691,6 @@ def gen_function(
 
     return DUMMY_KERNEL_TEMPLATE.render(
         func_name=func_attrs["name"],
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         header_src=header_src,
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
@@ -719,14 +708,8 @@ def gen_function_call(
     ----------
     func_attrs : Dict[str, Any]
         Stores the operation attributes.
-    index_type: str
-        Index type.
-    cast_to_const_half_ptr_template: jinja template
-        Cast to const half ptr template.
-    cast_to_half_ptr_template: jinja template
-        Cast to half ptr template.
-    dtype_to_backend_type: Dict[str, str]
-        Stores python dtype to backend (rocm, cuda) type.
+    backend_spec : BackendSpec
+        CUDA / RocM type definitions
     indent : str, optional
         Indent for template, by default "  ".
 
@@ -746,12 +729,7 @@ def gen_function_call(
     y = func_attrs["outputs"][0]
     concat_dim = func_attrs["concat_dim"]
 
-    input_names = ",\n      ".join(
-        [
-            backend_spec.cast_to_const_half_ptr_template.render(name=i._attrs["name"])
-            for i in inputs
-        ]
-    )
+    input_names = ",\n      ".join([i._attrs["name"] for i in inputs])
     real_input_shape_defs = []
     real_input_shape_names = []
     for idx, (i, input_accessor) in enumerate(zip(inputs, input_accessors)):
@@ -769,7 +747,6 @@ def gen_function_call(
 
     y_shape = y._attrs["shape"]
     y_dim_refs = ", ".join(["&" + dim._attrs["name"] for dim in y_shape])
-    casted_y_ptr = backend_spec.cast_to_half_ptr_template.render(name=y._attrs["name"])
 
     input_masks = func_attrs["input_masks"]
     input_indices = [idx for idx, m in enumerate(input_masks) if m is True]
@@ -819,7 +796,6 @@ def gen_function_call(
 
     return FUNC_CALL_TEMPLATE.render(
         indent=indent,
-        input_elem_type=backend_spec.dtype_to_backend_type(orig_x._attrs["dtype"]),
         inputs=input_names,
         real_input_shape_defs="".join(real_input_shape_defs),
         real_input_shapes=", ".join(real_input_shape_names),
@@ -830,7 +806,7 @@ def gen_function_call(
         output_dim_refs=y_dim_refs,
         func_name=func_attrs["name"],
         output=y._attrs["name"],
-        output_ptr=casted_y_ptr,
+        output_ptr=y._attrs["name"],
         concat_dim=concat_dim,
         rank=len(orig_x._attrs["shape"]),
         num_real_inputs=len(inputs),

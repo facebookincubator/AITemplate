@@ -23,6 +23,17 @@ from .parameter import Parameter
 
 
 class Embedding(Module):
+    r"""A simple lookup table that stores embeddings of a fixed dictionary and size.
+
+    This module is often used to store word embeddings and retrieve them using indices.
+    The input to the module is a list of indices, and the output is the corresponding
+    word embeddings.
+
+    Args:
+        shape (List[int]): denotes the shape of the embeddings which is typically `[num_embeddings, embedding_dim]` where `num_embeddings` is the size of the dictionary of embeddings, and `embedding_dim` is the size of each embedding vector.
+        dtype (string): denotes the data type
+    """
+
     def __init__(
         self,
         shape,

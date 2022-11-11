@@ -85,14 +85,12 @@ class CrossAttention(nn.Module):
         )
 
         if USE_CUDA:
-            q = q * self.scale
-            attn = ops.bmm_rcr()(
-                (ops.reshape()(q, [bs * nheads, -1, d])),
-                (ops.reshape()(k, [bs * nheads, -1, d])),
+            attn_op = ops.mem_eff_attention(causal=False)
+            out = attn_op(
+                (ops.reshape()(q, [bs, nheads, -1, d])),
+                (ops.reshape()(k, [bs, nheads, -1, d])),
+                (ops.reshape()(v, [bs, nheads, -1, d])),
             )
-            attn = ops.softmax()(attn, -1)
-            v = ops.reshape()(v, [bs * nheads, -1, d])
-            out = ops.bmm_rrr_permute((nheads,))(attn, v)
         else:
             OP = ops.bmm_softmax_bmm_permute(shape=(nheads,), scale=self.scale)
             out = OP(

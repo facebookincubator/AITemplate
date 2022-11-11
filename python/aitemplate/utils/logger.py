@@ -16,6 +16,7 @@
 default logger
 """
 import logging
+import os
 
 
 def info(name, message):
@@ -36,3 +37,22 @@ def warning(name, message):
 def is_debug():
     logger = logging.getLogger("aitemplate")
     return logger.level == logging.DEBUG
+
+
+def setup_logger(name):
+    root_logger = logging.getLogger(name)
+    info_handle = logging.StreamHandler()
+    formatter = logging.Formatter("%(asctime)s %(levelname)s <%(name)s> %(message)s")
+    info_handle.setFormatter(formatter)
+    root_logger.addHandler(info_handle)
+    root_logger.propagate = False
+
+    DEFAULT_LOGLEVEL = logging.getLogger().level
+    log_level_str = os.environ.get("LOGLEVEL", None)
+    LOG_LEVEL = (
+        getattr(logging, log_level_str.upper())
+        if log_level_str is not None
+        else DEFAULT_LOGLEVEL
+    )
+    root_logger.setLevel(LOG_LEVEL)
+    return root_logger

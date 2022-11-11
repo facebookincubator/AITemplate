@@ -22,11 +22,6 @@ import jinja2
 
 # pylint: disable=C0301
 
-FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
-    """reinterpret_cast<half*>(
-        {% if is_cuda %}&({% endif %}{{name}}{% if is_cuda %}->raw()){% endif %})"""
-)
-
 FUNC_CALL_INT64_PARAM_TEMPLATE = jinja2.Template("reinterpret_cast<int64_t*>({{name}})")
 
 FUNC_TEMPLATE = jinja2.Template(
@@ -41,15 +36,15 @@ namespace {
 
 {{func_signature}}
 {
-    batch_gather_launcher<half, int64_t>(stream, batch_num, indices_num, instance_size, gather_dim_size, input, indices, workspace, output);
+    batch_gather_launcher<{{dtype}}, int64_t>(stream, batch_num, indices_num, instance_size, gather_dim_size, static_cast<const {{dtype}}*>(input), indices, workspace, static_cast<{{dtype}}*>(output));
 }
     """
 )
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-void {{func_name}}(half* output,
-                   const half* input,
+void {{func_name}}(void* output,
+                   const void* input,
                    const int64_t* indices,
                    const {{index_type}} batch_num,
                    const {{index_type}} indices_num,
@@ -74,7 +69,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{indices_num}},
 {{indent}}    {{instance_size}},
 {{indent}}    {{gather_dim_size}},
-{{indent}}    global_workspace, stream /* default stream */
+{{indent}}    global_workspace_, stream /* default stream */
 {{indent}});
     """
 )
@@ -156,12 +151,10 @@ def gen_function_call(func_attrs: Dict[str, Any], indent="  ", is_cuda=False) ->
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 2
 
-    output_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][0]._attrs["name"], is_cuda=is_cuda
-    )
-    input_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["inputs"][0]._attrs["name"], is_cuda=is_cuda
-    )
+    output_name = func_attrs["outputs"][0]._attrs["name"]
+
+    input_name = func_attrs["inputs"][0]._attrs["name"]
+
     indices_name = FUNC_CALL_INT64_PARAM_TEMPLATE.render(
         name=func_attrs["inputs"][1]._attrs["name"]
     )
@@ -208,6 +201,9 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"], index_type=index_type, prefix=prefix
         ),
+        dtype=backend_spec.dtype_to_backend_dtype[
+            func_attrs["inputs"][0]._attrs["dtype"]
+        ],
     )
 
 

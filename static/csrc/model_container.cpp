@@ -26,12 +26,15 @@ ModelContainer::ModelContainer(
     size_t num_inputs,
     size_t num_outputs,
     size_t num_unbound_constants,
-    size_t params_size)
+    size_t params_size,
+    AITemplateAllocator& allocator)
     : ModelContainerBase(
           num_inputs,
           num_outputs,
           num_unbound_constants,
-          params_size),
+          params_size,
+          allocator),
+      allocator_(allocator),
       num_inputs_(num_inputs),
       num_outputs_(num_outputs) {
   if (num_models == 0) {
@@ -47,7 +50,8 @@ ModelContainer::ModelContainer(
         num_inputs,
         num_outputs,
         num_unbound_constants,
-        static_cast<uint8_t*>(constants_.get()));
+        static_cast<uint8_t*>(constants_.get()),
+        allocator);
     available_models_.push_back(&models_.back());
   }
 }
@@ -102,7 +106,8 @@ void ModelContainer::RunWithOutputsOnHost(
   owned_outputs.reserve(num_outputs);
   for (size_t i = 0; i < num_outputs; ++i) {
     size_t num_bytes = MaxOutputStorageBytes(i);
-    owned_outputs_ptrs.emplace_back(RAII_DeviceMalloc(num_bytes), num_bytes);
+    owned_outputs_ptrs.emplace_back(
+        RAII_DeviceMalloc(num_bytes, allocator_), num_bytes);
     owned_outputs.emplace_back(
         owned_outputs_ptrs.back().first.get(),
         outputs[i].shape,
@@ -178,7 +183,8 @@ float ModelContainer::Benchmark(
 
     for (size_t j = 0; j < num_outputs; ++j) {
       size_t num_bytes = MaxOutputStorageBytes(j);
-      cloned_outputs_ptrs.emplace_back(RAII_DeviceMalloc(num_bytes));
+      cloned_outputs_ptrs.emplace_back(
+          RAII_DeviceMalloc(num_bytes, allocator_));
       auto* new_pointer = cloned_outputs_ptrs.back().get();
       DEVICE_CHECK(
           DeviceToDeviceCopy(new_pointer, outputs[j].ptr, num_bytes, stream));

@@ -27,6 +27,43 @@ USE_CUDA = detect_target().name() == "cuda"
 
 
 class Linear(Module):
+    r"""Applies a linear transformation to the incoming data: :math:`y = xA^T + b`
+
+    Args:
+        in_channels: size of each input sample
+        out_channels: size of each output sample
+        bias: If set to ``False``, the layer will not learn an additive bias.
+            Default: ``True``
+        specialization: elementwise operation to add after the linear operation,
+            Default: ``None``
+        dtype: data type, default: ``float16``
+
+    Shape:
+
+        - Input: :math:`(*, H_{in})` where :math:`*` means any number of
+          dimensions including none and :math:`H_{in} = \text{in_channels}`.
+        - Output: :math:`(*, H_{out})` where all but the last dimension
+          are the same shape as the input and :math:`H_{out} = \text{out_channels}`.
+
+    Attributes:
+
+        weight: the learnable weights of the module of shape
+            :math:`(\text{out_channels}, \text{in_channels})`. The values are
+            initialized from :math:`\mathcal{U}(-\sqrt{k}, \sqrt{k})`, where
+            :math:`k = \frac{1}{\text{in\_channels}}`
+        bias:   the learnable bias of the module of shape :math:`(\text{out_channels})`.
+                If :attr:`bias` is ``True``, the values are initialized from
+                :math:`\mathcal{U}(-\sqrt{k}, \sqrt{k})` where
+                :math:`k = \frac{1}{\text{in_channels}}`
+
+    Examples::
+
+        >>> m = nn.Linear(20, 30)
+        >>> input = Tensor(shape=[128, 20])
+        >>> output = m(input)
+        Tensor(shape=[128, 30])
+    """
+
     def __init__(
         self,
         in_channels,

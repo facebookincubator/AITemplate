@@ -172,7 +172,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{d_ptr}},
 {{indent}}    {{n_ptr}},
 {{indent}}    {{soft_ptr}},
-{{indent}}    global_workspace,
+{{indent}}    global_workspace_,
 {{indent}}    {{split_k}},
 {% for dim in adims %}
 {{indent}}    {{dim}},
@@ -342,11 +342,11 @@ int main(int argc, char** argv) {
   for (auto & event : events) {
     cudaEventCreate(&event);
   }
-  cudaEventRecord(events[0]);
+  cudaEventRecord(events[0], stream);
   for (int i = 0; i < 5; ++i) {
     {{func_call}}
   }
-  cudaEventRecord(events[1]);
+  cudaEventRecord(events[1], stream);
   cudaEventSynchronize(events[1]);
   float runtime_ms = 0;
   cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
@@ -535,4 +535,4 @@ def gen_profiler(
         )
         common.add_profiler(file_pairs, workdir, op_type, op_name, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)

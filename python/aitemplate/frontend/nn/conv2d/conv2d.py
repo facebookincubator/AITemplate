@@ -109,6 +109,7 @@ class Conv2d(Module):
         self.op = conv2d(stride=stride, pad=padding, dilate=dilation, group=groups)
 
     def forward(self, *args):
+        """Applies Conv2d on the input tensor."""
         assert len(args) == 1
         x = args[0]
         return self.op(x, self.weight.tensor())

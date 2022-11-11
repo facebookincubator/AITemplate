@@ -1281,20 +1281,27 @@ __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
   const int quarter_n = n >> 2;
   const int offset = m_idx * quarter_n;
 
+  const int block_size = blockDim.x;
+  const int num_iters =
+      ceil(static_cast<float>(quarter_n) / static_cast<float>(block_size));
+
   half4 local_val_half{0, 0, 0, 0};
   float4 local_val{0.0f, 0.0f, 0.0f, 0.0f};
 
-  if (tid < quarter_n) {
-    local_val_half =
-        *input_accessor.get<const half, const half4>(input, offset + tid);
-    local_val = {
-        static_cast<float>(local_val_half.x),
-        static_cast<float>(local_val_half.y),
-        static_cast<float>(local_val_half.z),
-        static_cast<float>(local_val_half.w)};
-    local_sums[0] = local_val.x + local_val.y + local_val.z + local_val.w;
-  }
+  for (size_t i = 0; i < num_iters; ++i) {
+    int elem_no = tid + block_size * i;
 
+    if (elem_no < quarter_n) {
+      local_val_half =
+          *input_accessor.get<const half, const half4>(input, offset + elem_no);
+      local_val = {
+          static_cast<float>(local_val_half.x),
+          static_cast<float>(local_val_half.y),
+          static_cast<float>(local_val_half.z),
+          static_cast<float>(local_val_half.w)};
+      local_sums[0] += local_val.x + local_val.y + local_val.z + local_val.w;
+    }
+  }
   if (blockDim.x <= 32) {
     warpReduceSum<float, 1>(local_sums);
   } else {
@@ -1303,17 +1310,25 @@ __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
   if (threadIdx.x == 0) {
     s_mean = local_sums[0] / n;
   }
-
   __syncthreads();
-
   local_sums[0] = 0.0f;
-  if (tid < quarter_n) {
-    local_sums[0] = (local_val.x - s_mean) * (local_val.x - s_mean) +
-        (local_val.y - s_mean) * (local_val.y - s_mean) +
-        (local_val.z - s_mean) * (local_val.z - s_mean) +
-        (local_val.w - s_mean) * (local_val.w - s_mean);
-  }
 
+  for (size_t i = 0; i < num_iters; ++i) {
+    int elem_no = tid + block_size * i;
+    if (elem_no < quarter_n) {
+      local_val_half =
+          *input_accessor.get<const half, const half4>(input, offset + elem_no);
+      local_val = {
+          static_cast<float>(local_val_half.x),
+          static_cast<float>(local_val_half.y),
+          static_cast<float>(local_val_half.z),
+          static_cast<float>(local_val_half.w)};
+      local_sums[0] += (local_val.x - s_mean) * (local_val.x - s_mean) +
+          (local_val.y - s_mean) * (local_val.y - s_mean) +
+          (local_val.z - s_mean) * (local_val.z - s_mean) +
+          (local_val.w - s_mean) * (local_val.w - s_mean);
+    }
+  }
   if (blockDim.x <= 32) {
     warpReduceSum<float, 1>(local_sums);
   } else {
@@ -1324,63 +1339,74 @@ __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
   }
   __syncthreads();
 
-  if (tid < quarter_n) {
+  for (size_t i = 0; i < num_iters; ++i) {
+    int elem_no = tid + block_size * i;
+    if (elem_no < quarter_n) {
+      local_val_half =
+          *input_accessor.get<const half, const half4>(input, offset + elem_no);
+      local_val = {
+          static_cast<float>(local_val_half.x),
+          static_cast<float>(local_val_half.y),
+          static_cast<float>(local_val_half.z),
+          static_cast<float>(local_val_half.w)};
 #ifdef AIT_LAYERNORM_CONST_GAMMA
-    const float4 gamma_val = {
-        AIT_LAYERNORM_CONST_GAMMA,
-        AIT_LAYERNORM_CONST_GAMMA,
-        AIT_LAYERNORM_CONST_GAMMA,
-        AIT_LAYERNORM_CONST_GAMMA};
+      const float4 gamma_val = {
+          AIT_LAYERNORM_CONST_GAMMA,
+          AIT_LAYERNORM_CONST_GAMMA,
+          AIT_LAYERNORM_CONST_GAMMA,
+          AIT_LAYERNORM_CONST_GAMMA};
 #else
-    const half4 gamma_val_half = gamma[tid];
-    const float4 gamma_val = {
-        static_cast<float>(gamma_val_half.x),
-        static_cast<float>(gamma_val_half.y),
-        static_cast<float>(gamma_val_half.z),
-        static_cast<float>(gamma_val_half.w)};
+      const half4 gamma_val_half = gamma[elem_no];
+      const float4 gamma_val = {
+          static_cast<float>(gamma_val_half.x),
+          static_cast<float>(gamma_val_half.y),
+          static_cast<float>(gamma_val_half.z),
+          static_cast<float>(gamma_val_half.w)};
 #endif // AIT_LAYERNORM_CONST_GAMMA
 
 #ifdef AIT_LAYERNORM_CONST_BETA
-    const float4 beta_val = {
-        AIT_LAYERNORM_CONST_BETA,
-        AIT_LAYERNORM_CONST_BETA,
-        AIT_LAYERNORM_CONST_BETA,
-        AIT_LAYERNORM_CONST_BETA};
+      const float4 beta_val = {
+          AIT_LAYERNORM_CONST_BETA,
+          AIT_LAYERNORM_CONST_BETA,
+          AIT_LAYERNORM_CONST_BETA,
+          AIT_LAYERNORM_CONST_BETA};
 #else
-    const half4 beta_val_half = beta[tid];
-    const float4 beta_val = {
-        static_cast<float>(beta_val_half.x),
-        static_cast<float>(beta_val_half.y),
-        static_cast<float>(beta_val_half.z),
-        static_cast<float>(beta_val_half.w)};
+      const half4 beta_val_half = beta[elem_no];
+      const float4 beta_val = {
+          static_cast<float>(beta_val_half.x),
+          static_cast<float>(beta_val_half.y),
+          static_cast<float>(beta_val_half.z),
+          static_cast<float>(beta_val_half.w)};
 #endif // AIT_LAYERNORM_CONST_BETA
 
-    if (FuseSigmoidMul) {
-      local_val.x *= sigmoid(
-          normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x));
-      local_val.y *= sigmoid(
-          normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y));
-      local_val.z *= sigmoid(
-          normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z));
-      local_val.w *= sigmoid(
-          normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w));
-    } else {
-      local_val.x =
-          normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x);
-      local_val.y =
-          normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y);
-      local_val.z =
-          normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z);
-      local_val.w =
-          normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w);
+      if constexpr (FuseSigmoidMul) {
+        local_val.x *= sigmoid(normalize(
+            local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x));
+        local_val.y *= sigmoid(normalize(
+            local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y));
+        local_val.z *= sigmoid(normalize(
+            local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z));
+        local_val.w *= sigmoid(normalize(
+            local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w));
+      } else {
+        local_val.x =
+            normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x);
+        local_val.y =
+            normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y);
+        local_val.z =
+            normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z);
+        local_val.w =
+            normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w);
+      }
+
+      local_val_half.x = __float2half_rn(local_val.x);
+      local_val_half.y = __float2half_rn(local_val.y);
+      local_val_half.z = __float2half_rn(local_val.z);
+      local_val_half.w = __float2half_rn(local_val.w);
+
+      *(output_accessor.get<half, half4>(output, offset + elem_no)) =
+          local_val_half;
     }
-
-    local_val_half.x = __float2half_rn(local_val.x);
-    local_val_half.y = __float2half_rn(local_val.y);
-    local_val_half.z = __float2half_rn(local_val.z);
-    local_val_half.w = __float2half_rn(local_val.w);
-
-    *(output_accessor.get<half, half4>(output, offset + tid)) = local_val_half;
   }
 }
 
@@ -1478,7 +1504,7 @@ __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
     const float beta_val = static_cast<float>(beta[tid]);
 #endif // AIT_LAYERNORM_CONST_BETA
 
-    if (FuseSigmoidMul) {
+    if constexpr (FuseSigmoidMul) {
       local_val *= sigmoid(
           normalize(local_val, s_mean, s_variance, gamma_val, beta_val));
     } else {
@@ -1640,11 +1666,10 @@ cudaError_t invokeGroupLayernormSigmoidMul(
   }
 
   dim3 grid(b, m);
-  dim3 block(max_n);
-
   // TODO: implement float4 group kernel
   if (std::is_same<T, half>::value && n_is_multiple_of_4 && (min_n >= 128) &&
       (max_n <= 4096)) {
+    dim3 block(min_n);
     // round up to multiples of 32 to make warp shuffles safe
     block.x = (block.x / 4 + 31) / 32 * 32;
     Arguments<half4, float, NumInputs> args;
@@ -1674,6 +1699,8 @@ cudaError_t invokeGroupLayernormSigmoidMul(
       LAYER_NORM_CUDA_CHECK(cudaFree(argsPtr));
     }
   } else {
+    // TODO: Should we apply min_n block size to this branch as well?
+    dim3 block(max_n);
     Arguments<T, T_ACC, NumInputs> args;
     for (size_t i = 0; i < b; i++) {
       args.outputs[i] = output[i];
