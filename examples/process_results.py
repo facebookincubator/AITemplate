@@ -71,6 +71,11 @@ def parse_logfile(files):
               if 'batch_size:' in line: #grab all 45 results from these tests
                  lst=line.split()
                  res.append(lst[5])
+       if 'sdiff.log' in logfile:
+           for line in open(logfile):
+              if 'sd e2e:' in line: #results for stable diffusion
+                lst=line.split()
+                res.append(lst[2])
     return res
 
 def get_baseline(table, connection):
