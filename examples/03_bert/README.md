@@ -29,7 +29,7 @@ python3 examples/03_bert/benchmark_ait.py --activation fast_gelu
 
 The batch size and sequence length can also be configured via the command line:
 ```
-python3 examples/03_bert/benchmark_ait.py --batch_size 1 --seq_length 128
+python3 examples/03_bert/benchmark_ait.py --batch-size 1 --seq-length 128
 ```
 
 PyTorch eager mode benchmarks can also be run:
