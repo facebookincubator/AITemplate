@@ -123,8 +123,10 @@ class MultiheadAttention(Module):
 
         # simple heuristic, may need refinement
         self.use_flash = (
-            not (seq_len >= 512 and batch_size <= 2)
-        ) and head_dim % 8 == 0 and head_dim <= 128
+            (not (seq_len >= 512 and batch_size <= 2))
+            and head_dim % 8 == 0
+            and head_dim <= 128
+        )
         # odd seq try use flash
         if seq_len % 2 == 1:
             self.use_flash = True
