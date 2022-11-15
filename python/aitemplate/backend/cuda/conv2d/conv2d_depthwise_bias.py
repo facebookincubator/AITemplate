@@ -28,10 +28,10 @@ EXEC_TEMPLATE = jinja2.Template(
 //  TODO: cast to right dtype
 {{indent}}typename {{instance}}::Arguments arguments{
 {{indent}}    problem_size,
-{{indent}}    {(cutlass::half_t*)(in_ptr), layout_A},
-{{indent}}    {(cutlass::half_t*)(weight_ptr), layout_B},
-{{indent}}    {(cutlass::half_t*)(bias_ptr), cutlass::layout::TensorNHWC::Stride(0)},
-{{indent}}    {(cutlass::half_t*)(out_ptr), layout_C},
+{{indent}}    {static_cast<{{dtype}}*>(in_ptr), layout_A},
+{{indent}}    {static_cast<{{dtype}}*>(weight_ptr), layout_B},
+{{indent}}    {static_cast<{{dtype}}*>(bias_ptr), cutlass::layout::TensorNHWC::Stride(0)},
+{{indent}}    {static_cast<{{dtype}}*>(out_ptr), layout_C},
 {{indent}}    {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
 {{indent}}};
 {{indent}}{{instance}} implicit_gemm_op;
@@ -80,10 +80,10 @@ SRC_TEMPLATE = jinja2.Template(
 {{instances_def}}
 
 void {{function_name}} (
-    cutlass::half_t* in_ptr,
-    cutlass::half_t* weight_ptr,
-    cutlass::half_t* out_ptr,
-    cutlass::half_t* bias_ptr,
+    void* in_ptr,
+    void* weight_ptr,
+    void* out_ptr,
+    void* bias_ptr,
     uint8_t* workspace,
     int64_t* batch,
     int64_t* out_ch,
@@ -171,10 +171,10 @@ int main(int argc, char** argv) {
 
   //
   // warmup
-  conv((cutlass::half_t*) x.device_data(),
-       (cutlass::half_t*) w.device_data(),
-       (cutlass::half_t*) y.device_data(),
-       (cutlass::half_t*) b.device_data(),
+  conv(x.device_data(),
+       w.device_data(),
+       y.device_data(),
+       b.device_data(),
        global_workspace,
        &NI,
        &CO,
@@ -194,12 +194,12 @@ int main(int argc, char** argv) {
   for (auto & event : events) {
     cudaEventCreate(&event);
   }
-  cudaEventRecord(events[0]);
+  cudaEventRecord(events[0], stream);
   for (int i = 0; i < 5; ++i) {
-      conv((cutlass::half_t*) x.device_data(),
-       (cutlass::half_t*) w.device_data(),
-       (cutlass::half_t*) y.device_data(),
-       (cutlass::half_t*) b.device_data(),
+      conv(x.device_data(),
+       w.device_data(),
+       y.device_data(),
+       b.device_data(),
        global_workspace,
        &NI,
        &CO,
@@ -216,7 +216,7 @@ int main(int argc, char** argv) {
        pad,
        stream);
   }
-  cudaEventRecord(events[1]);
+  cudaEventRecord(events[1], stream);
   cudaEventSynchronize(events[1]);
   float runtime_ms = 0;
   cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
@@ -239,10 +239,10 @@ int main(int argc, char** argv) {
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
+  void*,
+  void*,
+  void*,
+  void*,
   uint8_t*,
   int64_t*,
   int64_t*,
@@ -269,7 +269,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{weight_ptr}},
 {{indent}}    {{out_ptr}},
 {{indent}}    {{bias_ptr}},
-{{indent}}    global_workspace,
+{{indent}}    global_workspace_,
 {{indent}}    {{p_batch}},
 {{indent}}    {{p_out_ch}},
 {{indent}}    {{p_in_ch}},
@@ -297,7 +297,7 @@ def conv2d_depthwise_config(func_attrs, dtype="float16"):
 @registry.reg("cuda.conv2d_depthwise_bias.gen_profiler")
 def gen_profiler(func_attrs, workdir, shape_template):
     """Codegen for conv2d_depthwise_bias profiler."""
-    cdw.gen_profiler(func_attrs, workdir, shape_template, exec_template=EXEC_TEMPLATE, src_template=SRC_TEMPLATE, profiler_template=PROFILER_TEMPLATE)
+    return cdw.gen_profiler(func_attrs, workdir, shape_template, exec_template=EXEC_TEMPLATE, src_template=SRC_TEMPLATE, profiler_template=PROFILER_TEMPLATE)
 
 
 @registry.reg("cuda.conv2d_depthwise_bias.gen_function")
