@@ -16,6 +16,7 @@
 Codegen for conv2d_depthwise.
 """
 from collections import OrderedDict
+
 import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
@@ -293,11 +294,12 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 """
 )
 
+
 def conv_dw_instance(op_def):
     op_def = op_def.replace("DefaultConv2dFprop", "DefaultDepthwiseFprop")
     op_def = op_def.replace("OpClassTensorOp", "OpClassSimt")
     idx = op_def.find("kAnalytic")
-    op_def = op_def[:idx+9]+"\n"+">::Kernel;\n"
+    op_def = op_def[: idx + 9] + "\n>::Kernel;\n"
     return op_def
 
 
@@ -310,6 +312,7 @@ def emit_instance(op, f_instance_convertor=conv_dw_instance):
     op_def = f_instance_convertor(op_def)
     return op_def
 
+
 def apply_special_config(func_attrs, op):
     import cutlass_lib
 
@@ -317,9 +320,10 @@ def apply_special_config(func_attrs, op):
     op.A.alignment = 1
     op.B.alignment = 1
     op.tile_description.stages = 2
-    op.tile_description.math_instruction.instruction_shape = [1,1,1]
+    op.tile_description.math_instruction.instruction_shape = [1, 1, 1]
     op.tile_description.threadblock_shape[-1] = 8
     return op
+
 
 def extract_config(func_attrs):
     import copy
@@ -381,7 +385,14 @@ def conv2d_depthwise_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.conv2d_depthwise.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template, exec_template=EXEC_TEMPLATE, src_template=SRC_TEMPLATE, profiler_template=PROFILER_TEMPLATE):
+def gen_profiler(
+    func_attrs,
+    workdir,
+    shape_template,
+    exec_template=EXEC_TEMPLATE,
+    src_template=SRC_TEMPLATE,
+    profiler_template=PROFILER_TEMPLATE,
+):
     """Codegen for conv2d_depthwise profiler."""
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
@@ -444,7 +455,7 @@ def gen_function(
         exec_cond_remplate,
         shape_eval_template,
         shape_save_template,
-        f_emit_instance=emit_instance
+        f_emit_instance=emit_instance,
     )
 
 

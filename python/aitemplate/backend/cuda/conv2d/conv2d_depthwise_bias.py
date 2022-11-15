@@ -288,6 +288,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 """
 )
 
+
 @registry.reg("cuda.conv2d_depthwise_bias.config")
 def conv2d_depthwise_config(func_attrs, dtype="float16"):
     """Populates conv2d_depthwise cutlass configs into 'op_instance' field."""
@@ -297,7 +298,14 @@ def conv2d_depthwise_config(func_attrs, dtype="float16"):
 @registry.reg("cuda.conv2d_depthwise_bias.gen_profiler")
 def gen_profiler(func_attrs, workdir, shape_template):
     """Codegen for conv2d_depthwise_bias profiler."""
-    return cdw.gen_profiler(func_attrs, workdir, shape_template, exec_template=EXEC_TEMPLATE, src_template=SRC_TEMPLATE, profiler_template=PROFILER_TEMPLATE)
+    return cdw.gen_profiler(
+        func_attrs,
+        workdir,
+        shape_template,
+        exec_template=EXEC_TEMPLATE,
+        src_template=SRC_TEMPLATE,
+        profiler_template=PROFILER_TEMPLATE,
+    )
 
 
 @registry.reg("cuda.conv2d_depthwise_bias.gen_function")
@@ -316,7 +324,7 @@ def gen_function(
         exec_cond_remplate,
         shape_eval_template,
         shape_save_template,
-        f_emit_instance=cdw.emit_instance
+        f_emit_instance=cdw.emit_instance,
     )
 
 

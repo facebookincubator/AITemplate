@@ -41,4 +41,6 @@ class Conv2dDepthwise(Conv2d):
             groups,
             dtype,
         )
-        self.op = conv2d_depthwise(stride=stride, pad=padding, dilate=dilation, group=groups)
+        self.op = conv2d_depthwise(
+            stride=stride, pad=padding, dilate=dilation, group=groups
+        )

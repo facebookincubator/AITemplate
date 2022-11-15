@@ -15,7 +15,7 @@
 """
 Fused conv2d_depthwise op.
 """
-from typing import Tuple, List
+from typing import List, Tuple
 
 from ...base import Tensor
 from .conv2d import conv2d
