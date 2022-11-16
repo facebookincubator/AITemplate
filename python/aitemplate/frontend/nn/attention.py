@@ -31,6 +31,39 @@ from .parameter import Parameter
 USE_CUDA = detect_target().name() == "cuda"
 
 
+def _get_shape(x):
+    shape = [it.value() for it in x._attrs["shape"]]
+    return shape
+
+
+def vanilla_attention(q, k, v, scale):
+    """ Vanilla attention in the most basic form
+    q,k,v: batch, seqlen, num_heads, head_dim
+    """
+    B, N, G, Cg = _get_shape(q)
+    C = G * Cg
+    q = q * scale
+
+    q = ops.permute()(q, [0, 2, 1, 3])  # BxGxNxCg
+    q = ops.reshape()(q, (B*G,N,C//G))  # BGxNxCg
+
+    k = ops.reshape()(k, (B,N,C))  # BxNxGCg
+    k = ops.permute021()(k)  # BxGCgxN
+    k = ops.reshape()(k, (B*G,C//G,N))  # BGxCgxN
+
+    attention = ops.bmm_rrr()(q, k)  # BGxNxN
+    attention = ops.softmax()(attention,-1)  # BGxNxN
+
+    v = ops.reshape()(v, (B,N,C))  # BxNxGCg
+    v = ops.permute021()(v)  # BxGCgxN
+    v = ops.reshape()(v, (B*G,C//G,N))  # BGxCgxN
+
+    out = ops.bmm_rcr()(v, attention)  # BGxCgxN
+    out = ops.reshape()(out, (B,C,N))  # BxGCgxN == BxCxN
+    out = ops.permute021()(out)  # BxNxC
+    return out
+
+
 class FlashAttention(Module):
     r"""FlashAttention provides an implementation for fused
     multi-head attention module:
@@ -108,11 +141,14 @@ class MultiheadAttention(Module):
         causal=False,
         mask_seq=0,
         use_mem_eff=False,
+        use_vanilla=False,
     ):
         super().__init__()
         assert (
             dim % num_heads == 0
         ), f"dim {dim} should be divisible by num_heads {num_heads}"
+        if use_vanilla:
+            assert not use_mem_eff, "Specify either use_vanilla or use_mem_eff"
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
@@ -120,6 +156,7 @@ class MultiheadAttention(Module):
         self.has_residual = has_residual
         self.mask_seq = mask_seq
         self.use_mem_eff = use_mem_eff
+        self.use_vanilla = use_vanilla
 
         flash_head_dims = {8, 16, 32, 64, 128}
         # simple heuristic, may need refinement
@@ -130,7 +167,13 @@ class MultiheadAttention(Module):
         if seq_len % 2 == 1:
             self.use_flash = True
 
-        if use_mem_eff:
+        if use_vanilla or (USE_CUDA and detect_target()._arch in ["70"]):
+            assert not causal, "Uncausal not implemented"
+            self.op = vanilla_attention
+            self.use_mem_eff = False
+            self.use_flash = False
+            self.use_vanilla = True
+        elif use_mem_eff:
             self.op = ops.mem_eff_attention(
                 causal=causal,
             )
@@ -148,8 +191,9 @@ class MultiheadAttention(Module):
             self.output_mask = Parameter(
                 shape=[mask_seq, num_heads, head_dim], dtype="float16"
             )
-
-        if USE_CUDA:
+        if self.use_vanilla:
+            self.qkv = Linear(dim, dim * 3, bias=qkv_bias)
+        elif USE_CUDA:
             # on CUDA flash_attention needs packed QKV as input,
             # then do split + permute inside flash_attn
             # input: (B, S, H)
@@ -183,32 +227,44 @@ class MultiheadAttention(Module):
         self.proj_drop = Dropout(proj_drop)
 
     def get_shape(self, x):
-        shape = [it.value() for it in x._attrs["shape"]]
-        return shape
+        return _get_shape(x)
 
     def qkv_proj(self, x):
-        if USE_CUDA:
-            if self.use_flash:
-                batch, seq, hidden = self.get_shape(x)
-                out = self.qkv(x)
-                return ops.reshape()(
-                    out, [int(batch * seq), 3, self.num_heads, hidden // self.num_heads]
-                )
-            else:
-                batch, seq, hidden = self.get_shape(x)
-                x = ops.reshape()(x, [-1, hidden])
-                return self.qkv(x)
-        else:
+        if self.use_vanilla or not USE_CUDA:
             return self.qkv(x)
 
+        if self.use_flash:
+            batch, seq, hidden = self.get_shape(x)
+            out = self.qkv(x)
+            return ops.reshape()(
+                out, [int(batch * seq), 3, self.num_heads, hidden // self.num_heads]
+            )
+        batch, seq, hidden = self.get_shape(x)
+        x = ops.reshape()(x, [-1, hidden])
+        return self.qkv(x)
+
     def attention(self, x):
+        # vanilla attention
+        if self.use_vanilla:
+            b, seqlen, d = self.get_shape(x)
+            hidden = d // 3
+            x = ops.reshape()(
+                x, [-1, 3, hidden]
+            )
+            (q, k, v) = ops.split()(x, 1, dim=1)
+            return self.op(
+                ops.reshape()(q, [b, seqlen, self.num_heads, hidden // self.num_heads]),
+                ops.reshape()(k, [b, seqlen, self.num_heads, hidden // self.num_heads]),
+                ops.reshape()(v, [b, seqlen, self.num_heads, hidden // self.num_heads]),
+                self.scale,
+            )
         # fused attention
         # output: (B, Seqlen, num_heads, head_dim)
         if USE_CUDA and self.use_flash:
             # input(x): (B*seqlen, 3, num_heads, head_dim)
             # output: (B, Seqlen, num_heads, head_dim)
             return self.op(x, self.cu_length.tensor())
-        elif USE_CUDA and self.use_mem_eff:
+        if USE_CUDA and self.use_mem_eff:
             (q, k, v) = ops.split()(x, 1, dim=0)
             _, b, num_heads, seqlen, d = self.get_shape(q)
             return self.op(
@@ -216,40 +272,39 @@ class MultiheadAttention(Module):
                 ops.reshape()(k, [b, -1, seqlen, d]),
                 ops.reshape()(v, [b, -1, seqlen, d]),
             )
+        # intput(q/k/v): (B*num_heads, seqlen, head_dim)
+        # attn = (B, S, H) * (B, S, H) = (B, S, S) #RCR
+        # softmax on dim -1 (B, S, S)
+        # attn@v: (B, S, S) * (B, S, H) = (B, S, H) #RRR
+        # reshape: (B, num_head, seqlen, head_dim)
+        # permute: (B, Seqlen, num_heads, head_dim)
+        if USE_CUDA:
+            scale = Tensor(
+                shape=[], dtype="float16", name="scale", value=self.scale
+            )
+            # [3, b, num_heads, seqlen, d]
+            _, b, num_heads, seqlen, d = self.get_shape(x)
+            # [3 * b * num_heads, seqlen, d]
+            x = ops.reshape()(x, [-1, seqlen, d])
+            (q, k, v) = ops.split()(x, b * num_heads, dim=0)
+            qk = ops.bmm_rcr()(q, k)
+            score = ops.elementwise(FuncEnum.MUL)(qk, scale)
+            score = ops.softmax()(score, -1)
+            out = ops.bmm_rrr_permute((num_heads,))(score, v)
         else:
-            # intput(q/k/v): (B*num_heads, seqlen, head_dim)
-            # attn = (B, S, H) * (B, S, H) = (B, S, S) #RCR
-            # softmax on dim -1 (B, S, S)
-            # attn@v: (B, S, S) * (B, S, H) = (B, S, H) #RRR
-            # reshape: (B, num_head, seqlen, head_dim)
-            # permute: (B, Seqlen, num_heads, head_dim)
-            if USE_CUDA:
-                scale = Tensor(
-                    shape=[], dtype="float16", name="scale", value=self.scale
-                )
-                # [3, b, num_heads, seqlen, d]
-                _, b, num_heads, seqlen, d = self.get_shape(x)
-                # [3 * b * num_heads, seqlen, d]
-                x = ops.reshape()(x, [-1, seqlen, d])
-                (q, k, v) = ops.split()(x, b * num_heads, dim=0)
-                qk = ops.bmm_rcr()(q, k)
-                score = ops.elementwise(FuncEnum.MUL)(qk, scale)
-                score = ops.softmax()(score, -1)
-                out = ops.bmm_rrr_permute((num_heads,))(score, v)
-            else:
-                (q, k, v) = ops.split()(x, 1, dim=0)
-                _, _, _, seqlen, d = self.get_shape(q)
-                OP = ops.bmm_softmax_bmm_permute(
-                    shape=(self.num_heads,),
-                    scale=self.scale,
-                    causal=self.causal,
-                )
-                out = OP(
-                    ops.reshape()(q, [-1, seqlen, d]),
-                    ops.reshape()(k, [-1, seqlen, d]),
-                    ops.reshape()(v, [-1, seqlen, d]),
-                )
-            return out
+            (q, k, v) = ops.split()(x, 1, dim=0)
+            _, _, _, seqlen, d = self.get_shape(q)
+            OP = ops.bmm_softmax_bmm_permute(
+                shape=(self.num_heads,),
+                scale=self.scale,
+                causal=self.causal,
+            )
+            out = OP(
+                ops.reshape()(q, [-1, seqlen, d]),
+                ops.reshape()(k, [-1, seqlen, d]),
+                ops.reshape()(v, [-1, seqlen, d]),
+            )
+        return out
 
     def forward(self, *args):
         """forward pass for calling mha module"""
