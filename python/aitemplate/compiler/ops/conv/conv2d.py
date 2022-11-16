@@ -408,6 +408,7 @@ class conv2d(Operator):
             if not func(cfg, self._attrs, x_shape):
                 continue
             command = self._gen_profile_cmd(profiler_prefix, cfg, x_shape)
+            logger.info(__name__, "Running " + " ".join(command))
             runner.push(cfg, command)
 
         runner.join()
