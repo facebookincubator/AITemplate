@@ -24,7 +24,7 @@ from aitemplate.testing import detect_target
 class ConvDepthwiseTestCase(unittest.TestCase):
     def test_fp16(self, batch=4):
         groups = 32
-        size = (12,12)
+        size = (12, 12)
         target = detect_target()
         X = Tensor(
             shape=[IntImm(batch), *size, 32],
@@ -32,9 +32,7 @@ class ConvDepthwiseTestCase(unittest.TestCase):
             name="input_0",
             is_input=True,
         )
-        W = Tensor(
-            shape=[32, 3, 3, 1], dtype="float16", name="input_1", is_input=True
-        )
+        W = Tensor(shape=[32, 3, 3, 1], dtype="float16", name="input_1", is_input=True)
         OP = ops.conv2d_depthwise(stride=1, pad=1, dilate=1, group=groups)
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
@@ -55,6 +53,7 @@ class ConvDepthwiseTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
         else:
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

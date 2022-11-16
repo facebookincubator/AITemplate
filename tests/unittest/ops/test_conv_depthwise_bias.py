@@ -24,7 +24,7 @@ from aitemplate.testing import detect_target
 class ConvDepthwiseBiasTestCase(unittest.TestCase):
     def test_fp16(self, batch=4):
         groups = 32
-        size = (12,12)
+        size = (12, 12)
         target = detect_target()
         X = Tensor(
             shape=[IntImm(batch), *size, 32],
@@ -32,9 +32,7 @@ class ConvDepthwiseBiasTestCase(unittest.TestCase):
             name="input_0",
             is_input=True,
         )
-        W = Tensor(
-            shape=[32, 3, 3, 1], dtype="float16", name="input_1", is_input=True
-        )
+        W = Tensor(shape=[32, 3, 3, 1], dtype="float16", name="input_1", is_input=True)
         B = Tensor(shape=[32], dtype="float16", name="input_2", is_input=True)
         OP = ops.conv2d_depthwise_bias(stride=1, pad=1, dilate=1, group=groups)
         Y = OP(X, W, B)
@@ -45,7 +43,9 @@ class ConvDepthwiseBiasTestCase(unittest.TestCase):
         X_pt = torch.randn(batch, 32, *size).cuda().half()
         W_pt = torch.randn(32, 1, 3, 3).cuda().half()
         B_pt = torch.randn(32).cuda().half()
-        Y_pt = torch.nn.functional.conv2d(X_pt, W_pt, bias=B_pt, padding=1, groups=groups)
+        Y_pt = torch.nn.functional.conv2d(
+            X_pt, W_pt, bias=B_pt, padding=1, groups=groups
+        )
         x = X_pt.permute((0, 2, 3, 1)).contiguous()
         w = W_pt.permute((0, 2, 3, 1)).contiguous()
         y = torch.empty([batch, *size, 32]).cuda().half()
@@ -55,6 +55,7 @@ class ConvDepthwiseBiasTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
         else:
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)
