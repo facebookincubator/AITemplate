@@ -71,6 +71,11 @@ def parse_logfile(files):
               if 'batch_size:' in line: #grab all 45 results from these tests
                  lst=line.split()
                  res.append(lst[5])
+       if 'sdiff.log' in logfile:
+           for line in open(logfile):
+              if 'sd e2e:' in line: #results for stable diffusion
+                lst=line.split()
+                res.append(lst[2])
     return res
 
 def get_baseline(table, connection):
@@ -152,10 +157,9 @@ def main():
                     format(sql_username, sql_password, sql_hostname, tunnel.local_bind_port, sql_main_database))
         conn = sqlEngine.connect()
     #save gemm performance tests:
-    if 'resnet50' in filename or "vit.log" in filename:
-        for i in range(1,len(results)+1):
-            testlist.append("Test%i"%i)
-        table_name="ait_performance"
+    for i in range(1,len(results)+1):
+        testlist.append("Test%i"%i)
+    table_name="ait_performance"
         
     baseline = get_baseline(table_name,conn)
     store_new_test_result(table_name, results, testlist, node_id, branch_name, commit, gpu_arch, compute_units, ngpus, rocm_vers, compiler_vers, conn)

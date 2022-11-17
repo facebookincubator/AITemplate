@@ -110,6 +110,22 @@ jobs:
            HIP_VISIBLE_DEVICES=0 python3 benchmark_ait.py --batch-size $BATCH_SIZE 2>&1 | tee -a vit.log &
            HIP_VISIBLE_DEVICES=1 python3 benchmark_ait.py --batch-size $BATCH_SIZE 2>&1 | tee -a vit.log
         done
+    - name: Run Stable Diffusion tests
+      run: |
+        echo "Running Stable Diffusion tests"
+        cd $GITHUB_WORKSPACE/AITemplate/examples/05_stable_diffusion
+        python3 -m pip install transformers click torch diffusers accelerate
+        # populate log headers
+        export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+        echo -n "hostname: ">sdiff.log; hostname >> sdiff.log
+        echo -n "GPU_arch: " >> sdiff.log; rocminfo | grep "Name:" | grep "gfx" >> sdiff.log
+        rocminfo | grep "Compute Unit:" >> sdiff.log
+        echo "git_branch: $GIT_BRANCH" >> sdiff.log
+        git show --summary | grep commit >> sdiff.log
+        /opt/rocm/bin/amdclang++ --version | grep -e 'InstalledDir' >> sdiff.log
+        # profiling
+        HIP_VISIBLE_DEVICES=0,1 python3 compile.py --token ${{ secrets.HF_TOKEN }} 2>&1 | tee -a sdiff.log
+        HIP_VISIBLE_DEVICES=0 python3 demo.py --token ${{ secrets.HF_TOKEN }} --benchmark 1 2>&1 | tee -a sdiff.log
     - name: Archive logs
       uses: actions/upload-artifact@v3
       with:
