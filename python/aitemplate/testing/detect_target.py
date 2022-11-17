@@ -38,10 +38,13 @@ def _detect_cuda():
         stdout = stdout.decode("utf-8")
         if "A100" in stdout or "RTX 30" in stdout or "A30" in stdout or "RTX 40" in stdout:
             return "80"
-        if "V100" in stdout:
+        elif "V100" in stdout:
             return "70"
-        if "T4" in stdout:
+        elif "T4" in stdout:
             return "75"
+        elif "NVIDIA" in stdout:
+            # default to "80" if unknown NVIDIA device
+            return "80"
         return None
     except Exception:
         return None
