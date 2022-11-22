@@ -31,36 +31,48 @@ from .parameter import Parameter
 USE_CUDA = detect_target().name() == "cuda"
 
 
+def _get_dim(it):
+    try:
+        return it.value()
+    except AttributeError:
+        return -1
+
+
 def _get_shape(x):
-    shape = [it.value() for it in x._attrs["shape"]]
+    shape = [_get_dim(it) for it in x._attrs["shape"]]
     return shape
 
 
-def vanilla_attention(q, k, v, scale):
-    """ Vanilla attention in the most basic form
+def vanilla_attention(q, k, v, scale=None):
+    """Vanilla attention in the most basic form
     q,k,v: batch, seqlen, num_heads, head_dim
     """
-    B, N, G, Cg = _get_shape(q)
-    C = G * Cg
+    name = [it._attrs["name"] for it in q._attrs["shape"]][0]
+    _, N, G, D = _get_shape(q)
+    _, M, _, _ = _get_shape(k)
+    C = G * D
+    if scale is None:
+        scale = D ** (-0.5)
     q = q * scale
 
-    q = ops.permute()(q, [0, 2, 1, 3])  # BxGxNxCg
-    q = ops.reshape()(q, (B*G,N,C//G))  # BGxNxCg
+    q = ops.permute()(q, [0, 2, 1, 3])  # BxGxNxD
+    q = ops.reshape()(q, (-1, N, D))  # BGxNxD
 
-    k = ops.reshape()(k, (B,N,C))  # BxNxGCg
-    k = ops.permute021()(k)  # BxGCgxN
-    k = ops.reshape()(k, (B*G,C//G,N))  # BGxCgxN
+    k = ops.reshape()(k, (-1, M, C))  # BxMxGD
+    k = ops.permute021()(k)  # BxGDxM
+    k = ops.reshape()(k, (-1, D, M))  # BGxDxM
 
-    attention = ops.bmm_rrr()(q, k)  # BGxNxN
-    attention = ops.softmax()(attention,-1)  # BGxNxN
+    attention = ops.bmm_rrr()(q, k)  # BGxNxM
+    attention = ops.softmax()(attention, -1)  # BGxNxM
 
-    v = ops.reshape()(v, (B,N,C))  # BxNxGCg
-    v = ops.permute021()(v)  # BxGCgxN
-    v = ops.reshape()(v, (B*G,C//G,N))  # BGxCgxN
+    v = ops.reshape()(v, (-1, M, C))  # BxMxGD
+    v = ops.permute021()(v)  # BxGDxM
+    v = ops.reshape()(v, (-1, D, M))  # BGxDxM
 
-    out = ops.bmm_rcr()(v, attention)  # BGxCgxN
-    out = ops.reshape()(out, (B,C,N))  # BxGCgxN == BxCxN
+    out = ops.bmm_rcr()(v, attention)  # BGxDxN
+    out = ops.reshape()(out, (-1, C, N))  # BxGDxN == BxCxN
     out = ops.permute021()(out)  # BxNxC
+    out._attrs["shape"][0]._attrs["name"] = name
     return out
 
 
@@ -248,9 +260,7 @@ class MultiheadAttention(Module):
         if self.use_vanilla:
             b, seqlen, d = self.get_shape(x)
             hidden = d // 3
-            x = ops.reshape()(
-                x, [-1, 3, hidden]
-            )
+            x = ops.reshape()(x, [-1, 3, hidden])
             (q, k, v) = ops.split()(x, 1, dim=1)
             return self.op(
                 ops.reshape()(q, [b, seqlen, self.num_heads, hidden // self.num_heads]),
@@ -279,9 +289,7 @@ class MultiheadAttention(Module):
         # reshape: (B, num_head, seqlen, head_dim)
         # permute: (B, Seqlen, num_heads, head_dim)
         if USE_CUDA:
-            scale = Tensor(
-                shape=[], dtype="float16", name="scale", value=self.scale
-            )
+            scale = Tensor(shape=[], dtype="float16", name="scale", value=self.scale)
             # [3, b, num_heads, seqlen, d]
             _, b, num_heads, seqlen, d = self.get_shape(x)
             # [3 * b * num_heads, seqlen, d]
@@ -373,6 +381,7 @@ class CrossAttention(Module):
         proj_drop=0.0,
         has_residual=True,
         causal=False,
+        use_vanilla=False,
     ):
         super().__init__()
         assert (
@@ -384,8 +393,14 @@ class CrossAttention(Module):
         self.dim = dim
         self.seqlen = seq_len
         self.seqlen_kv = seq_len_kv
+        self.use_vanilla = use_vanilla
 
-        self.op = ops.mem_eff_attention(causal=causal)
+        if use_vanilla or (USE_CUDA and detect_target()._arch in ["70"]):
+            assert not causal, "Uncausal not implemented"
+            self.op = vanilla_attention
+            self.use_vanilla = True
+        else:
+            self.op = ops.mem_eff_attention(causal=causal)
 
         self.proj_q = Linear(
             dim,
@@ -407,11 +422,6 @@ class CrossAttention(Module):
         self.proj = Linear(dim, dim, specialization="add" if has_residual else None)
         self.proj_drop = Dropout(proj_drop)
 
-    def qkv_proj(self, x):
-        batch, seq, hidden = self.get_shape(x)
-        x = ops.reshape()(x, [-1, hidden])
-        return self.qkv(x)
-
     def attention(self, q, k, v):
         seqlen = self.seqlen
         seqlen_kv = self.seqlen_kv
@@ -421,16 +431,23 @@ class CrossAttention(Module):
         key = self.proj_k(k)
         value = self.proj_v(v)
 
-        query = ops.permute()(
-            ops.reshape()(query, [-1, seqlen, self.num_heads, head_dim]), [0, 2, 1, 3]
-        )
-        key = ops.permute()(
-            ops.reshape()(key, [-1, seqlen_kv, self.num_heads, head_dim]), [0, 2, 1, 3]
-        )
-        value = ops.permute()(
-            ops.reshape()(value, [-1, seqlen_kv, self.num_heads, head_dim]),
-            [0, 2, 1, 3],
-        )
+        if self.use_vanilla:
+            query = ops.reshape()(query, [-1, seqlen, self.num_heads, head_dim])
+            key = ops.reshape()(key, [-1, seqlen_kv, self.num_heads, head_dim])
+            value = ops.reshape()(value, [-1, seqlen_kv, self.num_heads, head_dim])
+        else:
+            query = ops.permute()(
+                ops.reshape()(query, [-1, seqlen, self.num_heads, head_dim]),
+                [0, 2, 1, 3],
+            )
+            key = ops.permute()(
+                ops.reshape()(key, [-1, seqlen_kv, self.num_heads, head_dim]),
+                [0, 2, 1, 3],
+            )
+            value = ops.permute()(
+                ops.reshape()(value, [-1, seqlen_kv, self.num_heads, head_dim]),
+                [0, 2, 1, 3],
+            )
         return self.op(query, key, value)
 
     def forward(self, *args):

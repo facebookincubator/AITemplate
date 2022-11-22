@@ -72,7 +72,8 @@ def attention_ref(qkv, attn_mask, dropout_p, upcast=False, causal=False):
     seqlen = qkv.shape[1]
     d = qkv.shape[-1]
     scores = torch.einsum("bthd,bshd->bhts", q, k / math.sqrt(d))
-    scores.masked_fill_(rearrange(~attn_mask, "b s -> b 1 1 s"), float("-inf"))
+    if attn_mask is not None:
+        scores.masked_fill_(rearrange(~attn_mask, "b s -> b 1 1 s"), float("-inf"))
     if causal:
         causal_mask = torch.triu(
             torch.ones(seqlen, seqlen, dtype=torch.bool, device=qkv.device), 1
@@ -615,6 +616,115 @@ class attentionTestCase(unittest.TestCase):
                 head_size_v=64,
                 test_name="cross_attention2",
             )
+
+    def _test_vanilla_attention(
+        self,
+        batch_size=16,
+        nheads=16,
+        seqlen=1024,
+        n=1024,
+        dtype=torch.float16,
+        device="cuda",
+        test_name="attention",
+        rebuild=True,
+        benchmark_ait=False,
+        benchmark_pt=False,
+    ):
+        head_size = n // nheads
+
+        x = torch.randn(
+            batch_size, seqlen, n, device="cuda", dtype=dtype, requires_grad=True
+        )
+        Wqkv = torch.nn.Linear(nheads * head_size, 3 * nheads * head_size, device=device, dtype=dtype)
+        qkv = (
+            rearrange(Wqkv(x), "b s (t h d) -> b s t h d", t=3, h=nheads)
+            .detach()
+            .requires_grad_()
+        )
+        q, k, v = torch.split(qkv, 1, dim=2)
+        q, k, v = q.squeeze(2), k.squeeze(2), v.squeeze(2)  # batch_size, seqlen, nheads, head_size
+        output = attention_ref(qkv, None, 0, causal=False)
+        y_pt = output.detach()
+        y_pt = y_pt.reshape(batch_size, seqlen, nheads * head_size)
+        print(f"{y_pt.shape=}")
+
+        Q = Tensor(
+            shape=[batch_size, seqlen, nheads, head_size],
+            dtype="float16",
+            name="q",
+            is_input=True,
+        )
+        K = Tensor(
+            shape=[batch_size, seqlen, nheads, head_size],
+            dtype="float16",
+            name="k",
+            is_input=True,
+        )
+        V = Tensor(
+            shape=[batch_size, seqlen, nheads, head_size],
+            dtype="float16",
+            name="v",
+            is_input=True,
+        )
+
+        from aitemplate.frontend.nn.attention import vanilla_attention
+
+        Y = vanilla_attention(Q, K, V)
+
+        Y._attrs["is_output"] = True
+        Y._attrs["name"] = "output"
+
+        if rebuild:
+            target = detect_target()
+            module = compile_model(Y, target, "./tmp", test_name)
+        else:
+            module = Model(os.path.join("./tmp", test_name, "test.so"))
+
+        inputs = {
+            "q": q.detach().half().cuda().contiguous(),
+            "k": k.detach().half().cuda().contiguous(),
+            "v": v.detach().half().cuda().contiguous(),
+        }
+
+        y = torch.empty([batch_size, seqlen, nheads * head_size]).cuda().half()
+        module.run_with_tensors(inputs, [y])
+
+        if benchmark_ait:
+            # Warm up.
+            for _ in range(5):
+                module.run_with_tensors(inputs, [y])
+            # Benchmark AIT
+            time_per_iter_ms, time_std, _ = module.benchmark_with_tensors(
+                inputs,
+                [y],
+                count=100,
+            )
+            logger.info(
+                __file__, "benchmark vanilla-attn time: {0}".format(time_per_iter_ms)
+            )
+
+        self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-1, rtol=1e-1))
+
+        if benchmark_pt:
+            from aitemplate.testing.benchmark_pt import benchmark_torch_function
+
+            func = attention_ref
+            args = (
+                qkv.cuda().half(),
+                None,
+                0,
+                False,
+                False,
+            )
+            duration = benchmark_torch_function(100, func, *args)
+            print(
+                f"PT:  BS: {batch_size}, Time per iter: {duration:.2f}ms, QPS: {batch_size / duration:.2f}"
+            )
+
+    def test_vanilla_attention(self):
+        self._test_vanilla_attention(
+            test_name="vanilla_attention"
+        )
 
 
 if __name__ == "__main__":
