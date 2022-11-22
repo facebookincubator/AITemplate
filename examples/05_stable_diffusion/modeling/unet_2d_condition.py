@@ -29,7 +29,6 @@ class UNet2DConditionModel(nn.Module):
     implements for all the model (such as downloading or saving, etc.)
 
     Parameters:
-        sample_size (`int`, *optional*): The size of the input sample.
         in_channels (`int`, *optional*, defaults to 4): The number of channels in the input sample.
         out_channels (`int`, *optional*, defaults to 4): The number of channels in the output.
         center_input_sample (`bool`, *optional*, defaults to `False`): Whether to center the input sample.
@@ -54,7 +53,6 @@ class UNet2DConditionModel(nn.Module):
 
     def __init__(
         self,
-        sample_size: Optional[int] = None,
         in_channels: int = 4,
         out_channels: int = 4,
         center_input_sample: bool = False,
@@ -84,7 +82,6 @@ class UNet2DConditionModel(nn.Module):
     ):
         super().__init__()
         self.center_input_sample = center_input_sample
-        self.sample_size = sample_size
         time_embed_dim = block_out_channels[0] * 4
 
         # input

@@ -124,7 +124,7 @@ class AutoencoderKL(nn.Module):
         layers_per_block: int = 1,
         act_fn: str = "silu",
         latent_channels: int = 4,
-        sample_size: int = 32,
+        #sample_size: int = 32,
     ):
         super().__init__()
         self.decoder = Decoder(

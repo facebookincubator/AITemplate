@@ -124,7 +124,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         noise_pred = ys[0].permute((0, 3, 1, 2)).float()
         return noise_pred
 
-    def clip_inference(self, input_ids, seqlen=64):
+    def clip_inference(self, input_ids, seqlen=77):
         exe_module = self.clip_ait_exe
         bs = input_ids.shape[0]
         position_ids = torch.arange(seqlen).expand((bs, -1)).cuda()
@@ -245,7 +245,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         text_input = self.tokenizer(
             prompt,
             padding="max_length",
-            max_length=64,  # self.tokenizer.model_max_length,
+            max_length=77, #64,  # self.tokenizer.model_max_length,
             truncation=True,
             return_tensors="pt",
         )
@@ -279,7 +279,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             uncond_input = self.tokenizer(
                 uncond_tokens,
                 padding="max_length",
-                max_length=max_length,
+                max_length=77,#max_length,
                 return_tensors="pt",
             )
             uncond_embeddings = self.clip_inference(
@@ -379,9 +379,11 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         safety_cheker_input = self.feature_extractor(
             self.numpy_to_pil(image), return_tensors="pt"
         ).to(self.device)
-        image, has_nsfw_concept = self.safety_checker(
-            images=image, clip_input=safety_cheker_input.pixel_values
-        )
+        
+        #image, has_nsfw_concept = self.safety_checker(
+        #    images=image, clip_input=safety_cheker_input.pixel_values
+        #)
+        has_nsfw_concept = False
 
         if output_type == "pil":
             image = self.numpy_to_pil(image)

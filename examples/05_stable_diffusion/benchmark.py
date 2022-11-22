@@ -47,12 +47,13 @@ def mark_output(y):
         y_shape = [d._attrs["values"][0] for d in y[i]._attrs["shape"]]
         print("AIT output_{} shape: {}".format(i, y_shape))
 
-
+@torch.inference_mode()
 def benchmark_unet(
     batch_size=2,
     hh=64,
     ww=64,
     dim=320,
+    seqlen=77,
     benchmark_pt=False,
     verify=False,
 ):
@@ -67,23 +68,23 @@ def benchmark_unet(
     pt_mod = pt_mod.eval()
 
     latent_model_input_pt = torch.randn(batch_size, 4, hh, ww).cuda().half()
-    text_embeddings_pt = torch.randn(batch_size, 64, 768).cuda().half()
+    text_embeddings_pt = torch.randn(batch_size, seqlen, 768).cuda().half()
     timesteps_pt = torch.Tensor([1, 1]).cuda().half()
 
-    with autocast("cuda"):
-        pt_ys = pt_mod(
-            latent_model_input_pt,
-            timesteps_pt,
-            encoder_hidden_states=text_embeddings_pt,
-        ).sample
+    #with autocast("cuda"):
+    pt_ys = pt_mod(
+        latent_model_input_pt,
+        timesteps_pt,
+        encoder_hidden_states=text_embeddings_pt,
+    ).sample
 
-        # PT benchmark
-        if benchmark_pt:
-            args = (latent_model_input_pt, 1, text_embeddings_pt)
-            pt_time = benchmark_torch_function(100, pt_mod, *args)
-            print(f"PT batch_size: {batch_size}, {pt_time} ms")
-            with open("sd_pt_benchmark.txt", "a") as f:
-                f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
+    # PT benchmark
+    if benchmark_pt:
+        args = (latent_model_input_pt, 1, text_embeddings_pt)
+        pt_time = benchmark_torch_function(100, pt_mod, *args)
+        print(f"PT batch_size: {batch_size}, {pt_time} ms")
+        with open("sd_pt_benchmark.txt", "a") as f:
+            f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
 
     print("pt output:", pt_ys.shape)
 
@@ -122,7 +123,7 @@ def benchmark_unet(
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"unet batch_size: {batch_size}, latency: {t} ms\n")
 
-
+@torch.inference_mode()
 def benchmark_clip(
     batch_size=1,
     seqlen=64,
@@ -204,7 +205,7 @@ def benchmark_clip(
     with open("sd_ait_benchmark.txt", "a") as f:
         f.write(f"clip batch_size: {batch_size}, latency: {t} ms\n")
 
-
+@torch.inference_mode()
 def benchmark_vae(batch_size=1, height=64, width=64, benchmark_pt=False, verify=False):
 
     latent_channels = 4
@@ -275,9 +276,12 @@ def benchmark_vae(batch_size=1, height=64, width=64, benchmark_pt=False, verify=
 @click.command()
 @click.option("--token", default="", help="access token")
 @click.option("--batch-size", default=1, help="batch size")
+@click.option("--width", default=512, help="width")
+@click.option("--height", default=512, help="height")
+@click.option("--seqlen", default=77, help="seqlen")
 @click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
-def benchmark_diffusers(token, batch_size, verify, benchmark_pt):
+def benchmark_diffusers(token, batch_size, width, height, seqlen, verify, benchmark_pt):
     assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
@@ -293,13 +297,20 @@ def benchmark_diffusers(token, batch_size, verify, benchmark_pt):
         torch_dtype=torch.float16,
         use_auth_token=access_token,
     ).to("cuda")
+    
+    
+    ww = width // 8
+    hh = height // 8
 
     # CLIP
-    benchmark_clip(batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_clip(batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
+                   seqlen=seqlen)
     # UNet
-    benchmark_unet(batch_size=batch_size * 2, benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_unet(batch_size=batch_size * 2, benchmark_pt=benchmark_pt, verify=verify,
+                   ww=ww, hh=hh, seqlen=seqlen)
     # VAE
-    benchmark_vae(batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify)
+    benchmark_vae(batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
+                  width=ww, height=hh)
 
 
 if __name__ == "__main__":

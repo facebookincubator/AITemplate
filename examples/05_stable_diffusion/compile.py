@@ -17,26 +17,20 @@ from collections import OrderedDict
 
 import click
 import numpy as np
-
 import torch
 
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from diffusers import StableDiffusionPipeline
 
 from modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
-
 from modeling.unet_2d_condition import UNet2DConditionModel as ait_UNet2DConditionModel
-
 from modeling.vae import AutoencoderKL as ait_AutoencoderKL
 
 
 USE_CUDA = detect_target().name() == "cuda"
 
 access_token = True
-pipe = None
-
 
 def mark_output(y):
     if type(y) is not tuple:
@@ -175,16 +169,20 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
     return params_ait
 
 
-def compile_unet(
+def compile_unet(pipe,
     batch_size=2,
     hh=64,
     ww=64,
     dim=320,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
+    seqlen=64,
+    text_dim=768,
+    save_path="./tmp",
 ):
 
-    ait_mod = ait_UNet2DConditionModel(sample_size=64, cross_attention_dim=768)
+    ait_mod = ait_UNet2DConditionModel(#sample_size=seqlen, 
+                                        cross_attention_dim=text_dim)
     ait_mod.name_parameter_tensor()
 
     # set AIT parameters
@@ -196,7 +194,7 @@ def compile_unet(
         [batch_size, hh, ww, 4], name="input0", is_input=True
     )
     timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
-    text_embeddings_pt_ait = Tensor([batch_size, 64, 768], name="input2", is_input=True)
+    text_embeddings_pt_ait = Tensor([batch_size, seqlen, text_dim], name="input2", is_input=True)
 
     Y = ait_mod(latent_model_input_ait, timesteps_ait, text_embeddings_pt_ait)
     mark_output(Y)
@@ -204,10 +202,10 @@ def compile_unet(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    compile_model(Y, target, "./tmp", "UNet2DConditionModel", constants=params_ait)
+    compile_model(Y, target, save_path, "UNet2DConditionModel", constants=params_ait)
 
 
-def compile_clip(
+def compile_clip(pipe,
     batch_size=1,
     seqlen=64,
     dim=768,
@@ -217,6 +215,7 @@ def compile_clip(
     max_position_embeddings=77,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
+    save_path="./tmp",
 ):
     mask_seq = 0
     causal = True
@@ -249,11 +248,11 @@ def compile_clip(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    compile_model(Y, target, "./tmp", "CLIPTextModel", constants=params_ait)
+    compile_model(Y, target, save_path, "CLIPTextModel", constants=params_ait)
 
 
-def compile_vae(
-    batch_size=1, height=64, width=64, use_fp16_acc=False, convert_conv_to_gemm=False
+def compile_vae(pipe, 
+    batch_size=1, height=64, width=64, use_fp16_acc=False, convert_conv_to_gemm=False, save_path="./tmp",
 ):
     in_channels = 3
     out_channels = 3
@@ -273,7 +272,7 @@ def compile_vae(
     layers_per_block = 2
     act_fn = "silu"
     latent_channels = 4
-    sample_size = 512
+    #sample_size = 512
 
     ait_vae = ait_AutoencoderKL(
         batch_size,
@@ -287,7 +286,7 @@ def compile_vae(
         layers_per_block=layers_per_block,
         act_fn=act_fn,
         latent_channels=latent_channels,
-        sample_size=sample_size,
+        #sample_size=sample_size,
     )
     ait_input = Tensor(
         shape=[batch_size, height, width, latent_channels],
@@ -308,21 +307,17 @@ def compile_vae(
     compile_model(
         Y,
         target,
-        "./tmp",
+        save_path,
         "AutoencoderKL",
         constants=params_ait,
     )
 
+    
+    
 
-@click.command()
-@click.option("--token", default="", help="access token")
-@click.option("--width", default=512, help="Width of generated image")
-@click.option("--height", default=512, help="Height of generated image")
-@click.option("--batch-size", default=1, help="batch size")
-@click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
-@click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile_diffusers(
-    token, width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True
+    token, width, height, seqlen, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True, pipe=None,
+    save_path="./tmp",
 ):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
@@ -331,43 +326,62 @@ def compile_diffusers(
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
-    global access_token, pipe
+    global access_token
     if token != "":
         access_token = token
 
-    pipe = StableDiffusionPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
-        revision="fp16",
-        torch_dtype=torch.float16,
-        use_auth_token=access_token,
-    ).to("cuda")
+    if pipe is None:
+        from diffusers import StableDiffusionPipeline
+        pipe = StableDiffusionPipeline.from_pretrained(
+            "runwayml/stable-diffusion-v1-5",
+            revision="fp16",
+            torch_dtype=torch.float16,
+            use_auth_token=access_token,
+        ).to("cuda")
 
     ww = width // 8
     hh = height // 8
 
     # CLIP
-    compile_clip(
+    compile_clip(pipe,
         batch_size=batch_size,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
+        save_path=save_path,
+        seqlen=seqlen,
     )
     # UNet
-    compile_unet(
+    compile_unet(pipe,
         batch_size=batch_size * 2,
         ww=ww,
         hh=hh,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
+        save_path=save_path,
+        seqlen=seqlen,
     )
     # VAE
-    compile_vae(
+    compile_vae(pipe,
         batch_size=batch_size,
         width=ww,
         height=hh,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
+        save_path=save_path,
     )
 
 
+@click.command()
+@click.option("--token", default="", help="access token")
+@click.option("--width", default=512, help="Width of generated image")
+@click.option("--height", default=512, help="Height of generated image")
+@click.option("--seqlen", default=77, help="Max number of text tokens")
+@click.option("--batch-size", default=1, help="batch size")
+@click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
+@click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
+def main(token, width, height, seqlen, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True, pipe=None, save_path="./tmp",):
+    compile_diffusers(token, width, height, seqlen, batch_size, use_fp16_acc, convert_conv_to_gemm, pipe, save_path)
+
+
 if __name__ == "__main__":
-    compile_diffusers()
+    main()
