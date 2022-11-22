@@ -27,7 +27,6 @@ class gemm_rcr_bias_fast_gelu(gemm_rcr_bias):
 
     .. highlight:: python
     .. code-block:: python
-
         A = torch.randn(M, K).cuda().half()
         B = torch.randn(N, K).cuda().half()
         Bias = torch.randn(N).cuda().half()

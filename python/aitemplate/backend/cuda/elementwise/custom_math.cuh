@@ -296,4 +296,162 @@ __device__ half2 hmin2_nan(const half2 a, const half2 b) {
 #endif
 }
 
+// pow impl
+__device__ half hpow(const half a, const half b);
+
+__device__ half2 h2pow(const half2 a, const half2 b) {
+  half b1 = __low2half(b);
+  half b2 = __high2half(b);
+  if (b1 != b2) {
+    half a1 = __low2half(a);
+    half a2 = __high2half(a);
+    half c1 = hpow(a1, b1);
+    half c2 = hpow(a2, b2);
+    return __halves2half2(c1, c2);
+  }
+
+  // New special cases can be added if needed, such as
+  // an powi for cases where b is an integer
+  if (__hbeq2(b, half2(0.0, 0.0))) {
+    return half2(1.0, 1.0);
+  }
+  if (__hbeq2(b, half2(1.0, 1.0))) {
+    return a;
+  }
+  if (__hbeq2(b, half2(2.0, 2.0))) {
+    return __hmul2(a, a);
+  }
+  if (__hbeq2(b, half2(3.0, 3.0))) {
+    return __hmul2(__hmul2(a, a), a);
+  }
+  if (__hbeq2(b, half2(0.5, 0.5))) {
+    return h2sqrt(a);
+  }
+  if (__hbeq2(b, half2(-0.5, -0.5))) {
+    return h2rsqrt(a);
+  }
+  if (__hbeq2(b, half2(-1.0, -1.0))) {
+    return __h2div(half2(1.0, 1.0), a);
+  }
+  if (__hbeq2(b, half2(-2.0, -2.0))) {
+    return __h2div(half2(1.0, 1.0), __hmul2(a, a));
+  }
+
+  half a1 = __low2half(a);
+  half a2 = __high2half(a);
+
+  // low 16 bits
+  half c1 =
+      static_cast<half>(pow(static_cast<double>(a1), static_cast<double>(b1)));
+  // high 16 bits
+  half c2 =
+      static_cast<half>(pow(static_cast<double>(a2), static_cast<double>(b2)));
+  return __halves2half2(c1, c2);
+}
+
+__device__ half hpow(const half a, const half b) {
+  if (b == half(0.0)) {
+    return half(1.0);
+  }
+  if (b == half(1.0)) {
+    return a;
+  }
+  if (b == half(2.0)) {
+    return a * a;
+  }
+  if (b == half(3.0)) {
+    return a * a * a;
+  }
+  if (b == half(0.5)) {
+    return hsqrt(a);
+  }
+  if (b == half(-0.5)) {
+    return hrsqrt(a);
+  }
+  if (b == half(-1.0)) {
+    return half(1.0) / a;
+  }
+  if (b == half(-2.0)) {
+    return half(1.0) / (a * a);
+  }
+  return static_cast<half>(pow(static_cast<double>(a), static_cast<double>(b)));
+}
+
+__device__ float fpow(const float a, const float b) {
+  if (b == float(0.0)) {
+    return float(1.0);
+  }
+  if (b == float(1.0)) {
+    return a;
+  }
+  if (b == float(2.0)) {
+    return a * a;
+  }
+  if (b == float(3.0)) {
+    return a * a * a;
+  }
+  if (b == float(0.5)) {
+    return sqrt(a);
+  }
+  if (b == float(-0.5)) {
+    return rsqrt(a);
+  }
+  if (b == float(-1.0)) {
+    return float(1.0) / a;
+  }
+  if (b == float(-2.0)) {
+    return float(1.0) / (a * a);
+  }
+  return static_cast<float>(
+      pow(static_cast<double>(a), static_cast<double>(b)));
+}
+
+//
+// GELU function definitions implemented as described by
+//   Hendrycks, D., and Gimpel, K. in
+//   "Gaussian Error Linear Units (GELUs)." (2020)
+//   https://arxiv.org/pdf/1606.08415.pdf
+//
+// Floating-point constants are Taylor coefficients described in the paper.
+//
+__device__ half hgelu(const half a) {
+  cutlass::epilogue::thread::GELU<cutlass::half_t> gelu_op;
+  return static_cast<half>(gelu_op(static_cast<cutlass::half_t>(a)));
+}
+
+__device__ float fgelu(const float a) {
+  cutlass::epilogue::thread::GELU<float> gelu_op;
+  return gelu_op(a);
+}
+
+__device__ half h_fast_gelu(const half a) {
+  cutlass::epilogue::thread::GELU_taylor<cutlass::half_t> gelu_op;
+  return static_cast<half>(gelu_op(static_cast<cutlass::half_t>(a)));
+}
+
+__device__ float f_fast_gelu(const float a) {
+  cutlass::epilogue::thread::GELU_taylor<float> gelu_op;
+  return gelu_op(a);
+}
+
+__device__ float fsoftplus(
+    const float a,
+    const float beta,
+    const float threshold) {
+  return (a * beta > threshold) ? a : log1pf(expf(a * beta)) / beta;
+}
+
+__device__ half hsoftplus(const half a, const half beta, const half threshold) {
+  half one_val = one();
+  return __hgt(__hmul(a, beta), threshold)
+      ? a
+      : __hdiv(hlog(__hadd(one_val, hexp(__hmul(a, beta)))), beta);
+}
+
+__device__ half2
+h2softplus(const half2 a, const half2 beta, const half2 threshold) {
+  return half2(
+      hsoftplus(a.x, beta.x, threshold.x), hsoftplus(a.y, beta.y, threshold.y));
+}
+
 #endif

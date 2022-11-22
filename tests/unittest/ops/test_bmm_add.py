@@ -22,7 +22,7 @@ from aitemplate.testing import detect_target
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class BMMTestCase(unittest.TestCase):
+class BMMAddTestCase(unittest.TestCase):
     def test_rrr(self):
         B = 32
         M = 256

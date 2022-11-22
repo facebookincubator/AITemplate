@@ -12,6 +12,22 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
 # pylint: disable=invalid-name, exec-used
 
 import os
@@ -39,18 +55,9 @@ class BinaryDistribution(Distribution):
 
 
 # temp copy 3rdparty libs to build dir
-try:
-    shutil.copytree("../3rdparty", "./aitemplate/3rdparty")
-except FileExistsError:
-    pass
-try:
-    shutil.copytree("../static", "./aitemplate/static")
-except FileExistsError:
-    pass
-try:
-    shutil.copytree("../licenses", "./aitemplate/licenses")
-except FileExistsError:
-    pass
+shutil.copytree("../3rdparty", "./aitemplate/3rdparty")
+shutil.copytree("../static", "./aitemplate/static")
+shutil.copytree("../licenses", "./aitemplate/licenses")
 
 
 def gen_file_list(srcs, f_cond):
@@ -149,6 +156,7 @@ setup(
             "backend/cuda/elementwise/custom_math.cuh",
             "backend/cuda/layernorm_sigmoid_mul/layernorm_sigmoid_mul_kernel.cuh",
             "backend/cuda/groupnorm/groupnorm_kernel.cuh",
+            "backend/cuda/groupnorm/layer_norm.cuh",
             "backend/cuda/softmax/softmax.cuh",
             "backend/cuda/vision_ops/nms/batched_nms_kernel.cuh",
             "backend/cuda/vision_ops/nms/nms_kernel.cuh",

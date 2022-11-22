@@ -156,6 +156,12 @@ class upsampling2d_base(Operator):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        return {
+            "mode": self._attrs["mode"],
+            "scale_factor": self._attrs["scale_factor"],
+        }
+
     def gen_function(self) -> str:
         target = backend.target.Target.current()
         template_path = target.template_path()

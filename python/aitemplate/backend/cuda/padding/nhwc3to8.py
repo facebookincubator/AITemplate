@@ -18,14 +18,15 @@ CUDA codegen for nhwc3to8 op
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 
 # pylint: disable=C0301,W0613,W0612
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
+  void*,
+  void*,
   int64_t*,
   int64_t*,
   int64_t*,
@@ -56,9 +57,9 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}nhwc3to8_launcher(
-{{indent}}    in_ptr,
-{{indent}}    out_ptr,
+{{indent}}nhwc3to8_launcher<{{elem_input_type}}>(
+{{indent}}    static_cast<const {{elem_input_type}}*>(in_ptr),
+{{indent}}    static_cast<{{elem_input_type}}*>(out_ptr),
 {{indent}}    NI,
 {{indent}}    HI,
 {{indent}}    WI,
@@ -74,11 +75,12 @@ SRC_TEMPLATE = jinja2.Template(
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
 
-// load 128 bit every time (8 half = 4 float)
+// load 128 bit every time (n ElemT = 4 float)
 // use as many as thread with factor of 3:
-// each time load num_thread * 8 half = num_thread / 3 * 8 * 3ch -> num_thread / 3 * 8 * 8ch
+// each time load num_thread * n ElemT = num_thread / 3 * n ElemT * 3ch ->
+// num_thread / 3 * n ElemT * n ElemT ch
 
-template<int num_thread>
+template<typename ElemT, int num_thread>
 __global__ void nhwc3to8_kernel(const float4* input,
                                 float4* output,
                                 const int NI,
@@ -86,10 +88,11 @@ __global__ void nhwc3to8_kernel(const float4* input,
                                 const int WI,
                                 const int max_in_elements,
                                 const int max_out_elements) {
+  constexpr int num_elem_t_in_float4 = sizeof(float4) / sizeof(ElemT);
   __shared__ float4 shared_mem[num_thread];
-  const int out_offset = num_thread * 8 / 3;
+  const int out_offset = num_thread * num_elem_t_in_float4 / 3;
   const float4 zero4 = {0.0f, 0.0f, 0.0f, 0.0f};
-  const half zero = static_cast<half>(0.f);
+  const ElemT zero = static_cast<ElemT>(0.f);
   const int in_idx = blockIdx.x * num_thread + threadIdx.x;
   const int tid = threadIdx.x;
 
@@ -99,32 +102,39 @@ __global__ void nhwc3to8_kernel(const float4* input,
   const int out_start_idx = blockIdx.x * out_offset;
   const int boundary = out_start_idx + out_offset > max_out_elements ? max_out_elements : out_start_idx + out_offset;
   for (int i = out_start_idx + tid, j = tid; i < boundary; i += num_thread, j += num_thread) {
-    const half* smem_element = (const half*)shared_mem + j * 3;
-    half tmp[8];
+    const ElemT* smem_element = (const ElemT*)shared_mem + j * 3;
+    ElemT tmp[num_elem_t_in_float4];
 
     #pragma unroll
-    for (int k = 0; k < 8; ++k) {
+    for (int k = 0; k < num_elem_t_in_float4; ++k) {
       tmp[k] = k < 3 ? smem_element[k] : zero;
     }
     output[i] = *((const float4*)tmp);
   }
 }
 
-void nhwc3to8_launcher(cutlass::half_t* in_ptr,
-                       cutlass::half_t* out_ptr,
+template <typename ElemT>
+void nhwc3to8_launcher(const ElemT* in_ptr,
+                       ElemT* out_ptr,
                        int NI,
                        int HI,
                        int WI,
                        cudaStream_t stream) {
-  const int nthread = 240;
+  constexpr int num_elem_t_in_float4 = sizeof(float4) / sizeof(ElemT);
+  constexpr int nthread = 240;
   const int NHW = NI * HI * WI;
-  // assert NHW % 8 == 0
-  // assert nthread % 3 == 0
-  const int max_in_elements = NHW * 3 / 8;
-  const int max_out_elements = NHW * 8 / 8;
+  if (NHW % num_elem_t_in_float4 != 0) {
+    throw std::runtime_error(
+        "NHW (" + std::to_string(NHW) + ") mod num_elem_t_in_float4 (" +
+        std::to_string(num_elem_t_in_float4) + ") is not 0"
+    );
+  }
+  static_assert(nthread % 3 == 0);
+  const int max_in_elements = NHW * 3 / num_elem_t_in_float4;
+  const int max_out_elements = NHW * num_elem_t_in_float4 / num_elem_t_in_float4;
   dim3 thread_block(nthread);
-  dim3 grid((NHW * 3 + nthread * 8 -1) / (nthread * 8));
-  nhwc3to8_kernel<nthread><<<grid, thread_block, 0, stream>>>(
+  dim3 grid((NHW * 3 + nthread * num_elem_t_in_float4 -1) / (nthread * num_elem_t_in_float4));
+  nhwc3to8_kernel<ElemT, nthread><<<grid, thread_block, 0, stream>>>(
     (const float4*)in_ptr,
     (float4*) out_ptr,
     NI,
@@ -136,8 +146,8 @@ void nhwc3to8_launcher(cutlass::half_t* in_ptr,
 }
 
 void {{function_name}} (
-    cutlass::half_t* in_ptr,
-    cutlass::half_t* out_ptr,
+    void* in_ptr,
+    void* out_ptr,
     int64_t* batch,
     int64_t* in_h,
     int64_t* in_w,
@@ -175,6 +185,10 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
         [description]
     """
     func_name = func_attrs["name"]
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
     shape_eval_func = shape_eval_template.render(
         indent="  ",
         dtype="int64_t ",
@@ -189,9 +203,12 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
         y_dim2="*out_w",
     )
     shape_func = shape_eval_func + shape_save_func
-    exec_paths = EXEC_TEMPLATE.render()
+    exec_paths = EXEC_TEMPLATE.render(elem_input_type=elem_input_type)
     return SRC_TEMPLATE.render(
-        function_name=func_name, shape_function=shape_func, exec_paths=exec_paths
+        function_name=func_name,
+        elem_input_type=elem_input_type,
+        shape_function=shape_func,
+        exec_paths=exec_paths,
     )
 
 

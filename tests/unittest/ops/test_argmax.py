@@ -24,7 +24,9 @@ from aitemplate.testing import detect_target
 
 
 class argmaxTestCase(unittest.TestCase):
-    def _test_argmax(self, batch_size=1, shape=(2, 6), dim=0, test_name="argmax"):
+    def _test_argmax(
+        self, batch_size=1, shape=(2, 6), dim=0, test_name="argmax", copy_op=False
+    ):
 
         o_shape = list(shape)[:-1]
 
@@ -34,7 +36,10 @@ class argmaxTestCase(unittest.TestCase):
             name="X",
             is_input=True,
         )
-        X4 = ops.argmax(dim=dim)(X1)
+        X4_op = ops.argmax(dim=dim)
+        if copy_op:
+            X4_op = ops.argmax(**X4_op._get_op_attributes())
+        X4 = X4_op(X1)
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
 
@@ -51,6 +56,9 @@ class argmaxTestCase(unittest.TestCase):
 
     def test_argmax(self):
         self._test_argmax(shape=(300, 80), dim=1, test_name="argmax")
+        self._test_argmax(
+            shape=(300, 80), dim=1, test_name="argmax_copy_op", copy_op=True
+        )
 
 
 if __name__ == "__main__":

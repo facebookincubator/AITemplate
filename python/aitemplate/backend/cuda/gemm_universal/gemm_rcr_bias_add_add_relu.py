@@ -36,10 +36,11 @@ def gemm_rcr_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.gemm_rcr_bias_add_add_relu.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
-    common_bias_broadcast.gen_profiler(
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
+    return common_bias_broadcast.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         RCR,
         UNARY_OP1,

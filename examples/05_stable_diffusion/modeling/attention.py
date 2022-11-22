@@ -69,6 +69,7 @@ class AttentionBlock(nn.Module):
             self.num_heads,
             qkv_bias=True,
             has_residual=True,
+            use_mem_eff=True,
         )
         self.rescale_output_factor = rescale_output_factor
 

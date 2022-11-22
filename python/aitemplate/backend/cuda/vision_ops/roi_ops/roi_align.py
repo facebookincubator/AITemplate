@@ -45,10 +45,8 @@ def gen_function(
     exec_path = func_attrs["exec_path"]
 
     x = func_attrs["inputs"][0]
-    y = func_attrs["outputs"][0]
     backend_spec = CUDASpec()
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
+    library_dtype = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
     half2_data_ref = backend_spec.half2_data_ref
 
     shape_eval_func = shape_eval_template.render(
@@ -80,6 +78,7 @@ def gen_function(
             spatial_scale=func_attrs["spatial_scale"],
             position_sensitive=func_attrs["position_sensitive"],
             continuous_coordinate=func_attrs["continuous_coordinate"],
+            library_dtype=library_dtype,
         )
         exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
@@ -88,8 +87,6 @@ def gen_function(
         shape_function=shape_func,
         exec_paths=exec_paths,
         prefix=backend_spec.prefix,
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         header_files=EXTRA_HEADER.render(),
         index_type=backend_spec.index_type,
         half2_data_ref=half2_data_ref,

@@ -20,6 +20,7 @@ import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils import logger
@@ -60,7 +61,7 @@ class StridedGroupGemmTestCase(unittest.TestCase):
         module = compile_model([Y], target, "./tmp", test_name)
         Y_src_ops = Y._attrs["src_ops"]
         np.testing.assert_equal(len(Y_src_ops), 2)
-        np.testing.assert_equal(Y_src_ops, {group_gemm_op, concat_op})
+        np.testing.assert_equal(Y_src_ops, StableSet({group_gemm_op, concat_op}))
         expected_inputs_group_gemm_op = [X1, W1, X2, W2]
         np.testing.assert_equal(
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]
@@ -151,7 +152,7 @@ class StridedGroupGemmTestCase(unittest.TestCase):
         )
         Y_src_ops = Y._attrs["src_ops"]
         np.testing.assert_equal(len(Y_src_ops), 2)
-        np.testing.assert_equal(Y_src_ops, {group_gemm_op, concat_op})
+        np.testing.assert_equal(Y_src_ops, StableSet({group_gemm_op, concat_op}))
         expected_inputs_group_gemm_op = [X1, W1, B1, X2, W2, B2]
         np.testing.assert_equal(
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]

@@ -85,3 +85,16 @@ class special_conv2d_bias_activation(conv2d):
         self._extract_epilogue_alignment(output_shape)
         self._attrs["outputs"] = [output]
         return output
+
+    def _get_op_attributes(self):
+        target_attrs = ["dilate", "pad", "stride"]
+        attr = {
+            "activation": self._attrs["op"].split("_")[-1],
+            "auto_padding": self._auto_padding,
+        }
+
+        for target_attr in target_attrs:
+            if target_attr in self._attrs:
+                attr[target_attr] = self._attrs[target_attr]
+
+        return attr

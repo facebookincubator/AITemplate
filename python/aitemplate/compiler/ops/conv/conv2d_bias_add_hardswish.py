@@ -74,3 +74,9 @@ class conv2d_bias_add_hardswish(conv2d_bias_add_activation):
             Number of input channels to process to compute one output channel, by default 1
         """
         super().__init__("hardswish", stride, pad, dilate=dilate, group=group)
+
+    def _get_op_attributes(self):
+        attr = super()._get_op_attributes()
+        del attr["activation"]
+
+        return attr

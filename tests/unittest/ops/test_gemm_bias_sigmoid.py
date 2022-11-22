@@ -20,7 +20,7 @@ from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 
-class GEMMTestCase(unittest.TestCase):
+class GEMMBiasSigmoidTestCase(unittest.TestCase):
     def test_rcr(self):
         M = 128
         K = 1024

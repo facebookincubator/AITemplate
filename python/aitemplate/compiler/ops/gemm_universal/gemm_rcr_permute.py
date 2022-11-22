@@ -23,7 +23,7 @@ from typing import Tuple
 
 from aitemplate.testing import detect_target
 
-from ...base import Tensor
+from ...base import IntImm, IntVar, Tensor
 from ...tensor_accessor import TensorAccessor
 from ..common import reshape
 
@@ -35,7 +35,7 @@ from . import gemm_rcr
 class gemm_rcr_permute(gemm_rcr):
     def __init__(self, shape: Tuple[int], layout="20314"):
         super().__init__()
-        if layout == "20314":
+        if layout == "20314" or layout == "0213":
             self._attrs["op"] = "gemm_rcr_permute"
         elif layout == "m2n3":
             self._attrs["op"] = "gemm_rcr_permute_m2n3"
@@ -43,7 +43,10 @@ class gemm_rcr_permute(gemm_rcr):
             raise NotImplementedError("{} is not implemented!".format(layout))
 
         self._attrs["shape"] = shape
-        self._attrs["layout"] = "Permute5D_{}".format(layout)
+        if layout == "0213":
+            self._attrs["layout"] = "Permute4D_{}".format(layout)
+        else:
+            self._attrs["layout"] = "Permute5D_{}".format(layout)
         self._attrs["permute_shape"] = "_".join(map(str, shape))
 
     def __call__(self, a: Tensor, b: Tensor) -> Tensor:
@@ -53,7 +56,6 @@ class gemm_rcr_permute(gemm_rcr):
         self._set_depth()
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b)
-        self._extract_epilogue_alignment(output_shape)
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
@@ -65,8 +67,35 @@ class gemm_rcr_permute(gemm_rcr):
             m, n = output_shape
             t1, t2, t3 = self._attrs["shape"]
             output_shape = [t2, m.value() // t1, t3, t1, n.value() // t2 // t3]
+            # output alignment needs to be calculated based on the reshaped last dim
+            self._extract_epilogue_alignment(output_shape)
+            return reshape()(output, output_shape)
+        elif (
+            self._attrs["layout"] == "Permute4D_0213"
+            and detect_target().name() == "cuda"
+        ):
+            m, n = output_shape
+            t1, t2 = self._attrs["shape"]
+            if not isinstance(m, IntImm):
+                vals = []
+                for val in m._attrs["values"]:
+                    assert val % t1 == 0
+                    vals.append(val // t1)
+                dim0 = IntVar(vals)
+            else:
+                assert m.value() % t1 == 0
+                dim0 = m.value() // t1
+            output_shape = [dim0, t2, t1, n.value() // t2]
+            # output alignment needs to be calculated based on the reshaped last dim
+            self._extract_epilogue_alignment(output_shape)
             return reshape()(output, output_shape)
         else:
             raise NotImplementedError(
                 "{} is not implemented!".format(self._attrs["layout"])
             )
+
+    def _get_op_attributes(self):
+        return {
+            "layout": self._attrs["layout"].split("_")[-1],
+            "shape": self._attrs["shape"],
+        }

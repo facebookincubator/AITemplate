@@ -17,11 +17,6 @@ Slice backend common implementation.
 """
 import jinja2
 
-CAST_TO_CONST_HALF_PTR_TEMPLATE = jinja2.Template("reinterpret_cast<half*>({{name}})")
-
-
-CAST_TO_HALF_PTR_TEMPLATE = jinja2.Template("reinterpret_cast<const half*>({{name}})")
-
 
 SHAPE_UPDATE_FUNC = jinja2.Template(
     """
@@ -59,9 +54,9 @@ SHAPE_UPDATE_FUNC = jinja2.Template(
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-    {{elem_output_type}} * /*output*/,
+    void * /*output*/,
     int64_t *[] /*output_shape*/,
-    const {{elem_input_type}} *[] /*inputs*/,
+    const void *[] /*inputs*/,
     const int64_t *[] /*input_shapes*/,
     const int64_t *[] /*orig_slice_start_indices*/,
     const int64_t *[] /*orig_slice_end_indices*/,
@@ -203,9 +198,9 @@ slice_scatter_kernel(
   int64_t scatter_dim_size = slice_meta_data.dim_sizes[block_y];
   int64_t scatter_offset = slice_meta_data.offsets[block_y];
 
-  unsigned read_t_sz = sizeof(READ_T);
-  unsigned elem_t_sz = sizeof(ELEM_T);
-  assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
+  constexpr unsigned read_t_sz = sizeof(READ_T);
+  constexpr unsigned elem_t_sz = sizeof(ELEM_T);
+  static_assert(read_t_sz >= elem_t_sz && (read_t_sz % elem_t_sz == 0));
   {{index_type}}  n_of_elem_t = read_t_sz / elem_t_sz;
   // number of READ_T elements per thread
   {{index_type}}  reads_per_thread_in_read_t = ElemsPerThread / n_of_elem_t;
@@ -275,7 +270,6 @@ static inline LoadVecType get_vec_type(int64_t dim_size) {
 template <typename ELEM_T, {{index_type}}  Rank>
 static LoadVecType get_input_vec_type(
     const int64_t *output_strides,
-    const ELEM_T *input,
     const int64_t *input_shape,
     const int64_t *input_strides,
     const int64_t *slice_start_indices,
@@ -404,7 +398,6 @@ void slice_scatter_kernel_launcher(
   for ({{index_type}}  i = 0; i < NumInputs; i++) {
     LoadVecType vec_type = get_input_vec_type<ELEM_T, Rank>(
         scatter_meta_data.output_strides,
-        inputs[i],
         input_shapes[i],
         slice_meta_data.input_strides[i],
         slice_start_indices[i].data(),
@@ -516,7 +509,7 @@ EXEC_COND_TEMPLATE = jinja2.Template(
 {{indent}}                                {{num_inputs}}/*NumInputs*/,
 {{indent}}                                {{elems_per_thread}}/*ElemsPerThread*/,
 {{indent}}                                {{threads_per_block}}/*ThreadsPerBlock*/>(
-{{indent}}      output, local_output_shape, inputs, input_shapes,
+{{indent}}      static_cast<{{elem_type}}*>(output), local_output_shape, reinterpret_cast<const {{elem_type}}**>(inputs), input_shapes,
 {{indent}}      slice_start_indices, slice_end_indices, scatter_dim, stream);
 {{indent}}  return;
 {{indent}}}
@@ -529,9 +522,9 @@ SRC_TEMPLATE = jinja2.Template(
 {{kernel_src}}
 
 void {{func_name}}(
-    {{elem_output_type}} *output,
+    void *output,
     int64_t *output_shape[],
-    const {{elem_input_type}} *inputs[],
+    const void *inputs[],
     const int64_t *input_shapes[],
     const int64_t *orig_slice_start_indices[],
     const int64_t *orig_slice_end_indices[],
@@ -615,7 +608,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}{
 {{output_shape_def}}
 
-{{indent}}  const half *inputs[] = {
+{{indent}}  const void *inputs[] = {
 {{indent}}    {{inputs}}
 {{indent}}  };
 
@@ -687,14 +680,8 @@ def gen_function_decl(func_attrs, backend_spec):
     str
         Rendered function declaration.
     """
-    x = func_attrs["inputs"][0]
-    y = func_attrs["outputs"][0]
-    input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_attrs["name"],
-        elem_output_type=output_type,
-        elem_input_type=input_type,
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
     )
@@ -742,6 +729,9 @@ def gen_function(
     input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
     output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
 
+    if input_type != output_type:
+        raise NotImplementedError("input type must equal to output type")
+
     # TODO: consider to add profiling paths for tuning
     # elems_per_thread and threads_per_block
     exec_paths = EXEC_COND_TEMPLATE.render(
@@ -774,8 +764,6 @@ def gen_function(
     return SRC_TEMPLATE.render(
         kernel_src=kernel_src,
         func_name=func_attrs["name"],
-        elem_input_type=input_type,
-        elem_output_type=output_type,
         shape_function=shape_func,
         exec_paths=exec_paths,
         index_type=backend_spec.index_type,
@@ -827,12 +815,7 @@ def gen_function_call(
     x = inputs[0]
     y = outputs[0]
 
-    input_names = ",\n        ".join(
-        [
-            backend_spec.cast_to_const_half_ptr_template.render(name=i._attrs["name"])
-            for i in inputs
-        ]
-    )
+    input_names = ",\n        ".join([i._attrs["name"] for i in inputs])
 
     input_shape_defs = []
     input_shape_names = []
@@ -880,14 +863,11 @@ def gen_function_call(
             indent=indent, output_name=y._attrs["name"], output_dim_refs=y_dim_refs
         )
 
-    casted_y_ptr = backend_spec.cast_to_half_ptr_template.render(name=y._attrs["name"])
-
     return FUNC_CALL_TEMPLATE.render(
         indent=indent,
         func_name=func_name,
-        output_elem_type=backend_spec.dtype_to_backend_type(y._attrs["dtype"]),
         output_name=y._attrs["name"],
-        output_ptr=casted_y_ptr,
+        output_ptr=y._attrs["name"],
         output_shape_def=output_shape_def,
         inputs=input_names,
         input_shape_defs="".join(input_shape_defs),

@@ -66,10 +66,10 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     {M, N, K},
     split_k,
     {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
-    (void*) a_ptr,
-    (void*) b_ptr,
-    (void*) bias_ptr,
-    (void*) (c_ptr + output_offset),
+    ({{elem_input_type}}*)(a_ptr),
+    ({{elem_input_type}}*)(b_ptr),
+    ({{elem_input_type}}*)(bias_ptr),
+    ({{elem_output_type}}*)(c_ptr) + output_offset,
     M * K,
     N * K,
     N,
@@ -88,10 +88,11 @@ def gemm_rcr_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.gemm_rcr_bias_tanh.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     return common_bias_activation.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         PROBLEM_ARGS_TEMPLATE,
         extra_code=EXTRA_CODE.render(),

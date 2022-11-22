@@ -23,6 +23,8 @@ import multiprocessing
 import os
 import pathlib
 import re
+import shlex
+import subprocess
 import typing
 from typing import Optional
 
@@ -33,6 +35,30 @@ from .target import Target
 from .task_runner import BaseRunner, Task
 
 # pylint: disable=W0221,C0103
+
+
+def _run_make_cmds(cmds, timeout):
+    logger.debug(__name__, f"make {cmds=}")
+    proc = subprocess.Popen(
+        [" && ".join(cmds)],
+        shell=True,
+        env=os.environ.copy(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    try:
+        out, err = proc.communicate(timeout)
+    except subprocess.TimeoutExpired as e:
+        proc.kill()
+        out, err = proc.communicate()
+        raise e
+    finally:
+        if proc.returncode != 0:
+            # Let's always print out more info upon any failures.
+            logger_f = logger.info
+        else:
+            logger_f = logger.debug
+        logger_f(__name__, f"make stdout: {out.decode()}\nmake stderr: {err.decode()}")
 
 
 def process_task(task: Task) -> None:
@@ -156,6 +182,8 @@ class Builder(object):
         if num_builder is not None:
             n_jobs = int(num_builder)
         self._runner = Runner(n_jobs, timeout)
+        self._n_jobs = n_jobs
+        self._timeout = timeout
 
     def build_objs(
         self,
@@ -250,14 +278,17 @@ obj_files = {{obj_files}}
 %.obj : %.bin
     {{bfile_cmd}}
 
-.PHONY: all
+.PHONY: all clean clean_constants
 all: {{target}}
 
 {{target}}: $(obj_files)
     $(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)
 
 clean:
-    rm -f *.obj test.so
+    rm -f *.obj {{target}} test.so
+
+clean_constants:
+    rm -f constants.bin
 """
         )
 
@@ -293,3 +324,74 @@ clean:
         with open(dumpfile, "w+") as f:
             # fix the makefile indentation
             f.write(re.sub("^    ", "\t", makefile_str, flags=re.M))
+
+    def _gen_makefile_for_profilers(self, file_pairs, profiler_dir):
+        makefile_template = jinja2.Template(
+            """
+programs = {{programs}}
+all: $(programs)
+.PHONY: all clean
+
+$(programs): %: %.{{cpp}}
+    {{cc_cmd}}
+
+clean:
+    rm -f $(programs)
+"""
+        )
+        program_relative_paths = sorted(
+            {f[1].split(os.path.join(profiler_dir, ""))[-1] for f in file_pairs}
+        )
+        logger.info(__name__, f"compiling {len(program_relative_paths)} profiler srcs")
+        programs = " ".join(program_relative_paths)
+        cc = Target.current().cc()
+        cpp = "cpp"
+        if "nvcc" in cc:
+            cpp = "cu"
+        cc_cmd = Target.current().compile_cmd(True).format(target="$@", src="$<")
+        makefile_str = makefile_template.render(
+            cpp=cpp,
+            programs=programs,
+            cc_cmd=cc_cmd,
+        )
+
+        dumpfile = os.path.join(profiler_dir, "Makefile")
+        with open(dumpfile, "w+") as f:
+            # fix the makefile indentation
+            f.write(re.sub("^    ", "\t", makefile_str, flags=re.M))
+
+    def make_profilers(self, generated_profilers, workdir):
+        file_pairs = [f for gp in generated_profilers for f in gp]
+        if not file_pairs:
+            return
+        build_dir = shlex.quote(os.path.join(workdir, "profiler"))
+        self._gen_makefile_for_profilers(file_pairs, build_dir)
+        make_path = shlex.quote(Target.current().make())
+        make_flags = " ".join(
+            [
+                "--output-sync",
+                f"-C {build_dir}",
+            ]
+        )
+        make_clean_cmd = f" {make_path} {make_flags} clean "
+        make_all_cmd = f" {make_path} {make_flags} -j{self._n_jobs} all "
+        cmds = [make_clean_cmd, make_all_cmd]
+        _run_make_cmds(cmds, self._timeout)
+
+    def make(self, file_pairs, dll_name, workdir, test_name):
+        self.gen_makefile(file_pairs, dll_name, workdir, test_name)
+        make_path = shlex.quote(Target.current().make())
+        build_dir = shlex.quote(os.path.join(workdir, test_name))
+        make_flags = " ".join(
+            [
+                "--output-sync",
+                f"-C {build_dir}",
+            ]
+        )
+        make_clean_cmd = f" {make_path} {make_flags} clean "
+        make_all_cmd = f" {make_path} {make_flags} -j{self._n_jobs} all "
+        make_clean_constants_cmd = f" {make_path} {make_flags} clean_constants "
+        cmds = [make_clean_cmd, make_all_cmd]
+        if not logger.is_debug():
+            cmds.append(make_clean_constants_cmd)
+        _run_make_cmds(cmds, self._timeout)

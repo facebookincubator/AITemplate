@@ -93,8 +93,20 @@ def _is_strided_gemm(op_type: str) -> bool:
 
 
 def _gemm_cat_checker(gemm_op: Operator, cat_op: Operator) -> bool:
+    shapes = gemm_op._attrs["output_accessors"][0].original_shapes
+    rank = len(shapes)
+    cat_dim = cat_op._attrs["concat_dim"]
+    # For > 2D gemms, the only cat_dim possible is the last dim
+    # or cases like [m1, m2, 1, n] with cat_dim = -2 or -1
+    if rank > 2 and cat_dim != rank - 1:
+        for shape in shapes[cat_dim:-1]:
+            if shape.value() != 1:
+                return False
+
+    # Only correct for row major in C (C = A @ B)
     return transform_strided_ops_utils.gemm_stride_checker(
-        gemm_op._attrs["output_accessors"][0], cat_op._attrs["concat_dim"]
+        gemm_op._attrs["output_accessors"][0],
+        cat_dim,
     )
 
 

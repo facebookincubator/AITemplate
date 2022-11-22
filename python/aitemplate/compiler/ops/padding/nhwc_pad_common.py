@@ -94,6 +94,12 @@ class nhwc_pad_common(Operator):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        return {
+            "padded_channels": self._attrs["op"].split("to")[-1],
+            "shape_func_template": self.shape_eval_template,
+        }
+
     def gen_function(self) -> str:
         target = backend.target.Target.current()
         template_path = target.template_path()

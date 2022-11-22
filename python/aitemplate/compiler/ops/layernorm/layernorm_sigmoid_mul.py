@@ -15,6 +15,8 @@
 """
 Operator definition for layernorm_sigmoid_mul.
 """
+from aitemplate.compiler.stable_set import StableSet
+
 from .... import backend
 from ....backend import registry
 from ...base import Operator
@@ -72,7 +74,7 @@ class layernorm_sigmoid_mul(Operator):
 
         assert len(self._attrs["outputs"]) == 1
         output_tensor = self._attrs["outputs"][0]
-        output_tensor._attrs["src_ops"] = {self}
+        output_tensor._attrs["src_ops"] = StableSet([self])
 
         # update output tensor shape
         # hack for fixing dynamic shape with elementwise fusion issue
@@ -80,13 +82,18 @@ class layernorm_sigmoid_mul(Operator):
         for i, shape_var in enumerate(output_tensor._attrs["shape"]):
             shape_var._attrs["values"] = x._attrs["shape"][i]._attrs["values"]
 
-        sigmoid._attrs["inputs"][0]._attrs["src_ops"] = set()
-        sigmoid._attrs["inputs"][0]._attrs["dst_ops"] = set()
-        sigmoid._attrs["outputs"][0]._attrs["src_ops"] = set()
-        sigmoid._attrs["outputs"][0]._attrs["dst_ops"] = set()
+        sigmoid._attrs["inputs"][0]._attrs["src_ops"] = StableSet()
+        sigmoid._attrs["inputs"][0]._attrs["dst_ops"] = StableSet()
+        sigmoid._attrs["outputs"][0]._attrs["src_ops"] = StableSet()
+        sigmoid._attrs["outputs"][0]._attrs["dst_ops"] = StableSet()
 
     def __call__(self):
         return self._attrs["outputs"][0]
+
+    def _get_op_attributes(self):
+        raise NotImplementedError(
+            "layernorm_sigmoid_mul get op attribute not implemented"
+        )
 
     def gen_function(self) -> str:
         target = backend.target.Target.current()

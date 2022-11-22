@@ -49,23 +49,26 @@ def gemm_rcr_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.perm021fc_crc_bias.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     args_parser = bmm_common.ARGS_PARSER_TEMPLATE.render(
         a_dims=["1", "K", "N"], b_dims=["B", "K", "M"], c_dims=["B", "M", "N"]
     )
 
     problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
-        mm_info=_get_problem_info(alpha_value=func_attrs.get("alpha", 1))
+        mm_info=_get_problem_info(
+            alpha_value=func_attrs.get("alpha", 1),
+        ),
     )
 
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common_bias.SRC_TEMPLATE,
         problem_args,
         args_parser,
-        bias_ptr_arg="memory_pool->RequestHalfTensorByIdx(3)",
+        bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
     )
 
 
@@ -76,7 +79,9 @@ def gen_function(
     dim_info_dict,
 ):
     problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
-        mm_info=_get_problem_info(alpha_value=func_attrs.get("alpha", 1))
+        mm_info=_get_problem_info(
+            alpha_value=func_attrs.get("alpha", 1),
+        ),
     )
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)

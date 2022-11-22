@@ -21,6 +21,7 @@ from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.public import IntImm
+from aitemplate.compiler.stable_set import StableSet
 from aitemplate.compiler.transform import transform_utils
 from aitemplate.utils import graph_utils
 
@@ -86,7 +87,7 @@ def _fuse_strided_op_and_view_op_single_pass(
                     accessor.update_base_tensor_shape(tensor)
                     tensor._attrs["is_view_of"] = None
                     src_op._attrs["outputs"][idx] = tensor
-                    tensor._attrs["src_ops"] = {src_op}
+                    tensor._attrs["src_ops"] = StableSet({src_op})
                     transform_utils.remove_tensor_from_sorted_graph(view_input_tensor)
                     break
             assert (

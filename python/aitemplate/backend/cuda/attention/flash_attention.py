@@ -23,10 +23,6 @@ from ... import registry
 
 # pylint: disable=C0301
 
-FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<half*>(&({{name}}->raw()))"
-)
-
 FUNC_CALL_INT32_PARAM_TEMPLATE = jinja2.Template("reinterpret_cast<int*>({{name}})")
 
 FUNC_CALL_FP32_PARAM_TEMPLATE = jinja2.Template("reinterpret_cast<float*>({{name}})")
@@ -202,8 +198,8 @@ void set_params(Fused_multihead_attention_fprop_params &params,
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-void {{func_name}}(half* output,
-                   const half* qkv,
+void {{func_name}}(void* output,
+                   const void* qkv,
                    const int* cu_seqlens,
                    float* softmax_lse,
                    float* o_tmp,
@@ -275,13 +271,9 @@ def flash_attention_gen_function_call(func_attrs, indent="  "):
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 2
 
-    output_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][0]._attrs["name"]
-    )
+    output_name = func_attrs["outputs"][0]._attrs["name"]
 
-    qkv_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["inputs"][0]._attrs["name"]
-    )
+    qkv_name = func_attrs["inputs"][0]._attrs["name"]
 
     seqlens_name = FUNC_CALL_INT32_PARAM_TEMPLATE.render(
         name=func_attrs["inputs"][1]._attrs["name"]
@@ -303,8 +295,8 @@ def flash_attention_gen_function_call(func_attrs, indent="  "):
         output=output_name,
         qkv=qkv_name,
         cu_seqlens=seqlens_name,
-        softmax_lse="reinterpret_cast<float*>(global_workspace)",
-        o_tmp="reinterpret_cast<float*>(global_workspace + {} * sizeof(float))".format(
+        softmax_lse="reinterpret_cast<float*>(global_workspace_)",
+        o_tmp="reinterpret_cast<float*>(global_workspace_ + {} * sizeof(float))".format(
             batch_size * num_heads * seq_len
         ),
         batch_size=batch_size,

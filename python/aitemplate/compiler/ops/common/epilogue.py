@@ -57,3 +57,7 @@ class FuncEnum(Enum):
     NAN_TO_NUM = 19
     CLAMP_NAN_TO_NUM = 20
     SILU = 21
+    POW = 22
+    GELU = 23
+    FASTGELU = 24
+    SOFTPLUS = 25

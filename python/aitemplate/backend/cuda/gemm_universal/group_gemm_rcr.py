@@ -29,10 +29,10 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
         problem_count,
         threadblock_count,
         {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},
-        ptr_A,
-        ptr_B,
-        ptr_C,
-        ptr_C,
+        ({{elem_input_type}}**)(ptr_A),
+        ({{elem_input_type}}**)(ptr_B),
+        ({{elem_output_type}}**)(ptr_C),
+        ({{elem_output_type}}**)(ptr_C),
         lda,
         ldb,
         ldc,
@@ -43,13 +43,13 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 
 @registry.reg("cuda.group_gemm_rcr.config")
 def group_rcr_config(func_attrs, dtype="float16"):
-    common.make_fproc_f16(func_attrs, RCR)
+    common.make_fproc(func_attrs, RCR)
 
 
 @registry.reg("cuda.group_gemm_rcr.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
-    group_common.gen_profiler(
-        func_attrs, workdir, shape_template, PROBLEM_ARGS_TEMPLATE
+def gen_profiler(func_attrs, workdir, profiler_filename, shape_template):
+    return group_common.gen_profiler(
+        func_attrs, workdir, profiler_filename, shape_template, PROBLEM_ARGS_TEMPLATE
     )
 
 

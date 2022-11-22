@@ -21,6 +21,7 @@ from typing import Any, Dict, List
 
 import jinja2
 
+from ...backend_spec import CUDASpec
 from ...common import tensor_accessor_codegen
 from . import common
 
@@ -77,13 +78,13 @@ FUNC_DECL_TEMPLATE = jinja2.Template(
 {{indent}} int,
 {{indent}} int64_t*,
 {{indent}} int,
-{{indent}} cutlass::half_t*,
+{{indent}} void*,
 {% for i in range(groups) %}
-{{indent}} cutlass::half_t*,
-{{indent}} cutlass::half_t*,
-{{indent}} cutlass::half_t*,
+{{indent}} void*,
+{{indent}} void*,
+{{indent}} void*,
 {% if has_bias %}
-{{indent}} cutlass::half_t*,
+{{indent}} void*,
 {% endif %}
 {% endfor %}
 {{indent}} uint8_t*,
@@ -104,8 +105,11 @@ FUNC_DECL_TEMPLATE = jinja2.Template(
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
-{{indent}} device_properties.sharedMemPerMultiprocessor,
-{{indent}} device_properties.multiProcessorCount,
+{% if is_profiler %}
+{{indent}}    gemm_op,
+{% endif %}
+{{indent}} device_properties_.sharedMemPerMultiprocessor,
+{{indent}} device_properties_.multiProcessorCount,
 {{indent}} &{{func_name}}_state,
 {{indent}} {{problem_count}},
 {{indent}} {{device_args}},
@@ -117,7 +121,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}} {{operand[3]}},
 {% endif %}
 {% endfor %}
-{{indent}} global_workspace,
+{{indent}} global_workspace_,
 {% for operand_dim in group_operand_dims %}
 {{indent}} {{operand_dim[0]}},
 {{indent}} {{operand_dim[1]}},
@@ -160,22 +164,25 @@ ADAPTOR_FUNCTION_TEMPLATE = jinja2.Template(
     }                                                                                 \\
   }
 
-{{instance}}
+{{instances}}
 
 {% endif %}
 
-{{indent}}template<typename GEMMKind>
+{{indent}}template<typename GemmInstance>
 {{indent}}void {{func_name}}_adapter(
+{%if is_profiler %}
+    GemmInstance& gemm_op,
+{% endif %}
     int sharedMemPerMultiprocessor,
     int multiProcessorCount,
     uint8_t* workspace,
     int problem_count,
     cutlass::gemm::GemmCoord* problem_sizes_device,
-    cutlass::half_t **ptr_A,
-    cutlass::half_t **ptr_B,
-    cutlass::half_t **ptr_C,
+    void **ptr_A,
+    void **ptr_B,
+    void **ptr_C,
 {% if has_bias %}
-    cutlass::half_t **ptr_bias,
+    void **ptr_bias,
 {% endif %}
     int64_t* lda,
     int64_t* ldb,
@@ -199,6 +206,9 @@ ADAPTOR_FUNCTION_TEMPLATE = jinja2.Template(
 ADAPTER_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}_adapter<{{instance}}>(
+{% if is_profiler %}
+    gemm_op,
+{% endif %}
     {{sharedMemPerMultiprocessor}},
     {{multiProcessorCount}},
     {{workspace}},
@@ -225,11 +235,50 @@ ADAPTER_CALL_TEMPLATE = jinja2.Template(
 )
 
 
+BENCHMARK_INSTANCE_TEMPLATE = jinja2.Template(
+    """
+{{indent}}{
+{{indent}}
+{{indent}}{{instance_name}} {{gemm_op}};
+{{indent}}const char *gemm_op_name = "{{gemm_op_name}}";
+{{indent}}int ret = {{func_name}}_adapter(
+{{indent}}    {{gemm_op}},
+{{indent}}    gemm_op_name,
+{{indent}}    {{sharedMemPerMultiprocessor}},
+{{indent}}    {{multiProcessorCount}},
+{{indent}}    {{workspace}},
+{{indent}}    {{problem_count}},
+{{indent}}    {{problem_sizes_device}},
+{{indent}}    (void**)({{ptr_A}}),
+{{indent}}    (void**)({{ptr_B}}),
+{{indent}}    (void**)({{ptr_C}}),
+{% if has_bias %}
+{{indent}}    (void**)({{ptr_bias}}),
+{% endif %}
+{{indent}}    {{lda}},
+{{indent}}    {{ldb}},
+{{indent}}    {{ldc}},
+{% if has_bias %}
+{{indent}}    {{ldd}},
+{% endif %}
+{{indent}}    {{instance_name}}::maximum_active_blocks(),
+{{indent}}    stream
+{{indent}}    );
+{{indent}}if (ret != 0)
+{{indent}}  return ret;
+{{indent}}
+{{indent}}}
+""",
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
+
+
 EXEC_TEMPLATE = jinja2.Template(
     """
 //  TODO: cast to right dtype
-{{indent}}using ElementComputeEpilogue = typename GEMMKind::ElementAccumulator;
-{{indent}}// int smem_size = int(sizeof(typename GEMMKind::GemmKernel::SharedStorage));
+{{indent}}using ElementComputeEpilogue = typename {{instance}}::ElementAccumulator;
+{{indent}}// int smem_size = int(sizeof(typename {{instance}}::GemmKernel::SharedStorage));
 {{indent}}// int occupancy = std::min(2, int(sharedMemPerMultiprocessor / smem_size));
 {{indent}}int threadblock_count = multiProcessorCount * occupancy;
 {{indent}}// Early exit
@@ -240,18 +289,19 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}}
 
 
-{{indent}}typename GEMMKind::Arguments arguments{
+{{indent}}typename {{instance}}::Arguments arguments{
 
 {{problem_args}}
 
 {{indent}}};
-{{indent}}GEMMKind gemm_op;
 {% if is_profiler %}
 {{indent}}// Debug BGM: https://www.youtube.com/watch?v=rRwxfYlgG-M
 {{indent}}size_t workspace_size = gemm_op.get_workspace_size(arguments);
 {{indent}}cutlass::device_memory::allocation<uint8_t> local_workspace(workspace_size);
 {{indent}}workspace = local_workspace.get();
 {{indent}}GLOBAL_WORKSPACE_SIZE = workspace_size;
+{% else %}
+{{indent}}{{instance}} gemm_op;
 {% endif %}
 {{indent}}// TODO: cutlass bug here
 {{indent}}// auto status = gemm_op.can_implement(arguments);
@@ -310,21 +360,27 @@ void copy(T* dst, T const* src, size_t count, cudaMemcpyKind kind) {
 
 {{func_adapter}}
 
+{% if is_profiler %}
+template <typename GemmInstance>
 void {{function_name}} (
+    GemmInstance& gemm_op,
+{% else %}
+void {{function_name}} (
+{% endif %}
     int sharedMemPerMultiprocessor,
     int multiProcessorCount,
     int64_t* func_state,
     int problem_count,
-    cutlass::half_t* device_args,
+    void* device_args,
     {% for operand in group_operands %}
-    cutlass::half_t* {{operand[0]}},
-    cutlass::half_t* {{operand[1]}},
-    cutlass::half_t* {{operand[2]}},
+    void* {{operand[0]}},
+    void* {{operand[1]}},
+    void* {{operand[2]}},
     {% if has_bias %}
-    cutlass::half_t* {{operand[3]}},
+    void* {{operand[3]}},
     {% endif %}
     {% endfor %}
-    uint8_t* global_workspace,
+    uint8_t* global_workspace_,
 {% for operand_dim in group_operand_dims %}
     int64_t* {{operand_dim[0]}},
     int64_t* {{operand_dim[1]}},
@@ -369,7 +425,7 @@ void {{function_name}} (
 
 {% endfor %}
 
-    uint8_t* arg_ptr = (uint8_t*) device_args;
+    void* arg_ptr = device_args;
     // problem_sizes_device: N * GemmCoord -> N * 3 * sizeof(int64_t) -> 32 * N
     // ptrA/B/C/D: N * 8 for each
     // lda/b/c/d: N * 8 for each
@@ -380,14 +436,14 @@ void {{function_name}} (
         (cutlass::gemm::GemmCoord*)(arg_ptr + offset);
     offset += 32 * problem_count;
 
-    auto ptr_A = (cutlass::half_t**)(arg_ptr + offset);
+    auto ptr_A = (void**)(arg_ptr + offset);
     offset += 8 * problem_count;
-    auto ptr_B = (cutlass::half_t**)(arg_ptr + offset);
+    auto ptr_B = (void**)(arg_ptr + offset);
     offset += 8 * problem_count;
-    auto ptr_C = (cutlass::half_t**)(arg_ptr + offset);
+    auto ptr_C = (void**)(arg_ptr + offset);
     offset += 8 * problem_count;
     {% if has_bias %}
-    auto ptr_bias = (cutlass::half_t**)(arg_ptr + offset);
+    auto ptr_bias = (void**)(arg_ptr + offset);
     offset += 8 * problem_count;
     {% endif %}
 
@@ -405,11 +461,11 @@ void {{function_name}} (
     if (*func_state != GROUP_0_AM) {
         // need update
         std::vector<cutlass::gemm::GemmCoord> problem_sizes;
-        std::vector<cutlass::half_t*> ptr_A_host;
-        std::vector<cutlass::half_t*> ptr_B_host;
-        std::vector<cutlass::half_t*> ptr_C_host;
+        std::vector<void*> ptr_A_host;
+        std::vector<void*> ptr_B_host;
+        std::vector<void*> ptr_C_host;
         {% if has_bias %}
-        std::vector<cutlass::half_t*> ptr_bias_host;
+        std::vector<void*> ptr_bias_host;
         {% endif %}
         std::vector<int64_t> lda_host;
         std::vector<int64_t> ldb_host;
@@ -419,11 +475,11 @@ void {{function_name}} (
         {% endif %}
 
         {% for operand in group_operands %}
-        ptr_A_host.push_back({{operand[0]}} + input_a_offset_{{loop.index0}});
-        ptr_B_host.push_back({{operand[1]}});
-        ptr_C_host.push_back({{operand[2]}} + output_offset_{{loop.index0}});
+        ptr_A_host.push_back(({{elem_input_type}}*)({{operand[0]}}) + input_a_offset_{{loop.index0}});
+        ptr_B_host.push_back(({{elem_input_type}}*)({{operand[1]}}));
+        ptr_C_host.push_back(({{elem_output_type}}*)({{operand[2]}}) + output_offset_{{loop.index0}});
         {% if has_bias %}
-        ptr_bias_host.push_back({{operand[3]}});
+        ptr_bias_host.push_back(({{elem_input_type}}*)({{operand[3]}}));
         {% endif %}
         {% endfor %}
 
@@ -514,6 +570,9 @@ ARGS_PARSER_TEMPLATE = jinja2.Template(
 
 TENSOR_DECL_TEMPLATE = jinja2.Template(
     """
+  using ElementOutput = {{elem_output_type}};
+  using ElementInputA = {{elem_input_type}};
+  using ElementInputB = {{elem_input_type}};
   cutlass::DeviceAllocation<ElementInputA> blob_A;
   cutlass::DeviceAllocation<ElementInputB> blob_B;
   cutlass::DeviceAllocation<ElementOutput> blob_C;
@@ -733,6 +792,7 @@ def group_gemm_instance(op_def: str, func_attrs: Dict[str, Any], for_profiler: b
 def gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     shape_template,
     problem_args_template,
     has_bias=False,
@@ -740,9 +800,31 @@ def gen_profiler(
 ):
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    elem_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
 
-    file_pairs = []
-    for op_name, op in op_instance.items():
+    instance_name_base = "GemmInstance"
+    exec_program = EXEC_TEMPLATE.render(
+        indent="  ",
+        instance=instance_name_base,
+        is_profiler=True,
+        problem_args=problem_args_template.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+        ),
+    )
+
+    instances = []
+    benchmark_instances = []
+    for instance_idx, (op_name, op) in enumerate(op_instance.items()):
         config = common.emit_instance(
             op,
             for_profiler=True,
@@ -750,29 +832,20 @@ def gen_profiler(
             emit_kernel=True,
         )
         config_name = common.extract_config_name(config)
-        name = "GemmInstance"
+        instance_name = f"{instance_name_base}_{instance_idx}"
+        gemm_op = f"gemm_op_{instance_idx}"
         instance = INSTANCE_TEMPLATE.render(
-            config_name=config_name, name=name, config=config
+            config_name=config_name, name=instance_name, config=config
         )
-
-        # instance = instance
-        exec_program = EXEC_TEMPLATE.render(
-            indent="  ", is_profiler=True, problem_args=problem_args_template.render()
-        )
-        op_func = ADAPTOR_FUNCTION_TEMPLATE.render(
-            instance=instance,
-            is_profiler=True,
-            func_name=name,
-            indent=" ",
-            exec_program=exec_program,
-            has_bias=has_bias,
-        )
-        func_call = ADAPTER_CALL_TEMPLATE.render(
-            func_name=name,
-            instance=name,
+        benchmark_instance = BENCHMARK_INSTANCE_TEMPLATE.render(
+            indent="  ",
+            instance_name=instance_name,
+            gemm_op=gemm_op,
+            gemm_op_name=op_name,
+            func_name=f"benchmark_{instance_name_base}",
             sharedMemPerMultiprocessor="device_properties.sharedMemPerMultiprocessor",
             multiProcessorCount="device_properties.multiProcessorCount",
-            workspace="global_workspace",
+            workspace="global_workspace_",
             problem_count="problem_count",
             problem_sizes_device="problem_sizes_device.get()",
             ptr_A="ptr_A.get()",
@@ -785,16 +858,58 @@ def gen_profiler(
             ldc="ldc.get()",
             ldd="ldd.get()",
         )
-        code = common.PROFILER_TEMPLATE.render(
-            op_func=op_func,
-            args_parse=ARGS_PARSER_TEMPLATE.render(),
-            func_call=func_call,
-            name=name,
-            tensor_decl=TENSOR_DECL_TEMPLATE.render(name=name, has_bias=has_bias),
-        )
-        common.add_profiler(file_pairs, workdir, op_type, op_name, code)
+        instances.append(instance)
+        benchmark_instances.append(benchmark_instance)
+    op_func = ADAPTOR_FUNCTION_TEMPLATE.render(
+        instances="\n".join(instances),
+        is_profiler=True,
+        func_name=instance_name_base,
+        indent=" ",
+        exec_program=exec_program,
+        has_bias=has_bias,
+    )
+    func_call = ADAPTER_CALL_TEMPLATE.render(
+        is_profiler=True,
+        func_name=instance_name_base,
+        instance=instance_name_base,
+        sharedMemPerMultiprocessor="sharedMemPerMultiprocessor",
+        multiProcessorCount="multiProcessorCount",
+        workspace="global_workspace_",
+        problem_count="problem_count",
+        problem_sizes_device="problem_sizes_device",
+        ptr_A="ptr_A",
+        ptr_B="ptr_B",
+        ptr_C="ptr_C",
+        has_bias=has_bias,
+        ptr_bias="ptr_bias",
+        lda="lda",
+        ldb="ldb",
+        ldc="ldc",
+        ldd="ldd",
+    )
+    tensor_decl = TENSOR_DECL_TEMPLATE.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+        has_bias=has_bias,
+    )
+    code = common.PROFILER_TEMPLATE.render(
+        is_group_gemm=True,
+        op_func=op_func,
+        has_bias=has_bias,
+        args_parse=ARGS_PARSER_TEMPLATE.render(),
+        function_name=f"{instance_name_base}_adapter",
+        func_call=func_call,
+        name=instance_name_base,
+        tensor_decl=tensor_decl,
+        benchmark_instances="\n".join(benchmark_instances),
+        elem_type=elem_type,
+    )
+    # FIXME: remove file_pairs once we have make -j ready for building
+    # an entire graph
+    file_pairs = []
+    common.add_profiler(file_pairs, workdir, op_type, profiler_filename, code)
     # build
-    common.build_profiler(file_pairs)
+    return common.build_profiler(file_pairs)
 
 
 def gen_function(
@@ -804,7 +919,17 @@ def gen_function(
     problem_args_template,
     has_bias=False,
 ):
-    problem_args = problem_args_template.render()
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    problem_args = problem_args_template.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+    )
     func_name = func_attrs["name"]
     exec_path = func_attrs["exec_path"]
     op_instance = func_attrs["op_instance"]
@@ -873,7 +998,7 @@ def gen_function(
             instance=fname,
             sharedMemPerMultiprocessor="sharedMemPerMultiprocessor",
             multiProcessorCount="multiProcessorCount",
-            workspace="global_workspace",
+            workspace="global_workspace_",
             problem_count=func_attrs["groups"],
             problem_sizes_device="problem_sizes_device",
             ptr_A="ptr_A",
@@ -890,7 +1015,10 @@ def gen_function(
         exec_paths += exec_inst
 
     exec_program = EXEC_TEMPLATE.render(
-        indent="  ", is_profiler=False, problem_args=problem_args
+        indent="  ",
+        instance="GemmInstance",
+        is_profiler=False,
+        problem_args=problem_args,
     )
     adapter_func = ADAPTOR_FUNCTION_TEMPLATE.render(
         func_name=func_name, exec_program=exec_program, has_bias=has_bias
@@ -914,6 +1042,8 @@ def gen_function(
         instances=instance_decl,
         func_adapter=adapter_func,
         function_name=func_name,
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
         shape_function=shape_func,
         group_operands=group_operands,
         group_operand_dims=group_operand_dims,
@@ -962,7 +1092,7 @@ def gen_function_call(func_attrs, ndims, has_bias=False, indent="  "):
         operand_dims.append("&" + cshape[1]._attrs["name"])
         group_operands.append(operands)
         group_operand_dims.append(operand_dims)
-    device_args = f'reinterpret_cast<cutlass::half_t*>(unique_workspace + {func_attrs["unique_workspace_offset"]})'
+    device_args = f'unique_workspace_ + {func_attrs["unique_workspace_offset"]}'
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         problem_count=func_attrs["groups"],

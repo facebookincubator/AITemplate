@@ -87,7 +87,11 @@ class topk(Operator):
         self._attrs["outputs"] = [output]
         return output
 
+    def _get_op_attributes(self):
+        return {"k": self._attrs["topK"]}
+
     def gen_function(self) -> str:
+        """call backend function"""
         target = backend.target.Target.current()
         func_key = "{target}.{op}.gen_function".format(
             target=target.name(), op=self._attrs["op"]
@@ -98,12 +102,21 @@ class topk(Operator):
     def gen_profiler(
         self, workdir: str = None, dynamic_profiling_strategy=None
     ) -> None:
+        """Profile TopK to get workspace
+        Parameters
+        ----------
+        workdir : str, optional
+            [description], by default None
+        dynamic_profiling_strategy: DynamicProfileStrategy, optional
+            A dynamic profiling strategy, used to filter generated profiles at compile time.
+            See also: :func:`~aitemplate.compiler.transform.profile.profile`
+        """
         target = backend.target.Target.current()
         func_key = "{target}.{op}.gen_profiler".format(
             target=target.name(), op=self._attrs["op"]
         )
         func = registry.get(func_key)
-        func(self._attrs, workdir)
+        return func(self._attrs, workdir)
 
     def _gen_exec_key(self, shape: List[int]):
         """rending the shape info"""
@@ -147,12 +160,13 @@ class topk(Operator):
         runner.join()
         result = runner.pull()
 
-        out = sorted(result, key=lambda x: x[1])
-        if len(out) == 0:
+        if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " + "" + "failed. " "Results: {}.".format(result)
+                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
-        workspace = out[0][1].workspace
+
+        out = min(result, key=lambda x: x[1].duration)
+        workspace = out[1].workspace
         return workspace
 
     def profile(

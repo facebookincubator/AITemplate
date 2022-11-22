@@ -154,6 +154,14 @@ class efficient_nms(Operator):
         ]
         return output
 
+    def _get_op_attributes(self):
+        return {
+            "iouThreshold": self._attrs["iouThreshold"],
+            "minBoxSize": self._attrs["minBoxSize"],
+            "nmsMaxOut": self._attrs["nmsMaxOut"],
+            "preNmsTop": self._attrs["preNmsTop"],
+        }
+
     def _gen_exec_key(self, shape):
         """rendering shape info"""
         return self.exec_key_template.render(
@@ -187,7 +195,7 @@ class efficient_nms(Operator):
             target=target.name(), op=self._attrs["op"]
         )
         func = registry.get(func_key)
-        func(self._attrs, workdir)
+        return func(self._attrs, workdir)
 
     def _invert_exec_key(self, key):
         tmp = re.findall(r"(\d+)", key)
@@ -214,12 +222,13 @@ class efficient_nms(Operator):
         runner.join()
         result = runner.pull()
 
-        out = sorted(result, key=lambda x: x[1])
-        if len(out) == 0:
+        if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " + "" + "failed. " "Results: {}.".format(result)
+                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
-        workspace = out[0][1].workspace
+
+        out = min(result, key=lambda x: x[1].duration)
+        workspace = out[1].workspace
         return workspace
 
     def profile(

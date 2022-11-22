@@ -66,7 +66,7 @@ def gen_function(
     shape_func = shape_eval_func + shape_save_func
     exec_paths = ""
     for key in exec_path:
-        program = upsampling2d_common.EXEC_TEMPLATE.render()
+        program = upsampling2d_common.EXEC_TEMPLATE.render(dtype=input_type)
         exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return upsampling2d_common.SRC_TEMPLATE.render(

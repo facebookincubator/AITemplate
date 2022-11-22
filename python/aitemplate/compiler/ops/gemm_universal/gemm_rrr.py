@@ -32,7 +32,6 @@ class gemm_rrr(common.gemm):
 
     .. highlight:: python
     .. code-block:: python
-
         A = torch.randn(M, K).cuda().half()
         B = torch.randn(K, N).cuda().half()
 

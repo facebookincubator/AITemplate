@@ -20,9 +20,6 @@ from typing import Any, Dict, List
 
 import jinja2
 
-FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
-    "reinterpret_cast<half*>(&({{name}}->raw()))"
-)
 
 GAMMA_BETA_CONST_DEFS_TEMPLATE = jinja2.Template(
     """
@@ -100,14 +97,14 @@ def get_input_names(func_attrs: Dict[str, Any]) -> List[str]:
         beta = inputs[idx]
         idx += 1
 
-    input_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(name=x._attrs["name"])
+    input_name = x._attrs["name"]
     if gamma is None:
         gamma_name = "nullptr"
     else:
-        gamma_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(name=gamma._attrs["name"])
+        gamma_name = gamma._attrs["name"]
     if beta is None:
         beta_name = "nullptr"
     else:
-        beta_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(name=beta._attrs["name"])
+        beta_name = beta._attrs["name"]
 
     return (input_name, gamma_name, beta_name)

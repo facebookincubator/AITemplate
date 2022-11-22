@@ -26,8 +26,8 @@ import jinja2
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.utils.shape_utils import convert_shape_to_IntVar
 
-from ....utils.shape_utils import convert_shape_to_IntVar
 from ....utils.tensor_utils import wrap_dim
 
 
@@ -61,6 +61,16 @@ RESHAPE_FUNC_TEMPLATE = jinja2.Template(
 {{indent}}*out_{{unknown_idx}} = prod / out_prod;
 
 {% endif %}
+""",
+    trim_blocks=True,
+    lstrip_blocks=True,
+)
+
+DYNAMIC_RESHAPE_FUNC_TEMPLATE = jinja2.Template(
+    """
+{% for idx in range(input_ndim) %}
+{{indent}}*out_{{idx}} = *in_{{idx}};
+{% endfor %}
 """,
     trim_blocks=True,
     lstrip_blocks=True,
@@ -109,6 +119,7 @@ class _reshape_base(_view):
         self,
         y_shape_values: List[Union[List[int], int]],
         dynamic_dim: IntVar = None,
+        is_intvar_tensor: bool = False,
     ) -> List[IntVar]:
         """
         Make the output shape from the output shape values.
@@ -118,11 +129,12 @@ class _reshape_base(_view):
             if len(values) == 1:
                 output_shape.append(IntImm(values[0]))
             else:
-                assert (
-                    self._attrs["unknown_idx"] == -1
-                ), f"{self._attrs['op']} doesn't support multiple dynamic dims, "
-                "got {idx} and {self._attrs['unknown_idx']}"
-                self._attrs["unknown_idx"] = idx
+                if not is_intvar_tensor:
+                    assert (
+                        self._attrs["unknown_idx"] == -1
+                    ), f"{self._attrs['op']} doesn't support multiple dynamic dims, "
+                    "got {idx} and {self._attrs['unknown_idx']}"
+                    self._attrs["unknown_idx"] = idx
                 output_shape.append(
                     dynamic_dim if dynamic_dim is not None else IntVar(values=values)
                 )
@@ -150,8 +162,7 @@ def _is_dynamic_dim_reused(x_shape_values, y_shape_values) -> bool:
 class reshape(_reshape_base):
     """
     Returns a tensor with the same data and number of elements as input, but with the
-    specified shape. Inputs must be contiguous. It always returns a tensor view which
-    shares the same underlying data as the input.
+    specified shape. Inputs must be contiguous.
 
     A single dimension may be -1, in which case it’s inferred from the remaining
     dimensions and the number of elements in input.
@@ -162,6 +173,7 @@ class reshape(_reshape_base):
         super().__init__()
         self._attrs["op"] = "reshape"
         self.shape_eval_template = RESHAPE_FUNC_TEMPLATE
+        self.dynamic_eval_template = DYNAMIC_RESHAPE_FUNC_TEMPLATE
 
     def _infer_shape(self, x: Tuple[int], shape: Tuple[int]):
         new_shape = list(shape)
@@ -197,46 +209,59 @@ class reshape(_reshape_base):
         return new_shape
 
     def _infer_shapes(self, x: Tensor):
-        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
-        x_dynamic_dims = [
-            var for var in x._attrs["shape"] if 1 < len(var._attrs["values"])
-        ]
-        x_shapes = list(itertools.product(*x_shape_values))
+        # There are two cases:
+        # 1) there is only one unknown shape.
+        # 2) there is no unkown shape and all shape dimensions are represented as IntVarTensor
+        # For 1), the view op will deduce the shape of if one dim is labeled as -1,
+        #         but it can't do so with more than 1 dynamic dimension
+        # For 2), when all dynamic shapes are known, we should be able to pass the input shape to out.
+        #         i.e. we should skip the deduction when all shapes are known.
+        is_intvar = all([isinstance(var, IntVarTensor) for var in self._attrs["shape"]])
+        self._attrs["is_intvar"] = is_intvar
+        if not is_intvar:
+            x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
+            x_dynamic_dims = [
+                var for var in x._attrs["shape"] if 1 < len(var._attrs["values"])
+            ]
+            x_shapes = list(itertools.product(*x_shape_values))
 
-        new_shape_vals = [var._attrs["values"] for var in self._attrs["shape"]]
-        new_shapes = list(itertools.product(*new_shape_vals))
+            self._attrs["shape"] = convert_shape_to_IntVar(self._attrs["shape"])
+            new_shape_vals = [var._attrs["values"] for var in self._attrs["shape"]]
+            new_shapes = list(itertools.product(*new_shape_vals))
 
-        # len(x_shapes) > 1 means that at least 1 dim in the shapes of x is dynamic.
-        # len(new_shapes) > 1 means that the dynamic dim is retained; otherwise, it would
-        # have been replaced with -1 or a concrete number.
-        if len(x_shapes) > len(new_shapes):
-            # we only support two cases here, when len(x_shapes) > 1, len(x_shapes) must
-            # be either len(new_shapes) (the dynamic dim is retained) or 1 (use -1 to
-            # mark the dynamic or unknown index and no other dim is dynamic).
-            assert len(new_shapes) == 1
-            new_shapes = new_shapes * len(x_shapes)
+            # len(x_shapes) > 1 means that at least 1 dim in the shapes of x is dynamic.
+            # len(new_shapes) > 1 means that the dynamic dim is retained; otherwise, it would
+            # have been replaced with -1 or a concrete number.
+            if len(x_shapes) > len(new_shapes):
+                # we only support two cases here, when len(x_shapes) > 1, len(x_shapes) must
+                # be either len(new_shapes) (the dynamic dim is retained) or 1 (use -1 to
+                # mark the dynamic or unknown index and no other dim is dynamic).
+                assert len(new_shapes) == 1
+                new_shapes = new_shapes * len(x_shapes)
+            # run infershape for each
+            y_shapes = [
+                self._infer_shape(x_shape, new_shape)
+                for x_shape, new_shape in zip(x_shapes, new_shapes)
+            ]
 
-        # run infershape for each
-        y_shapes = [
-            self._infer_shape(x_shape, new_shape)
-            for x_shape, new_shape in zip(x_shapes, new_shapes)
-        ]
+            def unique(vector):
+                return sorted(set(vector))
 
-        def unique(vector):
-            return sorted(set(vector))
-
-        y_shape_values = list(map(unique, zip(*y_shapes)))
-        reuse_dynamic_dim = _is_dynamic_dim_reused(x_shape_values, y_shape_values)
-
-        return self.make_output_shape(
-            y_shape_values,
-            dynamic_dim=x_dynamic_dims[0] if reuse_dynamic_dim else None,
-        )
+            y_shape_values = list(map(unique, zip(*y_shapes)))
+            reuse_dynamic_dim = _is_dynamic_dim_reused(x_shape_values, y_shape_values)
+            return self.make_output_shape(
+                y_shape_values,
+                dynamic_dim=x_dynamic_dims[0] if reuse_dynamic_dim else None,
+            )
+        else:
+            new_shape_vals = [
+                shape._attrs["int_var"]._attrs["values"]
+                for shape in self._attrs["shape"]
+            ]
+            return self.make_output_shape(new_shape_vals, is_intvar_tensor=True)
 
     def __call__(self, x: Tensor, shape: List[Any]) -> Tensor:
-        self._attrs["shape"] = convert_shape_to_IntVar(
-            [shape] if isinstance(shape, int) else shape
-        )
+        self._attrs["shape"] = shape
         self._attrs["inputs"] = [x]
         for s in shape:
             if isinstance(s, IntVarTensor):
@@ -249,12 +274,20 @@ class reshape(_reshape_base):
         return output
 
     def gen_function(self) -> str:
+        # There are two cases:
+        # 1) there is only one unknown shape.
+        # 2) there is no unkown shape and all shape dimensions are represented as IntVarTensor
+        # For 1), at implementation, the uknown dimension = X.flatten()/(*known_out_shape)
+        # For 2), when all dynamic shapes are intVarTensor, output_shape = input_shape.
         target = backend.target.Target.current()
         func_key = "{target}.{op}.gen_function".format(
             target=target.name(), op=self._attrs["op"]
         )
         func = registry.get(func_key)
-        return func(self._attrs, self.shape_eval_template)
+        if self._attrs["is_intvar"]:
+            return func(self._attrs, self.dynamic_eval_template)
+        else:
+            return func(self._attrs, self.shape_eval_template)
 
     def _inputs_for_pseudo_code(self):
         return [
@@ -268,8 +301,6 @@ class flatten(_reshape_base):
     Flattens input by reshaping it into a one-dimensional tensor. If start_dim or end_dim
     are passed, only dimensions starting with start_dim and ending with end_dim are
     flattened. The order of elements in input is unchanged.
-
-    It always returns a tensor view.
     """
 
     def __init__(self, start_dim=0, end_dim=-1) -> None:
@@ -342,6 +373,9 @@ class flatten(_reshape_base):
         output = Tensor(output_shape, src_ops={self}, is_view_of=x)
         self._attrs["outputs"] = [output]
         return output
+
+    def _get_op_attributes(self):
+        return {"start_dim": self._attrs["start"], "end_dim": self._attrs["end"]}
 
     def gen_function(self) -> str:
         target = backend.target.Target.current()
@@ -438,6 +472,9 @@ class squeeze(_view):
         output = Tensor(output_shape, src_ops={self}, is_view_of=x)
         self._attrs["outputs"] = [output]
         return output
+
+    def _get_op_attributes(self):
+        return {"dim": self._attrs["dim"]}
 
     def gen_function(self) -> str:
         target = backend.target.Target.current()

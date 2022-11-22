@@ -33,8 +33,28 @@
 #define GROUP_NORM_CUDA_CHECK_LAUNCH() GROUP_NORM_CUDA_CHECK(cudaGetLastError())
 #endif
 
+__device__ half fast_tanh(half x) {
+  return half(cutlass::fast_tanh(float(x)));
+}
+
 __inline__ __device__ float sigmoid(float val) {
   return (cutlass::fast_tanh(val * 0.5f) + 1.0f) * 0.5f;
+}
+
+__device__ half constant_half() {
+  uint16_t bits = 0x3800u;
+  return reinterpret_cast<half const&>(bits);
+}
+
+__device__ half one() {
+  uint16_t bits = 0x3c00u;
+  return reinterpret_cast<half const&>(bits);
+}
+
+__inline__ __device__ half hsigmoid(half a) {
+  half half_val = constant_half();
+  half one_val = one();
+  return __hmul((__hadd(fast_tanh(__hmul(a, half_val)), one_val)), half_val);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -447,7 +467,7 @@ __global__ __launch_bounds__(NUM_THREADS) void group_norm_smem(
 }
 
 template <bool FuseSwish, int H, int W, int C, int num_groups>
-cudaError_t invokeWelfordGroupNorm(
+cudaError_t invokeWelfordGroupNorm_half(
     half* output,
     half* input,
     half* gamma,
@@ -512,8 +532,322 @@ cudaError_t invokeWelfordGroupNorm(
   return cudaSuccess;
 }
 
+template <typename SRC, typename DST, bool affine, bool FuseSwish>
+struct AffineStore {
+  AffineStore(
+      DST* y,
+      int64_t row_size,
+      int64_t channel_size,
+      int64_t spatial_size,
+      const DST* gamma,
+      const DST* beta)
+      : y(y),
+        row_size(row_size),
+        channel_size(channel_size),
+        spatial_size(spatial_size),
+        gamma(gamma),
+        beta(beta) {}
+
+  template <int PackSize>
+  __device__ void store(const SRC* src, int64_t row, int64_t col) {
+    layer_norm::Pack<DST, PackSize> y_pack;
+    const int64_t offset = row * row_size + col;
+    const int64_t packed_offset = offset / PackSize;
+    const int64_t gamma_beta_offset = (offset / spatial_size) % channel_size;
+    DST gamma_val = 1.0;
+    DST beta_val = 0.0;
+    if (affine) {
+      gamma_val = gamma[gamma_beta_offset];
+      beta_val = beta[gamma_beta_offset];
+    }
+
+#pragma unroll
+    for (int i = 0; i < PackSize; ++i) {
+      DST normalized_i = static_cast<DST>(src[i]);
+      if (affine) {
+        y_pack.elem[i] = normalized_i * gamma_val + beta_val;
+      } else {
+        // Direct Store.
+        y_pack.elem[i] = normalized_i;
+      }
+      if (FuseSwish) {
+        y_pack.elem[i] = y_pack.elem[i] * hsigmoid(y_pack.elem[i]);
+      }
+    }
+    *(reinterpret_cast<layer_norm::PackType<DST, PackSize>*>(y) +
+      packed_offset) = y_pack.storage;
+  }
+  bool CanPackAs(size_t pack_size) {
+    return (spatial_size % pack_size) == 0;
+  }
+  DST* y;
+  int64_t row_size;
+  int64_t channel_size;
+  int64_t spatial_size;
+  const DST* gamma;
+  const DST* beta;
+};
+
+template <typename SRC, typename DST, bool affine>
+struct ScaleLoad {
+  ScaleLoad(
+      const SRC* src,
+      const SRC* gamma,
+      int64_t row_size,
+      int64_t channel_size,
+      int64_t spatial_size)
+      : src(src),
+        gamma(gamma),
+        row_size(row_size),
+        channel_size(channel_size),
+        spatial_size(spatial_size) {}
+  template <int PackSize>
+  __device__ void load(DST* dst, int64_t row, int64_t col) const {
+    layer_norm::Pack<SRC, PackSize> src_pack;
+    layer_norm::Pack<SRC, PackSize> gamma_pack;
+
+    const int64_t offset = row * row_size + col;
+    const int64_t packed_offset = offset / PackSize;
+    const int64_t gamma_offset = (offset / spatial_size) % channel_size;
+
+    src_pack.storage =
+        *(reinterpret_cast<const layer_norm::PackType<SRC, PackSize>*>(src) +
+          packed_offset);
+    SRC gamma_val = static_cast<SRC>(1.0);
+    if (affine) {
+      gamma_val = gamma[gamma_offset];
+    }
+#pragma unroll
+    for (int i = 0; i < PackSize; ++i) {
+      dst[i] = static_cast<DST>(src_pack.elem[i] * gamma_val);
+    }
+  }
+  bool CanPackAs(size_t pack_size) {
+    return (spatial_size % pack_size) == 0;
+  }
+  const SRC* src;
+  const SRC* gamma;
+  int64_t row_size;
+  int64_t channel_size;
+  int64_t spatial_size;
+};
+
+template <typename SRC, typename DST, bool affine, bool FuseSwish>
+struct ChannelsLastStore {
+  ChannelsLastStore(
+      DST* y,
+      const DST* gamma,
+      const DST* beta,
+      int64_t spatial_size,
+      int64_t channel_size,
+      int64_t num_groups)
+      : y(y),
+        gamma(gamma),
+        beta(beta),
+        spatial_size(spatial_size),
+        c0(num_groups),
+        c1(channel_size / num_groups) {}
+
+  template <int PackSize>
+  __device__ void store(const SRC* src, int32_t row, int32_t col) {
+    layer_norm::Pack<DST, PackSize> y_pack;
+    layer_norm::Pack<DST, PackSize> gamma_pack;
+    layer_norm::Pack<DST, PackSize> beta_pack;
+    int32_t spatial_idx;
+    int32_t c1_idx;
+    c1(spatial_idx, c1_idx, col);
+    int32_t batch_idx;
+    int32_t c0_idx;
+    c0(batch_idx, c0_idx, row);
+    const int32_t y_offset =
+        (batch_idx * c0.divisor * c1.divisor * spatial_size +
+         spatial_idx * c0.divisor * c1.divisor + c0_idx * c1.divisor + c1_idx) /
+        PackSize;
+    const int32_t gamma_beta_offset = (c0_idx * c1.divisor + c1_idx) / PackSize;
+    if (affine) {
+      gamma_pack.storage = *(
+          reinterpret_cast<const layer_norm::PackType<DST, PackSize>*>(gamma) +
+          gamma_beta_offset);
+      beta_pack.storage =
+          *(reinterpret_cast<const layer_norm::PackType<DST, PackSize>*>(beta) +
+            gamma_beta_offset);
+    }
+
+#pragma unroll
+    for (int i = 0; i < PackSize; ++i) {
+      DST normalized_i = static_cast<DST>(src[i]);
+      if (affine) {
+        y_pack.elem[i] = normalized_i * gamma_pack.elem[i] + beta_pack.elem[i];
+      } else {
+        // Direct Store.
+        y_pack.elem[i] = normalized_i;
+      }
+      if (FuseSwish) {
+        y_pack.elem[i] = y_pack.elem[i] * hsigmoid(y_pack.elem[i]);
+      }
+    }
+    *(reinterpret_cast<layer_norm::PackType<DST, PackSize>*>(y) + y_offset) =
+        y_pack.storage;
+  }
+  bool CanPackAs(size_t pack_size) {
+    return (c1.divisor % pack_size) == 0;
+  }
+  DST* y;
+  const DST* gamma;
+  const DST* beta;
+  int32_t spatial_size;
+  cutlass::FastDivmod c0;
+  cutlass::FastDivmod c1;
+};
+
+template <typename SRC, typename DST>
+struct ChannelsLastLoad {
+  ChannelsLastLoad(
+      const SRC* src,
+      int64_t spatial_size,
+      int64_t channel_size,
+      int64_t num_groups)
+      : src(src),
+        spatial_size(spatial_size),
+        c0(num_groups),
+        c1(channel_size / num_groups) {}
+  template <int N>
+  __device__ void load(DST* dst, int32_t row, int32_t col) const {
+    int32_t spatial_idx;
+    int32_t c1_idx;
+    c1(spatial_idx, c1_idx, col);
+    int32_t batch_idx;
+    int32_t c0_idx;
+    c0(batch_idx, c0_idx, row);
+    layer_norm::Pack<SRC, N> pack;
+    const int32_t offset =
+        (batch_idx * c0.divisor * c1.divisor * spatial_size +
+         spatial_idx * c0.divisor * c1.divisor + c0_idx * c1.divisor + c1_idx) /
+        N;
+
+    pack.storage =
+        *(reinterpret_cast<const layer_norm::PackType<SRC, N>*>(src) + offset);
+#pragma unroll
+    for (int i = 0; i < N; ++i) {
+      dst[i] = static_cast<DST>(pack.elem[i]);
+    }
+  }
+  bool CanPackAs(size_t pack_size) {
+    return (c1.divisor % pack_size) == 0;
+  }
+  const SRC* src;
+  int32_t spatial_size;
+  cutlass::FastDivmod c0;
+  cutlass::FastDivmod c1;
+};
+
+template <typename T, typename ComputeType, bool affine, bool FuseSwish>
+void GroupNormForwardGpu(
+    cudaStream_t stream,
+    const int64_t num_instances,
+    const int64_t norm_size,
+    const int64_t channel_size,
+    const int64_t spatial_size,
+    const double epsilon,
+    const T* x_ptr,
+    const T* gamma_ptr,
+    const T* beta_ptr,
+    T* y_ptr,
+    ComputeType* mean,
+    ComputeType* inv_variance,
+    bool channels_first) {
+  // using ComputeType = typename layer_norm::DefaultComputeType<T>::type;
+  if (channels_first) {
+    layer_norm::DirectLoad<T, ComputeType> load(x_ptr, norm_size);
+    AffineStore<ComputeType, T, affine, FuseSwish> store(
+        y_ptr, norm_size, channel_size, spatial_size, gamma_ptr, beta_ptr);
+
+    layer_norm::DispatchLayerNorm<decltype(load), decltype(store), ComputeType>(
+        stream,
+        load,
+        store,
+        num_instances,
+        norm_size,
+        epsilon,
+        mean,
+        inv_variance);
+  } else {
+    ChannelsLastLoad<T, ComputeType> load(
+        x_ptr,
+        spatial_size,
+        channel_size,
+        channel_size / (norm_size / spatial_size));
+    ChannelsLastStore<ComputeType, T, affine, FuseSwish> store(
+        y_ptr,
+        gamma_ptr,
+        beta_ptr,
+        spatial_size,
+        channel_size,
+        channel_size / (norm_size / spatial_size));
+
+    layer_norm::DispatchLayerNorm<decltype(load), decltype(store), ComputeType>(
+        stream,
+        load,
+        store,
+        num_instances,
+        norm_size,
+        epsilon,
+        mean,
+        inv_variance);
+  }
+}
+
+template <typename T, typename T2, bool FuseSwish>
+void DispatchGroupNormForwardGpu(
+    cudaStream_t stream,
+    const int64_t num_instances,
+    const int64_t norm_size,
+    const int64_t channel_size,
+    const int64_t spatial_size,
+    const double epsilon,
+    const T* x_ptr,
+    const T* gamma_ptr,
+    const T* beta_ptr,
+    T* y_ptr,
+    T2* mean,
+    T2* inv_variance,
+    bool channels_first) {
+  using ComputeType = typename layer_norm::DefaultComputeType<T>::type;
+  if (gamma_ptr != nullptr && beta_ptr != nullptr) {
+    GroupNormForwardGpu<T, ComputeType, true, FuseSwish>(
+        stream,
+        num_instances,
+        norm_size,
+        channel_size,
+        spatial_size,
+        epsilon,
+        x_ptr,
+        gamma_ptr,
+        beta_ptr,
+        y_ptr,
+        mean,
+        inv_variance,
+        channels_first);
+  } else {
+    GroupNormForwardGpu<T, ComputeType, false, FuseSwish>(
+        stream,
+        num_instances,
+        norm_size,
+        channel_size,
+        spatial_size,
+        epsilon,
+        x_ptr,
+        gamma_ptr,
+        beta_ptr,
+        y_ptr,
+        mean,
+        inv_variance,
+        channels_first);
+  }
+}
+
 template <bool FuseSwish, int H, int W, int C, int G>
-cudaError_t invokeGroupNorm(
+cudaError_t invokeGroupNorm_half(
     half* output,
     half* input,
     half* gamma,
@@ -521,10 +855,18 @@ cudaError_t invokeGroupNorm(
     int N,
     const float eps,
     const int max_smem_size,
+    void* workspace,
     cudaStream_t stream) {
   constexpr auto C_G = C / G;
   constexpr auto C_G_2 = C_G / 2;
   constexpr int ILP = 8;
+
+  const int64_t num_instances = N * G;
+  const int64_t norm_size = H * W * C / G;
+  const int64_t spatial_size = H * W;
+  const int64_t channel_size = C;
+  const double epsilon = eps;
+  bool channels_first = false;
 
   // Use a little big more shared_memory to reduce occupancy and boost perf.
   constexpr int MEM_BANK_CONFLICT = 1;
@@ -543,14 +885,42 @@ cudaError_t invokeGroupNorm(
         smem));
 
     constexpr int num_threads = std::min(1024, H / ILP * W * C_G_2);
-
-    dim3 block(num_threads);
-    group_norm_smem<FuseSwish, H, W, C, C_G, ILP, BANK_CONFLICT, num_threads>
-        <<<dim3(G, N), block, smem, stream>>>(
-            input, output, gamma, beta, N, eps);
+    if constexpr (num_threads > 0) {
+      dim3 block(num_threads);
+      group_norm_smem<FuseSwish, H, W, C, C_G, ILP, BANK_CONFLICT, num_threads>
+          <<<dim3(G, N), block, smem, stream>>>(
+              input, output, gamma, beta, N, eps);
+    } else {
+      DispatchGroupNormForwardGpu<half, float, FuseSwish>(
+          stream,
+          num_instances,
+          norm_size,
+          channel_size,
+          spatial_size,
+          epsilon,
+          static_cast<half*>(input),
+          static_cast<half*>(gamma),
+          static_cast<half*>(beta),
+          static_cast<half*>(output),
+          reinterpret_cast<float*>(workspace),
+          reinterpret_cast<float*>(workspace + sizeof(float) * num_instances),
+          channels_first);
+    }
   } else {
-    return invokeWelfordGroupNorm<FuseSwish, H, W, C, G>(
-        output, input, gamma, beta, N, eps, stream);
+    DispatchGroupNormForwardGpu<half, float, FuseSwish>(
+        stream,
+        num_instances,
+        norm_size,
+        channel_size,
+        spatial_size,
+        epsilon,
+        static_cast<half*>(input),
+        static_cast<half*>(gamma),
+        static_cast<half*>(beta),
+        static_cast<half*>(output),
+        reinterpret_cast<float*>(workspace),
+        reinterpret_cast<float*>(workspace + sizeof(float) * num_instances),
+        channels_first);
   }
 
   // GROUP_NORM_CUDA_CHECK_LAUNCH();

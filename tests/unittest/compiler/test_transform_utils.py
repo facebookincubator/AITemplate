@@ -18,6 +18,7 @@ import torch
 
 from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
@@ -81,7 +82,7 @@ class TransformUtilsCheckValidityTestCase(unittest.TestCase):
         tensor = self._get_simple_graph()
         graph = transform.toposort(tensor)
 
-        graph[0]._attrs["dst_ops"] = set()
+        graph[0]._attrs["dst_ops"] = StableSet()
         with self.assertRaisesRegex(
             RuntimeError, "Op None not designated as dst_op for tensor inputs_0"
         ):

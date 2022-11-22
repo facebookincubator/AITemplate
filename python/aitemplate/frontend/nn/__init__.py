@@ -25,10 +25,9 @@ from .proposal import Proposal
 from .roi_ops import *
 from .upsample import *
 from .view_ops import *
-from .attention import FlashAttention, MultiheadAttention
+from .attention import CrossAttention, FlashAttention, MultiheadAttention
 from .identity import Identity
 from .dropout import *
 from .layer_norm import *
 from .group_norm import *
-
-__all__ = ["Module", "ModuleDict", "ModuleList", "Sequential"]
+from .dual_gemm import T5DenseGatedGeluDense

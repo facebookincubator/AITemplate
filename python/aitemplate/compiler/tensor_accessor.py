@@ -88,7 +88,7 @@ class TensorAccessor(object):
         self._dim_mapping = [([i], [i]) for i in range(len(self.original_shapes))]
 
     def __deepcopy__(self, memo):
-        res = type(self)(Tensor(shape=self.original_shapes))
+        res = copy.copy(self)
         res.original_shapes = copy.deepcopy(self.original_shapes, memo)
         res.actual_shapes = copy.deepcopy(self.actual_shapes, memo)
         res._dim_mapping = copy.deepcopy(self._dim_mapping, memo)

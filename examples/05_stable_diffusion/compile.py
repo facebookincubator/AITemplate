@@ -316,11 +316,14 @@ def compile_vae(
 
 @click.command()
 @click.option("--token", default="", help="access token")
+@click.option("--width", default=512, help="Width of generated image")
+@click.option("--height", default=512, help="Height of generated image")
 @click.option("--batch-size", default=1, help="batch size")
-@click.option("--img2img", default=False, help="compile img2img models")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
-def compile_diffusers(token, batch_size, img2img=False, use_fp16_acc=True, convert_conv_to_gemm=True):
+def compile_diffusers(
+    token, width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True
+):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
@@ -333,25 +336,37 @@ def compile_diffusers(token, batch_size, img2img=False, use_fp16_acc=True, conve
         access_token = token
 
     pipe = StableDiffusionPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
+        "runwayml/stable-diffusion-v1-5",
         revision="fp16",
         torch_dtype=torch.float16,
         use_auth_token=access_token,
     ).to("cuda")
 
-    width = 96 if img2img else 64
+    ww = width // 8
+    hh = height // 8
 
     # CLIP
-    compile_clip(batch_size=batch_size, use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm)
+    compile_clip(
+        batch_size=batch_size,
+        use_fp16_acc=use_fp16_acc,
+        convert_conv_to_gemm=convert_conv_to_gemm,
+    )
     # UNet
     compile_unet(
         batch_size=batch_size * 2,
-        ww=width,
+        ww=ww,
+        hh=hh,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
     )
     # VAE
-    compile_vae(batch_size=batch_size, width=width, use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm)
+    compile_vae(
+        batch_size=batch_size,
+        width=ww,
+        height=hh,
+        use_fp16_acc=use_fp16_acc,
+        convert_conv_to_gemm=convert_conv_to_gemm,
+    )
 
 
 if __name__ == "__main__":

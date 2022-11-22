@@ -165,6 +165,51 @@ class PadGemmWithElementwise(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
+    @parameterized.expand(
+        [
+            param("static_M", [23], 7, 3),
+            param("dynamic_M", [1, 78, 99], 7, 3),
+        ]
+    )
+    def test_pad_gemm_rcr_bias_broadcast_with_elementwise_2(self, test_name, ms, n, k):
+        # S1 is fed to gemm twice
+        m_dim = shape_utils.gen_int_var_min_max(ms, "M")
+
+        X1 = Tensor(shape=[m_dim, k], dtype="float16", name="x1", is_input=True)
+        W1 = Tensor(shape=[n, k], dtype="float16", name="w1", is_input=True)
+        B1 = Tensor(shape=[n], dtype="float16", name="b1", is_input=True)
+        S1 = Tensor(shape=[m_dim, n], dtype="float16", name="s1", is_input=True)
+
+        X2 = ops.gemm_rcr_bias_mul_add()(X1, W1, B1, S1, S1)
+        Y = ops.elementwise(FuncEnum.ADD)(X2, X2)
+
+        Y._attrs["name"] = "y"
+        Y._attrs["is_output"] = True
+
+        target = detect_target()
+        module = compile_model(
+            [Y], target, "./tmp", f"pad_gemm_with_elementwise_2_{test_name}"
+        )
+
+        for m in ms:
+            X1_pt = torch.randn(m, k).cuda().half()
+            W1_pt = torch.randn(n, k).cuda().half()
+            B1_pt = torch.randn(n).cuda().half()
+            S1_pt = torch.randn(m, n).cuda().half()
+
+            X2_pt = torch.nn.functional.linear(X1_pt, W1_pt, B1_pt) * S1_pt + S1_pt
+            Y_pt = X2_pt + X2_pt
+
+            inputs = [0] * 4
+            name_to_idx = module.get_input_name_to_index_map()
+            inputs[name_to_idx["x1"]] = X1_pt
+            inputs[name_to_idx["w1"]] = W1_pt
+            inputs[name_to_idx["b1"]] = B1_pt
+            inputs[name_to_idx["s1"]] = S1_pt
+            y = torch.empty(Y_pt.size()).cuda().half()
+            module.run_with_tensors(inputs, [y])
+            self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

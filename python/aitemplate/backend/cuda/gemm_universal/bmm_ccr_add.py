@@ -29,7 +29,7 @@ def bmm_ccr_add_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("cuda.bmm_ccr_add.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     a_dims = bmm_common.reverse_dim_info_mapping(
         dim_info_dict, gemm_common.Source.INPUT, 0
     )
@@ -45,7 +45,7 @@ def gen_profiler(func_attrs, workdir, dim_info_dict):
     )
 
     mm_info = bmm_ccr._get_problem_info(
-        bias_ptr="d_ptr",
+        bias_ptr="(d_ptr)",
         alpha_value=func_attrs.get("alpha", 1),
         beta_value=1,
     )
@@ -54,11 +54,14 @@ def gen_profiler(func_attrs, workdir, dim_info_dict):
     d_shapes = func_attrs["input_accessors"][2].original_shapes
     bmm_common._update_stride_info(mm_info, a_shapes, b_shapes, d_shapes)
 
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
 
-    bmm_common.gen_profiler(
+    return bmm_common.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common.SRC_TEMPLATE,
         problem_args,
@@ -73,14 +76,18 @@ def gen_function(
     dim_info_dict,
 ):
     mm_info = bmm_ccr._get_problem_info(
-        bias_ptr="d_ptr", alpha_value=func_attrs.get("alpha", 1), beta_value=1
+        bias_ptr="(d_ptr)",
+        alpha_value=func_attrs.get("alpha", 1),
+        beta_value=1,
     )
     a_shapes = func_attrs["input_accessors"][0].original_shapes
     b_shapes = func_attrs["input_accessors"][1].original_shapes
     d_shapes = func_attrs["input_accessors"][2].original_shapes
     bmm_common._update_stride_info(mm_info, a_shapes, b_shapes, d_shapes)
 
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(mm_info=mm_info)
+    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
+        mm_info=mm_info,
+    )
     return bmm_common.gen_function(
         func_attrs,
         exec_cond_template,

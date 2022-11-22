@@ -12,12 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from . import base, ops, tensor_accessor, transform
+from . import base, dtype, ops, tensor_accessor, transform
 from .compiler import compile_model
 from .model import AIT_DEFAULT_NUM_RUNTIMES, AITData, Model
 
 __all__ = [
     "base",
+    "dtype",
     "op_registry",
     "ops",
     "tensor_accessor",

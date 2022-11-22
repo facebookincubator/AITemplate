@@ -21,14 +21,16 @@ from pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 
 @click.command()
 @click.option("--token", default="", help="access token")
+@click.option("--width", default=512, help="Width of generated image")
+@click.option("--height", default=512, help="Height of generated image")
 @click.option("--batch-size", default=1, help="batch size")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
-def run(token, batch_size, prompt, benchmark):
+def run(token, width, height, batch_size, prompt, benchmark):
     pipe = StableDiffusionAITPipeline.from_pretrained(
-        "CompVis/stable-diffusion-v1-4",
+        "runwayml/stable-diffusion-v1-5",
         revision="fp16",
         torch_dtype=torch.float16,
         use_auth_token=token,
@@ -37,7 +39,7 @@ def run(token, batch_size, prompt, benchmark):
     prompts = [prompt] * batch_size
 
     with torch.autocast("cuda"):
-        image = pipe(prompts).images[0]
+        image = pipe(prompt, height, width).images[0]
         if benchmark:
             t = benchmark_torch_function(10, pipe, prompts)
             print(f"sd e2e: {t} ms")

@@ -44,9 +44,9 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}                                           input_left_pads,
 {{indent}}                                           input_right_pads);
 {{indent}}if(!op.IsSupportedArgument(argument_ptr.get())) {
-{{indent}}  throw std::runtime_error(
-{{indent}}    "wrong! device_conv with the specified compilation parameters does "
-{{indent}}    "not support this Conv problem");
+{{indent}}  auto ss = std::stringstream(); 
+{{indent}}  ss << "wrong! " << op.GetTypeString() << " with the specified compilation parameters does not support this Pool problem.";
+{{indent}}  throw std::runtime_error(ss.str());
 {{indent}}}
 {{indent}}invoker_ptr->Run(argument_ptr.get(), StreamConfig{stream, false});
 {{indent}}return;

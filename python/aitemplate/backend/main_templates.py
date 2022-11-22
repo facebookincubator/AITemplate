@@ -21,6 +21,9 @@ import jinja2
 MODEL_TEMPLATE = jinja2.Template(
     """
 #pragma once
+{% if debug_header %}
+#include "debug_utility.h"
+{% endif %}
 #include "logging.h"
 #include "device_functions-generated.h"
 #include "model_interface.h"
@@ -53,7 +56,9 @@ void DeviceCheckLastError(const char* file, int line) {
     throw std::runtime_error(msg);
   }
 }
-}
+
+thread_local bool target_has_graph_mode = {{ target_has_graph_mode }};
+} // namespace
 
 // Model is the class that actually performs inference. It owns memory for
 // intermediate tensors and dynamic dimensions. Constants are owned by
@@ -69,46 +74,65 @@ class Model {
       size_t num_inputs,
       size_t num_outputs,
       size_t num_unbound_constants,
-      uint8_t* constants)
-      : blob(RAII_DeviceMalloc(blob_size)),
-        workspace(RAII_DeviceMalloc(workspace_size)),
-        params(num_inputs + num_outputs + num_unbound_constants),
-        num_inputs(num_inputs),
-        constants(constants) {
+      uint8_t* constants,
+      AITemplateAllocator& allocator)
+      : blob_(RAII_DeviceMalloc(blob_size, allocator)),
+        workspace_(RAII_DeviceMalloc(workspace_size, allocator)),
+        params_(num_inputs + num_outputs + num_unbound_constants),
+        num_inputs_(num_inputs),
+        num_outputs_(num_outputs),
+        constants_(constants) {
       dmlc::InitLogging("aitemplate"); // TODO(xxx): render network name
       LOG(INFO) << "Init AITemplate Runtime.";
-      global_workspace = static_cast<uint8_t*>(workspace.get()) + {{ unique_workspace_size }};
-      unique_workspace = static_cast<uint8_t*>(workspace.get());
-      DEVICE_CHECK(GetDevice(&device_idx))
-      DEVICE_CHECK(CreateEvent(&run_finished));
+      global_workspace_ = static_cast<uint8_t*>(workspace_.get()) + {{ unique_workspace_size }};
+      unique_workspace_ = static_cast<uint8_t*>(workspace_.get());
+      DEVICE_CHECK(GetDevice(&device_idx_))
+      DEVICE_CHECK(CreateEvent(&run_finished_));
 #if defined(__NVCC__) || (defined(__clang__) && defined(__CUDA__))
       DEVICE_CHECK(cudaDeviceGetAttribute(
-        &max_smem_size, cudaDevAttrMaxSharedMemoryPerBlockOptin, device_idx));
+        &max_smem_size_, cudaDevAttrMaxSharedMemoryPerBlockOptin, device_idx_));
 #endif
-      DEVICE_CHECK(GetDeviceProperties(&device_properties, device_idx));
-      DEVICE_CHECK(StreamCreate(&graph_capture_stream, /*non_blocking=*/true));
-
-  {{ set_up_constants }}
-      auto* blob_ptr = static_cast<uint8_t*>(blob.get());
+      DEVICE_CHECK(GetDeviceProperties(&device_properties_, device_idx_));
+      DEVICE_CHECK(StreamCreate(&graph_capture_stream_, /*non_blocking=*/true));
+  InitConstants(constants_);
+      auto* blob_ptr = static_cast<uint8_t*>(blob_.get());
   {{ tensor_slice }}
   {{ tensor_map_set }}
-  {{ set_up_param_dynamic_shapes }}
     }
 
     ~Model() {
-      DestroyEvent(run_finished);
-      StreamDestroy(graph_capture_stream);
-      if (graph_exec != nullptr) {
-        GraphExecDestroy(graph_exec);
+      if (run_finished_ != nullptr) {
+        DestroyEvent(run_finished_);
       }
-      if (graph != nullptr) {
-        GraphDestroy(graph);
+      if (graph_capture_stream_ != nullptr) {
+        StreamDestroy(graph_capture_stream_);
+      }
+      if (graph_exec_ != nullptr) {
+        GraphExecDestroy(graph_exec_);
       }
     }
 
-    Model(Model&&) = default;
-    Model& operator=(Model&&) = default;
+    Model(Model&& other) {
+      run_finished_ = other.run_finished_;
+      graph_exec_ = other.graph_exec_;
+      graph_capture_stream_ = other.graph_capture_stream_;
+      other.run_finished_ = nullptr;
+      other.graph_exec_ = nullptr;
+      other.graph_capture_stream_ = nullptr;
 
+      constants_ = other.constants_;
+      num_inputs_ = other.num_inputs_;
+      global_workspace_ = other.global_workspace_;
+      unique_workspace_ = other.unique_workspace_;
+      workspace_ = std::move(other.workspace_);
+
+      params_ = std::move(other.params_);
+      constant_name_to_ptr_ = std::move(other.constant_name_to_ptr_);
+      // Re-wire the pointers in the above 2 structures.
+      InitConstants(constants_);
+    }
+
+    Model& operator=(Model&&) = delete;
     Model(const Model&) = delete;
     Model& operator=(const Model&) = delete;
 
@@ -119,7 +143,6 @@ class Model {
     void DeviceToDeviceCopies(StreamType stream) {
   {{ device_to_device_copies }}
     }
-
     void Run(StreamType stream, bool graph_mode) {
       SetUpInputsOutputs();
       if (target_has_graph_mode && graph_mode) {
@@ -127,7 +150,7 @@ class Model {
       } else {
         RunImpl(stream);
       }
-      DEVICE_CHECK(EventRecord(run_finished, stream));
+      DEVICE_CHECK(EventRecord(run_finished_, stream));
     }
 
     void RunImpl(StreamType stream) {
@@ -139,7 +162,7 @@ class Model {
     }
 
     bool IsPending() {
-      auto query = QueryEvent(run_finished);
+      auto query = QueryEvent(run_finished_);
       if (query == GetDeviceNotReady()) {
         return true;
       }
@@ -151,19 +174,19 @@ class Model {
     }
 
     void WaitForCompletion() {
-      DEVICE_CHECK(EventSynchronize(run_finished));
+      DEVICE_CHECK(EventSynchronize(run_finished_));
     }
 
     size_t NumInputs() const {
-      return num_inputs;
+      return num_inputs_;
     }
 
     size_t NumOutputs() const {
-      return params.size() - num_inputs;
+      return num_outputs_;
     }
 
     void SetParam(const void* src, size_t param_idx) {
-      CHECK_VECTOR_ACCESS(params, param_idx)
+      CHECK_VECTOR_ACCESS(params_, param_idx)
       // const_cast is not ideal here, but it is unfortunately
       // necessary:
       // 1) We store outputs and inputs in the same vector,
@@ -172,7 +195,7 @@ class Model {
       //    require non-const pointers). So even if we put const
       //    pointers into params, a const_cast would be required
       //    somewhere else.
-      params[param_idx].ptr = const_cast<void*>(src);
+      params_[param_idx].ptr = const_cast<void*>(src);
     }
 
     void SetInput(const void* src, const AITemplateParamShape& shape, size_t idx) {
@@ -181,7 +204,7 @@ class Model {
     }
 
     void SetOutput(void* src, size_t idx) {
-      SetParam(src, idx + num_inputs);
+      SetParam(src, idx + num_inputs_);
     }
 
     // Write the (possibly dynamic) output shape to the given pointer.
@@ -189,9 +212,9 @@ class Model {
     // Run() is finished. output_shape_out should be able to store
     // at least GetOutputMaximumShape(idx).size values.
     void GetOutputShape(size_t idx, int64_t* output_shape_out) {
-      const auto param_idx = idx + num_inputs;
-      CHECK_VECTOR_ACCESS(params, param_idx);
-      const auto& shape_ptrs = params[param_idx].shape_ptrs;
+      const auto param_idx = idx + num_inputs_;
+      CHECK_VECTOR_ACCESS(params_, param_idx);
+      const auto& shape_ptrs = params_[param_idx].shape_ptrs;
       for (size_t i = 0; i < shape_ptrs.size(); ++i) {
         output_shape_out[i] = shape_ptrs[i].GetValue();
       }
@@ -207,8 +230,13 @@ class Model {
     }
 
   private:
+    void InitConstants(uint8_t* constants) {
+      {{ set_up_constants }}
+      {{ set_up_param_dynamic_shapes }}
+    }
+
     void SetInputShape(const AITemplateParamShape& shape, size_t idx) {
-      auto& param = params[idx];
+      auto& param = params_[idx];
       if (shape.size != param.shape_ptrs.size()) {
         throw std::runtime_error(
           "[SetInputShape] Got wrong param shape for input " + std::to_string(idx) +
@@ -220,47 +248,76 @@ class Model {
       }
     }
 
-    void RunAsGraph(StreamType stream) {
-      DEVICE_CHECK(StreamBeginCapture(graph_capture_stream));
-      try {
-        RunImpl(graph_capture_stream);
-      } catch (...) {
-        DEVICE_CHECK(StreamEndCapture(graph_capture_stream, &graph));
-        throw;
+    DeviceError EndCapture(GraphType* graph_ptr) {
+      auto err = StreamEndCapture(graph_capture_stream_, graph_ptr);
+      if (err != GetDeviceSuccess()) {
+        // If we can't take the stream out of capture mode, something is probably
+        // wrong with CUDA graph for this model (e.g. there might have been an
+        // illegal capture mode operation). Disable graph mode to avoid such issues
+        // in future iterations.
+        target_has_graph_mode = false;
+        LOG(WARNING) << "Graph capture failed to end. Disabling graph mode.";
+        return err;
       }
-      DEVICE_CHECK(StreamEndCapture(graph_capture_stream, &graph));
-
-      if (graph_exec == nullptr) {
-        DEVICE_CHECK(GraphInstantiate(&graph_exec, graph));
-      } else if (GraphExecUpdate(graph_exec, graph) != GetDeviceSuccess()) {
-        DEVICE_CHECK(GraphExecDestroy(graph_exec));
-        DEVICE_CHECK(GraphInstantiate(&graph_exec, graph));
-      }
-
-      DEVICE_CHECK(GraphExecLaunch(graph_exec, stream));
+      return GetDeviceSuccess();
     }
 
-    int device_idx;
-    int max_smem_size{0};
-    DevicePropertyType device_properties;
+    void RunAsGraph(StreamType stream) {
+      DEVICE_CHECK(StreamBeginCapture(graph_capture_stream_, /*global=*/false));
+      try {
+        RunImpl(graph_capture_stream_);
+      } catch (...) {
+        GraphType graph;
+        // No need to DEVICE_CHECK here, we want to see the original exception.
+        EndCapture(&graph);
+        if (graph != nullptr && GraphDestroy(graph) != GetDeviceSuccess()) {
+          LOG(WARNING) << "Graph destruction failed while handling exception! Memory will be leaked.";
+        }
+        throw;
+      }
+
+      // The following function ends the capture and creates a graph
+      // inside a unique_ptr that cleans up it when it goes out of scope.
+      // Note that it throws an exception if EndCapture fails.
+      auto graph = RAII_EndCaptureAndCreateGraph(
+        [this](GraphType* graph_ptr){ return EndCapture(graph_ptr); }
+      );
+
+      if (graph_exec_ == nullptr) {
+        DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
+      } else if (GraphExecUpdate(graph_exec_, graph.get()) != GetDeviceSuccess()) {
+        // Consume the last cuda error, which may affect the next GraphExecLaunch
+        // call.
+        GetLastError();
+        DEVICE_CHECK(GraphExecDestroy(graph_exec_));
+        DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
+      }
+
+      DEVICE_CHECK(GraphExecLaunch(graph_exec_, stream));
+    }
+
+    int device_idx_;
+    int max_smem_size_{0};
+    DevicePropertyType device_properties_;
     // This event tracks when the inference is finished
     // so that this Model may be reclaimed by its owning
     // ModelContainer.
-    EventType run_finished;
+    EventType run_finished_;
     // A blob of memory used for storing intermediate tensors.
-    GPUPtr blob;
+    GPUPtr blob_;
     // Memory for constants that were folded into the *.so. Unowned by Model,
     // owned by ModelContainer.
     // TODO: make this const. It can't be const right now because we derive
     // tensor pointers from it, and no tensor pointers are const.
-    uint8_t* constants;
-    size_t num_inputs;
+    uint8_t* constants_;
+    size_t num_inputs_;
+    size_t num_outputs_;
 
     // The workspace blob is used as scratch memory. See
     // _generate_workspace in memory planning for more information.
-    GPUPtr workspace;
-    uint8_t* global_workspace{nullptr};
-    uint8_t* unique_workspace{nullptr};
+    GPUPtr workspace_;
+    uint8_t* global_workspace_{nullptr};
+    uint8_t* unique_workspace_{nullptr};
 
     class ParamDim {
       public:
@@ -300,16 +357,12 @@ class Model {
     // Contains info for all tensors marked as inputs
     // or outputs. The first num_inputs elements are the inputs.
     // Constants are not included.
-    std::vector<ParamInfo> params;
+    std::vector<ParamInfo> params_;
 
-    GraphExecType graph_exec = nullptr;
-    GraphType graph = nullptr;
-    StreamType graph_capture_stream;
+    GraphExecType graph_exec_ = nullptr;
+    StreamType graph_capture_stream_;
 
     std::unordered_map<std::string, const void**> constant_name_to_ptr_;
-
-    constexpr static bool target_has_graph_mode = {{ target_has_graph_mode }};
-
 {{ tensor_decl }}
 {{ dim_decl }}
 {{ function_state }}
@@ -335,8 +388,9 @@ ModelContainerBase::ModelContainerBase(
     size_t num_inputs,
     size_t num_outputs,
     size_t num_unbound_constants,
-    size_t params_size)
-    : constants_(RAII_DeviceMalloc(params_size)),
+    size_t params_size,
+    AITemplateAllocator& allocator)
+    : constants_(RAII_DeviceMalloc(params_size, allocator)),
       num_params_(num_inputs + num_outputs + num_unbound_constants),
       param_names_(num_params_),
       param_dtypes_(num_params_),
@@ -358,7 +412,6 @@ ModelContainerBase::ModelContainerBase(
   }
 
   auto* constants_ptr = static_cast<uint8_t*>(constants_.get());
-  DEVICE_CHECK(DeviceMemset(constants_ptr, 0, params_size));
   const auto binary_constants_bin_size = static_cast<size_t>(_binary_constants_bin_end - _binary_constants_bin_start);
   for (auto& constant_info : owned_constants) {
     auto* dst = constants_ptr + constant_info.internal_offset;
@@ -369,9 +422,9 @@ ModelContainerBase::ModelContainerBase(
   }
 }
 
-ModelContainer* CreateModelContainer(size_t num_runtimes) {
-  // num_runtimes, blob_size, workspace_size, num_inputs, num_outputs, num_unbound_constants, param_size
-  return new ModelContainer(num_runtimes, {{blob_size}}, {{workspace_size}}, {{num_inputs}}, {{num_outputs}}, {{num_unbound_constants}}, {{param_size}});
+ModelContainer* CreateModelContainer(size_t num_runtimes, AITemplateAllocator& allocator) {
+  // num_runtimes, blob_size, workspace_size, num_inputs, num_outputs, num_unbound_constants, param_size, allocator
+  return new ModelContainer(num_runtimes, {{blob_size}}, {{workspace_size}}, {{num_inputs}}, {{num_outputs}}, {{num_unbound_constants}}, {{param_size}}, allocator);
 }
 } // namespace ait
 """

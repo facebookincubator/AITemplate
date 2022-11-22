@@ -383,7 +383,7 @@ def _break_layernorm_groups(group: List[Operator]) -> List[List[Operator]]:
 
     for i in range(num_groups):
         begin = i * _MAX_LAYERNORM_GROUP
-        end = min((i + 1) * _MAX_LAYERNORM_GROUP, num_groups)
+        end = min((i + 1) * _MAX_LAYERNORM_GROUP, len(group))
         groups.append(group[begin:end])
     return groups
 

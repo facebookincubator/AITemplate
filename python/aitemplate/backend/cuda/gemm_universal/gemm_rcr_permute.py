@@ -20,8 +20,8 @@ where A[RowMajor][M, K], B[ColMajor][N, K], bias[RowMajor][N]
 import jinja2
 
 from ... import registry
-from ..gemm_universal import common
-from . import common_permute
+from ...backend_spec import CUDASpec
+from . import common, common_permute
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 
@@ -49,10 +49,10 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     {M, N, K},
     split_k,
     {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},
-    (void*) a_ptr,
-    (void*) b_ptr,
-    (void*) c_ptr,
-    (void*) (c_ptr + output_offset),
+    ({{elem_input_type}}*)(a_ptr),
+    ({{elem_input_type}}*)(b_ptr),
+    ({{elem_output_type}}*)(c_ptr),
+    ({{elem_output_type}}*)(c_ptr) + output_offset,
     M * K,
     N * K,
     M * N,
@@ -67,24 +67,33 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 
 @registry.reg("cuda.gemm_rcr_permute.config")
 def gemm_rcr_permute_config(func_attrs, dtype="float16"):
-    def fproc_f16(op):
+    def fproc(op):
         import cutlass_lib
 
-        return common_permute.default_fproc_f16(
+        from ...backend_spec import CUDASpec
+
+        backend_spec = CUDASpec()
+        elem_type = backend_spec.dtype_to_lib_type(
+            func_attrs["inputs"][0]._attrs["dtype"]
+        )
+
+        return common.default_fproc(
             op=op,
             a_layout=cutlass_lib.library.LayoutType.RowMajor,
             b_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             c_layout=cutlass_lib.library.LayoutType.RowMajor,
+            elem_type=elem_type,
             epiligue_name=func_attrs["epilogue"],
             permute_layout=func_attrs["layout"],
         )
 
-    func_attrs["op_instance"] = common_permute.extract_config(fproc_f16, func_attrs)
+    func_attrs["op_instance"] = common_permute.extract_config(fproc, func_attrs)
 
 
 def common_gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     dim_info_dict,
     src_template,
     problem_args_template,
@@ -94,9 +103,10 @@ def common_gen_profiler(
     output_addr_calculator = common.DEFAULT_OUTPUT_ADDR_CALCULATOR.render(
         stride_dim="*b_dim0"
     )
-    common_permute.gen_profiler(
+    return common_permute.gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         src_template,
         problem_args_template,
@@ -110,10 +120,11 @@ def common_gen_profiler(
 
 
 @registry.reg("cuda.gemm_rcr_permute.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     return common_gen_profiler(
         func_attrs,
         workdir,
+        profiler_filename,
         dim_info_dict,
         common.SRC_TEMPLATE,
         PROBLEM_ARGS_TEMPLATE,
@@ -128,10 +139,24 @@ def gen_function(
     dim_info_dict,
     problem_args_template=None,
 ):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+
     if problem_args_template is None:
-        problem_args = PROBLEM_ARGS_TEMPLATE.render()
+        problem_args = PROBLEM_ARGS_TEMPLATE.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+        )
     else:
-        problem_args = problem_args_template.render()
+        problem_args = problem_args_template.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+        )
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
     output_ndims = len(func_attrs["output_accessors"][0].original_shapes)

@@ -30,6 +30,7 @@ def torch_dtype_to_string(dtype):
         torch.float32: "float32",
         torch.int32: "int32",
         torch.int64: "int64",
+        torch.bool: "bool",
     }
     if dtype not in dtype_to_str:
         raise ValueError(

@@ -31,16 +31,8 @@ def var_decl(name, value=0, indent="  "):
     return VAR_TEMPLATE.render(name=name, value=value, indent=indent)
 
 
-@registry.reg("cuda.lib.ptr_decl")
-def ptr_decl(name, dtype="float16", indent="  "):
-    if dtype == "float16":
-        type_string = "cutlass::half_t*"
-    elif dtype in ["float", "float32"]:
-        type_string = "float*"
-    elif dtype == "int64":
-        type_string = "int64_t*"
-    elif dtype in ["int", "int32"]:
-        type_string = "int32_t*"
-    else:
-        raise NotImplementedError
-    return PTR_TEMPLATE.render(name=name, dtype=type_string, indent=indent)
+@registry.reg("cuda.lib.void_ptr_decl")
+def void_ptr_decl(name, dtype="float16", indent="  "):
+    # FIXME: we keep dtype in void_ptr_decl's param list because rocm needs it.
+    # We will remove it once we support general tensor type for rocm
+    return PTR_TEMPLATE.render(name=name, dtype="void*", indent=indent)

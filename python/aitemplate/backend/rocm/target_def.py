@@ -17,6 +17,7 @@ Rocm target specialization.
 """
 # pylint: disable=W0702,W0707,W0611,C0415
 
+import json
 import os
 import re
 import shutil
@@ -24,6 +25,8 @@ import sys
 from typing import List
 
 from aitemplate.backend.target import AIT_STATIC_FILES_PATH
+
+from ...utils import logger
 
 from .. import registry
 from ..target import COMPOSABLE_KERNEL_PATH, Target
@@ -76,6 +79,16 @@ class ROCM(Target):
         rocm_path = os.environ.get("ROCM_PATH", "/opt/rocm")
         return rocm_path
 
+    def _get_ck_paths(self):
+        ck_paths = [
+            os.path.join(self._template_path),
+            os.path.join(self._template_path, "include/"),
+            os.path.join(self._template_path, "external/include/half/"),
+            os.path.join(self._template_path, "library/include/"),
+            os.path.join(self._template_path, "profiler/include/"),
+        ]
+        return ck_paths
+
     def _build_compile_options(self):
         """Build compilation commands, including compilation flag library and includes.
 
@@ -90,13 +103,7 @@ class ROCM(Target):
             Unsupported GPU Arch.
         """
 
-        ck_paths = [
-            os.path.join(self._template_path),
-            os.path.join(self._template_path, "include/"),
-            os.path.join(self._template_path, "external/include/half/"),
-            os.path.join(self._template_path, "library/include/"),
-            os.path.join(self._template_path, "profiler/include/"),
-        ]
+        ck_paths = self._get_ck_paths()
         options = [
             "-O3",
             "-fPIC",
@@ -121,6 +128,8 @@ class ROCM(Target):
         rocrand_path = os.path.join(self._pkg_path(), "rocrand/lib/")
         options.append("-L" + rocrand_path)
         options.append("-lrocrand")
+        if self._ndebug == 1:
+            options.append("-DNDEBUG")
         return " ".join(options)
 
     def _gen_ck_lib_pkg(self):
@@ -181,7 +190,9 @@ class ROCM(Target):
         if executable:
             cmd = self.cc() + " " + self._compile_options + " -o {target} {src}"
         else:
-            cmd = self.cc() + " " + self._compile_options + " -c -o {target} {src}"
+            cmd = (
+                self.cc() + " " + self._compile_options + " -x hip -c -o {target} {src}"
+            )
         return cmd
 
     def src_extension(self):
@@ -210,7 +221,110 @@ class ROCM(Target):
                 raise RuntimeError("Unknown CK ops.")
             return tuple(args)
 
-        return sorted(algo_names, key=comp_func)[0]
+        return min(algo_names, key=comp_func)
+
+
+class FBROCM(ROCM):
+    """ROCM target.
+
+    Parameters
+    ----------
+    Target : Target
+        All attributes needed for ROCM.
+    """
+
+    def __init__(
+        self,
+        template_path=COMPOSABLE_KERNEL_PATH,
+        arch="GFX90a",
+        ait_static_files_path=AIT_STATIC_FILES_PATH,
+        **kwargs,
+    ):
+        """Initialize ROCM target.
+
+        Parameters
+        ----------
+        template_path : str, optional
+            Path to composable kernel library, by default "${repo_root}/3rdparty/composable_kernel".
+        ait_static_files_path : str
+            Absolute path to the AIT static/ directory
+        arch : str, optional
+            Supported ROCM architecture, by default "GFX90a".
+        """
+        from libfb.py import parutil
+
+        self._template_path = template_path.replace("3rdparty", "fb/3rdparty")
+
+        convert_hippcc_json = parutil.get_file_path(
+            os.path.join("aitemplate/testing", "convert_hipcc_cmd")
+        )
+        logger.info(
+            __name__, f"Load the hipcc compile option from {convert_hippcc_json}"
+        )
+        with open(convert_hippcc_json, "r") as hipcc_options_json:
+            self.hipcc_options_json = json.load(hipcc_options_json)
+
+        super().__init__(template_path=self._template_path, arch=arch, **kwargs)
+
+    def _build_compile_options(self):
+        """Build compilation commands, including compilation flag library and includes.
+
+        Returns
+        -------
+        List
+            List of compilation options.
+
+        Raises
+        ------
+        RuntimeError
+            Unsupported GPU Arch.
+        """
+
+        ck_paths = self._get_ck_paths()
+        options = self.hipcc_options_json["args"] + [
+            "-O3",
+            "-fPIC",
+            "-fvisibility=hidden",
+            "-std=c++17",
+            "-w",
+            "-DCK_TIME_KERNEL=0",
+            "--hip-version=5.2.0",
+        ]
+
+        for path in ck_paths:
+            options.append("-I" + path)
+
+        if self._arch in {"GFX908", "gfx908"}:
+            options.append("-DCK_AMD_GPU_GFX908")
+            options.append("--cuda-gpu-arch=gfx908")
+        elif self._arch in {"GFX90a", "gfx90a"}:
+            options.append("-DCK_AMD_GPU_GFX90A")
+            options.append("--cuda-gpu-arch=gfx90a")
+        else:
+            raise RuntimeError("Unsupported GPU Arch")
+        for path in ck_paths:
+            options.append("-I" + path)
+
+        options.append("-lrocrand")
+        return " ".join(options)
+
+    def binary_compile_cmd(self):
+        """
+        There is no ld by default in the prod env. Instead, we use ld from the gvfs path.
+        """
+        ld = self.hipcc_options_json["ld"]
+        return " ".join([ld, "-r -b binary -o {target} {src}"])
+
+    def cc(self):
+        return self.hipcc_options_json["hipcc_bin"]
+
+    def compile_options(self):
+        return self._compile_options
+
+
+@registry.reg("fb.rocm.create_target")
+def create_target_fb(arch, **kwargs):
+    return FBROCM(arch=arch, **kwargs)
 
 
 @registry.reg("rocm.create_target")

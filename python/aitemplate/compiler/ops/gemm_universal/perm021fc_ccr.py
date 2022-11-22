@@ -31,7 +31,6 @@ class perm021fc_ccr(bmm):
 
     .. highlight:: python
     .. code-block:: python
-
         X_pt = torch.randn(B, K, M).cuda().half()
         W_pt = torch.randn(N, K).cuda().half()
 

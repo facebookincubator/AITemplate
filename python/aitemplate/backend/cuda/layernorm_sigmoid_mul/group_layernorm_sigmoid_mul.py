@@ -22,12 +22,25 @@ from typing import Any, Dict
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from ...common import tensor_accessor_codegen
 from ...target import Target
-from .. import cuda_common
 from . import layernorm_common
 
 # pylint: disable=C0301
+
+
+LOCAL_PARAM_DEF_TEMPLATE = jinja2.Template(
+    """
+{{indent}} {{elem_input_type}} *{{local_param_name}}[{{num_groups}}] = {
+{% for i in range(num_groups) %}
+{{indent}}    static_cast<{{elem_input_type}}*>({{param_name}}[{{i}}]){{", " if not loop.last else ""}}
+{% endfor %}
+{{indent}}
+{{indent}}};
+"""
+)
+
 
 FUNC_TEMPLATE = jinja2.Template(
     """
@@ -49,17 +62,20 @@ namespace {
 {
     {{output_accessor_template}}
     {{input_accessor_template}}
-    invokeGroupLayernormSigmoidMul<half, float, {{fuse_sigmoid_mul}}, {{num_inputs}}>(output, input, gamma, beta, b, m, n, eps, stream, input_accessors, output_accessors);
+    {{local_param_defs}}
+    invokeGroupLayernormSigmoidMul<{{elem_input_type}}, float, {{fuse_sigmoid_mul}}, {{num_inputs}}>(
+        {{local_param_names}},
+        b, m, n, eps, stream, input_accessors, output_accessors);
 }
     """
 )
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-void {{func_name}}(half* output[],
-                   half* input[],
-                   half* gamma[],
-                   half* beta[],
+void {{func_name}}(void* output[],
+                   void* input[],
+                   void* gamma[],
+                   void* beta[],
                    int b,
                    int m,
                    int64_t* n,
@@ -96,19 +112,19 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{
 
-{{indent}}  {{input_elem_type}} *outputs[] = {
+{{indent}}  void *outputs[] = {
 {{indent}}    {{outputs}}
 {{indent}}  };
 
-{{indent}}  {{input_elem_type}} *inputs[] = {
+{{indent}}  void *inputs[] = {
 {{indent}}    {{inputs}}
 {{indent}}  };
 
-{{indent}}  {{input_elem_type}} *gamma[] = {
+{{indent}}  void *gamma[] = {
 {{indent}}    {{gamma}}
 {{indent}}  };
 
-{{indent}}  {{input_elem_type}} *beta[] = {
+{{indent}}  void *beta[] = {
 {{indent}}    {{beta}}
 {{indent}}  };
 
@@ -172,17 +188,39 @@ def group_layernorm_sigmoid_mul_gen_function(func_attrs: Dict[str, Any]) -> str:
         raise RuntimeError(f"Unsupported op: {op}")
 
     gamma_beta_const_defs = layernorm_common.gamma_beta_const_defs(func_attrs)
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    num_groups = len(func_attrs["outputs"])
+    params = ["output", "input", "gamma", "beta"]
+    local_param_defs = []
+    local_param_names = []
+    for param in params:
+        local_name = f"{param}_tmp"
+        local_param_def = LOCAL_PARAM_DEF_TEMPLATE.render(
+            indent="  ",
+            elem_input_type=elem_input_type,
+            num_groups=num_groups,
+            local_param_name=local_name,
+            param_name=param,
+        )
+        local_param_defs.append(local_param_def)
+        local_param_names.append(local_name)
     return FUNC_TEMPLATE.render(
         custom_libs=Target.current().get_custom_libs(
             os.path.dirname(__file__), "layernorm_sigmoid_mul_kernel.cuh"
         ),
         tensor_accessor_libs=tensor_accessor_codegen.get_libs(),
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
+        elem_input_type=elem_input_type,
         fuse_sigmoid_mul=fuse_sigmoid_mul,
         num_inputs=len(func_attrs["outputs"]),
         output_accessor_template=output_accessor_template,
         input_accessor_template=input_accessor_template,
         gamma_beta_const_defs=gamma_beta_const_defs,
+        local_param_defs="\n".join(local_param_defs),
+        local_param_names=",".join(local_param_names),
     )
 
 
@@ -212,47 +250,17 @@ def group_layernorm_sigmoid_mul_gen_function_call(func_attrs, indent="  "):
         idx += b
     outputs = func_attrs["outputs"]
 
-    output_ptrs = ",\n        ".join(
-        [
-            layernorm_common.FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-                name=out._attrs["name"]
-            )
-            for out in outputs
-        ]
-    )
+    output_ptrs = ",\n        ".join([out._attrs["name"] for out in outputs])
 
-    input_ptrs = ",\n        ".join(
-        [
-            layernorm_common.FUNC_CALL_FP16_PARAM_TEMPLATE.render(name=i._attrs["name"])
-            for i in inputs
-        ]
-    )
+    input_ptrs = ",\n        ".join([i._attrs["name"] for i in inputs])
 
     gamma_strs = (
-        ["nullptr"] * b
-        if gammas is None
-        else (
-            [
-                layernorm_common.FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-                    name=i._attrs["name"]
-                )
-                for i in gammas
-            ]
-        )
+        ["nullptr"] * b if gammas is None else ([i._attrs["name"] for i in gammas])
     )
     gamma_ptrs = ",\n        ".join(gamma_strs)
 
     beta_strs = (
-        ["nullptr"] * b
-        if betas is None
-        else (
-            [
-                layernorm_common.FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-                    name=i._attrs["name"]
-                )
-                for i in betas
-            ]
-        )
+        ["nullptr"] * b if betas is None else ([i._attrs["name"] for i in betas])
     )
     beta_ptrs = ",\n        ".join(beta_strs)
 
@@ -290,7 +298,6 @@ def group_layernorm_sigmoid_mul_gen_function_call(func_attrs, indent="  "):
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         m_n_shape_func="".join(all_shape_funcs),
-        input_elem_type=cuda_common.dtype_to_cuda_type(inputs[0]._attrs["dtype"]),
         indent=indent,
         outputs=output_ptrs,
         inputs=input_ptrs,

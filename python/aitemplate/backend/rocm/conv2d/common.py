@@ -22,7 +22,6 @@ from hashlib import sha1
 
 import jinja2
 
-from ... import builder
 from ...target import Target
 
 # pylint: disable=C0103,C0415,W0611,C0301
@@ -90,9 +89,9 @@ EXEC_TEMPLATE = jinja2.Template(
 {{problem_args}}
 {{indent}});
 {{indent}}if(!op.IsSupportedArgument(argument)) {
-{{indent}}  throw std::runtime_error(
-{{indent}}    "wrong! device_conv with the specified compilation parameters does "
-{{indent}}    "not support this Conv problem");
+{{indent}}  auto ss = std::stringstream();
+{{indent}}  ss << "wrong! " << op.GetTypeString() << " with the specified compilation parameters does not support this Conv problem.";
+{{indent}}  throw std::runtime_error(ss.str());
 {{indent}}}
 {% if is_profiler %}
 {{indent}}auto workspace_size = op.GetWorkSpaceSize(&argument);
@@ -462,8 +461,9 @@ int main(int argc, char** argv) {
     {{func_call}}
   }
   timer->End();
-  std::cout << "WS:" <<GLOBAL_WORKSPACE_SIZE<<std::endl;
-  std::cout << "TIME:" << timer->GetElapsedTime() << std::endl;
+  std::cout << "OP:" << "{{op_name}}" << ",";
+  std::cout << "TIME:" << timer->GetElapsedTime() << ",";
+  std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
   delete(timer);
 }
 """
@@ -604,7 +604,7 @@ def gen_profiler(
         dilate="dilation",
         pad="pad",
     )
-    file_paris = []
+    file_pairs = []
     for op_name, op in op_instance.items():
         config = emit_instance(op)
         config_name = extract_config_name(config)
@@ -663,6 +663,7 @@ def gen_profiler(
             args_parse=args_parse,
             tensor_decl=tensor_decl,
             func_call=func_call,
+            op_name=op_name,
         )
         prefix = os.path.join(workdir, "profiler", op_type)
         if not os.path.exists(prefix):
@@ -673,15 +674,8 @@ def gen_profiler(
             continue
         with open(src_path, "w") as fo:
             fo.write(code)
-        file_paris.append((src_path, obj_path))
-
-    # build
-    target = Target.current()
-    compile_engine = builder.Builder()
-    compile_engine.build_objs(file_paris, target.compile_cmd(executable=True))
-    # cleanup source
-    # for src_path, _ in file_paris:
-    #     os.remove(src_path)
+        file_pairs.append((src_path, obj_path))
+    return file_pairs
 
 
 def gen_function(

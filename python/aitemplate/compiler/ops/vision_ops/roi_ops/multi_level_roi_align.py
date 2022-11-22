@@ -117,3 +117,9 @@ class multi_level_roi_align(roi_ops_base):
         output = Tensor(output_shape, src_ops={self})
         self._attrs["outputs"] = [output]
         return output
+
+    def _get_op_attributes(self):
+        attr = super()._get_op_attributes()
+        attr["im_shape"] = self._attrs["im_shape"]
+
+        return attr

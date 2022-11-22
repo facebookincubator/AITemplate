@@ -29,6 +29,7 @@ HEAD_TEMPLATE = """
 #include "cutlass/cutlass.h"
 #include "cutlass/fast_math.h"
 #include "cutlass/constants.h"
+#include "cutlass/epilogue/thread/activation.h"
 """
 
 
