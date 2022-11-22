@@ -635,14 +635,20 @@ class attentionTestCase(unittest.TestCase):
         x = torch.randn(
             batch_size, seqlen, n, device="cuda", dtype=dtype, requires_grad=True
         )
-        Wqkv = torch.nn.Linear(nheads * head_size, 3 * nheads * head_size, device=device, dtype=dtype)
+        Wqkv = torch.nn.Linear(
+            nheads * head_size, 3 * nheads * head_size, device=device, dtype=dtype
+        )
         qkv = (
             rearrange(Wqkv(x), "b s (t h d) -> b s t h d", t=3, h=nheads)
             .detach()
             .requires_grad_()
         )
         q, k, v = torch.split(qkv, 1, dim=2)
-        q, k, v = q.squeeze(2), k.squeeze(2), v.squeeze(2)  # batch_size, seqlen, nheads, head_size
+        q, k, v = (
+            q.squeeze(2),
+            k.squeeze(2),
+            v.squeeze(2),
+        )  # batch_size, seqlen, nheads, head_size
         output = attention_ref(qkv, None, 0, causal=False)
         y_pt = output.detach()
         y_pt = y_pt.reshape(batch_size, seqlen, nheads * head_size)
@@ -722,9 +728,7 @@ class attentionTestCase(unittest.TestCase):
             )
 
     def test_vanilla_attention(self):
-        self._test_vanilla_attention(
-            test_name="vanilla_attention"
-        )
+        self._test_vanilla_attention(test_name="vanilla_attention")
 
 
 if __name__ == "__main__":
