@@ -95,6 +95,8 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         self.vae_ait_exe = self.init_ait_module(
             model_name="AutoencoderKL", workdir=workdir
         )
+        
+        self.del_pt_models()
 
     def init_ait_module(
         self,
@@ -245,7 +247,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         text_input = self.tokenizer(
             prompt,
             padding="max_length",
-            max_length=77, #64,  # self.tokenizer.model_max_length,
+            max_length=self.tokenizer.model_max_length,
             truncation=True,
             return_tensors="pt",
         )
@@ -279,7 +281,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             uncond_input = self.tokenizer(
                 uncond_tokens,
                 padding="max_length",
-                max_length=77,#max_length,
+                max_length=max_length,
                 return_tensors="pt",
             )
             uncond_embeddings = self.clip_inference(
@@ -375,14 +377,6 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         image = (image / 2 + 0.5).clamp(0, 1)
         image = image.cpu().permute(0, 2, 3, 1).numpy()
 
-        # run safety checker
-        safety_cheker_input = self.feature_extractor(
-            self.numpy_to_pil(image), return_tensors="pt"
-        ).to(self.device)
-        
-        #image, has_nsfw_concept = self.safety_checker(
-        #    images=image, clip_input=safety_cheker_input.pixel_values
-        #)
         has_nsfw_concept = False
 
         if output_type == "pil":
