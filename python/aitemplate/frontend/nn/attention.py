@@ -180,7 +180,7 @@ class MultiheadAttention(Module):
             self.use_flash = True
 
         if use_vanilla or (USE_CUDA and detect_target()._arch in ["70"]):
-            assert not causal, "Uncausal not implemented"
+            assert not causal, "Causal not implemented"
             self.op = vanilla_attention
             self.use_mem_eff = False
             self.use_flash = False
@@ -396,7 +396,7 @@ class CrossAttention(Module):
         self.use_vanilla = use_vanilla
 
         if use_vanilla or (USE_CUDA and detect_target()._arch in ["70"]):
-            assert not causal, "Uncausal not implemented"
+            assert not causal, "Causal not implemented"
             self.op = vanilla_attention
             self.use_vanilla = True
         else:
