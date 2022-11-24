@@ -44,9 +44,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}                                           input_left_pads,
 {{indent}}                                           input_right_pads);
 {{indent}}if(!op.IsSupportedArgument(argument_ptr.get())) {
-{{indent}}  auto ss = std::stringstream(); 
-{{indent}}  ss << "wrong! " << op.GetTypeString() << " with the specified compilation parameters does not support this Pool problem.";
-{{indent}}  throw std::runtime_error(ss.str());
+{{indent}}  LOG(FATAL) << "wrong! " << op.GetTypeString() << " with the specified compilation parameters does not support this Pool problem.";
 {{indent}}}
 {{indent}}invoker_ptr->Run(argument_ptr.get(), StreamConfig{stream, false});
 {{indent}}return;
@@ -60,6 +58,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <initializer_list>
 #include <cstdlib>
 #include <stdlib.h>
+#include "logging.h"
 #include "include/ck/utility/print.hpp"
 #include "library/include/ck/library/utility/device_memory.hpp"
 #include "library/include/ck/library/utility/host_tensor.hpp"

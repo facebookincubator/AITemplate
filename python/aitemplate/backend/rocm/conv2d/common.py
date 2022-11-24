@@ -89,9 +89,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {{problem_args}}
 {{indent}});
 {{indent}}if(!op.IsSupportedArgument(argument)) {
-{{indent}}  auto ss = std::stringstream();
-{{indent}}  ss << "wrong! " << op.GetTypeString() << " with the specified compilation parameters does not support this Conv problem.";
-{{indent}}  throw std::runtime_error(ss.str());
+{{indent}}  LOG(FATAL) << "wrong! " << op.GetTypeString() << " with the specified compilation parameters does not support this Conv problem.";
 {{indent}}}
 {% if is_profiler %}
 {{indent}}auto workspace_size = op.GetWorkSpaceSize(&argument);
@@ -118,6 +116,7 @@ SRC_TEMPLATE = jinja2.Template(
 // #include <half.hpp>
 #include <random>
 #include <rocrand/rocrand.h>
+#include "logging.h"
 #include "include/ck/utility/print.hpp"
 #include "library/include/ck/library/utility/device_memory.hpp"
 #include "library/include/ck/library/utility/host_tensor.hpp"
