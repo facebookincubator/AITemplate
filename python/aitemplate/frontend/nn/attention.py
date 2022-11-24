@@ -15,6 +15,8 @@
 """
 Frontend for attention module
 """
+from functools import partial
+
 from aitemplate.testing import detect_target
 
 from ...compiler import ops
@@ -43,7 +45,7 @@ def _get_shape(x):
     return shape
 
 
-def vanilla_attention(q, k, v, scale=None):
+def vanilla_attention(q, k, v, scale=None, attn_mask=None):
     """Vanilla attention in the most basic form
     q,k,v: batch, seqlen, num_heads, head_dim
     """
@@ -63,6 +65,8 @@ def vanilla_attention(q, k, v, scale=None):
     k = ops.reshape()(k, (-1, D, M))  # BGxDxM
 
     attention = ops.bmm_rrr()(q, k)  # BGxNxM
+    if attn_mask is not None:
+        attention = attention + attn_mask
     attention = ops.softmax()(attention, -1)  # BGxNxM
 
     v = ops.reshape()(v, (-1, M, C))  # BxMxGD
@@ -180,11 +184,29 @@ class MultiheadAttention(Module):
             self.use_flash = True
 
         if use_vanilla or (USE_CUDA and detect_target()._arch in ["70"]):
-            assert not causal, "Causal not implemented"
-            self.op = vanilla_attention
+            if causal:
+                import torch
+                from aitemplate.compiler.base import _TorchConstantTensorData
+                mask = torch.triu(
+                    torch.ones(seq_len, seq_len, dtype=torch.bool), 1
+                ).cuda()
+                causal_mask_pt = torch.zeros(seq_len, seq_len).cuda().half()
+                causal_mask_pt.masked_fill_(mask, float("-inf"))
+                causal_mask_pt = causal_mask_pt.unsqueeze(0)
+
+                causal_mask = Tensor(
+                    shape=[1, seq_len, seq_len],
+                    dtype="float16",
+                )
+                causal_mask._bind_data(_TorchConstantTensorData(causal_mask_pt))
+
+                self.op = partial(vanilla_attention, attn_mask=causal_mask)
+            else:
+                self.op = vanilla_attention
             self.use_mem_eff = False
             self.use_flash = False
             self.use_vanilla = True
+
         elif use_mem_eff:
             self.op = ops.mem_eff_attention(
                 causal=causal,

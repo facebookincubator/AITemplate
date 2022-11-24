@@ -623,6 +623,7 @@ class attentionTestCase(unittest.TestCase):
         nheads=16,
         seqlen=1024,
         n=1024,
+        causal=False,
         dtype=torch.float16,
         device="cuda",
         test_name="attention",
@@ -649,7 +650,7 @@ class attentionTestCase(unittest.TestCase):
             k.squeeze(2),
             v.squeeze(2),
         )  # batch_size, seqlen, nheads, head_size
-        output = attention_ref(qkv, None, 0, causal=False)
+        output = attention_ref(qkv, None, 0, causal=causal)
         y_pt = output.detach()
         y_pt = y_pt.reshape(batch_size, seqlen, nheads * head_size)
         print(f"{y_pt.shape=}")
@@ -674,8 +675,23 @@ class attentionTestCase(unittest.TestCase):
         )
 
         from aitemplate.frontend.nn.attention import vanilla_attention
+        from aitemplate.compiler.base import _TorchConstantTensorData
+        causal_mask = None
+        if causal:
+            mask = torch.triu(
+                torch.ones(seqlen, seqlen, dtype=torch.bool, device=qkv.device), 1
+            )
+            causal_mask_pt = torch.zeros(seqlen, seqlen, dtype=qkv.dtype, device=qkv.device)
+            causal_mask_pt.masked_fill_(mask, float("-inf"))
+            causal_mask_pt = causal_mask_pt.unsqueeze(0)
 
-        Y = vanilla_attention(Q, K, V)
+            causal_mask = Tensor(
+                shape=[1, seqlen, seqlen],
+                dtype="float16",
+                name="causal_mask",
+            )
+            causal_mask._bind_data(_TorchConstantTensorData(causal_mask_pt))
+        Y = vanilla_attention(Q, K, V, attn_mask=causal_mask)
 
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
@@ -729,6 +745,7 @@ class attentionTestCase(unittest.TestCase):
 
     def test_vanilla_attention(self):
         self._test_vanilla_attention(test_name="vanilla_attention")
+        self._test_vanilla_attention(test_name="vanilla_attention_cuasal", causal=True)
 
 
 if __name__ == "__main__":
