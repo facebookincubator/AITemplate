@@ -16,6 +16,7 @@ import click
 import torch
 
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
+from diffusers import EulerDiscreteScheduler
 from pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 
 
@@ -28,8 +29,13 @@ from pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
 def run(token, width, height, prompt, benchmark):
+
+    model_id = "stabilityai/stable-diffusion-2"
+    scheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
+
     pipe = StableDiffusionAITPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
+        model_id,
+        scheduler=scheduler,
         revision="fp16",
         torch_dtype=torch.float16,
         use_auth_token=token,
