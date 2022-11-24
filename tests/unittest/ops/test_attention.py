@@ -674,14 +674,17 @@ class attentionTestCase(unittest.TestCase):
             is_input=True,
         )
 
-        from aitemplate.frontend.nn.attention import vanilla_attention
         from aitemplate.compiler.base import _TorchConstantTensorData
+        from aitemplate.frontend.nn.attention import vanilla_attention
+
         causal_mask = None
         if causal:
             mask = torch.triu(
                 torch.ones(seqlen, seqlen, dtype=torch.bool, device=qkv.device), 1
             )
-            causal_mask_pt = torch.zeros(seqlen, seqlen, dtype=qkv.dtype, device=qkv.device)
+            causal_mask_pt = torch.zeros(
+                seqlen, seqlen, dtype=qkv.dtype, device=qkv.device
+            )
             causal_mask_pt.masked_fill_(mask, float("-inf"))
             causal_mask_pt = causal_mask_pt.unsqueeze(0)
 

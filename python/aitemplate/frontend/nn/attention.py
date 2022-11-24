@@ -186,7 +186,9 @@ class MultiheadAttention(Module):
         if use_vanilla or (USE_CUDA and detect_target()._arch in ["70"]):
             if causal:
                 import torch
+
                 from aitemplate.compiler.base import _TorchConstantTensorData
+
                 mask = torch.triu(
                     torch.ones(seq_len, seq_len, dtype=torch.bool), 1
                 ).cuda()
