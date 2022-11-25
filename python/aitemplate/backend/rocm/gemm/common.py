@@ -25,13 +25,35 @@ import jinja2
 from ...common import gemm_common
 from ...target import Target
 
+INPUT_ADDR_CALCULATOR = jinja2.Template(
+    """
+    {% if accessor_a.is_from_strided_tensor %}
+      stride_a = {{accessor_a.stride(0)}};
+      offset_a = {{accessor_a.offset}}; // default to 0
+    {% endif %}
+    {% if accessor_b.is_from_strided_tensor %}
+      stride_b = {{accessor_b.stride(0)}};
+      offset_b = {{accessor_b.offset}}; // default to 0
+    {% endif %}
+    """
+)
+
 # pylint: disable=C0103,C0415,W0611,C0301
+OUTPUT_ADDR_CALCULATOR = jinja2.Template(
+    """
+  {% if output_accessor.is_from_strided_tensor %}
+    output_stride = {{output_accessor.actual_total_elements_from_stride_dim}};
+    output_offset = {{output_accessor.offset}};
+  {% endif %}
+    """
+)
 
 EXTRA_SHAPE_TEMPLATE = jinja2.Template(
     """
-{{indent}}const int64_t stride_a = *a_dim1;
-{{indent}}const int64_t stride_b = *b_dim1;
+{{indent}}int64_t stride_a = *a_dim1;
+{{indent}}int64_t stride_b = *b_dim1;
 {{indent}}const int64_t stride_c = *c_dim1;
+{{indent}}int64_t output_stride = stride_c;
 """
 )
 
@@ -42,6 +64,7 @@ INSTANCE_TEMPLATE = jinja2.Template(
 using {{name}} = {{ config_name }};
 """
 )
+
 
 EXEC_TEMPLATE = jinja2.Template(
     """
@@ -134,6 +157,9 @@ void {{function_name}}(
     hipStream_t stream
     ) {
   {{shape_func}}
+  int64_t offset_a = 0;
+  int64_t offset_b = 0;
+  int64_t output_offset = 0;
   {{extra_shape}}
   {{input_addr_calculator}}
   {{output_addr_calculator}}
@@ -181,8 +207,8 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-{{indent}}                                static_cast<ck::half_t *>(in_ptr),
-{{indent}}                                static_cast<ck::half_t *>(weight_ptr),
+{{indent}}                                static_cast<ck::half_t *>(in_ptr) + offset_a,
+{{indent}}                                static_cast<ck::half_t *>(weight_ptr) + offset_b,
 
 {% if gemm_flag == "bias_permute" %}
 {{indent}}                                static_cast<ck::half_t *>(bias_ptr),
@@ -202,7 +228,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
                                                                     static_cast<ck::half_t *>(d1_ptr)},
 {% endif %}
 {% endif %}
-{{indent}}                                static_cast<ck::half_t *>(out_ptr),
+{{indent}}                                static_cast<ck::half_t *>(out_ptr) + output_offset,
 {% if gemm_flag not in ["permute_m2n3", "bias_permute_m2n3", "bias_permute_m3n2"]  %}
 {{indent}}                                M,
 {{indent}}                                N,
@@ -235,7 +261,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {% elif has_d1 %}
 {{indent}}                                std::array<ck::index_t, 3>{0, static_cast<int>(stride_c), static_cast<int>(stride_c)},
 {% endif %}
-{{indent}}                                stride_c,
+{{indent}}                                output_stride,
 {% endif %}
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
