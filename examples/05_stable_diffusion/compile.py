@@ -180,11 +180,16 @@ def compile_unet(
     hh=64,
     ww=64,
     dim=320,
+    hidden_dim=1024,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
 ):
 
-    ait_mod = ait_UNet2DConditionModel(sample_size=64, cross_attention_dim=768)
+    ait_mod = ait_UNet2DConditionModel(
+        sample_size=64,
+        cross_attention_dim=hidden_dim,
+        attention_head_dim=[5, 10, 20, 20],
+    )
     ait_mod.name_parameter_tensor()
 
     # set AIT parameters
@@ -196,7 +201,9 @@ def compile_unet(
         [batch_size, hh, ww, 4], name="input0", is_input=True
     )
     timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
-    text_embeddings_pt_ait = Tensor([batch_size, 64, 768], name="input2", is_input=True)
+    text_embeddings_pt_ait = Tensor(
+        [batch_size, 64, hidden_dim], name="input2", is_input=True
+    )
 
     Y = ait_mod(latent_model_input_ait, timesteps_ait, text_embeddings_pt_ait)
     mark_output(Y)
@@ -212,15 +219,12 @@ def compile_clip(
     seqlen=64,
     dim=768,
     num_heads=12,
-    hidden_size=768,
-    vocab_size=49408,
-    max_position_embeddings=77,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
 ):
     mask_seq = 0
     causal = True
-    depth = 12
+    depth = 23
 
     ait_mod = ait_CLIPTextTransformer(
         num_hidden_layers=depth,
@@ -336,7 +340,7 @@ def compile_diffusers(
         access_token = token
 
     pipe = StableDiffusionPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
+        "stabilityai/stable-diffusion-2",
         revision="fp16",
         torch_dtype=torch.float16,
         use_auth_token=access_token,
@@ -348,6 +352,8 @@ def compile_diffusers(
     # CLIP
     compile_clip(
         batch_size=batch_size,
+        dim=1024,
+        num_heads=16,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
     )

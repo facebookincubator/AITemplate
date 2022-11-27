@@ -307,14 +307,13 @@ class CLIPMLP(nn.Module):
         self.fc1 = nn.Linear(
             in_features,
             hidden_features,
+            specialization="gelu",
         )
-        self.activation_fn = QuickGELUActivation()
         self.fc2 = nn.Linear(hidden_features, out_features, specialization="add")
 
     def forward(self, x, res):
         shape = get_shape(x)
         x = self.fc1(x)
-        x = self.activation_fn(x)
         x = self.fc2(x, res)
         return ops.reshape()(x, shape)
 
@@ -344,6 +343,7 @@ class CLIPEncoderLayer(nn.Module):
             has_residual=True,
             causal=causal,
             mask_seq=mask_seq,
+            use_mem_eff=True,
         )
         self.layer_norm1 = nn.LayerNorm(self.embed_dim)
         self.mlp = CLIPMLP(hidden_size, int(hidden_size * mlp_ratio))
@@ -534,7 +534,7 @@ class CLIPTextTransformer(nn.Module):
     ):
         super().__init__()
         embed_dim = hidden_size
-        self.embeddings = CLIPTextEmbeddings()
+        self.embeddings = CLIPTextEmbeddings(hidden_size=hidden_size)
         self.encoder = CLIPEncoder(
             num_hidden_layers=num_hidden_layers,
             hidden_size=hidden_size,
