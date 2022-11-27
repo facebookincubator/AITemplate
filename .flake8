@@ -3,6 +3,8 @@ select = B,C,E,F,P,W,B9
 max-line-length = 80
 # Main Explanation Docs: https://github.com/grantmcconnaughey/Flake8Rules
 ignore =
+  # Black conflicts and overlaps.
+  # Found in https://github.com/psf/black/issues/429
   # Line too long.
   B950,
   # Indentation is not a multiple of four. 
@@ -97,6 +99,8 @@ ignore =
   W391,
   # Line break occurred after a binary operator. 
   W504, 
+
+  # Too opinionated.
   # Block comment should start with '# '.
   E265,
   # Too many leading '#' for block comment. 
