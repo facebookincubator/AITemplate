@@ -86,7 +86,19 @@ def process_task(task: Task) -> None:
     """
     stdout = task._stdout
     stderr = task._stderr
+    single_file_profiler = False
+
     if len(stderr) > 0:
+        # TODO: ugly fix, should remove when finish all profiler refactor
+        runtimes = PROF_RUNTIME_PATTERN.findall(stdout)
+        if len(runtimes) > 0:
+            single_file_profiler = True
+        if not single_file_profiler:
+            task._failed = True
+            return
+        cmd = task._cmd
+        if Target.current().name() == "rocm":
+            cmd = " ".join(cmd)
         cmd = task._cmd
         if Target.current().name() == 'rocm':
             cmd = ' '.join(cmd)

@@ -20,6 +20,7 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
+from operator import itemgetter
 from typing import Any, Dict, List
 
 import jinja2
@@ -407,6 +408,7 @@ class conv2d(Operator):
             if not func(cfg, self._attrs, x_shape):
                 continue
             command = self._gen_profile_cmd(profiler_prefix, cfg, x_shape)
+            logger.info(__name__, "Running " + " ".join(command))
             runner.push(cfg, command)
 
         runner.join()

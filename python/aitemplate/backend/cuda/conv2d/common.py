@@ -223,7 +223,7 @@ def cal_align_ab(x_shape: List[int]) -> int:
         return 4
     if k % 2 == 0:
         return 2
-    raise RuntimeError("a/b is not aligned")
+    raise RuntimeError(f"a/b is not aligned {x_shape=}")
 
 
 def function_filter(cfg, func_attrs, x_shape):

@@ -1,4 +1,4 @@
-#  Copyright (c) Meta Platform, Inc. and its affiliates.
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 #  Licensed under the Apache License, Version 2.0 (the "License");
 #  you may not use this file except in compliance with the License.
@@ -181,7 +181,7 @@ class TestGemmRCRBenchmark(unittest.TestCase):
         detect_target(use_fp16_acc=True).in_ci_env(), "don't run benchmark in CI"
     )
     def test_benchmark(self):
-        split_ks = sorted(set(range(1, 6)).union([2**i for i in range(5)]))
+        split_ks = sorted(set(range(1, 6)).union([2 ** i for i in range(5)]))
         for split_k, (n, k) in itertools.product(split_ks, NK_SHAPES):
             NUM_ITERS = 100000
             NUM_WARMUP_ITERS = 1000
@@ -252,7 +252,7 @@ class TestBmmRRRBenchmark(unittest.TestCase):
     def test_benchmark(self):
         INPUT_POOL_SIZE = 3
         MNK_SHAPES = ((1469, 16, 128),)
-        split_ks = sorted(set(range(1, 6)).union([2**i for i in range(5)]))
+        split_ks = sorted(set(range(1, 6)).union([2 ** i for i in range(5)]))
         for split_k, (m, n, k) in itertools.product(split_ks, MNK_SHAPES):
             NUM_ITERS = 100000
             NUM_WARMUP_ITERS = 1000

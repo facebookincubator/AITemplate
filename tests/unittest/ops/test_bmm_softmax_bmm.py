@@ -69,7 +69,7 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
             shape=[batch_dim, N, D], dtype="float16", name="input_2", is_input=True
         )
 
-        scale = head_dim**-0.5
+        scale = head_dim ** -0.5
 
         OP = ops.bmm_softmax_bmm_permute(shape=(num_heads,), scale=scale, causal=causal)
         if copy_op:
@@ -142,7 +142,7 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
             shape=[batch_dim, N, D], dtype="float16", name="input_2", is_input=True
         )
 
-        scale = head_dim**-0.5
+        scale = head_dim ** -0.5
 
         OP = ops.bmm_softmax_bmm(scale=scale)
         if copy_op:

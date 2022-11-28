@@ -99,7 +99,7 @@ class RoiAlignTestCase(unittest.TestCase):
 
             pooler_resolution = pooled_size
             canonical_level = 4
-            canonical_scale_factor = 2**canonical_level
+            canonical_scale_factor = 2 ** canonical_level
             pooler_scales = (
                 4.0 / canonical_scale_factor,
                 2.0 / canonical_scale_factor,

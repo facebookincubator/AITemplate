@@ -13,13 +13,16 @@
 #  limitations under the License.
 #
 """
-Codegen for conv3d.
+Codegen for conv2d_depthwise.
 """
+from collections import OrderedDict
+
 import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
 
 from ... import registry
+from ...target import Target
 from . import common
 
 # pylint: disable=C0103,C0415,W0613,C0301
@@ -66,7 +69,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <string>
 #include <stdexcept>
 #include "cutlass/cutlass.h"
-#include "cutlass/conv/kernel/default_conv3d_fprop.h"
+#include "cutlass/conv/kernel/default_depthwise_fprop.h"
 #include "cutlass/conv/device/implicit_gemm_convolution.h"
 #include "cutlass/util/host_tensor.h"
 #include "cutlass/util/reference/host/tensor_fill.h"
@@ -96,62 +99,51 @@ void {{function_name}} (
     int64_t* batch,
     int64_t* out_ch,
     int64_t* in_ch,
-    int64_t* kernel_d,
     int64_t* kernel_h,
     int64_t* kernel_w,
-    int64_t* in_d,
     int64_t* in_h,
     int64_t* in_w,
     int64_t* out_batch,
-    int64_t* out_d,
     int64_t* out_h,
     int64_t* out_w,
-    int stride_d,
-    int stride_h,
-    int stride_w,
-    int dilation_d,
-    int dilation_h,
-    int dilation_w,
-    int pad_d,
-    int pad_h,
-    int pad_w,
+    int stride,
+    int dilation,
+    int pad,
     cudaStream_t stream
   ) {
 
   {{shape_function}}
   int i32_batch = *batch;
-  int i32_in_d = *in_d;
   int i32_in_h = *in_h;
   int i32_in_w = *in_w;
   int i32_in_ch = *in_ch;
   int i32_out_ch = *out_ch;
-  int i32_kernel_d = *kernel_d;
   int i32_kernel_h = *kernel_h;
   int i32_kernel_w = *kernel_w;
   int i32_out_batch = *out_batch;
-  int i32_out_d = *out_d;
   int i32_out_h = *out_h;
   int i32_out_w = *out_w;
 
-  using cutlass::layout::TensorNDHWC;
-  TensorNDHWC layout_A(TensorNDHWC::packed(cutlass::make_Coord(i32_batch, i32_in_d, i32_in_h, i32_in_w, i32_in_ch)));
-  TensorNDHWC layout_B(TensorNDHWC::packed(cutlass::make_Coord(i32_out_ch, i32_kernel_d, i32_kernel_h, i32_kernel_w, i32_in_ch)));
-  TensorNDHWC layout_C(TensorNDHWC::packed(cutlass::make_Coord(i32_out_batch, i32_out_d, i32_out_h, i32_out_w, i32_out_ch)));
+  using cutlass::layout::TensorNHWC;
+  TensorNHWC layout_A(TensorNHWC::packed(cutlass::make_Coord(i32_batch, i32_in_h, i32_in_w, i32_in_ch)));
+  TensorNHWC layout_B(TensorNHWC::packed(cutlass::make_Coord(i32_out_ch, i32_kernel_h, i32_kernel_w, 1)));
+  TensorNHWC layout_C(TensorNHWC::packed(cutlass::make_Coord(i32_out_batch, i32_out_h, i32_out_w, i32_out_ch)));
 
-  cutlass::conv::Conv3dProblemSize problem_size(
-    cutlass::Tensor5DCoord(i32_batch, i32_in_d, i32_in_h, i32_in_w, i32_in_ch),
-    cutlass::Tensor5DCoord(i32_out_ch, i32_kernel_d, i32_kernel_h, i32_kernel_w, i32_in_ch),
-    cutlass::make_Coord(pad_d, pad_h, pad_w),
-    cutlass::make_Coord(stride_d, stride_h, stride_w),
-    cutlass::make_Coord(dilation_d, dilation_h, dilation_w),
-    cutlass::conv::Mode::kCrossCorrelation,
-    1,
-    1
+  cutlass::conv::Conv2dProblemSize problem_size(
+    {i32_batch, i32_in_h, i32_in_w, i32_in_ch},
+        {i32_out_ch, i32_kernel_h, i32_kernel_w, 1},
+        {pad, pad, pad, pad},
+        {stride, stride},
+        {dilation, dilation},
+        {i32_out_batch, i32_out_h, i32_out_w, i32_out_ch},
+        cutlass::conv::Mode::kCrossCorrelation,
+        1,
+        i32_in_ch
   );
 
   {{exec_paths}}
   throw std::runtime_error(
-      "Unsupported workload for this conv3d specialization."
+      "Unsupported workload for this conv2d specialization."
   );
 }
 """
@@ -166,23 +158,15 @@ size_t GLOBAL_WORKSPACE_SIZE = 0;
 
 int main(int argc, char** argv) {
   int64_t batch = std::stoi(argv[1]);
-  int64_t in_d = std::stoi(argv[2]);
-  int64_t in_h = std::stoi(argv[3]);
-  int64_t in_w = std::stoi(argv[4]);
-  int64_t in_ch = std::stoi(argv[5]);
-  int64_t kernel_d = std::stoi(argv[6]);
-  int64_t kernel_h = std::stoi(argv[7]);
-  int64_t kernel_w = std::stoi(argv[8]);
-  int64_t out_ch = std::stoi(argv[9]);
-  int stride_d = std::stoi(argv[10]);
-  int stride_h = std::stoi(argv[11]);
-  int stride_w = std::stoi(argv[12]);
-  int pad_d = std::stoi(argv[13]);
-  int pad_h = std::stoi(argv[14]);
-  int pad_w = std::stoi(argv[15]);
-  int dilation_d = std::stoi(argv[16]);
-  int dilation_h = std::stoi(argv[17]);
-  int dilation_w = std::stoi(argv[18]);
+  int64_t in_h = std::stoi(argv[2]);
+  int64_t in_w = std::stoi(argv[3]);
+  int64_t in_ch = std::stoi(argv[4]);
+  int64_t kernel_h = std::stoi(argv[5]);
+  int64_t kernel_w = std::stoi(argv[6]);
+  int64_t out_ch = std::stoi(argv[7]);
+  int stride = std::stoi(argv[8]);
+  int pad = std::stoi(argv[9]);
+  int dilation = std::stoi(argv[10]);
   {{shape_func}}
   using ElementOutput = typename {{name}}::ElementC;
   using ElementInputA = typename {{name}}::ElementA;
@@ -191,9 +175,9 @@ int main(int argc, char** argv) {
   uint8_t* global_workspace = nullptr;
   cudaStream_t stream = nullptr;
 
-  cutlass::HostTensor<ElementInputA, typename {{name}}::LayoutA> x({NI, DI, HI, WI, CI});
-  cutlass::HostTensor<ElementInputB, typename {{name}}::LayoutB> w({CO, KD, KH, KW, CI});
-  cutlass::HostTensor<ElementOutput, typename {{name}}::LayoutC> y({NO, DO, HO, WO, CO});
+  cutlass::HostTensor<ElementInputA, typename {{name}}::LayoutA> x({NI, HI, WI, CI});
+  cutlass::HostTensor<ElementInputB, typename {{name}}::LayoutB> w({CO, KH, KW, 1u});
+  cutlass::HostTensor<ElementOutput, typename {{name}}::LayoutC> y({NO, HO, WO, CO});
 
   //
   // warmup
@@ -204,31 +188,22 @@ int main(int argc, char** argv) {
        &NI,
        &CO,
        &CI,
-       &KD,
        &KH,
        &KW,
-       &DI,
        &HI,
        &WI,
        &NO,
-       &DO,
        &HO,
        &WO,
-       stride_d,
-       stride_h,
-       stride_w,
-       dilation_d,
-       dilation_h,
-       dilation_w,
-       pad_d,
-       pad_h,
-       pad_w,
+       stride,
+       dilation,
+       pad,
        stream);
   cudaEvent_t events[2];
   for (auto & event : events) {
     cudaEventCreate(&event);
   }
-  cudaEventRecord(events[0]);
+  cudaEventRecord(events[0], stream);
   for (int i = 0; i < 5; ++i) {
       conv(x.device_data(),
        w.device_data(),
@@ -237,28 +212,19 @@ int main(int argc, char** argv) {
        &NI,
        &CO,
        &CI,
-       &KD,
        &KH,
        &KW,
-       &DI,
        &HI,
        &WI,
        &NO,
-       &DO,
        &HO,
        &WO,
-       stride_d,
-       stride_h,
-       stride_w,
-       dilation_d,
-       dilation_h,
-       dilation_w,
-       pad_d,
-       pad_h,
-       pad_w,
+       stride,
+       dilation,
+       pad,
        stream);
   }
-  cudaEventRecord(events[1]);
+  cudaEventRecord(events[1], stream);
   cudaEventSynchronize(events[1]);
   float runtime_ms = 0;
   cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
@@ -295,15 +261,6 @@ void {{func_name}}(
   int64_t*,
   int64_t*,
   int64_t*,
-  int64_t*,
-  int64_t*,
-  int64_t*,
-  int,
-  int,
-  int,
-  int,
-  int,
-  int,
   int,
   int,
   int,
@@ -322,40 +279,121 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{p_batch}},
 {{indent}}    {{p_out_ch}},
 {{indent}}    {{p_in_ch}},
-{{indent}}    {{p_kernel_d}},
 {{indent}}    {{p_kernel_h}},
 {{indent}}    {{p_kernel_w}},
-{{indent}}    {{p_in_d}},
 {{indent}}    {{p_in_h}},
 {{indent}}    {{p_in_w}},
 {{indent}}    {{p_out_batch}},
-{{indent}}    {{p_out_d}},
 {{indent}}    {{p_out_h}},
 {{indent}}    {{p_out_w}},
-{{indent}}    {{stride_d}},
-{{indent}}    {{stride_h}},
-{{indent}}    {{stride_w}},
-{{indent}}    {{dilation_d}},
-{{indent}}    {{dilation_h}},
-{{indent}}    {{dilation_w}},
-{{indent}}    {{pad_d}},
-{{indent}}    {{pad_h}},
-{{indent}}    {{pad_w}},
+{{indent}}    {{stride}},
+{{indent}}    {{dilation}},
+{{indent}}    {{pad}},
 {{indent}}    stream
 {{indent}});
 """
 )
 
 
-@registry.reg("cuda.conv3d.config")
-def conv3d_config(func_attrs, dtype="float16"):
-    """Populates conv3d cutlass configs into 'op_instance' field."""
-    func_attrs["op_instance"] = common.extract_config(func_attrs)
+def conv_dw_instance(op_def):
+    op_def = op_def.replace("DefaultConv2dFprop", "DefaultDepthwiseFprop")
+    op_def = op_def.replace("OpClassTensorOp", "OpClassSimt")
+    idx = op_def.find("kAnalytic")
+    op_def = op_def[: idx + 9] + "\n>::Kernel;\n"
+    return op_def
 
 
-@registry.reg("cuda.conv3d.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
-    """Codegen for conv3d profiler."""
+def emit_instance(op, f_instance_convertor=conv_dw_instance):
+    """Emits cutlass instance."""
+    import cutlass_lib
+
+    emiter = cutlass_lib.conv2d_operation.EmitConv2dInstance()
+    op_def = emiter.emit(op)
+    op_def = f_instance_convertor(op_def)
+    return op_def
+
+
+def apply_special_config(func_attrs, op):
+    import cutlass_lib
+
+    op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.Analytic
+    op.A.alignment = 1
+    op.B.alignment = 1
+    op.tile_description.stages = 2
+    op.tile_description.math_instruction.instruction_shape = [1, 1, 1]
+    op.tile_description.threadblock_shape[-1] = 8
+    return op
+
+
+def extract_config(func_attrs):
+    import copy
+
+    import cutlass_lib
+
+    def f_proc_op_special(op):
+        ret = []
+        data_type = cutlass_lib.library.DataType.f16
+        acc_type = cutlass_lib.library.DataType.f32
+        # check target use fp16 acc
+        if "use_fp16_acc" in Target.current()._kwargs:
+            if Target.current()._kwargs["use_fp16_acc"]:
+                acc_type = cutlass_lib.library.DataType.f16
+
+        if (
+            op.A.element == data_type
+            and op.B.element == data_type
+            and op.C.element == data_type
+            and op.iterator_algorithm == cutlass_lib.library.IteratorAlgorithm.Optimized
+            and op.accumulator_type() == acc_type
+        ):
+
+            op = copy.deepcopy(op)
+            # set epilogue
+            epilogue_name = func_attrs["epilogue"]
+            op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epilogue_name]
+            op.element_epilogue = acc_type
+            op = apply_special_config(func_attrs, op)
+
+            # set C alignment
+            for i in [1]:
+                op = copy.deepcopy(op)
+                op.C.alignment = i
+                ret.append(op)
+        return ret
+
+    op_kind = cutlass_lib.library.OperationKind.Conv2d
+    conv_kind = cutlass_lib.library.ConvKind.Fprop
+    ret = []
+    conv2d_ops = OrderedDict()
+    extract_ops = list(Target.current()._operators[op_kind].items())
+
+    for _, value in extract_ops:
+        op = value[0]
+        if op.conv_kind == conv_kind:
+            ret = f_proc_op_special(op)
+            if len(ret) > 0:
+                for op_inst in ret:
+                    key = common.kernel_name(op_inst)
+                    conv2d_ops[key] = op_inst
+    return conv2d_ops
+
+
+@registry.reg("cuda.conv2d_depthwise.config")
+def conv2d_depthwise_config(func_attrs, dtype="float16"):
+    """Populates conv2d_depthwise cutlass configs into 'op_instance' field."""
+    func_attrs["op_instance"] = extract_config(func_attrs)
+
+
+@registry.reg("cuda.conv2d_depthwise.gen_profiler")
+def gen_profiler(
+    func_attrs,
+    workdir,
+    shape_template,
+    exec_template=EXEC_TEMPLATE,
+    src_template=SRC_TEMPLATE,
+    profiler_template=PROFILER_TEMPLATE,
+):
+    """Codegen for conv2d_depthwise profiler."""
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
     # shape func
@@ -364,44 +402,36 @@ def gen_profiler(func_attrs, workdir, shape_template):
         dtype="int64_t ",
         div="/",
         x_dim0="batch",
-        x_dim1="in_d",
-        x_dim2="in_h",
-        x_dim3="in_w",
-        x_dim4="in_ch",
+        x_dim1="in_h",
+        x_dim2="in_w",
+        x_dim3="in_ch",
         w_dim0="out_ch",
-        w_dim1="kernel_d",
-        w_dim2="kernel_h",
-        w_dim3="kernel_w",
-        stride_d="stride_d",
-        stride_h="stride_h",
-        stride_w="stride_w",
-        dilate_d="dilation_d",
-        dilate_h="dilation_h",
-        dilate_w="dilation_w",
-        pad_d="pad_d",
-        pad_h="pad_h",
-        pad_w="pad_w",
+        w_dim1="kernel_h",
+        w_dim2="kernel_w",
+        stride="stride",
+        dilate="dilation",
+        pad="pad",
     )
     backend_spec = CUDASpec()
     dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
     file_pairs = []
     for op_name, op in op_instance.items():
-        config = common.emit_instance(op)
+        config = emit_instance(op)
         config_name = common.extract_config_name(config)
         name = "DeviceConvFwdInstance"
         instance = INSTANCE_TEMPLATE.render(
             config_name=config_name, name=name, config=config
         )
-        exec_program = EXEC_TEMPLATE.render(
+        exec_program = exec_template.render(
             indent="  ", is_profiler=True, instance=name, dtype=dtype
         )
-        op_func = SRC_TEMPLATE.render(
+        op_func = src_template.render(
             instances=instance,
             function_name="conv",
             shape_func="",
             exec_paths=exec_program,
         )
-        code = PROFILER_TEMPLATE.render(
+        code = profiler_template.render(
             op_func=op_func, shape_func=shape_func, name=name
         )
         common.add_profiler(file_pairs, workdir, op_type, op_name, code)
@@ -409,14 +439,14 @@ def gen_profiler(func_attrs, workdir, shape_template):
     return common.build_profiler(file_pairs)
 
 
-@registry.reg("cuda.conv3d.gen_function")
+@registry.reg("cuda.conv2d_depthwise.gen_function")
 def gen_function(
     func_attrs,
     exec_cond_remplate,
     shape_eval_template,
     shape_save_template,
 ):
-    """Codegen for conv3d function."""
+    """Codegen for conv2d_depthwise function."""
     return common.gen_function(
         func_attrs,
         INSTANCE_TEMPLATE,
@@ -425,19 +455,20 @@ def gen_function(
         exec_cond_remplate,
         shape_eval_template,
         shape_save_template,
+        f_emit_instance=emit_instance,
     )
 
 
-@registry.reg("cuda.conv3d.func_decl")
-def conv3d_gen_function_decl(func_attrs):
-    """Codegen for conv3d function declaration."""
+@registry.reg("cuda.conv2d_depthwise.func_decl")
+def conv2d_depthwise_gen_function_decl(func_attrs):
+    """Codegen for conv2d_depthwise function declaration."""
     func_name = func_attrs["name"]
     return FUNC_DECL_TEMPLATE.render(func_name=func_name)
 
 
-@registry.reg("cuda.conv3d.func_call")
-def conv3d_gen_function_call(func_attrs, indent="  "):
-    """Codegen for conv3d function call."""
+@registry.reg("cuda.conv2d_depthwise.func_call")
+def conv2d_depthwise_gen_function_call(func_attrs, indent="  "):
+    """Codegen for conv2d_depthwise function call."""
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
     w = func_attrs["inputs"][1]
@@ -451,32 +482,23 @@ def conv3d_gen_function_call(func_attrs, indent="  "):
         out_ptr=y._attrs["name"],
         p_batch="&" + xshape[0]._attrs["name"],
         p_out_ch="&" + wshape[0]._attrs["name"],
-        p_in_ch="&" + xshape[4]._attrs["name"],
-        p_kernel_d="&" + wshape[1]._attrs["name"],
-        p_kernel_h="&" + wshape[2]._attrs["name"],
-        p_kernel_w="&" + wshape[3]._attrs["name"],
-        p_in_d="&" + xshape[1]._attrs["name"],
-        p_in_h="&" + xshape[2]._attrs["name"],
-        p_in_w="&" + xshape[3]._attrs["name"],
+        p_in_ch="&" + xshape[3]._attrs["name"],
+        p_kernel_h="&" + wshape[1]._attrs["name"],
+        p_kernel_w="&" + wshape[2]._attrs["name"],
+        p_in_h="&" + xshape[1]._attrs["name"],
+        p_in_w="&" + xshape[2]._attrs["name"],
         p_out_batch="&" + yshape[0]._attrs["name"],
-        p_out_d="&" + yshape[1]._attrs["name"],
-        p_out_h="&" + yshape[2]._attrs["name"],
-        p_out_w="&" + yshape[3]._attrs["name"],
-        stride_d=func_attrs["stride"][0],
-        stride_h=func_attrs["stride"][1],
-        stride_w=func_attrs["stride"][2],
-        dilation_d=func_attrs["dilate"][0],
-        dilation_h=func_attrs["dilate"][1],
-        dilation_w=func_attrs["dilate"][2],
-        pad_d=func_attrs["pad"][0],
-        pad_h=func_attrs["pad"][1],
-        pad_w=func_attrs["pad"][2],
+        p_out_h="&" + yshape[1]._attrs["name"],
+        p_out_w="&" + yshape[2]._attrs["name"],
+        stride=func_attrs["stride"],
+        dilation=func_attrs["dilate"],
+        pad=func_attrs["pad"],
         indent=indent,
     )
 
 
-@registry.reg("cuda.conv3d.filter")
-def conv3d_function_filter(cfg, func_attrs, x_shape):
+@registry.reg("cuda.conv2d_depthwise.filter")
+def conv2d_depthwise_function_filter(cfg, func_attrs, x_shape):
     """Generates function filter.
 
     Parameters
@@ -493,4 +515,4 @@ def conv3d_function_filter(cfg, func_attrs, x_shape):
     bool
         If input cfg should be filtered.
     """
-    return common.function_filter(cfg, func_attrs, x_shape)
+    return True

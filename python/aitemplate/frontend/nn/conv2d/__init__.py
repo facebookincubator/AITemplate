@@ -26,5 +26,7 @@ from .conv2d_bias_hardswish_few_channels import Conv2dBiasHardswishFewChannels
 from .conv2d_bias_relu import Conv2dBiasRelu
 from .conv2d_bias_relu_few_channels import Conv2dBiasReluFewChannels
 from .conv2d_bias_sigmoid import Conv2dBiasSigmoid
+from .conv2d_depthwise import Conv2dDepthwise
+from .conv2d_depthwise_bias import Conv2dDepthwiseBias
 from .transposed_conv2d_bias import ConvTranspose2dBias
 from .transposed_conv2d_bias_relu import ConvTranspose2dBiasRelu

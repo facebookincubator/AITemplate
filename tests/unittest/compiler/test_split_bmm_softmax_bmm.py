@@ -33,7 +33,7 @@ class SplitBMMTestCase(unittest.TestCase):
     ):
         target = detect_target()
         head_dim = hidden_size // nheads
-        scale = head_dim**-0.5
+        scale = head_dim ** -0.5
 
         batch_dim = shape_utils.gen_int_var_min_max(bs, name="batch_size")
         input_shape = [3, batch_dim, nheads, seq_len, head_dim]

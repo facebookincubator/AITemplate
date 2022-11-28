@@ -125,7 +125,7 @@ class ROCM(Target):
             raise RuntimeError("Unsupported GPU Arch")
         for path in ck_paths:
             options.append("-I" + path)
-        options.append("-I" + os.path.join(self.static_files_path, 'include'))
+        options.append("-I" + os.path.join(self.static_files_path, "include"))
         rocrand_path = os.path.join(self._pkg_path(), "rocrand/lib/")
         options.append("-L" + rocrand_path)
         options.append("-lrocrand")

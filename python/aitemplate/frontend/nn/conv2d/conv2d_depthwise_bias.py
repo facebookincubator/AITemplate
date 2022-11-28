@@ -12,24 +12,32 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-# flake8: noqa
 """
-cuda conv2d module init
+conv2d depthwise bias module
 """
-from . import (
-    conv2d,
-    conv2d_bias,
-    conv2d_bias_add,
-    conv2d_bias_add_hardswish,
-    conv2d_bias_add_relu,
-    conv2d_bias_few_channels,
-    conv2d_bias_hardswish,
-    conv2d_bias_hardswish_few_channels,
-    conv2d_bias_relu,
-    conv2d_bias_relu_few_channels,
-    conv2d_bias_sigmoid,
-    conv2d_depthwise,
-    conv2d_depthwise_bias,
-    transposed_conv2d,
-    transposed_conv2d_bias,
-)
+from .common_conv2d_bias_act import Conv2dBiasAct
+
+
+class Conv2dDepthwiseBias(Conv2dBiasAct):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size,
+        stride,
+        padding=0,
+        dilation=1,
+        groups=1,
+        dtype="float16",
+    ):
+        super().__init__(
+            "conv2d_depthwise_bias",
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride,
+            padding,
+            dilation,
+            groups,
+            dtype,
+        )

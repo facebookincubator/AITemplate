@@ -24,8 +24,9 @@ profiler_runner.extract_profile_result = lambda _: (
 
 from time import sleep
 
-from aitemplate.testing import detect_target
 from aitemplate.backend.profiler_runner import ProfilerRunner
+
+from aitemplate.testing import detect_target
 
 
 def dice():

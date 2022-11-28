@@ -259,7 +259,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
             name="input0",
             is_input=True,
         )
-        scale = Tensor(shape=[], dtype="float16", name="scale", value=K**-0.5)
+        scale = Tensor(shape=[], dtype="float16", name="scale", value=K ** -0.5)
 
         (Q, KK, V) = ops.split()(X, split_size_or_sections, split_dim)
         QK = ops.bmm_rcr()(Q, KK)
@@ -271,7 +271,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
 
         a = torch.randn(B, M, K).cuda().half()
         (q, k, v) = a.split(split_size_or_sections, split_dim)
-        qk = torch.bmm(q, k.permute(0, 2, 1)) * K**-0.5
+        qk = torch.bmm(q, k.permute(0, 2, 1)) * K ** -0.5
         qk = torch.softmax(qk, -1)
         qkv = torch.bmm(qk, v)
         y_pt = qkv.reshape(B // 3 // NH, NH, M, K).permute([0, 2, 1, 3])

@@ -91,9 +91,17 @@ def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
         The rendered template of generated function body.
     """
     return common.gen_function(
-        func_attrs, exec_cond_template, dim_info_dict, "bias_relu",
-        input_addr_calculator=common.INPUT_ADDR_CALCULATOR.render(accessor_a=func_attrs["input_accessors"][0], accessor_b=func_attrs["input_accessors"][1]),
-        output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(output_accessor=func_attrs["output_accessors"][0]),
+        func_attrs,
+        exec_cond_template,
+        dim_info_dict,
+        "bias_relu",
+        input_addr_calculator=common.INPUT_ADDR_CALCULATOR.render(
+            accessor_a=func_attrs["input_accessors"][0],
+            accessor_b=func_attrs["input_accessors"][1],
+        ),
+        output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
+            output_accessor=func_attrs["output_accessors"][0]
+        ),
     )
 
 

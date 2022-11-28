@@ -286,7 +286,14 @@ def gen_function(
     for key, _ in instances.items():
         fname = "f" + sha1(key.encode()).hexdigest()
         program = exec_template.render(
-            instance=fname, dtype="void", reduce_dims=rank - 1, eps=eps, input_strides=input_strides, output_strides=output_strides, input_offset=input_offset, output_offset=output_offset
+            instance=fname,
+            dtype="void",
+            reduce_dims=rank - 1,
+            eps=eps,
+            input_strides=input_strides,
+            output_strides=output_strides,
+            input_offset=input_offset,
+            output_offset=output_offset,
         )
         exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
