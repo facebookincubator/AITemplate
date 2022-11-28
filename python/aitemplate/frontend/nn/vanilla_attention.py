@@ -124,7 +124,7 @@ class VanillaMultiheadAttention(Module):
         proj_drop=0.0,
         has_residual=True,
         causal=False,
-        attn_mask=None,
+        attn_mask: Tensor = None,
         mask_seq=0,
     ):
         super().__init__()
