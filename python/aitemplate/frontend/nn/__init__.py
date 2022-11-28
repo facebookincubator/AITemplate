@@ -27,6 +27,11 @@ from .upsample import *
 from .view_ops import *
 from .attention import CrossAttention, FlashAttention, MultiheadAttention
 from .identity import Identity
+from .vanilla_attention import (
+    vanilla_attention,
+    VanillaCrossAttention,
+    VanillaMultiheadAttention,
+)
 from .dropout import *
 from .layer_norm import *
 from .group_norm import *
