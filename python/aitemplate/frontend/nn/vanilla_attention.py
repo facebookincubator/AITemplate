@@ -110,6 +110,7 @@ class VanillaMultiheadAttention(Module):
         proj_drop: Dropout probability on projection layers. Default: ``0.0`` (no dropout).
         has_residual: has or has no residual. Default: `True`.
         causal: default: `False`.
+        attn_mask: Attention mask. If causal this should be a tensor of shape [1, seq_len, seq_len] filled with -inf and 0
         mask_seq: sequence mask, default: ``0``.
     """
 
