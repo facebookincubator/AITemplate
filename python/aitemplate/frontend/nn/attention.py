@@ -46,7 +46,7 @@ def _get_shape(x):
 
 
 def vanilla_attention(q, k, v, scale=None, attn_mask=None):
-    """Vanilla attention in the most basic form
+    """Vanilla attention in the most basic form.
     q,k,v: batch, seqlen, num_heads, head_dim
     """
     name = [it._attrs["name"] for it in q._attrs["shape"]][0]
