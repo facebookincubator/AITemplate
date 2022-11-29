@@ -17,8 +17,6 @@ Frontend for vanilla attention module
 """
 from functools import partial
 
-from aitemplate.testing import detect_target
-
 from ...compiler import ops
 from .. import Tensor
 from .dropout import Dropout
@@ -27,8 +25,6 @@ from .module import Module
 from .parameter import Parameter
 
 # pylint: disable=C0103
-
-USE_CUDA = detect_target().name() == "cuda"
 
 
 def _get_dim(it):
