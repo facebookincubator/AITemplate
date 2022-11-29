@@ -461,6 +461,14 @@ class Tensor(Node):
         """
         return self._attrs["shape"][wrap_dim(dim, self._rank())]
 
+    def name(self) -> str:
+        """Returns the name of the tensor."""
+        return self._attrs["name"]
+    
+    def value(self) -> Any:
+        """Returns the value of the tensor."""
+        return self._attrs["value"]
+    
     def dtype(self) -> str:
         """Returns Tensor's data type str."""
         return self._attrs["dtype"]
