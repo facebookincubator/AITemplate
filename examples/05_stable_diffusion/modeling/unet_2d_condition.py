@@ -81,6 +81,7 @@ class UNet2DConditionModel(nn.Module):
         norm_eps: float = 1e-5,
         cross_attention_dim: int = 1280,
         attention_head_dim: Union[int, Tuple[int]] = 8,
+        use_linear_projection: bool = False
     ):
         super().__init__()
         self.center_input_sample = center_input_sample
@@ -120,6 +121,7 @@ class UNet2DConditionModel(nn.Module):
                 cross_attention_dim=cross_attention_dim,
                 attn_num_head_channels=attention_head_dim[i],
                 downsample_padding=downsample_padding,
+                use_linear_projection=use_linear_projection
             )
             self.down_blocks.append(down_block)
 
@@ -134,6 +136,7 @@ class UNet2DConditionModel(nn.Module):
             cross_attention_dim=cross_attention_dim,
             attn_num_head_channels=attention_head_dim[-1],
             resnet_groups=norm_num_groups,
+            use_linear_projection=use_linear_projection
         )
 
         # up
@@ -162,6 +165,7 @@ class UNet2DConditionModel(nn.Module):
                 resnet_act_fn=act_fn,
                 cross_attention_dim=cross_attention_dim,
                 attn_num_head_channels=reversed_attention_head_dim[i],
+                use_linear_projection=use_linear_projection
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel
