@@ -446,6 +446,12 @@ class Tensor(Node):
         """
         return self._attrs["shape"]
 
+    def get_shape(self) -> List[int]:
+        """
+        Returns the shape of the tensor.
+        """
+        return [it.value() for it in self._attrs["shape"]]
+
     def _rank(self) -> int:
         """
         Returns the rank of the tensor.
