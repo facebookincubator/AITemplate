@@ -21,11 +21,42 @@ from . import common
 
 EXTRA_SHAPE_TEMPLATE = jinja2.Template(
     """
-{{indent}}const int64_t stride_a = *a_dim2;
-{{indent}}const int64_t stride_b = *b_dim2;
-{{indent}}const int64_t stride_c = *c_dim2;
+{{indent}}int64_t stride_a = *a_dim2;
+{{indent}}int64_t stride_b = *b_dim2;
+{{indent}}int64_t stride_c = *c_dim2;
+
+{{indent}}int64_t batch_stride_a = (*a_dim1) * stride_a;
+{{indent}}int64_t batch_stride_b = (*b_dim1) * stride_b;
+{{indent}}int64_t batch_stride_c = (*c_dim1) * stride_c;
 """
 )
+
+INPUT_ADDR_CALCULATOR = jinja2.Template(
+    """
+    {% if accessor_a.is_from_strided_tensor %}
+      batch_stride_a = {{accessor_a.stride(0)}};
+      stride_a = {{accessor_a.stride(1)}};
+      offset_a = {{accessor_a.offset}}; // default to 0
+    {% endif %}
+    {% if accessor_b.is_from_strided_tensor %}
+      batch_stride_b = {{accessor_b.stride(0)}};
+      stride_b = {{accessor_b.stride(1)}};
+      offset_b = {{accessor_b.offset}}; // default to 0
+    {% endif %}
+    """
+)
+
+# pylint: disable=C0103,C0415,W0611,C0301
+OUTPUT_ADDR_CALCULATOR = jinja2.Template(
+    """
+  {% if output_accessor.is_from_strided_tensor %}
+    batch_stride_c = {{output_accessor.stride(0)}};
+    stride_c = {{output_accessor.stride(1)}};
+    offset_c = {{output_accessor.offset}};
+  {% endif %}
+    """
+)
+
 EXTRA_HEADER_TEMPLATE = jinja2.Template(
     """
 #include "ck/tensor_operation/gpu/device/device_batched_gemm_xdl.hpp"
@@ -35,12 +66,12 @@ EXTRA_HEADER_TEMPLATE = jinja2.Template(
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-{{indent}}                                static_cast<ck::half_t *>(in_ptr),
-{{indent}}                                static_cast<ck::half_t *>(weight_ptr),
+{{indent}}                                static_cast<ck::half_t *>(in_ptr) + offset_a,
+{{indent}}                                static_cast<ck::half_t *>(weight_ptr) + offset_b,
 {% if "bias" in gemm_flag %}
 {{indent}}                                std::array<const void*, 1>{static_cast<ck::half_t *>(bias_ptr)},
 {% endif %}
-{{indent}}                                static_cast<ck::half_t *>(out_ptr),
+{{indent}}                                static_cast<ck::half_t *>(out_ptr) + offset_c,
 {{indent}}                                M,
 {{indent}}                                N,
 {{indent}}                                K,
@@ -50,9 +81,9 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {{indent}}                                std::array<ck::index_t, 1>{0},
 {% endif %}
 {{indent}}                                stride_c,
-{{indent}}                                M*K,
-{{indent}}                                N*K,
-{{indent}}                                M*N,
+{{indent}}                                batch_stride_a,
+{{indent}}                                batch_stride_b,
+{{indent}}                                batch_stride_c,
 {{indent}}                                B,
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},

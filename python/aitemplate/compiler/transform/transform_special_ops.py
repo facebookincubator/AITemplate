@@ -22,6 +22,7 @@ from aitemplate.utils.shape_utils import is_singleton_dimension
 
 from .. import ops
 from ..base import Operator, Tensor
+from ...backend.target import Target
 from ..ops.gemm_special.gemm_rrr_small_nk import gemm_rrr_small_nk
 from ..ops.gemm_universal.bmm_rcr import bmm_rcr
 from ..ops.gemm_universal.gemm_rrr import gemm_rrr
@@ -279,10 +280,14 @@ def transform_special_ops(
     List[Tensor]
         Transformed graph
     """
-    funcs = [
-        _transform_bmm_rcr_n1,
-        _transform_gemm_rrr_small_nk,
-    ]
+    if Target.current().name() == "rocm":
+        funcs = []
+    else:
+        funcs = [
+            _transform_bmm_rcr_n1,
+            _transform_gemm_rrr_small_nk,
+        ]
+
     for func in funcs:
         sorted_graph = func(sorted_graph)
 
@@ -291,8 +296,6 @@ def transform_special_ops(
     funcs = [
         _transform_1x1_conv_gemm_rcr,
     ]
-
-    from ...backend.target import Target
 
     if "transform_conv_to_gemm" in Target.current()._kwargs:
         if Target.current()._kwargs["transform_conv_to_gemm"]:
