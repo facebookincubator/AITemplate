@@ -449,6 +449,7 @@ class Tensor(Node):
     def get_shape(self) -> List[int]:
         """
         Returns the shape of the tensor.
+        It directly returns the int value of shape.
         """
         return [it.value() for it in self._attrs["shape"]]
 
