@@ -42,7 +42,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {{indent}}                                {},
 {% elif conv2d_flag in ["bias", "bias_relu", "bias_sigmoid"] %}
 {{indent}}                                std::array<const void*, 1>{static_cast<ck::half_t *>(bias_ptr)},
-{% elif conv2d_flag == "bias_add_relu" %}
+{% elif conv2d_flag in ["bias_add_relu", "bias_add_identity"] %}
 {{indent}}                                std::array<const void*, 2>{static_cast<ck::half_t *>(bias_ptr), static_cast<ck::half_t *>(res_ptr)},
 {% endif %}
 {{indent}}                                static_cast<ck::half_t *>(out_ptr),
@@ -55,7 +55,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {% elif conv2d_flag in ["bias", "bias_relu", "bias_sigmoid"] %}
 {{indent}}                                std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{ {d_g_n_k_wos_lengths} },
 {{indent}}                                std::array<std::array<ck::index_t, NDimSpatial + 3>, 1>{ {d_g_n_k_wos_strides} },
-{% elif conv2d_flag == "bias_add_relu" %}
+{% elif conv2d_flag in ["bias_add_relu", "bias_add_identity"] %}
 {{indent}}                                std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{ {d_g_n_k_wos_lengths, e_g_n_k_wos_lengths} },
 {{indent}}                                std::array<std::array<ck::index_t, NDimSpatial + 3>, 2>{ {d_g_n_k_wos_strides, e_g_n_k_wos_strides} },
 {% endif %}
@@ -75,6 +75,8 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {{indent}}                                ck::tensor_operation::element_wise::AddRelu{}
 {% elif conv2d_flag == "bias_sigmoid" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddSigmoid{}
+{% elif conv2d_flag == "bias_add_identity" %}
+{{indent}}                                ck::tensor_operation::element_wise::AddAdd{}
 {% elif conv2d_flag == "bias_add_relu" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddAddRelu{}
 {% endif %}
@@ -137,7 +139,7 @@ void {{function_name}}(
 {% if "bias" in conv2d_flag %}
     void * bias_ptr,
 {% endif %}
-{% if conv2d_flag == "bias_add_relu" %}
+{% if conv2d_flag in ["bias_add_relu", "bias_add_identity"] %}
     void * res_ptr,
 {% endif %}
     int64_t* batch,
@@ -248,7 +250,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {% if "bias" in conv2d_flag %}
 {{indent}}    {{bias_ptr}},
 {% endif %}
-{% if conv2d_flag == "bias_add_relu" %}
+{% if conv2d_flag in ["bias_add_relu", "bias_add_identity"] %}
 {{indent}}    {{res_ptr}},
 {% endif %}
 {{indent}}    {{p_batch}},
@@ -302,7 +304,7 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
 {% if "bias" in conv2d_flag %}
   memory_pool->AllocateHalfTensor(CO, 8);  // b: index 3
 {% endif %}
-{% if conv2d_flag == "bias_add_relu" %}
+{% if conv2d_flag in ["bias_add_relu", "bias_add_identity"] %}
   memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // r: index 4
 {% endif %}
 """
@@ -478,7 +480,7 @@ void {{func_name}}(
 {% if "bias" in conv2d_flag %}
   void *,
 {% endif %}
-{% if conv2d_flag == "bias_add_relu" %}
+{% if conv2d_flag in ["bias_add_relu", "bias_add_identity"] %}
   void *,
 {% endif %}
   int64_t*,
@@ -581,7 +583,7 @@ def gen_profiler(
         Generates shape calculation.
         The template is passed from compiler/ops/pool.
     conv2d_flag : str
-        Flag telling which backend should be generated. options are '','bias','bias_relu','bias_add_relu'.
+        Flag telling which backend should be generated. options are '','bias','bias_relu','bias_add_relu','bias_add_identity'.
     extra_code : str
         Extra code for self-defined operators.
     """
@@ -701,7 +703,7 @@ def gen_function(
         Generates output dimensions.
         The template is passed from compiler/ops/pool.
     conv2d_flag : str
-        Flag telling which backend should be generated. options are '','bias','bias_relu','bias_add_relu'.
+        Flag telling which backend should be generated. options are '','bias','bias_relu','bias_add_relu','bias_add_identity'.
     extra_code : str
         Extra code for self-defined operators.
 
@@ -787,7 +789,7 @@ def gen_function_decl(func_name, conv2d_flag):
     func_attrs : Dict
         Operation attributes.
     conv2d_flag : str
-        Flag telling which backend should be generated. options are '','bias','bias_relu','bias_add_relu'.
+        Flag telling which backend should be generated. options are '','bias','bias_relu','bias_add_relu','bias_add_identity'.
 
     Returns
     -------
@@ -823,7 +825,7 @@ def gen_function_call(func_attrs, indent="  ", conv2d_flag=""):
     if "bias" in conv2d_flag:
         b = func_attrs["inputs"][2]
         bias_ptr = b._attrs["name"]
-    if "bias_add_relu" == conv2d_flag:
+    if conv2d_flag in ["bias_add_relu", "bias_add_identity"]:
         r = func_attrs["inputs"][3]
         res_ptr = r._attrs["name"]
     return FUNC_CALL_TEMPLATE.render(

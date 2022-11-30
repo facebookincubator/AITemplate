@@ -20,7 +20,6 @@ from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 
 
-@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class ConvBiasAddTestCase(unittest.TestCase):
     def _test_fp16(self, batch=4, copy_op=False):
         target = detect_target()

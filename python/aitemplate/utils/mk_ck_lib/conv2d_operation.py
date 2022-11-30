@@ -285,7 +285,7 @@ using {{name}} = {{xdl_op_type}}<
     {{WeiLayout}}, // WeiLayout
     {% if func=="PT" %}
     ck::Tuple<>,
-    {% elif func=="AAR" %}
+    {% elif func in ["AA", "AAR"] %}
     ck::Tuple<{{OutLayout}}, {{OutLayout}}>, // BiasLayout
     {% else %}
 {% if "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1" in xdl_op_type %}
@@ -301,7 +301,7 @@ using {{name}} = {{xdl_op_type}}<
     {{CShuffleDType}}, // CShuffleDataType
     {% if func=="PT" %}
     ck::Tuple<>,
-    {% elif func=="AAR" %}
+    {% elif func in ["AA", "AAR"] %}
     ck::Tuple<{{CDType}}, {{CDType}}>, // BiasLayout
     {% else %}
     ck::Tuple<{{CDType}}>, // BiasDataType

@@ -18,6 +18,7 @@ ROCM conv2d init.
 from . import (
     conv2d,
     conv2d_bias,
+    conv2d_bias_add,
     conv2d_bias_add_relu,
     conv2d_bias_relu,
     conv2d_bias_sigmoid,
@@ -28,6 +29,7 @@ from . import (
 __all__ = [
     "conv2d",
     "conv2d_bias",
+    "conv2d_bias_add",
     "conv2d_bias_add_relu",
     "conv2d_bias_relu",
     "conv2d_bias_sigmoid",

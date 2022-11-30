@@ -2056,6 +2056,12 @@ def GenerateTensorOp(manifest):
         library.TensorOperation.AddRelu,
         library.MemoryDataOperation.MemorySet,
     )
+    # Conv2dBiasAdd
+    CreateConv2dFwdOperator(
+        manifest,
+        library.Conv2dKind.GroupConv2dBiasRelu,
+        library.TensorOperation.AddAdd,
+    )
     # Conv2dBiasReluAdd
     CreateConv2dFwdOperator(
         manifest,

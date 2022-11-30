@@ -62,10 +62,7 @@ class ConvBiasReluAddTestCase(unittest.TestCase):
         y = torch.empty([batch, HH, WW, CO]).cuda().half()
         module.run_with_tensors(inputs, [y])
         y_transpose = y.permute(0, 3, 1, 2)
-        if target.name() == "cuda":
-            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
-        else:
-            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+        self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
     def test_fp16(self):
         self._test_fp16()
