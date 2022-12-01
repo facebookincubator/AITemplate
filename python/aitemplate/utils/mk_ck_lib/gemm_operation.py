@@ -51,6 +51,7 @@ class XdlOpType(enum.Enum):
     DeviceBatchedContractionMultipleD_Xdl_CShuffle = auto()
     DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle = auto()
     DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle = auto()
+    DeviceBatchedGemmMultiD_Xdl = auto()
 
 
 XdlOpTag = {
@@ -62,6 +63,7 @@ XdlOpTag = {
     XdlOpType.DeviceBatchedContractionMultipleD_Xdl_CShuffle: "ck::tensor_operation::device::DeviceBatchedContractionMultipleD_Xdl_CShuffle",
     XdlOpType.DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle: "ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle",
     XdlOpType.DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle: "ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle",
+    XdlOpType.DeviceBatchedGemmMultiD_Xdl: "ck::tensor_operation::device::DeviceBatchedGemmMultiD_Xdl",
 }
 
 
@@ -407,6 +409,17 @@ using {{name}} = {{xdl_op_type}}<
     {{CDType}},
     {{AccDType}},
     float, // CShuffleDType,
+{% elif xdl_op_type_value == 9 %}
+    {{ALayout}},
+    {{BLayout}},
+    ck::Tuple<{{DsLayout}}>, // DsLayout
+    {{CLayout}},
+    {{ADType}},
+    {{BDType}},
+    {{AccDType}},
+    {{CShuffleDType}},
+    ck::Tuple<{{DsDType}}>, // DsType
+    {{EDType}},
 {% endif %}
 {% if xdl_op_type_value in [7, 8] %}
     {{A_elem_op}},

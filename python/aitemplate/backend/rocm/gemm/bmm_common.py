@@ -21,13 +21,13 @@ from . import common
 
 EXTRA_SHAPE_TEMPLATE = jinja2.Template(
     """
-{{indent}}int64_t stride_a = *a_dim2;
-{{indent}}int64_t stride_b = *b_dim2;
-{{indent}}int64_t stride_c = *c_dim2;
+{{indent}}ck::index_t stride_a = *a_dim2;
+{{indent}}ck::index_t stride_b = *b_dim2;
+{{indent}}ck::index_t stride_c = *c_dim2;
 
-{{indent}}int64_t batch_stride_a = (*a_dim1) * stride_a;
-{{indent}}int64_t batch_stride_b = (*b_dim1) * stride_b;
-{{indent}}int64_t batch_stride_c = (*c_dim1) * stride_c;
+{{indent}}ck::index_t batch_stride_a = (*a_dim1) * stride_a;
+{{indent}}ck::index_t batch_stride_b = (*b_dim1) * stride_b;
+{{indent}}ck::index_t batch_stride_c = (*c_dim1) * stride_c;
 """
 )
 
@@ -63,6 +63,11 @@ EXTRA_HEADER_TEMPLATE = jinja2.Template(
 """
 )
 
+EXTRA_HEADER_TEMPLATE_MULTI_D = jinja2.Template(
+    """
+#include "ck/tensor_operation/gpu/device/device_batched_gemm_multi_d_xdl.hpp"
+"""
+)
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
@@ -85,6 +90,50 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {{indent}}                                batch_stride_b,
 {{indent}}                                batch_stride_c,
 {{indent}}                                B,
+{{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
+{{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
+{% if gemm_flag == "" %}
+{{indent}}                                ck::tensor_operation::element_wise::PassThrough{}
+{% elif gemm_flag == "bias" %}
+{{indent}}                                ck::tensor_operation::element_wise::Add{}
+{% elif gemm_flag == "bias_relu" %}
+{{indent}}                                ck::tensor_operation::element_wise::AddRelu{}
+{% elif gemm_flag == "bias_sigmoid" %}
+{{indent}}                                ck::tensor_operation::element_wise::AddSigmoid{}
+{% endif %}
+"""
+)
+
+PROBLEM_ARGS_TEMPLATE_MULTI_D = jinja2.Template(
+    """
+{{indent}}                                static_cast<ck::half_t *>(in_ptr),
+{{indent}}                                static_cast<ck::half_t *>(weight_ptr),
+{% if "bias" in gemm_flag %}
+{{indent}}                                std::array<const void*, 1>{static_cast<ck::half_t *>(bias_ptr)},
+{% else %}
+{{indent}}                                {},
+{% endif %}
+{{indent}}                                static_cast<ck::half_t *>(out_ptr),
+{{indent}}                                M,
+{{indent}}                                N,
+{{indent}}                                K,
+{{indent}}                                B,
+{{indent}}                                stride_a,
+{{indent}}                                stride_b,
+{% if gemm_flag == "bias" %}
+{{indent}}                                std::array<ck::index_t, 1>{stride_c},
+{% else %}
+{{indent}}                                {},
+{% endif %}
+{{indent}}                                stride_c,
+{{indent}}                                batch_stride_a,
+{{indent}}                                batch_stride_b,
+{% if gemm_flag == "bias" %}
+{{indent}}                                std::array<ck::index_t, 1>{batch_stride_c},
+{% else %}
+{{indent}}                                {},
+{% endif %}
+{{indent}}                                batch_stride_c,
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {% if gemm_flag == "" %}
@@ -151,8 +200,8 @@ def gen_profiler(
     dim_info_dict,
     args_parse,
     gemm_flag,
-    problem_args_template=PROBLEM_ARGS_TEMPLATE,
-    extra_header_template=EXTRA_HEADER_TEMPLATE,
+    problem_args_template=None,
+    extra_header_template=None,
     tensor_decl_template=TENSOR_DECL_TEMPLATE,
     extra_shape_template=EXTRA_SHAPE_TEMPLATE,
     extra_code="",
@@ -175,6 +224,18 @@ def gen_profiler(
     extra_code : str
         Extra code for self-defined operators.
     """
+    if problem_args_template is None:
+        if gemm_flag == "":
+            problem_args_template = PROBLEM_ARGS_TEMPLATE
+        else:
+            problem_args_template = PROBLEM_ARGS_TEMPLATE_MULTI_D
+
+    if extra_header_template is None:
+        if gemm_flag == "":
+            extra_header_template = EXTRA_HEADER_TEMPLATE
+        else:
+            extra_header_template = EXTRA_HEADER_TEMPLATE_MULTI_D
+
     return common.gen_profiler(
         func_attrs,
         workdir,
@@ -195,8 +256,8 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
     gemm_flag,
-    problem_args_template=PROBLEM_ARGS_TEMPLATE,
-    extra_header_template=EXTRA_HEADER_TEMPLATE,
+    problem_args_template=None,
+    extra_header_template=None,
     extra_shape_template=EXTRA_SHAPE_TEMPLATE,
     extra_code="",
     input_addr_calculator="",
@@ -228,6 +289,18 @@ def gen_function(
     str
         The rendered template of generated function body.
     """
+    if problem_args_template is None:
+        if gemm_flag == "":
+            problem_args_template = PROBLEM_ARGS_TEMPLATE
+        else:
+            problem_args_template = PROBLEM_ARGS_TEMPLATE_MULTI_D
+
+    if extra_header_template is None:
+        if gemm_flag == "":
+            extra_header_template = EXTRA_HEADER_TEMPLATE
+        else:
+            extra_header_template = EXTRA_HEADER_TEMPLATE_MULTI_D
+
     return common.gen_function(
         func_attrs,
         exec_cond_template,

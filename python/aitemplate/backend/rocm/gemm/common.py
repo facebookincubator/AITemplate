@@ -50,9 +50,9 @@ OUTPUT_ADDR_CALCULATOR = jinja2.Template(
 
 EXTRA_SHAPE_TEMPLATE = jinja2.Template(
     """
-{{indent}}int64_t stride_a = *a_dim1;
-{{indent}}int64_t stride_b = *b_dim1;
-{{indent}}int64_t stride_c = *c_dim1;
+{{indent}}ck::index_t stride_a = *a_dim1;
+{{indent}}ck::index_t stride_b = *b_dim1;
+{{indent}}ck::index_t stride_c = *c_dim1;
 """
 )
 
@@ -633,7 +633,7 @@ def gen_profiler(
     op_instance = func_attrs["op_instance"]
     # shape function
     op_func_shape = gemm_common.gen_shape_eval_code(
-        indent=2, dtype="int64_t", dim_info_dict=dim_info_dict, is_ptr=True
+        indent=2, dtype="ck::index_t", dim_info_dict=dim_info_dict, is_ptr=True
     )
 
     adims = ["&a_dim" + str(i) for i in range(ndims)]
@@ -795,7 +795,7 @@ def gen_function(
 
     extra_shape_func = extra_shape_template.render(indent="  ")
     shape_eval_func = gemm_common.gen_shape_eval_code(
-        indent=1, dtype="int64_t", dim_info_dict=dim_info_dict, is_ptr=True
+        indent=1, dtype="ck::index_t", dim_info_dict=dim_info_dict, is_ptr=True
     )
     exec_paths = ""
     for key, _ in instances.items():

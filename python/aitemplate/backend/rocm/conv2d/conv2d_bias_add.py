@@ -61,7 +61,9 @@ def gen_function(
 @registry.reg("rocm.conv2d_bias_add_identity.func_decl")
 def conv2d_gen_function_decl(func_attrs):
     func_name = func_attrs["name"]
-    return common.gen_function_decl(func_name=func_name, conv2d_flag="bias_add_identity")
+    return common.gen_function_decl(
+        func_name=func_name, conv2d_flag="bias_add_identity"
+    )
 
 
 @registry.reg("rocm.conv2d_bias_add_identity.func_call")

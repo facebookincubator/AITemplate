@@ -17,10 +17,13 @@ Rocm gemm init.
 """
 from . import (  # noqa: F401
     bmm_ccr,
+    bmm_ccr_add,
     bmm_crr,
+    bmm_crr_add,
     bmm_rcr,
     bmm_rcr_permute,
     bmm_rrr,
+    bmm_rrr_add,
     bmm_rrr_permute,
     bmm_softmax_bmm,
     bmm_softmax_bmm_permute,

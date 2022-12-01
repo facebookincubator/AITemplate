@@ -19,10 +19,10 @@ Check each transform function summary for specific pattern to be transformed.
 from typing import Callable, List, Tuple, Type, Union
 
 from aitemplate.utils.shape_utils import is_singleton_dimension
+from ...backend.target import Target
 
 from .. import ops
 from ..base import Operator, Tensor
-from ...backend.target import Target
 from ..ops.gemm_special.gemm_rrr_small_nk import gemm_rrr_small_nk
 from ..ops.gemm_universal.bmm_rcr import bmm_rcr
 from ..ops.gemm_universal.gemm_rrr import gemm_rrr
