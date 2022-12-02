@@ -44,7 +44,7 @@ def run(token, width, height, prompt, benchmark):
     with torch.autocast("cuda"):
         image = pipe(prompt, height, width).images[0]
         if benchmark:
-            t = benchmark_torch_function(10, pipe, prompt)
+            t = benchmark_torch_function(10, pipe, prompt, height=height, width=width)
             print(f"sd e2e: {t} ms")
 
     image.save("example_ait.png")
