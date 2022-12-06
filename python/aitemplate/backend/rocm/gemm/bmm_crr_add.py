@@ -86,7 +86,7 @@ def bmm_gen_profiler(func_attrs, workdir, dim_info_dict):
         workdir=workdir,
         args_parse=ARGS_PARSER_TEMPLATE.render(),
         dim_info_dict=dim_info_dict,
-        gemm_flag="bias",
+        gemm_flag="add",
     )
 
 
@@ -113,7 +113,7 @@ def bmm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
         func_attrs,
         exec_cond_template,
         dim_info_dict,
-        "bias",
+        "add",
         input_addr_calculator=bmm_common.INPUT_ADDR_CALCULATOR.render(
             accessor_a=func_attrs["input_accessors"][0],
             accessor_b=func_attrs["input_accessors"][1],
@@ -139,7 +139,7 @@ def bmm_gen_function_decl(func_attrs):
         The rentered template of function declaration.
     """
     func_name = func_attrs["name"]
-    return bmm_common.gen_function_decl(func_name=func_name, gemm_flag="bias")
+    return bmm_common.gen_function_decl(func_name=func_name, gemm_flag="add")
 
 
 @registry.reg("rocm.bmm_crr_add.func_call")
@@ -158,7 +158,7 @@ def bmm_gen_function_call(func_attrs, indent="  "):
     str
         The rendered template of generated function call.
     """
-    return bmm_common.gen_function_call(func_attrs, indent, gemm_flag="bias")
+    return bmm_common.gen_function_call(func_attrs, indent, gemm_flag="add")
 
 
 @registry.reg("rocm.bmm_crr_add.filter")

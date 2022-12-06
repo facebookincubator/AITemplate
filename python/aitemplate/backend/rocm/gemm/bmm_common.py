@@ -108,7 +108,7 @@ PROBLEM_ARGS_TEMPLATE_MULTI_D = jinja2.Template(
     """
 {{indent}}                                static_cast<ck::half_t *>(in_ptr),
 {{indent}}                                static_cast<ck::half_t *>(weight_ptr),
-{% if "bias" in gemm_flag %}
+{% if "bias" in gemm_flag or gemm_flag == "add" %}
 {{indent}}                                std::array<const void*, 1>{static_cast<ck::half_t *>(bias_ptr)},
 {% else %}
 {{indent}}                                {},
@@ -120,16 +120,20 @@ PROBLEM_ARGS_TEMPLATE_MULTI_D = jinja2.Template(
 {{indent}}                                B,
 {{indent}}                                stride_a,
 {{indent}}                                stride_b,
-{% if gemm_flag == "bias" %}
+{% if gemm_flag == "add" %}
 {{indent}}                                std::array<ck::index_t, 1>{stride_c},
+{% elif gemm_flag == "bias" %}
+{{indent}}                                std::array<ck::index_t, 1>{0},
 {% else %}
 {{indent}}                                {},
 {% endif %}
 {{indent}}                                stride_c,
 {{indent}}                                batch_stride_a,
 {{indent}}                                batch_stride_b,
-{% if gemm_flag == "bias" %}
+{% if gemm_flag == "add" %}
 {{indent}}                                std::array<ck::index_t, 1>{batch_stride_c},
+{% elif gemm_flag == "bias" %}
+{{indent}}                                std::array<ck::index_t, 1>{stride_c},
 {% else %}
 {{indent}}                                {},
 {% endif %}
@@ -138,7 +142,7 @@ PROBLEM_ARGS_TEMPLATE_MULTI_D = jinja2.Template(
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {% if gemm_flag == "" %}
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{}
-{% elif gemm_flag == "bias" %}
+{% elif gemm_flag in ["bias", "add"] %}
 {{indent}}                                ck::tensor_operation::element_wise::Add{}
 {% elif gemm_flag == "bias_relu" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddRelu{}
@@ -161,8 +165,11 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
   memory_pool->AllocateHalfTensor(a_ptr_sz, mem_pool_sz);  // x: index 0
   memory_pool->AllocateHalfTensor(b_ptr_sz, mem_pool_sz);  // w: index 1
   memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // y: index 2
+{% if "add" == gemm_flag %}
+  memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // b: index 3
+{% endif %}
 {% if "bias" in gemm_flag %}
-  memory_pool->AllocateHalfTensor(N, mem_pool_sz);  // b: index 3
+  memory_pool->AllocateHalfTensor(B*N, mem_pool_sz);  // b: index 3
 {% endif %}
 """
 )

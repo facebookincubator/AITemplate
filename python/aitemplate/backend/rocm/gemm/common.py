@@ -132,7 +132,7 @@ void {{function_name}}(
     void * in_ptr,
     void * weight_ptr,
     void * out_ptr,
-{% if "bias" in gemm_flag %}
+{% if "bias" in gemm_flag or gemm_flag == "add" %}
     void * bias_ptr,
 {% endif %}
 {% if has_d0 %}
@@ -177,7 +177,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{in_ptr}},
 {{indent}}    {{weight_ptr}},
 {{indent}}    {{out_ptr}},
-{% if "bias" in gemm_flag %}
+{% if "bias" in gemm_flag or gemm_flag == "add" %}
 {{indent}}    {{bias_ptr}},
 {% endif %}
 {% if d0_ptr != "" %}
@@ -488,7 +488,7 @@ void {{func_name}}(
   void *,
   void *,
   void *,
-{% if "bias" in gemm_flag %}
+{% if "bias" in gemm_flag or gemm_flag == "add" %}
   void *,
 {% endif %}
 {% if has_d0 %}
@@ -884,7 +884,7 @@ def gen_function_call(func_attrs, indent="  ", gemm_flag=""):
     b = func_attrs["inputs"][1]
     c = func_attrs["outputs"][0]
     bias_ptr = ""
-    if "bias" in gemm_flag:
+    if "bias" in gemm_flag or gemm_flag == "add":
         bias = func_attrs["inputs"][2]
         bias_ptr = bias._attrs["name"]
     d0_ptr = ""
