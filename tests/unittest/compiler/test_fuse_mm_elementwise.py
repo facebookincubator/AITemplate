@@ -1034,7 +1034,7 @@ class FuseGemmRcrBiasActivationCase(unittest.TestCase):
 
 
 class FuseGemmRcrBiasSwishCase(unittest.TestCase):
-    def _test_gemm_rcr_bias_swish(self, Ms, N, K, testname, use_add=False):
+    def _test_gemm_rcr_bias_swish(self, Ms, N, K, testname, use_add=False, use_silu=False):
         m_dim = shape_utils.gen_int_var_min_max(Ms, name="M_size")
         X_shape = [m_dim, K]
         W_shape = [N, K]
@@ -1050,8 +1050,13 @@ class FuseGemmRcrBiasSwishCase(unittest.TestCase):
             gemm_tensor = ops.elementwise(FuncEnum.ADD)(tensor, input_3)
         else:
             gemm_tensor = ops.gemm_rcr_bias()(input_1, input_2, input_3)
-        sigmoid_tensor = ops.elementwise(FuncEnum.SIGMOID)(gemm_tensor)
-        swish_tensor = ops.elementwise(FuncEnum.MUL)(gemm_tensor, sigmoid_tensor)
+
+        if use_silu:
+            swish_tensor = ops.elementwise(FuncEnum.SILU)(gemm_tensor)
+        else:
+            sigmoid_tensor = ops.elementwise(FuncEnum.SIGMOID)(gemm_tensor)
+            swish_tensor = ops.elementwise(FuncEnum.MUL)(gemm_tensor, sigmoid_tensor)
+
         swish_tensor._attrs["name"] = "final_tensor"
 
         output = ops.elementwise(FuncEnum.ADD)(swish_tensor, input_4)
@@ -1095,6 +1100,7 @@ class FuseGemmRcrBiasSwishCase(unittest.TestCase):
         self._test_gemm_rcr_bias_swish([8], 16, 8, "gemm_rcr_bias_swish_basic")
         self._test_gemm_rcr_bias_swish([8, 32], 16, 8, "gemm_rcr_bias_swish_dynamic")
         self._test_gemm_rcr_bias_swish([8], 16, 3, "gemm_rcr_bias_swish_need_align")
+        self._test_gemm_rcr_bias_swish([8], 16, 3, "gemm_rcr_bias_silu_basic", use_silu=True)
 
     def test_gemm_rcr_add_swish(self):
         self._test_gemm_rcr_bias_swish([8], 16, 8, "gemm_rcr_add_swish_basic", True)
@@ -1104,6 +1110,7 @@ class FuseGemmRcrBiasSwishCase(unittest.TestCase):
         self._test_gemm_rcr_bias_swish(
             [8], 16, 3, "gemm_rcr_add_swish_need_align", True
         )
+        self._test_gemm_rcr_bias_swish([8], 16, 3, "gemm_rcr_add_silu_basic", True, True)
 
 
 class FuseBmmCcrAddCase(unittest.TestCase):

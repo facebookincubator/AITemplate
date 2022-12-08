@@ -134,10 +134,11 @@ def _fuse_gemm_rcr_bias_swish(sorted_graph: List[Tensor]) -> List[Tensor]:
             continue
 
         dst_op = list(tensor._attrs["dst_ops"])
-        if len(dst_op) != 2:
+        dst_op_size = len(dst_op)
+        if dst_op_size not in [1, 2]:
             continue
         swish_tensor = None
-        for idx in range(2):
+        for idx in range(dst_op_size):
             other_idx = (idx + 1) % 2
             if is_elementwise_type(dst_op[idx], FuncEnum.SIGMOID):
                 if not is_elementwise_type(dst_op[other_idx], FuncEnum.MUL):
@@ -155,6 +156,9 @@ def _fuse_gemm_rcr_bias_swish(sorted_graph: List[Tensor]) -> List[Tensor]:
 
                 swish_tensor = dst_op[other_idx]._attrs["outputs"][0]
                 break
+            elif is_elementwise_type(dst_op[idx], FuncEnum.SILU):
+                swish_tensor = dst_op[idx]._attrs["outputs"][0]
+                break
 
         if swish_tensor is None:
             continue
@@ -162,8 +166,8 @@ def _fuse_gemm_rcr_bias_swish(sorted_graph: List[Tensor]) -> List[Tensor]:
         gemm_inputs = gemm_op._attrs["inputs"]
         remove_dst_op_from_tensor(gemm_inputs, gemm_op)
         # Output of sigmoid and final mul of swish.
-        to_remove.add(dst_op[0]._attrs["outputs"][0])
-        to_remove.add(dst_op[1]._attrs["outputs"][0])
+        for i in range(dst_op_size):
+            to_remove.add(dst_op[i]._attrs["outputs"][0])
 
         new_tensor = gemm_rcr_bias_swish()(*gemm_inputs)
         copy_tensor_attributes(new_tensor, swish_tensor)
