@@ -78,7 +78,7 @@ class GroupNormOperation:
     def emit(self) -> str:
         template = jinja2.Template(
             """
-using {{name}} = ck::tensor_operation::device::DeviceLayernormImpl<
+using {{name}} = ck::tensor_operation::device::DeviceNormalizationImpl<
     {{InDType}},
     {{InDType}},
     {{InDType}},

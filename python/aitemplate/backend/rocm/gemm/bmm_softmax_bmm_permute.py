@@ -31,14 +31,14 @@ from .layout import RCR
 
 INPUT_ADDR_CALCULATOR = jinja2.Template(
     """
-  int64_t in_batch_stride = {{in_batch_stride_dim}};
-  int64_t in_stride = {{in_stride_dim}};
+  ck::index_t in_batch_stride = {{in_batch_stride_dim}};
+  ck::index_t in_stride = {{in_stride_dim}};
   int64_t in_offset = {{in_offset_val}}; // default to 0
-  int64_t weight_batch_stride = {{weight_batch_stride_dim}};
-  int64_t weight_stride = {{weight_stride_dim}};
+  ck::index_t weight_batch_stride = {{weight_batch_stride_dim}};
+  ck::index_t weight_stride = {{weight_stride_dim}};
   int64_t weight_offset = {{weight_offset_val}}; // default to 0
-  int64_t bias_batch_stride = {{bias_batch_stride_dim}};
-  int64_t bias_stride = {{bias_stride_dim}};
+  ck::index_t bias_batch_stride = {{bias_batch_stride_dim}};
+  ck::index_t bias_stride = {{bias_stride_dim}};
   int64_t bias_offset = {{bias_offset_val}}; // default to 0
     """
 )
@@ -52,16 +52,16 @@ const ck::half_t alpha = {{scale}};
 
 PROFILER_EXTRA_SHAPE_TEMPLATE = jinja2.Template(
     """
-{{indent}}const int64_t G1 = p_dim0; // G1
+{{indent}}const ck::index_t G1 = p_dim0; // G1
 
-{{indent}}const int64_t in_batch_stride=M * K;
-{{indent}}const int64_t in_stride=K;
+{{indent}}const ck::index_t in_batch_stride=M * K;
+{{indent}}const ck::index_t in_stride=K;
 {{indent}}const int64_t in_offset=0;
-{{indent}}const int64_t weight_batch_stride=N * K;
-{{indent}}const int64_t weight_stride=K;
+{{indent}}const ck::index_t weight_batch_stride=N * K;
+{{indent}}const ck::index_t weight_stride=K;
 {{indent}}const int64_t weight_offset=0;
-{{indent}}const int64_t bias_batch_stride=N * O;
-{{indent}}const int64_t bias_stride=O;
+{{indent}}const ck::index_t bias_batch_stride=N * O;
+{{indent}}const ck::index_t bias_stride=O;
 {{indent}}const int64_t bias_offset=0;
 
 """
@@ -69,37 +69,38 @@ PROFILER_EXTRA_SHAPE_TEMPLATE = jinja2.Template(
 
 EXTRA_SHAPE_TEMPLATE = jinja2.Template(
     """
-{{indent}}const int64_t G1 = p_dim0; // G1
+{{indent}}const ck::index_t G1 = p_dim0; // G1
 """
 )
 
 EXTRA_HEADER_TEMPLATE = jinja2.Template(
     """
 #include "ck/tensor_operation/gpu/device/tensor_specialization.hpp"
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_permute_xdl_cshuffle.hpp"
 """
 )
 
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-{{indent}}                                static_cast<ck::half_t *>(in_ptr) + in_offset,
-{{indent}}                                static_cast<ck::half_t *>(weight_ptr) + weight_offset,
-{{indent}}                                static_cast<ck::half_t *>(bias_ptr) + bias_offset,
-{{indent}}                                static_cast<ck::half_t *>(out_ptr),
-{{indent}}                                M,
-{{indent}}                                N,
-{{indent}}                                K,
-{{indent}}                                O,
-{{indent}}                                B,
-{{indent}}                                {int(B/G1), int(G1), int(M), int(O)},
-{{indent}}                                {int(M * G1 * O), int(O), int(G1 * O), 1},
-{{indent}}                                in_stride,
-{{indent}}                                weight_stride,
-{{indent}}                                bias_stride,
-{{indent}}                                in_batch_stride,
-{{indent}}                                weight_batch_stride,
-{{indent}}                                bias_batch_stride,
+{{indent}}                                static_cast<ck::half_t*>(in_ptr) + in_offset,
+{{indent}}                                static_cast<ck::half_t*>(weight_ptr) + weight_offset,
+{{indent}}                                static_cast<ck::half_t*>(bias_ptr) + bias_offset,
+{{indent}}                                static_cast<ck::half_t*>(out_ptr),
+{{indent}}                                {},
+{{indent}}                                {},
+{{indent}}                                {B/G1, G1, M, K},
+{{indent}}                                {G1*in_batch_stride, in_batch_stride, in_stride, 1},
+{{indent}}                                {B/G1, G1, N, K},
+{{indent}}                                {G1*weight_batch_stride, weight_batch_stride, weight_stride, 1},
+{{indent}}                                {B/G1, G1, O, N},
+{{indent}}                                {G1*bias_batch_stride, bias_batch_stride, 1, bias_stride},
+{{indent}}                                {B/G1, G1, M, O},
+{{indent}}                                {M*G1*O, O, G1*O, 1},
+{{indent}}                                {},
+{{indent}}                                {},
+{{indent}}                                {},
+{{indent}}                                {},
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {{indent}}                                ck::tensor_operation::element_wise::ScaleAndResetNaNToMinusInfinity{alpha},

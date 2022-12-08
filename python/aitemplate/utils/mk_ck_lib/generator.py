@@ -2328,6 +2328,8 @@ def CreateLayerNormOperator(manifest, rank=2):
         layernorm.TileDesc(256, 1, 256, 1, 8, 1, 8, 1, 8, 1, 8, 8),
         layernorm.TileDesc(256, 1, 256, 1, 16, 1, 8, 1, 8, 1, 8, 8),
         layernorm.TileDesc(256, 1, 256, 1, 32, 1, 8, 1, 8, 1, 8, 8),
+        layernorm.TileDesc(1024, 1, 1024, 1, 32, 1, 8, 1, 8, 1, 8, 8),
+        layernorm.TileDesc(1024, 1, 1024, 1, 8, 1, 2, 1, 2, 1, 2, 2),
     ]
 
     operations = []

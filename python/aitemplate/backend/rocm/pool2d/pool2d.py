@@ -65,7 +65,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include "library/include/ck/library/utility/host_tensor_generator.hpp"
 #include "include/ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "include/ck/utility/reduction_operator.hpp"
-#include "include/ck/tensor_operation/gpu/device/device_pool2d_fwd_nhwc_nhwc.hpp"
+#include "include/ck/tensor_operation/gpu/device/impl/device_pool2d_fwd_nhwc_nhwc.hpp"
 
 {{instances}}
 

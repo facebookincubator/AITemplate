@@ -23,7 +23,7 @@ from . import common
 # pylint: disable=C0103,C0415,W0613
 EXTRA_CODE = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/device_convnd_bwd_data_nwc_kxc_nwk_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_convnd_bwd_data_nwc_kxc_nwk_xdl.hpp"
 """
 )
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(

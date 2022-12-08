@@ -59,13 +59,13 @@ OUTPUT_ADDR_CALCULATOR = jinja2.Template(
 
 EXTRA_HEADER_TEMPLATE = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_xdl.hpp"
 """
 )
 
 EXTRA_HEADER_TEMPLATE_MULTI_D = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_multi_d_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_multi_d_xdl.hpp"
 """
 )
 

@@ -71,7 +71,7 @@ EXTRA_SHAPE_TEMPLATE = jinja2.Template(
 
 EXTRA_HEADER_TEMPLATE = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_softmax_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_softmax_gemm_xdl_cshuffle.hpp"
 """
 )
 

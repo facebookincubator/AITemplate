@@ -78,7 +78,7 @@ class LayerNormOperation:
     def emit(self) -> str:
         template = jinja2.Template(
             """
-using {{name}} = ck::tensor_operation::device::DeviceLayernormImpl<
+using {{name}} = ck::tensor_operation::device::DeviceNormalizationImpl<
     {{InDType}},
     {{InDType}},
     {{InDType}},
@@ -94,7 +94,7 @@ using {{name}} = ck::tensor_operation::device::DeviceLayernormImpl<
         return template.render(
             name=self.__str__(),
             InDType=library.DataTypeTag[self.In],
-            AccDType=library.DataTypeTag[library.DataType.f32],
+            AccDType=library.DataTypeTag[self.accumulator_type()],
             OutDType=library.DataTypeTag[self.Out],
             Rank=self.Rank,
             NumReduceDim=self.NumReduceDim,  # we only need softmax(dim=-1) at this moment

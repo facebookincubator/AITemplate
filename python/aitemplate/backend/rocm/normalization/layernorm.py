@@ -29,7 +29,7 @@ from . import norm_common
 
 EXTRA_HEADERS = jinja2.Template(
     """
-#include "include/ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
 """
 )
 
@@ -95,6 +95,8 @@ EXEC_TEMPLATE = jinja2.Template(
         static_cast<ck::half_t *>(gamma),
         static_cast<ck::half_t *>(beta),
         static_cast<ck::half_t *>(output) + {{ output_offset if output_offset is defined else 0 }},
+        nullptr,
+        nullptr,
         ck::tensor_operation::element_wise::PassThrough{}
     );
 
