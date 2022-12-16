@@ -282,6 +282,7 @@ class TensorOperation(enum.Enum):
     AddFastGelu = auto()
     AddTanh = auto()
     AddHardswish = auto()
+    AddSwish = auto()
     AddSigmoid = auto()
     AddReluAdd = auto()
     AddAddRelu = auto()
@@ -312,6 +313,7 @@ TensorOperationTag = {
     TensorOperation.AddTanh: "ck::tensor_operation::element_wise::AddTanh",
     TensorOperation.AddSigmoid: "ck::tensor_operation::element_wise::AddSigmoid",
     TensorOperation.AddHardswish: "ck::tensor_operation::element_wise::AddHardswish",
+    TensorOperation.AddSwish: "ck::tensor_operation::element_wise::AddSwish",
     TensorOperation.AddReluAdd: "ck::tensor_operation::element_wise::AddReluAdd",
     TensorOperation.AddAddRelu: "ck::tensor_operation::element_wise::AddAddRelu",
     TensorOperation.AddHardswishAdd: "ck::tensor_operation::element_wise::AddHardswishAdd",
@@ -341,6 +343,7 @@ ShortTensorOperationNames = {
     TensorOperation.AddTanh: "AT",
     TensorOperation.AddSigmoid: "AS",
     TensorOperation.AddHardswish: "AH",
+    TensorOperation.AddSwish: "ASW",
     TensorOperation.AddReluAdd: "ARA",
     TensorOperation.AddAddRelu: "AAR",
     TensorOperation.AddHardswishAdd: "AHA",

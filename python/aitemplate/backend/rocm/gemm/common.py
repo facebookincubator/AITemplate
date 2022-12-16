@@ -275,6 +275,8 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {% elif gemm_flag == "bias_fast_gelu" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddFastGelu{}
 {% elif gemm_flag == "bias_swish" %}
+{{indent}}                                ck::tensor_operation::element_wise::AddSwish{}
+{% elif gemm_flag == "bias_hardswish" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddHardswish{}
 {% elif gemm_flag == "bias_tanh" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddTanh{}

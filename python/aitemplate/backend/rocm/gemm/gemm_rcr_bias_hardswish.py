@@ -22,49 +22,9 @@ When used for `linear`, need to set A->Data, B->Weight, C->Bias
 from ... import registry
 from . import common
 from .layout import RCR
-import jinja2
 
 # pylint: disable=C0415,W0613
-EXTRA_CODE = jinja2.Template(
-    """
-#include "ck/utility/data_type.hpp"
 
-namespace ck {
-namespace tensor_operation {
-namespace element_wise {
-namespace {
-struct AddSwish
-{
-    template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
-    template <>
-    __host__ __device__ constexpr void
-    operator()<float>(float& y, const float& x0, const float& x1) const
-    {
-        const float a = x0 + x1;
-        y             = a / (1.0f + exp(-a));
-    };
-    template <>
-    __host__ __device__ constexpr void
-    operator()<double>(double& y, const double& x0, const double& x1) const
-    {
-        const double a = x0 + x1;
-        y              = a / (1.0 + exp(-a));
-    };
-    template <>
-    __host__ __device__ constexpr void
-    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
-    {
-        const half_t a = x0 + x1;
-        y              = a / (type_convert<half_t>(1.0) + type_convert<half_t>(exp(ck::type_convert<float>(-a))));
-    };
-};
-} // namespace
-} // namespace element_wise
-} // namespace tensor_operation
-} // namespace ck
-"""
-)
 
 @registry.reg("rocm.gemm_rcr_bias_swish.config")
 def gemm_config(func_attrs, dtype="float16"):
@@ -85,7 +45,7 @@ def gemm_config(func_attrs, dtype="float16"):
     import ck_lib  # noqa: F401
 
     op_kind = ck_lib.library.GemmKind.Gemm
-    extra_kind = ck_lib.library.TensorOperation.AddSwish
+    extra_kind = ck_lib.library.TensorOperation.AddHardswish
     common.make_fproc_f16(func_attrs, RCR, op_kind, extra_kind)
 
 
@@ -108,8 +68,7 @@ def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
         workdir=workdir,
         dim_info_dict=dim_info_dict,
         args_parse=RCR.args_parse,
-        gemm_flag="bias_swish",
-        extra_code=EXTRA_CODE.render(),
+        gemm_flag="bias_hardswish",
     )
 
 
@@ -136,8 +95,7 @@ def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
         func_attrs,
         exec_cond_template,
         dim_info_dict,
-        "bias_swish",
-        extra_code=EXTRA_CODE.render(),
+        "bias_hardswish",
         input_addr_calculator=common.INPUT_ADDR_CALCULATOR.render(
             accessor_a=func_attrs["input_accessors"][0],
             accessor_b=func_attrs["input_accessors"][1],
@@ -163,7 +121,7 @@ def gemm_gen_function_decl(func_attrs):
         The rentered template of function declaration.
     """
     func_name = func_attrs["name"]
-    return common.gen_function_decl(func_name=func_name, gemm_flag="bias_swish")
+    return common.gen_function_decl(func_name=func_name, gemm_flag="bias_hardswish")
 
 
 @registry.reg("rocm.gemm_rcr_bias_swish.func_call")
@@ -182,7 +140,7 @@ def gemm_gen_function_call(func_attrs, indent="  "):
     str
         The rendered template of generated function call.
     """
-    return common.gen_function_call(func_attrs, indent, gemm_flag="bias_swish")
+    return common.gen_function_call(func_attrs, indent, gemm_flag="bias_hardswish")
 
 
 @registry.reg("rocm.gemm_rcr_bias_swish.filter")
