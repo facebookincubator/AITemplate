@@ -85,6 +85,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         ],
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPFeatureExtractor,
+        requires_safety_checker: bool = True,
     ):
         super().__init__(
             vae=vae,
@@ -94,6 +95,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             scheduler=scheduler,
             safety_checker=safety_checker,
             feature_extractor=feature_extractor,
+            requires_safety_checker=requires_safety_checker,
         )
 
         workdir = "tmp/"
