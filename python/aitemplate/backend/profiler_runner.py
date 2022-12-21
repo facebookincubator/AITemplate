@@ -256,11 +256,11 @@ class ProfilerRunner:
                 stdout, stderr = fut.result()
                 profile_result, err = extract_profile_result(stdout)
                 if err:
-                    logger.warning(
+                    logger.debug(
                         __name__,
                         f"Profiler failure!\nProfiler stdout: {stdout}\nProfiler stderr: {stderr}",
                     )
-                    raise RuntimeError(f"Failed to extract profiler result for {cmds}")
+                    logger.debug(f"Failed to extract profiler result for {cmds}")
                 process_result_callback(profile_result, self._postprocessing_delegate)
             finally:
                 # unblock one future in `join()`
