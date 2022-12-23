@@ -260,7 +260,7 @@ class ProfilerRunner:
                         __name__,
                         f"Profiler failure!\nProfiler stdout: {stdout}\nProfiler stderr: {stderr}",
                     )
-                    logger.debug(f"Failed to extract profiler result for {cmds}")
+                    logger.debug(__name__, f"Failed to extract profiler result for {cmds}")
                 process_result_callback(profile_result, self._postprocessing_delegate)
             finally:
                 # unblock one future in `join()`
