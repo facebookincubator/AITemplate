@@ -53,6 +53,7 @@ def benchmark_unet(
     hh=64,
     ww=64,
     dim=320,
+    hidden_size=1024,
     benchmark_pt=False,
     verify=False,
 ):
@@ -67,8 +68,8 @@ def benchmark_unet(
     pt_mod = pt_mod.eval()
 
     latent_model_input_pt = torch.randn(batch_size, 4, hh, ww).cuda().half()
-    text_embeddings_pt = torch.randn(batch_size, 64, 768).cuda().half()
-    timesteps_pt = torch.Tensor([1] * batch_size).cuda().half()
+    text_embeddings_pt = torch.randn(batch_size, 64, hidden_size).cuda().half()
+    timesteps_pt = torch.Tensor([1, 1]).cuda().half()
 
     with autocast("cuda"):
         pt_ys = pt_mod(
@@ -126,11 +127,6 @@ def benchmark_unet(
 def benchmark_clip(
     batch_size=1,
     seqlen=64,
-    dim=768,
-    num_heads=12,
-    hidden_size=768,
-    vocab_size=49408,
-    max_position_embeddings=77,
     benchmark_pt=False,
     verify=False,
 ):
@@ -288,7 +284,7 @@ def benchmark_diffusers(token, batch_size, verify, benchmark_pt):
         access_token = token
 
     pipe = StableDiffusionPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
+        "stabilityai/stable-diffusion-2",
         revision="fp16",
         torch_dtype=torch.float16,
         use_auth_token=access_token,

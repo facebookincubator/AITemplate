@@ -68,6 +68,10 @@ class ConvBiasReluAddTestCase(unittest.TestCase):
         self._test_fp16()
         self._test_fp16(copy_op=True)
 
+    def test_fp16(self):
+        self._test_fp16()
+        self._test_fp16(copy_op=True)
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)
