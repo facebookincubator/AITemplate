@@ -114,7 +114,7 @@ jobs:
       run: |
         echo "Running Stable Diffusion tests"
         cd $GITHUB_WORKSPACE/AITemplate/examples/05_stable_diffusion
-        python3 -m pip install transformers click torch diffusers accelerate
+        python3 -m pip install transformers click torch diffusers==0.11.1 accelerate
         # populate log headers
         export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
         echo -n "hostname: ">sdiff.log; hostname >> sdiff.log

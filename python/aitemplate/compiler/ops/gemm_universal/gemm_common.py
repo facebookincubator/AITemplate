@@ -681,7 +681,7 @@ class gemm(Operator):
                 for split_k in split_k_search_space:
                     gemm_command = command + [str(split_k)]
                     profiler_runner.push(gemm_command, _gen_callback(split_k))
-
+                    
     def profile(
         self,
         profiler_runner,

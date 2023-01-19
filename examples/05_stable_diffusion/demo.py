@@ -16,6 +16,7 @@ import click
 import torch
 
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
+from diffusers import EulerDiscreteScheduler
 from pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 
 
@@ -23,25 +24,27 @@ from pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 @click.option("--token", default="", help="access token")
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
-@click.option("--batch-size", default=1, help="batch size")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
-def run(token, width, height, batch_size, prompt, benchmark):
+def run(token, width, height, prompt, benchmark):
+
+    model_id = "stabilityai/stable-diffusion-2"
+    scheduler = EulerDiscreteScheduler.from_pretrained(model_id, subfolder="scheduler")
+
     pipe = StableDiffusionAITPipeline.from_pretrained(
-        "runwayml/stable-diffusion-v1-5",
+        model_id,
+        scheduler=scheduler,
         revision="fp16",
         torch_dtype=torch.float16,
         use_auth_token=token,
     ).to("cuda")
 
-    prompts = [prompt] * batch_size
-
     with torch.autocast("cuda"):
         image = pipe(prompt, height, width).images[0]
         if benchmark:
-            t = benchmark_torch_function(10, pipe, prompts)
+            t = benchmark_torch_function(10, pipe, prompt, height=height, width=width)
             print(f"sd e2e: {t} ms")
 
     image.save("example_ait.png")

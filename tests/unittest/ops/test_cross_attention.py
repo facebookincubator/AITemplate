@@ -81,7 +81,11 @@ class crossattentionTestCase(unittest.TestCase):
         )
         ait_mod.name_parameter_tensor()
 
-        batch_dim = shape_utils.gen_int_var_min_max(batch_sizes, name="batch_size")
+        if len(batch_sizes) == 1:
+            # static
+            batch_dim = batch_sizes[0]
+        else:
+            batch_dim = shape_utils.gen_int_var_min_max(batch_sizes, name="batch_size")
 
         inputs_ait = Tensor([batch_dim, seqlen, dim], name="input0", is_input=True)
         inputs_ait_k = Tensor([batch_dim, seqlen_kv, dim], name="input1", is_input=True)
@@ -107,7 +111,7 @@ class crossattentionTestCase(unittest.TestCase):
             pt_ys = pt_ys + input_pt
             print("pt output:", pt_ys.shape)
 
-            inputs = [input_pt, input_pt_k, input_pt_v]
+            inputs = {"input0": input_pt, "input1": input_pt_k, "input2": input_pt_v}
             ys = [torch.empty(pt_ys.shape).cuda().half()]
             exe_module.run_with_tensors(inputs, ys)
             eps = 1e-2
@@ -120,6 +124,7 @@ class crossattentionTestCase(unittest.TestCase):
             print("Batch {} MHA verification pass".format(batch_size))
 
     def test_cross_attn(self):
+        self._test_mha(batch_sizes=[1], seqlen=2, seqlen_kv=32, dim=512, num_heads=8)
         self._test_mha(
             batch_sizes=[128, 256, 512], seqlen=1, seqlen_kv=62, dim=512, num_heads=8
         )

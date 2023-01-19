@@ -19,6 +19,7 @@ import itertools
 import os
 import re
 from collections import OrderedDict
+from operator import itemgetter
 from typing import List
 
 import jinja2
