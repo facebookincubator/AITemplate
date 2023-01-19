@@ -69,9 +69,9 @@ class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
 
     def test_rcr(self):
         self._test_rcr([128], "static", use_fast_gelu=True)
+        self._test_rcr([128], "static", use_fast_gelu=False)
         if detect_target().name() == "cuda":
             self._test_rcr([1, 7, 64, 127], "dynamic_m", use_fast_gelu=True)
-            self._test_rcr([128], "static", use_fast_gelu=False)
             self._test_rcr([1, 7, 64, 127], "dynamic_m", use_fast_gelu=False)
 
 

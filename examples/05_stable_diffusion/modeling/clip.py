@@ -277,18 +277,6 @@ class CLIPAttention(nn.Module):
         return self_output
 
 
-class QuickGELUActivation(nn.Module):
-    """
-    Applies GELU approximation that is fast but somewhat inaccurate. See: https://github.com/hendrycks/GELUs
-    """
-
-    def forward(self, x):
-        x1 = x * 1.702
-        x1 = ops.sigmoid(x1)
-        x = x * x1
-        return x
-
-
 class CLIPMLP(nn.Module):
     """MLP as used in Vision Transformer, MLP-Mixer and related networks"""
 

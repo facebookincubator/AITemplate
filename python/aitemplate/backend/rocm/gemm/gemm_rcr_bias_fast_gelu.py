@@ -26,6 +26,7 @@ from .layout import RCR
 
 
 @registry.reg("rocm.gemm_rcr_bias_fast_gelu.config")
+@registry.reg("rocm.gemm_rcr_bias_gelu.config")
 def gemm_config(func_attrs, dtype="float16"):
     """Extract (operation name, operation instance) pair from
     all operation candidates.
@@ -49,6 +50,7 @@ def gemm_config(func_attrs, dtype="float16"):
 
 
 @registry.reg("rocm.gemm_rcr_bias_fast_gelu.gen_profiler")
+@registry.reg("rocm.gemm_rcr_bias_gelu.gen_profiler")
 def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
     """Generates standalone executables for profiler.
 
@@ -72,6 +74,7 @@ def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
 
 
 @registry.reg("rocm.gemm_rcr_bias_fast_gelu.gen_function")
+@registry.reg("rocm.gemm_rcr_bias_gelu.gen_function")
 def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
     """Generates function body.
 
@@ -106,6 +109,7 @@ def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
 
 
 @registry.reg("rocm.gemm_rcr_bias_fast_gelu.func_decl")
+@registry.reg("rocm.gemm_rcr_bias_gelu.func_decl")
 def gemm_gen_function_decl(func_attrs):
     """Generates function declarations.
 
@@ -124,6 +128,7 @@ def gemm_gen_function_decl(func_attrs):
 
 
 @registry.reg("rocm.gemm_rcr_bias_fast_gelu.func_call")
+@registry.reg("rocm.gemm_rcr_bias_gelu.func_call")
 def gemm_gen_function_call(func_attrs, indent="  "):
     """Generates function call.
 
@@ -143,6 +148,7 @@ def gemm_gen_function_call(func_attrs, indent="  "):
 
 
 @registry.reg("rocm.gemm_rcr_bias_fast_gelu.filter")
+@registry.reg("rocm.gemm_rcr_bias_gelu.filter")
 def gemm_function_filter(cfg, func_attrs, x_shape):
     """Generates function filter.
 
