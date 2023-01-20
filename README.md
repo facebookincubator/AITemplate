@@ -115,7 +115,7 @@ Check our [contributing guide](CONTRIBUTING.md) to learn about how to contribute
 
 AITemplate is co-created by Meta engineers: [Bing Xu](https://github.com/antinucleon), [Ying Zhang](https://github.com/ipiszy), [Hao Lu](https://github.com/hlu1), [Yang Chen](https://github.com/chenyang78), and [Terry Chen](https://github.com/terrychenism), with major contributions coming from more talented engineers. A non-exhaustive list to mention is Mike Iovine, Mu-Chu Lee, Scott Wolchok, Oleg Khabinov, Shirong Wu, Huaming Li, Hui Guo, Zhijing Li, Max Podkorytov. We also want to thank the discussions with Andrew Tulloch, Yinghai Lu, Lu Fang.
 
-AITemplate is currently maintained by Meta engineers: [Ying Zhang](https://github.com/ipiszy), [Hao Lu](https://github.com/hlu1), [Yang Chen](https://github.com/chenyang78), [Terry Chen](https://github.com/terrychenism), [Mike Iovine](https://github.com/mikeiovine), [Mu-Chu Lee](https://github.com/muchulee8) and [Bing Xu](https://github.com/antinucleon).
+AITemplate is currently maintained by Meta engineers: [Ying Zhang](https://github.com/ipiszy), [Hao Lu](https://github.com/hlu1), [Yang Chen](https://github.com/chenyang78), [Terry Chen](https://github.com/terrychenism), [Mike Iovine](https://github.com/mikeiovine) and [Mu-Chu Lee](https://github.com/muchulee8).
 
 
 ## Acknowledgement
