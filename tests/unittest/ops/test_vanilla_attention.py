@@ -77,7 +77,7 @@ def attention_pt(X_pt, W_pt, B_pt, nheads, d, seqlen):
     qkv_pt = torch.permute(qkv_pt, [2, 0, 3, 1, 4])  # [3, 1, 12, 4096, 64]
 
     q_pt, k_pt, v_pt = torch.split(qkv_pt, 1, dim=0)  # [1, 1, 12, 4096, 64]
-    scale_pt = torch.tensor(64**-0.5)
+    scale_pt = torch.tensor(64 ** -0.5)
     q_pt = q_pt * (scale_pt)
     # #[12, 4096, 64] * [12, 64, 4096] => [12, 4096, 4096]
     attn_pt = torch.bmm(

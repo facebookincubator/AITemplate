@@ -19,7 +19,6 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
-from operator import itemgetter
 from typing import Any, List, Union
 
 import jinja2

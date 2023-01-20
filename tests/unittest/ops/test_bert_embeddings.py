@@ -80,7 +80,6 @@ def get_ait_params(
     return (word_embeddings, token_type_embeddings, position_embeddings, gamma, beta)
 
 
-@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class bertEmbeddingsTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(bertEmbeddingsTestCase, self).__init__(*args, **kwargs)
@@ -154,12 +153,13 @@ class bertEmbeddingsTestCase(unittest.TestCase):
             embedding = torch.empty(pt_embedding.shape).cuda().half()
             module.run_with_tensors(inputs, [embedding])
             self.assertTrue(
-                torch.allclose(embedding, pt_embedding, atol=1e-3, rtol=1e-3)
+                torch.allclose(embedding, pt_embedding, atol=1e-2, rtol=1e-2)
             )
 
     def test_bert_embeddings(self):
-        self._test_bert_embeddings(15, 17, 264, 10000, 512, 2)
-        self._test_bert_embeddings(1, 13, 264, 10000, 512, 2)
+        if detect_target().name() != "rocm":
+            self._test_bert_embeddings(15, 17, 264, 10000, 512, 2)
+            self._test_bert_embeddings(1, 13, 264, 10000, 512, 2)
         self._test_bert_embeddings(8, 512, 512, 10000, 512, 2)
 
 

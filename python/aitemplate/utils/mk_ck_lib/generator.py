@@ -2365,6 +2365,8 @@ def CreateGroupNormOperator(manifest, rank=5):
         groupnorm.TileDesc(256, 1, 256, 1, 8, 1, 8, 1, 8, 1, 8, 8),
         groupnorm.TileDesc(256, 1, 256, 1, 16, 1, 8, 1, 8, 1, 8, 8),
         groupnorm.TileDesc(256, 1, 256, 1, 32, 1, 8, 1, 8, 1, 8, 8),
+        groupnorm.TileDesc(1024, 1, 1024, 1, 32, 1, 8, 1, 8, 1, 8, 8),
+        groupnorm.TileDesc(1024, 1, 1024, 1, 8, 1, 2, 1, 2, 1, 2, 2),
     ]
 
     operations = []
