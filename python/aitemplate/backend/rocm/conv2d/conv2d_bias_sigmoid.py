@@ -35,8 +35,27 @@ namespace {
 struct AddSigmoid
 {
     template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const{
-        ck::tensor_operation::element_wise::Sigmoid{}(y, x0 + x1);
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;\    
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const float& x1) const
+    {
+        const float a = x0 + x1;
+        y             = 1.0f / (1.0f + exp(-a));
+    };
+    template <>
+    __host__ __device__ constexpr void
+    operator()<double>(double& y, const double& x0, const double& x1) const
+    {
+        const double a = x0 + x1;
+        y              = 1.0 / (1.0 + exp(-a));
+    };
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        const half_t a = x0 + x1;
+        y              = type_convert<half_t>(1.0) / (type_convert<half_t>(1.0) + type_convert<half_t>(exp(ck::type_convert<float>(-a))));
     };
 };
 } // namespace

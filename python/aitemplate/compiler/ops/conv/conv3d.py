@@ -20,7 +20,6 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
-from operator import itemgetter
 from typing import Any, Dict, List
 
 import jinja2

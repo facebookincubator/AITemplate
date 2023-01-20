@@ -164,9 +164,7 @@ void {{function_name}}(
   {{output_addr_calculator}}
   {{exec_paths}}
 
-  throw std::runtime_error(
-      "Unsupported workload for this gemm specialization."
-  );
+  LOG(FATAL) << "Unsupported workload for this gemm specialization.";
 }
 """
 )

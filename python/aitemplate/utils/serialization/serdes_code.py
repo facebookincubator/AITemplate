@@ -258,7 +258,7 @@ def convert_to_info_str(shapes: List[Union[IntImm, IntVar]], is_constant=False) 
 
 
 def _str_val(v):
-    return f'\"{v}\"' if isinstance(v, str) else v
+    return f'"{v}"' if isinstance(v, str) else v
 
 
 def convert_to_op_str(op: Operator, params_set) -> str:

@@ -19,10 +19,11 @@ This is used for `torch.nn.functional.linear + swish`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
 
+import jinja2
+
 from ... import registry
 from . import common
 from .layout import RCR
-import jinja2
 
 # pylint: disable=C0415,W0613
 EXTRA_CODE = jinja2.Template(
@@ -65,6 +66,7 @@ struct AddSwish
 } // namespace ck
 """
 )
+
 
 @registry.reg("rocm.gemm_rcr_bias_swish.config")
 def gemm_config(func_attrs, dtype="float16"):

@@ -76,12 +76,25 @@ def create_bert_encoders_input(
 
 
 def create_bert_inputs_pt(
-    batch_size: int, seq_length: int, dtype: torch.dtype = torch.int64
+    batch_size: int,
+    seq_length: int,
+    vocab_size: int = 30522,
+    type_vocab_size: int = 2,
+    dtype: torch.dtype = torch.int64,
 ) -> Dict[str, torch.Tensor]:
-    input_ids = torch.randn(batch_size, seq_length).to(dtype).cuda()
-    token_type_ids = torch.randn(batch_size, seq_length).to(dtype).cuda()
-    position_ids = torch.randn(batch_size, seq_length).to(dtype).cuda()
-
+    input_ids = torch.randint(
+        0, vocab_size, (batch_size, seq_length), dtype=dtype
+    ).cuda()
+    token_type_ids = torch.randint(
+        0, type_vocab_size, input_ids.size(), dtype=dtype
+    ).cuda()
+    position_ids = (
+        torch.arange(seq_length, dtype=dtype)
+        .reshape((1, -1))
+        .expand(batch_size, -1)
+        .contiguous()
+        .cuda()
+    )
     return {
         "input_ids": input_ids,
         "token_type_ids": token_type_ids,
@@ -137,6 +150,7 @@ def map_pt_params(
             mapped_pt_params[ait_name] = pt_param
 
     return mapped_pt_params
+
 
 def benchmark(
     batch_size: int,
@@ -214,6 +228,7 @@ def compile_module(
 
     return mod
 
+
 def load_module(
     batch_size: int,
     seq_length: int,
@@ -241,9 +256,6 @@ def load_module(
         mod.set_constant_with_tensor(k, v)
 
     return mod
-
-
-
 
 
 @click.command()
@@ -300,14 +312,14 @@ def compile_and_benchmark(
 
     if batch_size >= 1 and seq_length >= 1:
         mod = load_module(
-                batch_size,
-                seq_length,
-                hidden_size,
-                activation,
-                use_fp16_acc,
-                encoders_only,
-                pt_model,
-            )
+            batch_size,
+            seq_length,
+            hidden_size,
+            activation,
+            use_fp16_acc,
+            encoders_only,
+            pt_model,
+        )
         benchmark(batch_size, seq_length, hidden_size, mod, graph_mode, encoders_only)
         return
 
