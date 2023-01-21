@@ -30,19 +30,13 @@ FLAG = ""
 def _detect_cuda():
     try:
         proc = Popen(
-            ["nvidia-smi", "--query-gpu=gpu_name", "--format=csv"],
+            ["nvidia-smi", "--query-gpu=compute_cap", "--format=csv"],
             stdout=PIPE,
             stderr=PIPE,
         )
         stdout, stderr = proc.communicate()
-        stdout = stdout.decode("utf-8")
-        if "A100" in stdout or "RTX 30" in stdout or "A30" in stdout:
-            return "80"
-        if "V100" in stdout:
-            return "70"
-        if "T4" in stdout:
-            return "75"
-        return None
+        stdout = stdout.decode("utf-8").split("\n")[1]
+        return stdout.replace(".", "")
     except Exception:
         return None
 
