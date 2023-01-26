@@ -35,7 +35,7 @@ namespace {
 struct AddSigmoid
 {
     template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;\    
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;   
     template <>
     __host__ __device__ constexpr void
     operator()<float>(float& y, const float& x0, const float& x1) const
