@@ -18,12 +18,15 @@ Codegen functions for concatenate_tanh.
 import jinja2
 
 from ... import registry
+from ...backend_spec import CUDASpec
 from . import concatenate
+
 
 TANH_DEF = jinja2.Template(
     """
 #include <cutlass/fast_math.h>
 
+{% if dtype == "half" %}
 #ifndef __HALF2_TO_UI
 #define __HALF2_TO_UI(var) *(reinterpret_cast<unsigned int *>(&(var)))
 #endif
@@ -81,7 +84,27 @@ __device__  float4 fast_tanh(float4 x) {
     y_vec[3] = fast_tanh(x_vec[3]);
     return y;
 }
+{% elif dtype == "float" %}
+__device__  float fast_tanh(float x) {
+    return cutlass::fast_tanh(x);
+}
 
+__device__  float2 fast_tanh(float2 x) {
+    float2 y;
+    y.x = cutlass::fast_tanh(x.x);
+    y.y = cutlass::fast_tanh(x.y);
+    return y;
+}
+
+__device__  float4 fast_tanh(float4 x) {
+    float4 y;
+    y.x = cutlass::fast_tanh(x.x);
+    y.y = cutlass::fast_tanh(x.y);
+    y.z = cutlass::fast_tanh(x.z);
+    y.w = cutlass::fast_tanh(x.w);
+    return y;
+}
+{% endif %}
 """
 )
 
@@ -93,8 +116,17 @@ def gen_function_decl(func_attrs):
 
 @registry.reg("cuda.concatenate_tanh.gen_function")
 def gen_function(func_attrs):
+    backend_spec = CUDASpec()
+    dtype = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"],
+    )
+
     return concatenate.gen_function(
-        func_attrs, element_func="fast_tanh", element_func_def=TANH_DEF.render()
+        func_attrs,
+        element_func="fast_tanh",
+        element_func_def=TANH_DEF.render(
+            dtype=dtype,
+        ),
     )
 
 

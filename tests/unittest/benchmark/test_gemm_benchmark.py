@@ -14,6 +14,7 @@
 #
 import itertools
 import json
+import logging
 import unittest
 import uuid
 
@@ -27,7 +28,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_ait import make_input_output_pools, run_benchmark
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from aitemplate.testing.benchmark_trt import make_trt_module
-from aitemplate.utils import logger, shape_utils
+from aitemplate.utils import shape_utils
 
 NK_SHAPES = ((8314, 3072), (6912, 8314))
 INPUT_POOL_SIZE = 20
@@ -35,6 +36,9 @@ BATCH_SIZES = (
     1,
     2048,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class GemmRCRModule(torch.nn.Module):
@@ -194,7 +198,7 @@ class TestGemmRCRBenchmark(unittest.TestCase):
             )
             for m in BATCH_SIZES:
                 mnk = {"m": m, "n": n, "k": k}
-                logger.warning(__name__, f"mnk={mnk}, split_k={split_k}")
+                _LOGGER.warning(f"mnk={mnk}, split_k={split_k}")
                 inputs_pool, outputs_pool = make_input_output_pools(
                     pool_size=INPUT_POOL_SIZE,
                     eval_pt_func=lambda: eval_pt_gemm_rcr(**mnk),
@@ -239,8 +243,7 @@ class TestGemmRCRBenchmark(unittest.TestCase):
                     "split_k": split_k,
                     **mnk,
                 }
-                logger.warning(
-                    __name__,
+                _LOGGER.warning(
                     f"Benchmark results {json.dumps(benchmark_results, separators=(',', ':'))}",
                 )
 
@@ -266,7 +269,7 @@ class TestBmmRRRBenchmark(unittest.TestCase):
             )
             for b in BATCH_SIZES:
                 bmnk = {"b": b, "m": m, "n": n, "k": k}
-                logger.warning(__name__, f"bmnk={bmnk}, split_k={split_k}")
+                _LOGGER.warning(f"bmnk={bmnk}, split_k={split_k}")
                 inputs_pool, outputs_pool = make_input_output_pools(
                     pool_size=INPUT_POOL_SIZE,
                     eval_pt_func=lambda: eval_pt_bmm_rrr(**bmnk),
@@ -311,8 +314,7 @@ class TestBmmRRRBenchmark(unittest.TestCase):
                     "split_k": split_k,
                     **bmnk,
                 }
-                logger.warning(
-                    __name__,
+                _LOGGER.warning(
                     f"Benchmark results {json.dumps(benchmark_results, separators=(',', ':'))}",
                 )
 

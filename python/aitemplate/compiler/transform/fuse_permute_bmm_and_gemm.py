@@ -19,6 +19,7 @@ from typing import Callable, List, Optional, Set, Tuple, Type, Union
 
 from aitemplate.compiler.ops.tensor.permute import permute
 
+from ...utils import alignment
 from .. import ops
 from ..base import IntImm, Operator, Tensor
 from ..ops.gemm_universal import (
@@ -135,16 +136,22 @@ def _fuse_permute_impl(
         # TODO: Check whether the input is weight to have better compile time
         #       optimization on preprocessing of pad etc.
         permute_shape = tensor.shape()
+        permute_dtype = tensor.dtype()
         prepermute_shape = input_tensor.shape()
+        prepermute_dtype = input_tensor.dtype()
 
         if (
             isinstance(prepermute_shape[-1], IntImm)
-            and prepermute_shape[-1].value() % 2 == 1
+            and (
+                not alignment.valid_alignment(
+                    prepermute_shape[-1].value(), prepermute_dtype
+                )
+            )
             and isinstance(permute_shape[-1], IntImm)
-            and permute_shape[-1].value() % 2 == 0
+            and alignment.valid_alignment(permute_shape[-1].value(), permute_dtype)
         ):
             # We don't run the permute+bmm fusion if the permute op could
-            # turn an odd alignment into even alignment.
+            # turn an invalid alignment into a valid alignment.
             continue
 
         fused = True

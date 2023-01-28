@@ -42,7 +42,7 @@ def gen_function(
     exec_path = func_attrs["exec_path"]
     x = func_attrs["inputs"][0]
     backend_spec = CUDASpec()
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
+    input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
     half2_data_ref = backend_spec.half2_data_ref
 
     shape_eval_func = shape_eval_template.render(
@@ -77,6 +77,7 @@ def gen_function(
         half2_data_ref=half2_data_ref,
         mode=func_attrs["mode"],
         tsize=upsampling2d_common.gen_alignment(x),
+        dtype=input_type,
     )
 
 

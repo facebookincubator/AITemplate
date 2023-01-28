@@ -15,20 +15,17 @@
 import logging
 import unittest
 
-import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import dtype_to_torch_dtype, get_random_torch_tensor
+from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class VectorNormTestCase(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        super(VectorNormTestCase, self).__init__(*args, **kwargs)
-
     def _run_vector_norm(
         self,
         *,
@@ -40,6 +37,8 @@ class VectorNormTestCase(unittest.TestCase):
         input_type="float16",
         output_type=None,
         copy_op=False,
+        atol=1e-2,
+        rtol=1e-2,
     ):
         torch.manual_seed(0)
         logging.info(
@@ -66,21 +65,31 @@ class VectorNormTestCase(unittest.TestCase):
 
         module = compile_model(Y, target, "./tmp", test_name)
         X_pt = get_random_torch_tensor(input_shape, input_type)
-        dtype_pt = dtype_to_torch_dtype(output_type)
-        Y_pt = torch.linalg.vector_norm(
-            X_pt, ord=ord_kind, dim=dim, keepdim=keepdim, dtype=dtype_pt
+        output_dtype_pt = (
+            string_to_torch_dtype(output_type)
+            if output_type is not None
+            else string_to_torch_dtype(input_type)
         )
-
-        y = torch.empty(y_shape).half().cuda()
+        Y_pt = torch.linalg.vector_norm(
+            X_pt, ord=ord_kind, dim=dim, keepdim=keepdim, dtype=output_dtype_pt
+        )
+        y = torch.empty(y_shape, dtype=output_dtype_pt).cuda()
         module.run_with_tensors([X_pt], [y])
-        y_pt = Y_pt.cpu().numpy()
 
-        np.testing.assert_equal(y_shape, y_pt.shape)
-        np.testing.assert_equal(dtype_to_torch_dtype(y_dtype), Y_pt.dtype)
-        np.testing.assert_allclose(y_pt, y.cpu().numpy(), atol=1e-2, rtol=1e-2)
+        self.assertEqual(y_shape, list(Y_pt.shape))
+        self.assertEqual(string_to_torch_dtype(y_dtype), Y_pt.dtype)
+        torch.testing.assert_close(Y_pt, y, atol=atol, rtol=rtol)
 
     def _run_l2_norm(
-        self, *, dim, input_shape, keepdim, input_type="float16", output_type=None
+        self,
+        *,
+        dim,
+        input_shape,
+        keepdim,
+        input_type="float16",
+        output_type=None,
+        atol=1e-2,
+        rtol=1e-2,
     ):
         self._run_vector_norm(
             test_name="l2_norm",
@@ -90,6 +99,8 @@ class VectorNormTestCase(unittest.TestCase):
             keepdim=keepdim,
             input_type=input_type,
             output_type=output_type,
+            atol=atol,
+            rtol=rtol,
         )
         self._run_vector_norm(
             test_name="l2_norm_copy_op",
@@ -100,6 +111,8 @@ class VectorNormTestCase(unittest.TestCase):
             input_type=input_type,
             output_type=output_type,
             copy_op=True,
+            atol=atol,
+            rtol=rtol,
         )
 
     def test_l2_norm(self):
@@ -111,6 +124,76 @@ class VectorNormTestCase(unittest.TestCase):
         self._run_l2_norm(dim=2, input_shape=[5, 1, 34, 4], keepdim=False)
         self._run_l2_norm(dim=-1, input_shape=[4, 1230, 1237], keepdim=True)
         self._run_l2_norm(dim=-1, input_shape=[1, 1000000, 6], keepdim=True)
+
+    def test_l2_norm_fp32(self):
+        self._run_l2_norm(
+            dim=0,
+            input_shape=[1],
+            keepdim=True,
+            input_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=-1,
+            input_shape=[3, 2, 2048],
+            keepdim=False,
+            input_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=1,
+            input_shape=[3, 1234, 4],
+            keepdim=True,
+            input_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=1,
+            input_shape=[5, 60, 34, 4],
+            keepdim=False,
+            input_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=0,
+            input_shape=[5, 60, 34, 4],
+            keepdim=False,
+            input_type="float16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=2,
+            input_shape=[5, 1, 34, 4],
+            keepdim=False,
+            input_type="float16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=-1,
+            input_shape=[4, 1230, 1237],
+            keepdim=True,
+            input_type="float16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=-1,
+            input_shape=[1, 1000000, 6],
+            keepdim=True,
+            input_type="float16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
 
     def _run_batched_vector_norm(
         self,
@@ -147,7 +230,11 @@ class VectorNormTestCase(unittest.TestCase):
 
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        dtype_pt = dtype_to_torch_dtype(output_type)
+        output_dtype_pt = (
+            string_to_torch_dtype(output_type)
+            if output_type is not None
+            else string_to_torch_dtype(input_type)
+        )
         module = compile_model(Y, target, "./tmp", test_name)
 
         for B in [5, 128, 1024, 1237, 2002]:
@@ -156,15 +243,13 @@ class VectorNormTestCase(unittest.TestCase):
 
             X_pt = get_random_torch_tensor(input_shape, input_type)
             Y_pt = torch.linalg.vector_norm(
-                X_pt, ord=ord_kind, dim=dim, keepdim=keepdim, dtype=dtype_pt
+                X_pt, ord=ord_kind, dim=dim, keepdim=keepdim, dtype=output_dtype_pt
             )
-            y_pt = Y_pt.cpu().numpy()
-
-            y = torch.empty(y_pt.shape).cuda().half()
+            y = torch.empty(Y_pt.shape, dtype=output_dtype_pt).cuda()
             module.run_with_tensors([X_pt], [y])
 
-            np.testing.assert_equal(dtype_to_torch_dtype(y_dtype), Y_pt.dtype)
-            np.testing.assert_allclose(y_pt, y.cpu().numpy(), atol=1e-2, rtol=1e-2)
+            self.assertEqual(string_to_torch_dtype(y_dtype), Y_pt.dtype)
+            torch.testing.assert_close(Y_pt, y, atol=1e-2, rtol=1e-2)
 
     def _run_batched_l2_norm(
         self, *, dim, keepdim, input_type="float16", output_type=None

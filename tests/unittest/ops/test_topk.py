@@ -23,13 +23,18 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 class topkTestCase(unittest.TestCase):
-    def _create_tensors(self, shape):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_count = 0
+
+    def _create_tensors(self, shape, dtype):
         N = np.prod(shape)
         scores = torch.randperm(N) / N
-        return scores.reshape(shape).cuda().half()
+        return scores.reshape(shape).cuda().to(dtype=string_to_torch_dtype(dtype))
 
     def _test_topk(
         self,
@@ -39,6 +44,7 @@ class topkTestCase(unittest.TestCase):
         topK=100,
         test_name="topk",
         copy_op=False,
+        dtype="float16",
     ):
 
         o_shape = list(shape)
@@ -46,7 +52,7 @@ class topkTestCase(unittest.TestCase):
 
         X1 = Tensor(
             shape=shape,
-            dtype="float16",
+            dtype=dtype,
             name="X",
             is_input=True,
         )
@@ -58,15 +64,16 @@ class topkTestCase(unittest.TestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = compile_model(X4, target, "./tmp", f"{test_name}_{self.test_count}")
 
-        scores = self._create_tensors(shape)
+        scores = self._create_tensors(shape, dtype)
         (values, y_pt) = torch.topk(scores, k=topK, dim=dim)
 
         x = scores.reshape(shape).contiguous()
         y = torch.empty(o_shape).cuda().to(torch.int64)
         module.run_with_tensors([x], [y])
         self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
+        self.test_count += 1
 
     def test_topk_heap(self):
         self._test_topk(shape=(2000,), topK=100, test_name="topk_heap")
@@ -94,6 +101,41 @@ class topkTestCase(unittest.TestCase):
             dim=1,
             test_name="topk_sort2_copy_op",
             copy_op=True,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported by ROCm.")
+    def test_float32(self):
+        self._test_topk(
+            shape=(4, 500),
+            topK=200,
+            dim=1,
+            test_name="topk_sort_copy_op_f32",
+            copy_op=True,
+            dtype="float32",
+        )
+        self._test_topk(
+            shape=(4, 500),
+            topK=100,
+            dim=1,
+            test_name="topk_heap_copy_op_f32",
+            copy_op=True,
+            dtype="float32",
+        )
+        self._test_topk(
+            shape=(4, 500),
+            topK=200,
+            dim=1,
+            test_name="topk_sort_f32",
+            copy_op=False,
+            dtype="float32",
+        )
+        self._test_topk(
+            shape=(4, 500),
+            topK=100,
+            dim=1,
+            test_name="topk_heap_f32",
+            copy_op=False,
+            dtype="float32",
         )
 
 

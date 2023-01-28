@@ -28,7 +28,7 @@ from . import pool2d
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}avg_pool_launcher<{{kernel_size}}, {{stride}}, {{padding}}>(
+{{indent}}avg_pool_launcher<{{dtype}}, {{kernel_size}}, {{stride}}, {{padding}}>(
 {{indent}}    static_cast<const {{dtype}}*>(in_ptr),
 {{indent}}    static_cast<{{dtype}}*>(out_ptr),
 {{indent}}    NI,
@@ -52,14 +52,18 @@ SRC_TEMPLATE = jinja2.Template(
 namespace {
 
 template <int kernel_size, int stride, int padding>
-__global__ void avg_pool_f16_nhwc_kernel(const half2* input,
-                                         half2* output,
-                                         const int N,
-                                         const int H,
-                                         const int W,
-                                         const int C,
-                                         const int HO,
-                                         const int WO) {
+__global__ void avg_pool_nhwc_kernel(const {{dtype}}* input_raw,
+                                     {{dtype}}* output_raw,
+                                     const int N,
+                                     const int H,
+                                     const int W,
+                                     const int C,
+                                     const int HO,
+                                     const int WO) {
+{% set vec_dtype = {"half": "half2", "float": "float2"}[dtype] %}
+  const {{vec_dtype}}* input = (const {{vec_dtype}}*)input_raw;
+  {{vec_dtype}}* output = ({{vec_dtype}}*)output_raw;
+
   const int tid = threadIdx.x;
   const int n_idx = blockIdx.x;
   const int out_h_idx = blockIdx.y;
@@ -85,33 +89,49 @@ __global__ void avg_pool_f16_nhwc_kernel(const half2* input,
       #pragma unroll
       for (int w = w_start_idx; w < w_end_idx; w++) {
         const int idx = (h * W + w) * C;
-        const half2 tmp = __ldg(input + (idx + c_idx));
+        const {{vec_dtype}} tmp = __ldg(input + (idx + c_idx));
+{% if dtype == "half" %}
         avg.x += __half2float(tmp.x);
         avg.y += __half2float(tmp.y);
+{% else %}
+        avg.x += tmp.x;
+        avg.y += tmp.y;
+{% endif %}
       }
     }
 
     avg.x *= norm_factor;
     avg.y *= norm_factor;
+{% if dtype == "half" %}
     output[c_idx] = __float22half2_rn(avg);
+{% else %}
+    output[c_idx] = avg;
+{% endif %}
   }
 }
 
-template <int kernel_size, int stride, int padding>
-void avg_pool_launcher(const cutlass::half_t* input,
-                      cutlass::half_t* output,
-                      const int N,
-                      const int H,
-                      const int W,
-                      const int C,
-                      const int HO,
-                      const int WO,
-                      cudaStream_t stream) {
-  int num_thread = (C / 2) < 256 ? C / 2 : 256;
+template <typename ElemT, int kernel_size, int stride, int padding>
+void avg_pool_launcher(const ElemT* input,
+                       ElemT* output,
+                       const int N,
+                       const int H,
+                       const int W,
+                       const int C,
+                       const int HO,
+                       const int WO,
+                       cudaStream_t stream)
+{
+  int num_thread = C / 2;
+  if (num_thread > 256) {
+      num_thread = 256;
+  } else if (num_thread == 0) {
+      num_thread = 1;
+  }
   dim3 grid(N, HO, WO);
   dim3 block(num_thread);
-  avg_pool_f16_nhwc_kernel<kernel_size, stride, padding><<<grid, block, 0, stream>>>(
-      (const half2*)input, (half2*)output, N, H, W, C / 2, HO, WO);
+  avg_pool_nhwc_kernel<kernel_size, stride, padding>
+      <<<grid, block, 0, stream>>>(input, output, N, H,
+                                   W, C / 2, HO, WO);
 }
 } // namespace
 
@@ -147,7 +167,7 @@ def gen_function(
     func_name = func_attrs["name"]
     exec_path = func_attrs["exec_path"]
     backend_spec = CUDASpec()
-    dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
     shape_eval_func = shape_eval_template.render(
         indent="  ",
         dtype="int64_t ",
@@ -180,7 +200,10 @@ def gen_function(
         exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return SRC_TEMPLATE.render(
-        function_name=func_name, shape_function=shape_func, exec_paths=exec_paths
+        function_name=func_name,
+        shape_function=shape_func,
+        exec_paths=exec_paths,
+        dtype=dtype,
     )
 
 

@@ -118,7 +118,7 @@ void nhwc3to4_launcher(const ElemT* in_ptr,
   const int nhw = NI * HI * WI;
   const int nhwc = nhw * 3;
   CHECK_EQ(nhw % 8, 0);
-  const int element_in_Tio = 8;
+  const int element_in_Tio = sizeof(int4) / sizeof(ElemT);
   const int max_input_element = nhwc / element_in_Tio;
   const int max_output_element = nhw * 4 / element_in_Tio;
   const int4 zero_io = {0, 0, 0, 0};

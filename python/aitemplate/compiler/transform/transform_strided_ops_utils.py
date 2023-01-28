@@ -20,7 +20,8 @@ from typing import List
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
-logger = logging.getLogger(__name__)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _dynamic_shape_checker(shape: List[IntVar], dim: int) -> bool:
@@ -98,7 +99,7 @@ def gemm_stride_checker(
     # TODO: Make this configurable for different gemms, bmms, etc.
     stride_strs = tmp_ta.try_get_stride_strs(get_stride_at_dim)
     if stride_strs is None:
-        logger.debug(
+        _LOGGER.debug(
             f"Failed in gemm_stride_checker: "
             f"dim: {dim}, "
             f"original_shapes length: {len(original_ta.original_shapes)}"

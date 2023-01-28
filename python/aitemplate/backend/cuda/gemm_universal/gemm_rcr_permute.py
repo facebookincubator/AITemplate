@@ -45,22 +45,22 @@ ARGS_PARSER_TEMPLATE = jinja2.Template(
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-    cutlass::gemm::GemmUniversalMode::kGemm,
-    {M, N, K},
-    split_k,
-    {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},
-    ({{elem_input_type}}*)(a_ptr),
-    ({{elem_input_type}}*)(b_ptr),
-    ({{elem_output_type}}*)(c_ptr),
-    ({{elem_output_type}}*)(c_ptr) + output_offset,
-    M * K,
-    N * K,
-    M * N,
-    M * N,
-    K,
-    K,
-    N,
-    output_stride
+    cutlass::gemm::GemmUniversalMode::kGemm,                 // GemmUniversalMode mode
+    {M, N, K},                                               // GemmCoord problem_size
+    split_k,                                                 // int batch_count
+    {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},  // typename EpilogueOutputOp::Params epilogue
+    ({{elem_input_type}}*)(a_ptr),                           // void const * ptr_A
+    ({{elem_input_type}}*)(b_ptr),                           // void const * ptr_B
+    ({{elem_output_type}}*)(c_ptr),                          // void const * ptr_C
+    ({{elem_output_type}}*)(c_ptr) + output_offset,          // void * ptr_D
+    M * K,                                                   // int64_t batch_stride_A
+    N * K,                                                   // int64_t batch_stride_B
+    M * N,                                                   // int64_t batch_stride_C
+    M * N,                                                   // int64_t batch_stride_D
+    K,                                                       // typename LayoutA::Stride::LongIndex lda
+    K,                                                       // typename LayoutB::Stride::LongIndex ldb
+    N,                                                       // typename LayoutC::Stride::LongIndex ldc
+    output_stride,                                           // typename LayoutC::Stride::LongIndex ldd
 """
 )
 
@@ -70,19 +70,12 @@ def gemm_rcr_permute_config(func_attrs, dtype="float16"):
     def fproc(op):
         import cutlass_lib
 
-        from ...backend_spec import CUDASpec
-
-        backend_spec = CUDASpec()
-        elem_type = backend_spec.dtype_to_lib_type(
-            func_attrs["inputs"][0]._attrs["dtype"]
-        )
-
         return common.default_fproc(
             op=op,
             a_layout=cutlass_lib.library.LayoutType.RowMajor,
             b_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             c_layout=cutlass_lib.library.LayoutType.RowMajor,
-            elem_type=elem_type,
+            dtype=func_attrs["inputs"][0].dtype(),
             epiligue_name=func_attrs["epilogue"],
             permute_layout=func_attrs["layout"],
         )
@@ -120,7 +113,8 @@ def common_gen_profiler(
 
 
 @registry.reg("cuda.gemm_rcr_permute.gen_profiler")
-def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
+def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict, extra_code=""):
+    extra_code = f"{common_permute.EXTRA_CODE.render()}\n{extra_code}"
     return common_gen_profiler(
         func_attrs,
         workdir,
@@ -128,7 +122,7 @@ def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
         dim_info_dict,
         common.SRC_TEMPLATE,
         PROBLEM_ARGS_TEMPLATE,
-        extra_code=common_permute.EXTRA_CODE.render(),
+        extra_code=extra_code,
     )
 
 
@@ -138,6 +132,7 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
     problem_args_template=None,
+    extra_code="",
 ):
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_lib_type(
@@ -160,6 +155,7 @@ def gen_function(
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
     output_ndims = len(func_attrs["output_accessors"][0].original_shapes)
+    extra_code = f"{common_permute.EXTRA_CODE.render()}\n{extra_code}"
     return common_permute.gen_function(
         func_attrs,
         common.SRC_TEMPLATE,
@@ -174,7 +170,7 @@ def gen_function(
         output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
             stride_dim="N", output_accessor=func_attrs["output_accessors"][0]
         ),
-        extra_code=common_permute.EXTRA_CODE.render(),
+        extra_code=extra_code,
     )
 
 

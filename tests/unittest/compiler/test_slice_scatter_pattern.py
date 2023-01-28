@@ -22,6 +22,10 @@ from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils
 
 
@@ -36,8 +40,8 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         input_start_indices,
         input_end_indices,
         dim,
+        dtype,
         batch_sizes=None,
-        input_type="float16",
     ):
         Ys = []
         for idx, (input_shape, start_indices, end_indices) in enumerate(
@@ -46,16 +50,14 @@ class SliceScatterPatternTestCase(unittest.TestCase):
             slice_op = ops.dynamic_slice()
             X_name = "input_{}".format(idx)
             if batch_sizes is None:
-                X = Tensor(
-                    shape=input_shape, dtype=input_type, name=X_name, is_input=True
-                )
+                X = Tensor(shape=input_shape, dtype=dtype, name=X_name, is_input=True)
             else:
                 X = Tensor(
                     shape=[
                         IntVar(values=batch_sizes, name="input_batch_{}".format(idx)),
                         *input_shape,
                     ],
-                    dtype=input_type,
+                    dtype=dtype,
                     name=X_name,
                     is_input=True,
                 )
@@ -69,10 +71,16 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         input_start_indices,
         input_end_indices,
         dim,
+        dtype,
         batch_sizes=None,
     ):
         Ys = self._make_slice_ops(
-            input_shapes, input_start_indices, input_end_indices, dim, batch_sizes
+            input_shapes,
+            input_start_indices,
+            input_end_indices,
+            dim,
+            dtype,
+            batch_sizes,
         )
         concat_op = ops.concatenate()
         Y = concat_op(Ys, dim)
@@ -86,10 +94,16 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         input_start_indices,
         input_end_indices,
         dim,
+        dtype,
         batch_sizes=None,
     ):
         graph = self._make_test_graph(
-            input_shapes, input_start_indices, input_end_indices, dim, batch_sizes
+            input_shapes,
+            input_start_indices,
+            input_end_indices,
+            dim,
+            dtype,
+            batch_sizes,
         )
         graph = transform.toposort(graph)
         transform.name_graph(graph)
@@ -107,7 +121,9 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         for idx, x in enumerate(fused_op._attrs["inputs"]):
             self.assertEqual(x._attrs["name"], "input_{}".format(idx))
 
-    def _e2e_test(self, input_shapes, input_start_indices, input_end_indices, dim):
+    def _e2e_test(
+        self, input_shapes, input_start_indices, input_end_indices, dim, dtype
+    ):
         logging.info(
             "e2e test with input_shapes {}, start_indices {}, end_indices {}".format(
                 input_shapes, input_start_indices, input_end_indices
@@ -121,7 +137,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         for input_shape, start_indices, end_indices in zip(
             input_shapes, input_start_indices, input_end_indices
         ):
-            X_pt = torch.randn(input_shape).cuda().half()
+            X_pt = get_random_torch_tensor(input_shape, dtype)
             Xs_pt.append(X_pt)
             slice_indices = [slice(i, j) for i, j in zip(start_indices, end_indices)]
             Y_pt = X_pt[slice_indices]
@@ -129,7 +145,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         Y_pt = torch.cat(Ys_pt, dim)
 
         Y = self._make_test_graph(
-            input_shapes, input_start_indices, input_end_indices, dim
+            input_shapes, input_start_indices, input_end_indices, dim, dtype
         )
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
         logging.info(
@@ -146,13 +162,19 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         inputs = [0 for i in range(len(Xs_pt))]
         for i, X_pt in enumerate(Xs_pt):
             inputs[input_name_to_index[f"input_{i}"]] = X_pt
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
         self.test_count += 1
 
     def _e2e_batch_test(
-        self, input_shapes, input_start_indices, input_end_indices, dim, batch_sizes
+        self,
+        input_shapes,
+        input_start_indices,
+        input_end_indices,
+        dim,
+        dtype,
+        batch_sizes,
     ):
         logging.info(
             "e2e batch test with batch_sizes {}, input_shapes{}, "
@@ -164,7 +186,12 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         target = detect_target()
 
         Y = self._make_test_graph(
-            input_shapes, input_start_indices, input_end_indices, dim, batch_sizes
+            input_shapes,
+            input_start_indices,
+            input_end_indices,
+            dim,
+            dtype,
+            batch_sizes,
         )
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
 
@@ -181,7 +208,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
             for input_shape, start_indices, end_indices in zip(
                 input_shapes, input_start_indices, input_end_indices
             ):
-                X_pt = torch.randn([batch, *input_shape]).cuda().half()
+                X_pt = get_random_torch_tensor([batch, *input_shape], dtype)
                 Xs_pt.append(X_pt)
                 slice_indices = [
                     slice(i, j) for i, j in zip(start_indices, end_indices)
@@ -193,27 +220,50 @@ class SliceScatterPatternTestCase(unittest.TestCase):
             inputs = [0 for i in range(len(Xs_pt))]
             for i, X_pt in enumerate(Xs_pt):
                 inputs[input_name_to_index[f"input_{i}"]] = X_pt
-            y = torch.empty(y_shape).cuda().half()
+            y = get_torch_empty_tensor(y_shape, dtype)
             module.run_with_tensors(inputs, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
             self.test_count += 1
 
     def _run_one_test(
-        self, *, input_shapes, input_start_indices, input_end_indices, dim
+        self,
+        *,
+        input_shapes,
+        input_start_indices,
+        input_end_indices,
+        dim,
+        dtype="float16",
     ):
         self._graph_transformation_test(
-            input_shapes, input_start_indices, input_end_indices, dim
+            input_shapes, input_start_indices, input_end_indices, dim, dtype
         )
-        self._e2e_test(input_shapes, input_start_indices, input_end_indices, dim)
+        self._e2e_test(input_shapes, input_start_indices, input_end_indices, dim, dtype)
 
     def _run_one_batch_test(
-        self, *, batch_sizes, input_shapes, input_start_indices, input_end_indices, dim
+        self,
+        *,
+        batch_sizes,
+        input_shapes,
+        input_start_indices,
+        input_end_indices,
+        dim,
+        dtype="float16",
     ):
         self._graph_transformation_test(
-            input_shapes, input_start_indices, input_end_indices, dim, batch_sizes
+            input_shapes,
+            input_start_indices,
+            input_end_indices,
+            dim,
+            dtype,
+            batch_sizes,
         )
         self._e2e_batch_test(
-            input_shapes, input_start_indices, input_end_indices, dim, batch_sizes
+            input_shapes,
+            input_start_indices,
+            input_end_indices,
+            dim,
+            dtype,
+            batch_sizes,
         )
 
     def test_slice_scatter(self):
@@ -258,21 +308,22 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         input_start_indices,
         input_end_indices,
         dim,
+        dtype,
     ):
         Ys = self._make_slice_ops(
             input_shapes,
             input_start_indices,
             input_end_indices,
             dim,
+            dtype,
         )
-        input_type = "float16"
         # make the first input tensor have multiple uses
         slice_op_0 = list(Ys[0].src_ops())[0]
         X0 = slice_op_0._attrs["inputs"][0]
         X0_shape = [d._attrs["values"][0] for d in X0._attrs["shape"]]
         num_slice_inputs = len(input_shapes)
         X1_name = f"input_{num_slice_inputs}"
-        X1 = Tensor(shape=X0_shape, dtype=input_type, name=X1_name, is_input=True)
+        X1 = Tensor(shape=X0_shape, dtype=dtype, name=X1_name, is_input=True)
         concat_op = ops.concatenate()
         Y0 = concat_op(Ys, dim)
         Y0._attrs["name"] = "output_0"
@@ -286,7 +337,13 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         return (Y0, Y1)
 
     def _test_slice_scatter_multi_dsts(
-        self, *, input_shapes, input_start_indices, input_end_indices, dim
+        self,
+        *,
+        input_shapes,
+        input_start_indices,
+        input_end_indices,
+        dim,
+        dtype="float16",
     ):
         """test cases where a tensor being sliced has multiple dsts"""
 
@@ -301,7 +358,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         for input_shape, start_indices, end_indices in zip(
             input_shapes, input_start_indices, input_end_indices
         ):
-            X_pt = torch.randn(input_shape).cuda().half()
+            X_pt = get_random_torch_tensor(input_shape, dtype)
             Xs_pt.append(X_pt)
             slice_indices = [slice(i, j) for i, j in zip(start_indices, end_indices)]
             Y_pt = X_pt[slice_indices]
@@ -309,12 +366,12 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         Y0_pt = torch.cat(Ys_pt, dim)
 
         input0_shape = Xs_pt[0].size()
-        other_X_pt = torch.randn(input0_shape).cuda().half()
+        other_X_pt = get_random_torch_tensor(input0_shape, dtype)
         Xs_pt.append(other_X_pt)
         Y1_pt = Xs_pt[0] + other_X_pt
 
         Y0, Y1 = self._make_test_graph_multi_dsts(
-            input_shapes, input_start_indices, input_end_indices, dim
+            input_shapes, input_start_indices, input_end_indices, dim, dtype
         )
 
         y0_shape = [var._attrs["values"][0] for var in Y0._attrs["shape"]]
@@ -340,8 +397,8 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         inputs = [0 for i in range(len(Xs_pt))]
         for i, X_pt in enumerate(Xs_pt):
             inputs[input_name_to_index[f"input_{i}"]] = X_pt
-        y0 = torch.empty(y0_shape).cuda().half()
-        y1 = torch.empty(y1_shape).cuda().half()
+        y0 = get_torch_empty_tensor(y0_shape, dtype)
+        y1 = get_torch_empty_tensor(y1_shape, dtype)
         module.run_with_tensors(inputs, [y0, y1])
         self.assertTrue(torch.allclose(Y0_pt, y0, atol=1e-2, rtol=1e-2))
         self.assertTrue(torch.allclose(Y1_pt, y1, atol=1e-2, rtol=1e-2))
@@ -361,6 +418,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         input_start_indices,
         input_end_indices,
         dim,
+        dtype,
     ):
         """Make a graph where (1) a tensor is sliced twice and both slices are
         fed into the same concat op, and (2) another sliced output (i.e not
@@ -372,6 +430,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
             input_start_indices,
             input_end_indices,
             dim,
+            dtype,
         )
         slice_op_0 = list(Ys[0].src_ops())[0]
         X0 = slice_op_0._attrs["inputs"][0]
@@ -394,7 +453,13 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         return Y
 
     def _test_slice_scatter_multi_dsts_2(
-        self, *, input_shapes, input_start_indices, input_end_indices, dim
+        self,
+        *,
+        input_shapes,
+        input_start_indices,
+        input_end_indices,
+        dim,
+        dtype="float16",
     ):
         logging.info(
             f"multi_dsts_2 e2e test with input_shapes: {input_shapes}, "
@@ -407,7 +472,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         for input_shape, start_indices, end_indices in zip(
             input_shapes, input_start_indices, input_end_indices
         ):
-            X_pt = torch.randn(input_shape).cuda().half()
+            X_pt = get_random_torch_tensor(input_shape, dtype)
             Xs_pt.append(X_pt)
             slice_indices = [slice(i, j) for i, j in zip(start_indices, end_indices)]
             Y_pt = X_pt[slice_indices]
@@ -425,7 +490,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         Y_pt = torch.cat(Ys_pt, dim)
 
         Y = self._make_test_graph_multi_dsts_2(
-            input_shapes, input_start_indices, input_end_indices, dim
+            input_shapes, input_start_indices, input_end_indices, dim, dtype
         )
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
@@ -449,7 +514,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         inputs = [0 for i in range(len(Xs_pt))]
         for i, X_pt in enumerate(Xs_pt):
             inputs[input_name_to_index[f"input_{i}"]] = X_pt
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
         self.test_count += 1
@@ -466,6 +531,38 @@ class SliceScatterPatternTestCase(unittest.TestCase):
             input_start_indices=[[0, 0, -3], [0, 2, 1]],
             input_end_indices=[[2, 3, 4], [2, 5, -1]],
             dim=2,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_slice_scatter_float(self):
+        self._run_one_test(
+            input_shapes=[[2, 3, 5], [3, 7, 10]],
+            input_start_indices=[[0, 1, 0], [0, 1, 3]],
+            input_end_indices=[[2, 2, 4], [2, 7, 7]],
+            dim=1,
+            dtype="float",
+        )
+        self._run_one_batch_test(
+            batch_sizes=[1024, 4, 128],
+            input_shapes=[[3], [3]],
+            input_start_indices=[[1, 1], [0, 0]],
+            input_end_indices=[[2, 3], [1, 2]],
+            dim=0,
+            dtype="float",
+        )
+        self._test_slice_scatter_multi_dsts(
+            input_shapes=[[4, 3, 4], [3, 7, 10]],
+            input_start_indices=[[1, 0, -3], [0, 2, 1]],
+            input_end_indices=[[3, 3, 4], [2, 5, -1]],
+            dim=2,
+            dtype="float",
+        )
+        self._test_slice_scatter_multi_dsts_2(
+            input_shapes=[[2, 3, 5], [3, 7, 10]],
+            input_start_indices=[[0, 1, 0], [0, 1, 3]],
+            input_end_indices=[[2, 2, 4], [2, 7, 7]],
+            dim=1,
+            dtype="float",
         )
 
 

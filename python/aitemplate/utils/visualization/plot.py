@@ -20,6 +20,7 @@ import os
 
 from aitemplate import compiler
 from aitemplate.utils.visualization import op_attr_factory, pydot
+from aitemplate.utils.visualization.op_attr_factory import op_to_content
 from aitemplate.utils.visualization.web_template import (
     INDEX_TEMPLATE,
     MODAL_TEMPLATE,
@@ -161,7 +162,9 @@ def plot_graph(tensors, file_path: str) -> None:
                 dot_graph.add_node(op_node)
                 modal_set.append(_gen_op_modal(src_op))
                 items.append(op_name)
-                popover_data[op_name] = "op: " + src_op._attrs["op"]
+                popover_data[op_name] = ", ".join(
+                    [f"{x}: {y}" for x, y in op_to_content(src_op).items()]
+                )
             dot_graph.add_edge(pydot.Edge(op_node, tensor_node))
 
         for dst_op in tensor.dst_ops():
@@ -179,7 +182,9 @@ def plot_graph(tensors, file_path: str) -> None:
                 op_set[dst_op] = op_node
                 dot_graph.add_node(op_node)
                 items.append(op_name)
-                popover_data[op_name] = "op: " + dst_op._attrs["op"]
+                popover_data[op_name] = ", ".join(
+                    [f"{x}: {y}" for x, y in op_to_content(dst_op).items()]
+                )
                 # add modal
                 modal_set.append(_gen_op_modal(dst_op))
             dot_graph.add_edge(pydot.Edge(tensor_node, op_node))

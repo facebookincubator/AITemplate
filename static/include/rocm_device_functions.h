@@ -28,6 +28,8 @@
 
 namespace ait {
 
+inline thread_local bool target_has_graph_mode = false;
+
 using DeviceError = hipError_t;
 using DevicePropertyType = hipDeviceProp_t;
 using StreamType = hipStream_t;
@@ -189,4 +191,21 @@ inline DeviceError GetDeviceNotReady() {
   return hipErrorNotReady;
 }
 
+inline DeviceError GetDriverVersion(int* driverVersion) {
+  return hipDriverGetVersion(driverVersion);
+}
+
+inline DeviceError GetRuntimeVersion(int* runtimeVersion) {
+  return hipRuntimeGetVersion(runtimeVersion);
+}
+
+inline void ProfilerRangePush(const char* msg) {
+  // TODO: Activate roctx header and linkage
+  // roctxRangePush(msg);
+}
+
+inline void ProfilerRangePop() {
+  // TODO: Activate roctx header and linkage
+  // roctxRangePop();
+}
 } // namespace ait

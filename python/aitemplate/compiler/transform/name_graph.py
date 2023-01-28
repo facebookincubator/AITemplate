@@ -18,7 +18,7 @@ Graph pass to assign names to a sorted graph.
 import re
 from typing import List
 
-from ..base import IntVarTensor, Tensor
+from ..base import IntImm, IntVarTensor, Tensor
 
 # pylint: disable=C0103
 
@@ -63,11 +63,14 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
                 node._attrs["name"] = tensor_name
                 tensor_cnt += 1
                 if isinstance(node, IntVarTensor):
-                    # TODO: emit standalone dynamic shape initialization for IntVarTensor
-                    raise RuntimeError(
-                        "We don't support emitting standalone IntVarTensor at this moment.\n"
-                        f"Encountered {node._attrs['name']}: {node._attrs['int_var']}."
-                    )
+                    if not isinstance(node._attrs["int_var"], IntImm):
+                        # TODO: emit standalone dynamic shape initialization for IntVarTensor
+                        raise RuntimeError(
+                            "We don't support emitting standalone IntVarTensor at this moment.\n"
+                            f"Encountered {node._attrs['name']}: {node._attrs['int_var']}."
+                        )
+                    else:
+                        node._attrs["int_var"]._attrs["name"] = tensor_name
 
         else:
             for func in funcs:

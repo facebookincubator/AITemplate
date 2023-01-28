@@ -17,29 +17,88 @@ import unittest
 import torch
 
 from aitemplate.compiler import compile_model, ops
-from aitemplate.frontend import Tensor
+from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
+from parameterized import param, parameterized
 
 
-class Permute102(unittest.TestCase):
-    def test_static_shape_3d(self):
-        NN = 80
-        WW = 300
-        CI = 2
-        X = Tensor(shape=[NN, WW, CI], name="X", is_input=True)
+class Permute102Test(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(Permute102Test, self).__init__(*args, **kwargs)
+        self._test_id = 0
+
+    def _test_permute_102(
+        self,
+        input_shape,
+        test_name="permute102",
+        dtype="float16",
+    ):
+        X = Tensor(
+            shape=input_shape,
+            name="X",
+            dtype=dtype,
+            is_input=True,
+        )
         op = ops.permute102()
         Y = op(X)
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "perm102")
+        module = compile_model(Y, target, "./tmp", f"perm102_{self._test_id}")
+        self._test_id += 1
 
-        X_pt = torch.randn(NN, WW, CI).cuda().half()
-        Y_pt = torch.permute(X_pt, [1, 0, 2])
-        y = torch.empty([WW, NN, CI]).cuda().half()
-        module.run_with_tensors([X_pt], [y])
-        self.assertTrue(torch.allclose(y, Y_pt, atol=1e-2, rtol=1e-2))
+        batch_dim = input_shape[0]
+        if isinstance(batch_dim, IntVar):
+            input_shapes = [(d, *input_shape[1:]) for d in batch_dim._attrs["values"]]
+        else:
+            input_shapes = [input_shape]
+
+        for shape in input_shapes:
+            X_pt = get_random_torch_tensor(shape, dtype=dtype)
+            Y_pt = torch.permute(X_pt, [1, 0, 2])
+            y = torch.empty_like(Y_pt).contiguous()
+            module.run_with_tensors([X_pt], [y])
+            self.assertTrue(torch.equal(y, Y_pt))
+
+    @parameterized.expand(
+        [
+            param((80, 300, 2)),
+            param((31, 7, 3)),
+            param((256, 128, 7)),
+            param((128, 256, 8)),
+            param((128, 128, 63)),
+            param((256, 256, 64)),
+            param((IntVar([2, 3]), 256, 64)),
+        ]
+    )
+    def test_permute102_fp16(self, input_shape):
+        self._test_permute_102(
+            input_shape=input_shape,
+            test_name="permute102_fp16",
+            dtype="float16",
+        )
+
+    @parameterized.expand(
+        [
+            param((80, 300, 2)),
+            param((31, 7, 3)),
+            param((256, 128, 7)),
+            param((128, 256, 8)),
+            param((128, 128, 63)),
+            param((256, 256, 64)),
+            param((IntVar([2, 3]), 256, 64)),
+        ]
+    )
+    @unittest.skipIf(detect_target().name() == "rocm", "FP32 is not supported on ROCm")
+    def test_permute102_fp32(self, input_shape):
+        self._test_permute_102(
+            input_shape=input_shape,
+            test_name="permute102_fp32",
+            dtype="float32",
+        )
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

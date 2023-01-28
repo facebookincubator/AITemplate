@@ -23,4 +23,4 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
 
 __all__ = ["backend", "compiler", "frontend", "testing", "utils"]
 
-root_logger = utils.logger.setup_logger(__name__)
+root_logger = utils.misc.setup_logger(__name__)

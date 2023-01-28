@@ -20,12 +20,14 @@ from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from ...base import Tensor
 from . import bmm_rrr
+from .bmm import is_valid_inputs
 
 # pylint: disable=C0103, W0223
 
 
 class bmm_rrr_add(bmm_rrr):
     """Batch GEMM specialization for A[RowMajor], B[RowMajor], C[RowMajor] with Add.
+    C can be the same size as the output or be broadcast as bias.
 
     This operator is equivalent to the following pytorch code:
 
@@ -43,6 +45,12 @@ class bmm_rrr_add(bmm_rrr):
         super().__init__()
         self._attrs["op"] = "bmm_rrr_add"
         self._attrs["has_d"] = True
+
+    @staticmethod
+    def is_valid_inputs(A: Tensor, B: Tensor, C: Tensor):
+        output_shapes = bmm_rrr()._infer_shapes(A, B)
+        c_shapes = C.shape()
+        return is_valid_inputs(output_shapes, c_shapes)
 
     def __call__(self, a: Tensor, b: Tensor, c: Tensor) -> Tensor:
         """Call bmm_rrr_add with tensors a, b, c

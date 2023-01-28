@@ -267,7 +267,7 @@ class depthwise_conv3d(Operator):
         output_shape = self._infer_shapes(x, w)
         self._extract_exec_path(x)
         self._extract_epilogue_alignment(output_shape)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=x._attrs["dtype"])
         self._attrs["outputs"] = [output]
         return output
 

@@ -21,6 +21,10 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils, shape_utils
 
 
@@ -39,8 +43,8 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         expected_op_t,
         expected_data_t,
         input_x2_shape=None,
+        dtype="float16",
     ):
-        dtype = "float16"
         X1 = Tensor(
             shape=slice_input_shape,
             dtype=dtype,
@@ -82,8 +86,8 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
         # Run PyTorch
-        x1_pt = torch.randn(*slice_input_shape).cuda().half()
-        x2_pt = torch.randn(*input_x2_shape).cuda().half()
+        x1_pt = get_random_torch_tensor(slice_input_shape, dtype)
+        x2_pt = get_random_torch_tensor(input_x2_shape, dtype)
 
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -96,7 +100,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             "input_x1": x1_pt,
             "input_x2": x2_pt,
         }
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
         self.test_count += 1
@@ -198,8 +202,8 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         expected_op_t,
         expected_data_t,
         input_x2_shape=None,
+        dtype="float16",
     ):
-        dtype = "float16"
         x_shape = [
             shape_utils.gen_int_var_min_max(d) if isinstance(d, list) else IntImm(d)
             for d in slice_input_shape
@@ -285,8 +289,8 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
                 input_x2_shape_pt = [
                     d[idx] if isinstance(d, list) else d for d in input_x2_shape
                 ]
-            x1_pt = torch.randn(*x_shape_pt).cuda().half()
-            x2_pt = torch.randn(*input_x2_shape_pt).cuda().half()
+            x1_pt = get_random_torch_tensor(x_shape_pt, dtype)
+            x2_pt = get_random_torch_tensor(input_x2_shape_pt, dtype)
 
             slice_indices = [
                 slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -301,7 +305,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
                 "input_x1": x1_pt,
                 "input_x2": x2_pt,
             }
-            y = torch.empty(y_pt.size()).cuda().half()
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
             module.run_with_tensors(inputs, [y])
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
             self.test_count += 1
@@ -411,8 +415,8 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         expected_op_t,
         expected_data_t,
         test_name,
+        dtype="float16",
     ):
-        dtype = "float16"
         x_shape = [
             shape_utils.gen_int_var_min_max(d) if isinstance(d, list) else IntImm(d)
             for d in slice_input_shape
@@ -463,7 +467,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             x_shape_pt = [
                 d[idx] if isinstance(d, list) else d for d in slice_input_shape
             ]
-            x1_pt = torch.randn(*x_shape_pt).cuda().half()
+            x1_pt = get_random_torch_tensor(x_shape_pt, dtype)
 
             slice_indices1 = [
                 slice(i, j) for i, j in zip(slice_start_indices1, slice_end_indices1)
@@ -479,7 +483,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             inputs = {
                 "input_x1": x1_pt,
             }
-            y = torch.empty(y_pt.size()).cuda().half()
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
             module.run_with_tensors(inputs, [y])
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
             self.test_count += 1
@@ -506,6 +510,85 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             expected_op_t="half",
             expected_data_t="half",
             test_name="two_slice_elemwise_fusion_dynamic",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_slice_elemwise_fusion_float(self):
+        self._test_slice_elemwise_fusion(
+            slice_input_shape=(10, 20, 30),
+            slice_start_indices=(0, 3, 0),
+            slice_end_indices=(None, 5, None),
+            test_name="slice_elemwise_fusion_float",
+            expected_read_t="uint2",
+            expected_op_t="float",
+            expected_data_t="float",
+            dtype="float",
+        )
+        self._test_slice_elemwise_fusion(
+            slice_input_shape=(10, 16),
+            slice_start_indices=(2, 0),
+            slice_end_indices=(3, None),
+            test_name="slice_elemwise_fusion_broadcast_float",
+            expected_read_t="uint4",
+            expected_op_t="float",
+            expected_data_t="float",
+            input_x2_shape=(4, 16),
+            dtype="float",
+        )
+        self._test_slice_elemwise_fusion(
+            slice_input_shape=(1, 1, 10),
+            slice_start_indices=(0, 0, 2),
+            slice_end_indices=(None, None, 7),
+            test_name="slice_elemwise_fusion_broadcast_float_2",
+            expected_read_t="float",
+            expected_op_t="float",
+            expected_data_t="float",
+            input_x2_shape=(10, 3, 1),
+            dtype="float",
+        )
+        self._test_slice_elemwise_fusion_dynamic(
+            slice_input_shape=([5, 16], [4, 10], 16),
+            slice_start_indices=(0, 0, 4),
+            slice_end_indices=(None, None, 16),
+            test_name="slice_elemwise_fusion_dynamic_float",
+            expected_read_t="uint4",
+            expected_op_t="float",
+            expected_data_t="float",
+            dtype="float",
+        )
+        self._test_slice_elemwise_fusion_dynamic(
+            slice_input_shape=([5, 16], 10, 10),
+            slice_start_indices=(0, 0, 4),
+            slice_end_indices=(None, None, 5),
+            test_name="slice_elemwise_fusion_dynamic_broadcast_float",
+            expected_read_t="float",
+            expected_op_t="float",
+            expected_data_t="float",
+            input_x2_shape=(1, 10, 15),
+            dtype="float",
+        )
+        self._test_slice_elemwise_fusion_dynamic(
+            slice_input_shape=([5, 16], 10, 10),
+            slice_start_indices=(0, 0, 0),
+            slice_end_indices=(None, None, 8),
+            test_name="slice_elemwise_fusion_dynamic_broadcast_float",
+            expected_read_t="uint2",
+            expected_op_t="float",
+            expected_data_t="float",
+            input_x2_shape=(10, 8),
+            dtype="float",
+        )
+        self._test_two_slice_elemwise_fusion_dynamic(
+            slice_input_shape=([3, 50], 100),
+            slice_start_indices1=(0, 4),
+            slice_end_indices1=(None, 8),
+            slice_start_indices2=(0, 16),
+            slice_end_indices2=(None, 20),
+            expected_read_t="uint4",
+            expected_op_t="float",
+            expected_data_t="float",
+            test_name="two_slice_elemwise_fusion_dynamic_float",
+            dtype="float",
         )
 
 

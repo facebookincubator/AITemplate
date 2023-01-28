@@ -20,17 +20,24 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger, shape_utils
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
+from aitemplate.utils import shape_utils
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class PadGemmWithCatTestCase(unittest.TestCase):
-    def _test_pad_gemm_rrr_with_cat(self, test_name, ms, n, k1, k2):
+    def _test_pad_gemm_rrr_with_cat(self, test_name, ms, n, k1, k2, dtype="float16"):
         k = k1 + k2
         m_dim = shape_utils.gen_int_var_min_max(ms, name="m")
-        X1 = Tensor(shape=[m_dim, k1], dtype="float16", name="x1", is_input=True)
-        W1 = Tensor(shape=[k, n], dtype="float16", name="w1", is_input=True)
-        X2 = Tensor(shape=[m_dim, k2], dtype="float16", name="x2", is_input=True)
-        W2 = Tensor(shape=[k, n], dtype="float16", name="w2", is_input=True)
+        X1 = Tensor(shape=[m_dim, k1], dtype=dtype, name="x1", is_input=True)
+        W1 = Tensor(shape=[k, n], dtype=dtype, name="w1", is_input=True)
+        X2 = Tensor(shape=[m_dim, k2], dtype=dtype, name="x2", is_input=True)
+        W2 = Tensor(shape=[k, n], dtype=dtype, name="w2", is_input=True)
         X4 = ops.concatenate()([X1, X2], dim=1)
         Y1 = ops.gemm_rrr()(X4, W1)
         Y2 = ops.gemm_rrr()(X4, W2)
@@ -40,21 +47,21 @@ class PadGemmWithCatTestCase(unittest.TestCase):
 
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Skip this test on SM75")
+            _LOGGER.warning("Skip this test on SM75")
             return
         dll_name = f"test_rrr_padding_{test_name}.so"
         module = compile_model(
-            [Y], target, "./tmp", "pad_gemm_with_cat_rrr", dll_name=dll_name
+            [Y], target, "./tmp", f"pad_gemm_with_cat_rrr_{dtype}", dll_name=dll_name
         )
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logging.info("AITemplate y_shape: {}".format(y_shape))
+        _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
 
         for m in ms:
-            X1_pt = torch.randn(m, k1).cuda().half()
-            W1_pt = torch.randn(k, n).cuda().half()
-            X2_pt = torch.randn(m, k2).cuda().half()
-            W2_pt = torch.randn(k, n).cuda().half()
+            X1_pt = get_random_torch_tensor([m, k1], dtype)
+            W1_pt = get_random_torch_tensor([k, n], dtype)
+            X2_pt = get_random_torch_tensor([m, k2], dtype)
+            W2_pt = get_random_torch_tensor([k, n], dtype)
             X4_pt = torch.cat([X1_pt, X2_pt], dim=1)
             Y1_pt = torch.matmul(X4_pt, W1_pt)
             Y2_pt = torch.matmul(X4_pt, W2_pt)
@@ -66,15 +73,33 @@ class PadGemmWithCatTestCase(unittest.TestCase):
             inputs[name_to_idx["x2"]] = X2_pt
             inputs[name_to_idx["w1"]] = W1_pt
             inputs[name_to_idx["w2"]] = W2_pt
-            y = torch.empty(Y_pt.size()).cuda().half()
+            y = get_torch_empty_tensor(Y_pt.size(), dtype)
             module.run_with_tensors(inputs, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_pad_gemm_rrr_with_cat(self):
+    def test_pad_gemm_rrr_with_cat_float16(self):
         self._test_pad_gemm_rrr_with_cat("static_odd_k", ms=[128], n=32, k1=3, k2=10)
         self._test_pad_gemm_rrr_with_cat("static_odd_kn", ms=[128], n=31, k1=1, k2=8)
         self._test_pad_gemm_rrr_with_cat(
             "dynamic_odd_kn", ms=[2, 5, 7], n=15, k1=1, k2=2
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_pad_gemm_rrr_with_cat_float32(self):
+        self._test_pad_gemm_rrr_with_cat(
+            "static_odd_k", ms=[128], n=32, k1=3, k2=10, dtype="float32"
+        )
+        self._test_pad_gemm_rrr_with_cat(
+            "dynamic_odd_kn",
+            ms=[2, 5, 7],
+            n=15,
+            k1=1,
+            k2=2,
+            dtype="float32",
         )
 
 

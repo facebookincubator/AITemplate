@@ -211,6 +211,12 @@ def _retrieve_op_info(op: Operator, params_set) -> Tuple[List, Dict]:
         # dynamic slice provides start/end indices as inputs
         op_inputs.append(str(op._attrs["start_indices"]))
         op_inputs.append(str(op._attrs["end_indices"]))
+    elif op._attrs["op"] == "permute":
+        # permute takes permuted dimensions as input,
+        # but can forward to static shape permute ops
+        # that don't (e.g., permute021 or permute102)
+        if "dims" in op._attrs:
+            op_inputs.append(str(op._attrs["dims"]))
 
     return op_inputs, op_attrs
 

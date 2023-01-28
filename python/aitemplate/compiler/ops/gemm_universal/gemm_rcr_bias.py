@@ -93,7 +93,7 @@ class gemm_rcr_bias(gemm_rcr):
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b, bias)
         self._extract_epilogue_alignment(output_shape)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=a.dtype())
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output

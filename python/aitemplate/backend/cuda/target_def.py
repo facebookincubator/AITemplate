@@ -16,6 +16,7 @@
 CUDA target specialization
 """
 import json
+import logging
 import os
 import pipes
 import re
@@ -30,12 +31,15 @@ from aitemplate.backend.profiler_cache import ProfileCacheDB
 
 from aitemplate.backend.target import TargetType
 
-from ...utils import logger
+from ...utils.misc import is_debug
 
 from .. import registry
 from ..target import AIT_STATIC_FILES_PATH, CUTLASS_PATH, Target
 
 # pylint: disable=C0415,W0707,W0611,W0702,W1401
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CUDA(Target):
@@ -87,8 +91,8 @@ class CUDA(Target):
             os.path.join(self._template_path, "include"),
             os.path.join(self._template_path, "tools/util/include"),
             os.path.join(self._template_path, "examples/35_gemm_softmax"),
-            os.path.join(self._template_path, "examples/42_fused_multi_head_attention"),
-            os.path.join(self._template_path, "examples/43_dual_gemm"),
+            os.path.join(self._template_path, "examples/41_fused_multi_head_attention"),
+            os.path.join(self._template_path, "examples/45_dual_gemm"),
             os.path.join(
                 flash_attention_path,
                 "./",
@@ -151,11 +155,7 @@ class CUDA(Target):
 
     def __exit__(self, ptype, value, trace):
         super().__exit__(ptype, value, trace)
-        if (
-            self.lib_folder
-            and os.path.exists(self.lib_folder)
-            and not logger.is_debug()
-        ):
+        if self.lib_folder and os.path.exists(self.lib_folder) and not is_debug():
             shutil.rmtree(self.lib_folder)
 
     def cc(self):
@@ -225,9 +225,7 @@ class FBCUDA(CUDA):
             convert_nvcc_json = parutil.get_file_path(
                 os.path.join("aitemplate/testing", "convert_nvcc_cmd")
             )
-            logger.info(
-                __name__, f"Load the nvcc compile option from {convert_nvcc_json}"
-            )
+            _LOGGER.info(f"Load the nvcc compile option from {convert_nvcc_json}")
             with open(convert_nvcc_json, "r") as nvcc_option_json:
                 FBCUDA.nvcc_option_json = json.load(nvcc_option_json)
         self.nvcc_options_json = FBCUDA.nvcc_option_json
@@ -242,9 +240,9 @@ class FBCUDA(CUDA):
                 os.path.join(self._template_path, "tools/util/include"),
                 os.path.join(self._template_path, "examples/35_gemm_softmax"),
                 os.path.join(
-                    self._template_path, "examples/42_fused_multi_head_attention"
+                    self._template_path, "examples/41_fused_multi_head_attention"
                 ),
-                os.path.join(self._template_path, "examples/43_dual_gemm"),
+                os.path.join(self._template_path, "examples/45_dual_gemm"),
                 os.path.join(self._template_path, "../att_include"),
                 os.path.join(self._template_path, "../att_include/fmha"),
                 os.path.join(self._template_path, "../cub"),
@@ -285,12 +283,12 @@ class FBCUDA(CUDA):
                 options.append("-DNDEBUG")
             FBCUDA.compile_options_ = " ".join(options)
         compile_options = FBCUDA.compile_options_
-        logger.debug(__name__, f"The compile options are: {compile_options}")
+        _LOGGER.debug(f"The compile options are: {compile_options}")
         return compile_options
 
     def __exit__(self, ptype, value, trace):
         super().__exit__(ptype, value, trace)
-        if not logger.is_debug() and self._include_path:
+        if not is_debug() and self._include_path:
             shutil.rmtree(self._include_path)
 
     def binary_compile_cmd(self):
@@ -347,7 +345,7 @@ class FBCUDA(CUDA):
             try:
                 AITemplateRemoteLogger.log(record)
             except Exception as e:
-                logger.info(__name__, f"remote_logger failed: {e}")
+                _LOGGER.info(f"remote_logger failed: {e}")
 
     def _load_profile_cache(self):
         """Load local profile cache for this target."""
@@ -356,13 +354,12 @@ class FBCUDA(CUDA):
             return
 
         if self.remote_cache_bytes is not None:
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 f"Loading profile cache from provided cache content with length {len(self.remote_cache_bytes)}",
             )
             with open(cache_path, "wb") as f:
                 f.write(self.remote_cache_bytes)
-        logger.info(__name__, f"Loading profile cache from: {cache_path}")
+        _LOGGER.info(f"Loading profile cache from: {cache_path}")
         self._profile_cache = ProfileCacheDB(
             TargetType(self._target_type).name, path=cache_path
         )

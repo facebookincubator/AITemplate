@@ -46,7 +46,8 @@ def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
         a_dims=a_dims, b_dims=b_dims, c_dims=c_dims
     )
 
-    mm_info = bmm_crr._get_problem_info(
+    default_mm_info = bmm_common.get_default_problem_info(
+        bmm_crr.PROBLEM_ARGS,
         bias_ptr="d_ptr",
         alpha_value=func_attrs.get("alpha", 1),
         beta_value=1,
@@ -54,10 +55,10 @@ def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     a_shapes = func_attrs["input_accessors"][0].original_shapes
     b_shapes = func_attrs["input_accessors"][1].original_shapes
     d_shapes = func_attrs["input_accessors"][2].original_shapes
-    bmm_common._update_stride_info(mm_info, a_shapes, b_shapes, d_shapes)
+    bmm_common._update_stride_info(default_mm_info, a_shapes, b_shapes, d_shapes)
 
     problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
-        mm_info=mm_info,
+        mm_info=default_mm_info,
     )
 
     return bmm_common.gen_profiler(
@@ -77,24 +78,26 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
 ):
-    mm_info = bmm_crr._get_problem_info(
+    default_mm_info = bmm_common.get_default_problem_info(
+        bmm_crr.PROBLEM_ARGS,
         bias_ptr="d_ptr",
         alpha_value=func_attrs.get("alpha", 1),
         beta_value=1,
     )
-    a_shapes = func_attrs["input_accessors"][0].original_shapes
-    b_shapes = func_attrs["input_accessors"][1].original_shapes
-    d_shapes = func_attrs["input_accessors"][2].original_shapes
-    bmm_common._update_stride_info(mm_info, a_shapes, b_shapes, d_shapes)
-
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
-        mm_info=mm_info,
+    (
+        problem_args,
+        input_addr_calculator,
+        output_addr_calculator,
+    ) = bmm_common.make_function_strided_args(
+        func_attrs, dim_info_dict, default_mm_info, is_permute=False
     )
     return bmm_common.gen_function(
         func_attrs,
         exec_cond_template,
         problem_args,
         dim_info_dict,
+        input_addr_calculator=input_addr_calculator,
+        output_addr_calculator=output_addr_calculator,
     )
 
 

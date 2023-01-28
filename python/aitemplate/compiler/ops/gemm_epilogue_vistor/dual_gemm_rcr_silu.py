@@ -34,7 +34,7 @@ class dual_gemm_rcr_silu(gemm_rcr):
         B = torch.randn(N, K)
         Y1 = torch.nn.functional.linear(A, W)
         Y2 = torch.nn.functional.linear(A, B)
-        Y = torch.nn.functional.silu(Y_1) * Y_2
+        Y = torch.nn.functional.silu(Y1) * Y2
     """
 
     def __init__(self):
@@ -71,7 +71,13 @@ class dual_gemm_rcr_silu(gemm_rcr):
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b, bias)
         self._extract_epilogue_alignment(output_shape)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(
+            output_shape,
+            src_ops={self},
+            dtype=self._attrs["inputs"][0]._attrs["dtype"],
+        )
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
+        if b._attrs["shape"][-2] != 1 and bias._attrs["shape"][-2] == 1:
+            self._attrs["broadcast_b1"] = True
         return output

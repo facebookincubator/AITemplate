@@ -101,3 +101,7 @@ def fast_gelu(tensor: Any) -> Tensor:
 
 def softplus(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("SOFTPLUS")(tensor)
+
+
+def elu(tensor: Any) -> Tensor:
+    return OP_REGISTRY.get("ELU")(tensor)

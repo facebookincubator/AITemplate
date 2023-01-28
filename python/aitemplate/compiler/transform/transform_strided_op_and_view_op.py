@@ -16,7 +16,6 @@
 Perform transformations to fuse view ops with strided op by using TensorAccessor.
 """
 
-import logging
 from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor
@@ -25,7 +24,6 @@ from aitemplate.compiler.stable_set import StableSet
 from aitemplate.compiler.transform import transform_utils
 from aitemplate.utils import graph_utils
 
-logger = logging.getLogger(__name__)
 
 _VIEW_OPS = {"reshape", "flatten", "squeeze", "unsqueeze"}
 
@@ -37,7 +35,7 @@ def _is_supported_strided_op(op: Operator) -> bool:
     if Target.current().name() == "rocm":
         return op_kind == "bmm_softmax_bmm_permute"
     else:
-        return not op_kind.startswith(("group_gemm", "concatenate"))
+        return not op_kind.startswith("group_gemm")
 
 
 def _is_supported_view_op(op: Operator, tensor: Tensor) -> bool:
@@ -95,6 +93,13 @@ def _fuse_strided_op_and_view_op_single_pass(
             ), f"Cannot find view_input_tensor {view_input_tensor} from src_op outputs {src_op._attrs['outputs']}!"
         else:
             if tensor._attrs["is_output"]:
+                continue
+            # We have special handling for group_gemm + reshape + concat
+            # in transform_strided_ops, so we skip group_gemm at the moment.
+            # Otherwise, we would end up with shape mismatch due to fusing
+            # the view op. We may relax this constraint if we remove the special
+            # pass above.
+            if src_op is not None and src_op._attrs["op"].startswith("group_gemm"):
                 continue
             to_be_removed_dst_ops = set()
             for dst_op in tensor._attrs["dst_ops"]:

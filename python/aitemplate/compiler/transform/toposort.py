@@ -37,29 +37,36 @@ def toposort(nodes: Union[Tensor, List[Tensor]]) -> List[Tensor]:
     """
     visited = set()
     sorted_graph = []
+    stack = []
 
-    def DFS(nd: Tensor):
-        if nd in visited:
-            return
-        for src_op in nd.src_ops():
+    if isinstance(nodes, Tensor):
+        stack.append((nodes, False))
+    else:
+        for node in list(nodes)[::-1]:
+            stack.append((node, False))
+
+    while len(stack) > 0:
+        curr_node, curr_visited = stack.pop()
+        if curr_visited:
+            sorted_graph.append(curr_node)
+            for src_op in curr_node.src_ops():
+                for next_node in src_op._attrs["outputs"]:
+                    stack.append((next_node, False))
+            continue
+        if curr_node in visited:
+            continue
+
+        visited.add(curr_node)
+        stack.append((curr_node, True))
+        for src_op in curr_node.src_ops():
             args = src_op._attrs["inputs"]
             indexed_args = list(enumerate(args))
             depth_first_args = sorted(
                 indexed_args, key=lambda x: x[1]._attrs["depth"], reverse=True
             )
-            visit_seq = [x[0] for x in depth_first_args]
+            visit_seq = [x[0] for x in depth_first_args[::-1]]
             for idx in visit_seq:
                 arg = args[idx]
-                DFS(arg)
-        visited.add(nd)
-        sorted_graph.append(nd)
-        for src_op in nd.src_ops():
-            for next_nd in src_op._attrs["outputs"]:
-                DFS(next_nd)
+                stack.append((arg, False))
 
-    if isinstance(nodes, Tensor):
-        DFS(nodes)
-    else:
-        for node in list(nodes):
-            DFS(node)
     return sorted_graph

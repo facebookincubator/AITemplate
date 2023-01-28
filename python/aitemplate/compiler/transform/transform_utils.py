@@ -16,16 +16,20 @@
 Util functions for graph transformations.
 """
 
+import logging
 from collections import deque
 from typing import Dict, List, Union
 
 from aitemplate.compiler.stable_set import StableSet
 
-from ...utils import graph_utils, logger
+from ...utils import graph_utils
 from ..base import Operator, Tensor
 from .mark_param_tensor import mark_param_tensor
 from .name_graph import name_graph
 from .remove_unused_ops import remove_unused_ops
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def check_graph_validity(sorted_graph: List[Tensor], raiseError: bool = False) -> bool:
@@ -37,8 +41,8 @@ def check_graph_validity(sorted_graph: List[Tensor], raiseError: bool = False) -
 
     def handleError(msg: str):
         if raiseError:
-            logger.info(__file__, "check_graph_validity() error! Graph:")
-            logger.info(__file__, graph_utils.sorted_graph_debug_str(sorted_graph))
+            _LOGGER.info("check_graph_validity() error! Graph:")
+            _LOGGER.info(graph_utils.sorted_graph_debug_str(sorted_graph))
             raise RuntimeError(msg)
         else:
             return False

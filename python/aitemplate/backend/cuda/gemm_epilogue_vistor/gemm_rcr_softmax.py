@@ -53,19 +53,18 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
         N: M*1 (RowMajor)
     */
 
-        {M, N, K},
-        1,
-        {a_ptr, LayoutA(K)},
-        {b_ptr, LayoutB(K)},
-        {c_ptr, LayoutC(N)},
-        {d_ptr, LayoutC(N)},
-        {
-            float(1.0),
-            float(0.0)
-        },
-        {n_ptr, LayoutC(1)},
-        {soft_ptr, LayoutC(N)}
-
+    {M, N, K},               // cutlass::gemm::GemmCoord problem_size
+    1,                       // int32_t batch_count_
+    {a_ptr, LayoutA(K)},     // TensorRefA ref_A_
+    {b_ptr, LayoutB(K)},     // TensorRefB ref_B_
+    {c_ptr, LayoutC(N)},     // TensorRefC ref_C_
+    {d_ptr, LayoutC(N)},     // TensorRefC ref_D_
+    {
+        float(1.0),
+        float(0.0)
+    },                       // typename EpilogueFunctorOp::Params linear_scaling
+    {n_ptr, LayoutC(1)},     // ???
+    {soft_ptr, LayoutC(N)},  // ???
 """
 )
 

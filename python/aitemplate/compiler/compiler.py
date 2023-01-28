@@ -15,6 +15,7 @@
 """
 build a test module from a tensor
 """
+import logging
 import os
 from datetime import datetime
 from typing import Dict, List, Optional, Union
@@ -22,7 +23,8 @@ from typing import Dict, List, Optional, Union
 from aitemplate import backend, compiler
 from aitemplate.compiler.model import AITemplateAllocatorKind
 from aitemplate.compiler.transform.profile import elapsed_dt_sec
-from aitemplate.utils import graph_utils, logger
+from aitemplate.utils import graph_utils
+from aitemplate.utils.debug_settings import AITDebugSettings
 from aitemplate.utils.serialization.serdes_code import dump_program
 
 from .base import DynamicProfileStrategy, Tensor
@@ -30,6 +32,9 @@ from .base import DynamicProfileStrategy, Tensor
 from .model import AIT_DEFAULT_NUM_RUNTIMES, Model, TorchTensor
 
 # pylint: disable=W0102
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _validate_tensor_args(sorted_graph: List[Tensor], output_tensors: List[Tensor]):
@@ -78,8 +83,11 @@ def _verify_outputs_still_in_graph(sorted_graph: List[Tensor], outputs: List[Ten
     for tensor, was_seen in seen.items():
         if not was_seen:
             raise ValueError(
-                f"Output {tensor._attrs['name']} was not found in the graph after opitmizations."
+                f"Output {tensor} was not found in the graph after opitmizations."
             )
+
+
+_DEBUG_SETTINGS = AITDebugSettings()
 
 
 def compile_model(
@@ -94,9 +102,7 @@ def compile_model(
     profile_dir: str = None,
     constants: Optional[Dict[str, TorchTensor]] = None,
     allocator_kind: Optional[AITemplateAllocatorKind] = None,
-    check_all_nan_and_inf: bool = False,
-    check_all_outputs: bool = False,
-    dump_ait_to_py: Optional[str] = None,
+    debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
 ) -> Model:
     """Compiles a model and generates a .so file.
 
@@ -124,12 +130,8 @@ def compile_model(
         default, set to 2. Must be positive.
     allocator_kind: AITemplateAllocatorKind, optional
         The GPU allocator to use. If none is specified, use the default allocator.
-    check_all_nan_and_inf : bool, optional
-        Whether or not to check this tensor is nan or inf during runtime.
-    check_all_outputs : bool, optional
-        Whether or not to print this tensor's value out during runtime.
-    dump_ait_to_py: str, optional
-        The path where the AIT graph is dumped into a .py file.
+    debug_settings: AITDebugSettings
+        specify debug settings such as where to dump AITemplate model Python file, etc.
 
     Returns
     -------
@@ -149,8 +151,8 @@ def compile_model(
     test_dir = os.path.join(workdir, test_name)
     profile_dir = workdir if profile_dir is None else profile_dir
 
-    if dump_ait_to_py:
-        dump_program(tensor, dump_ait_to_py)
+    if debug_settings.dump_ait_to_py:
+        dump_program(tensor, debug_settings.dump_ait_to_py)
 
     if int(recompile) == 1:
         os.makedirs(test_dir, exist_ok=True)
@@ -183,9 +185,7 @@ def compile_model(
             start_t = datetime.now()
             graph = compiler.transform.optimize_graph(graph, test_dir)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "optimize_graph")
-            logger.info(
-                __name__, f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}"
-            )
+            _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
 
             compiler.transform.mark_special_views(graph)
             compiler.transform.refine_graph(graph)
@@ -209,9 +209,7 @@ def compile_model(
             graph_utils.dump_graph_debug_str_to_file(
                 graph, test_dir, "constant_folding"
             )
-            logger.info(
-                __name__, f"folded constants elapsed time: {elapsed_dt_sec(start_t)}"
-            )
+            _LOGGER.info(f"folded constants elapsed time: {elapsed_dt_sec(start_t)}")
 
             _verify_outputs_still_in_graph(graph, output_tensors)
             (
@@ -244,16 +242,14 @@ def compile_model(
                 workdir,
                 output_tensors,
                 test_name,
-                check_all_nan_and_inf,
-                check_all_outputs,
+                debug_settings,
             )
             file_pairs.extend(main_pairs)
 
             start_t = datetime.now()
             compile_engine = backend.builder.Builder()
             compile_engine.make(file_pairs, dll_name, workdir, test_name)
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",
             )
 

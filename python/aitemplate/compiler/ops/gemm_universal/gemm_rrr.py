@@ -44,7 +44,7 @@ class gemm_rrr(common.gemm):
         self._attrs["op"] = "gemm_rrr"
 
         def cal_align_ab(m, n, k):
-            return common.default_align_ab(k, n)
+            return common.default_align_ab(k, n, self._attrs["inputs"][0].dtype())
 
         self._attrs["f_ab_alignment"] = cal_align_ab
 

@@ -227,6 +227,8 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
     elem_input_type2 = None
     if elem_input_type == "half":
         elem_input_type2 = "half2"
+    elif elem_input_type == "float":
+        elem_input_type2 = "float2"
     else:
         raise NotImplementedError(f"unsupported {elem_input_type=}")
     ndim = func_attrs["ndim"]

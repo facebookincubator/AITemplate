@@ -170,8 +170,9 @@ def _merge_parallel_gemm_concat(
     n, k = weights[0].shape()[0].value(), weights[0].shape()[1].value()
     b = len(weights)
 
-    rcr_align = default_align_ab(k, k)
-    rrr_align = default_align_ab(k, n)
+    dtype = inputs[0].dtype()
+    rcr_align = default_align_ab(k, k, dtype)
+    rrr_align = default_align_ab(k, n, dtype)
 
     use_rcr = rcr_align > rrr_align
 
@@ -216,7 +217,7 @@ def _merge_parallel_gemm_concat(
 
         cat_op._attrs["inputs"] = new_inputs
         cat_op._attrs["input_accessors"] = [TensorAccessor(t) for t in new_inputs]
-        cat_op._attrs["original_inputs"] = new_inputs
+        cat_op._attrs["original_inputs"] = list(new_inputs)
         cat_op._attrs["input_masks"] = [True] * len(new_inputs)
 
         bmm_reshape._attrs["dst_ops"].add(cat_op)

@@ -28,6 +28,10 @@ LOGGER = logging.getLogger(__name__)
 
 
 class TestStridedLayerNormBenchmark(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_id = 0
+
     @unittest.skipIf(detect_target().in_ci_env(), "don't run benchmark in CI")
     def test_benchmark(self):
         for (input_nonbatch_shape, (start_indices, end_indices),) in itertools.product(
@@ -51,8 +55,10 @@ class TestStridedLayerNormBenchmark(unittest.TestCase):
             ait_module = build_ait_module(
                 batch_sizes=(BATCH_SIZE,),
                 workdir=uuid.uuid4().hex,
+                test_id=self.test_id,
                 **_layernorm_common_params,
             )
+            self.test_id += 1
             inputs_pool, outputs_pool = make_input_output_pools(
                 pool_size=INPUT_POOL_SIZE,
                 eval_pt_func=lambda: eval_pt(

@@ -18,8 +18,8 @@
 from . import (
     alignment,
     graph_utils,
-    logger,
     markdown_table,
+    misc,
     shape_utils,
     tensor_utils,
     torch_utils,

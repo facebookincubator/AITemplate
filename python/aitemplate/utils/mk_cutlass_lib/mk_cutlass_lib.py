@@ -65,6 +65,8 @@ def mk_cutlass_lib(template_path, dst_prefix=None):
 
     src_prefix = os.path.join(template_path, "tools/library/scripts")
     srcs = os.listdir(src_prefix)
+    if "__init__.py" in srcs:
+        srcs.remove("__init__.py")
     for file in srcs:
         src_path = os.path.join(src_prefix, file)
         if not os.path.isfile(src_path):

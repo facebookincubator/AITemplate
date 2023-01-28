@@ -20,6 +20,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target, test_utils
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils, shape_utils
 
 
@@ -38,14 +42,17 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
         expected_num_tensors,
         expected_num_ops,
         testname,
+        dtype="float16",
     ):
         T_A = Tensor(
             shape=input_A_shape,
+            dtype=dtype,
             name="input0",
             is_input=True,
         )
         T_B = Tensor(
             shape=input_B_shape,
+            dtype=dtype,
             name="input1",
             is_input=True,
         )
@@ -75,19 +82,13 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
                 "batch_size": B,
                 "emb_pool_size": M,
             }
-            a = (
-                torch.randn(
-                    *test_utils.get_shape(T_A._attrs["shape"], dim_to_value_dict)
-                )
-                .cuda()
-                .half()
+            a = get_random_torch_tensor(
+                test_utils.get_shape(T_A._attrs["shape"], dim_to_value_dict),
+                dtype,
             )
-            b = (
-                torch.randn(
-                    *test_utils.get_shape(T_B._attrs["shape"], dim_to_value_dict)
-                )
-                .cuda()
-                .half()
+            b = get_random_torch_tensor(
+                test_utils.get_shape(T_B._attrs["shape"], dim_to_value_dict),
+                dtype,
             )
             xs = a.split(split_size_or_sections, split_dim)
             ys = b.split(split_size_or_sections, split_dim)
@@ -98,7 +99,7 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
                 c = torch.bmm(x, y.permute(0, 2, 1))
                 cs.append(c)
 
-            ys = [torch.empty(y_pt.size()).cuda().half() for y_pt in cs]
+            ys = [get_torch_empty_tensor(y_pt.size(), dtype) for y_pt in cs]
             module.run_with_tensors({"input0": a, "input1": b}, ys)
 
             for y, y_pt in zip(ys, cs):
@@ -173,6 +174,48 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
             expected_num_tensors=27,
             expected_num_ops=17,
             testname="test_split_bmm_rcr_dynamic_bm_non_fusible",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_split_view_bmm_rcr_fusion_float(self):
+        b_dim = shape_utils.gen_int_var([1, 1024], "batch_size")
+        m_dim = shape_utils.gen_int_var([100, 200], "emb_pool_size")
+
+        # bmm_rcr dynamic M fusible
+        self._test_split_view_bmm_rcr(
+            ops.bmm_rcr,
+            Bs=[1],
+            Ms=[100, 105, 160],
+            input_A_shape=[1, m_dim, 10, 2],
+            input_B_shape=[1, 6, 10, 2],
+            split_size_or_sections=10,
+            split_dim=2,
+            reshape_A=[1, -1, 20],
+            reshape_B=[1, 6, 20],
+            expected_num_tensors=3,
+            expected_num_ops=1,
+            testname="test_split_bmm_rcr_dynamic_m_fusible_float",
+            dtype="float",
+        )
+        # bmm_rcr dynamic M, B unfusible
+        self._test_split_view_bmm_rcr(
+            ops.bmm_rcr,
+            Bs=[2, 4, 5, 10],
+            Ms=[100, 200],
+            input_A_shape=[b_dim, m_dim, 10, 8],
+            input_B_shape=[b_dim, m_dim, 10, 8],
+            split_size_or_sections=2,
+            split_dim=2,
+            reshape_A=[-1, 10, 16],
+            reshape_B=[-1, 10, 16],
+            expected_num_tensors=27,
+            expected_num_ops=17,
+            testname="test_split_bmm_rcr_dynamic_bm_non_fusible_float",
+            dtype="float",
         )
 
 

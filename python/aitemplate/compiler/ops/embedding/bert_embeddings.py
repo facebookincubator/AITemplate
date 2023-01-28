@@ -79,9 +79,10 @@ class bert_embeddings(Operator):
             "int64",
         ], f"Expected dtype int/int32/int64 for index, got dtype {dtype_input_ids}"
 
-        assert (
-            dtype_word_embeddings == "float16"
-        ), f"Expected float16 embeddings, but got {dtype_word_embeddings}"
+        assert dtype_word_embeddings in [
+            "float16",
+            "float32",
+        ], f"Expected dtype float16/float32 for embeddings, got dtype {dtype_word_embeddings}"
 
         # expecting all three ids to have the same shapes
         assert shape_utils.is_same_shape(input_ids.shape(), token_type_ids.shape()), (
@@ -123,7 +124,11 @@ class bert_embeddings(Operator):
         self._set_depth()
 
         output_shape = self._infer_shapes(input_ids, word_embeddings)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(
+            output_shape,
+            src_ops={self},
+            dtype=word_embeddings._attrs["dtype"],
+        )
         self._attrs["outputs"] = [output]
         return output
 

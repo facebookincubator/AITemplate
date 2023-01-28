@@ -22,9 +22,11 @@ FUNC_DECL_TEMPLATE = jinja2.Template(
 void {{func_name}}(
     void *[] /*outputs*/,
     {{index_type}} **[] /*output_shapes*/,
+    const bool [] /*output_masks*/,
     const void * /*input*/,
     const {{index_type}} * /*input_shape*/,
-    {{index_type}} /*num_splits*/,
+    {{index_type}} /*real_num_splits*/,
+    {{index_type}} /*all_num_splits*/,
     {{index_type}} [] /*split_sizes*/,
     {{index_type}} /*split_dim*/,
     {{index_type}} /*rank*/,
@@ -185,7 +187,9 @@ static inline LoadVecType get_vec_type(
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT4, float4)
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT2, float2)
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
-  HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+  if constexpr (std::is_same_v<ELEM_T, half>) {
+    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+  }
 
 #undef HANDLE_ONE_VEC_TYPE
   throw std::runtime_error(
@@ -198,9 +202,11 @@ template <typename ELEM_T, {{index_type}} Rank, {{index_type}} NumSplits,
 void split_kernel_launcher(
     void *outputs[],
     {{index_type}} *output_shapes[],
+    const bool output_masks[],
     const void *input,
     const {{index_type}} *input_shape,
     const {{index_type}} split_dim,
+    const {{index_type}} split_sizes[],
     {{prefix}}Stream_t stream
 ) {
 
@@ -215,13 +221,19 @@ void split_kernel_launcher(
 
   OutputMetaData<ELEM_T, NumSplits> output_meta;
   {{index_type}} offset = 0;
+  {{index_type}} split_sizes_idx = 0;
   LoadVecType min_vec_type = LoadVecType::VT_FLOAT4;
   for ({{index_type}} i = 0; i < NumSplits; i++) {
+    while (!output_masks[split_sizes_idx]) {
+      offset += split_sizes[split_sizes_idx];
+      split_sizes_idx++;
+    }
     output_meta.outputs[i] = static_cast<ELEM_T*>(outputs[i]);
     output_meta.split_dim_offsets[i] = offset;
     output_meta.split_dim_sizes[i] = output_shapes[i][split_dim];
     output_meta.num_elems[i] = get_num_elems(output_shapes[i], Rank);
     offset += output_meta.split_dim_sizes[i];
+    split_sizes_idx++;
     LoadVecType vec_type =
         get_vec_type<ELEM_T>(output_shapes[i], Rank, split_dim);
     min_vec_type = vec_type < min_vec_type ? vec_type : min_vec_type;
@@ -239,7 +251,7 @@ void split_kernel_launcher(
   dim3 grid_config = dim3(num_blocks_x, NumSplits);
 
 #define HANDLE_ONE_VEC_TYPE(load_vec_type, vec_type)                   \\
-    case load_vec_type: {                                              \\
+    if (min_vec_type == load_vec_type) {                               \\
       if (ElemsPerThread * sizeof(ELEM_T) < sizeof(vec_type)) {        \\
          throw std::runtime_error(                                     \\
            std::string("No valid kernel available for ") + #vec_type); \\
@@ -252,18 +264,17 @@ void split_kernel_launcher(
             split_dim,                                                 \\
             input_meta.input_strides[split_dim]);                      \\
       LAUNCH_CHECK_SPLIT();                                            \\
-      break;                                                           \\
+      return;                                                          \\
     }
 
-  switch (min_vec_type) {
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT4, float4)
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT2, float2)
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
-    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
-    default:
-      throw std::runtime_error("Invalid LoadVecType\\n");
-  }
+    if constexpr (std::is_same_v<ELEM_T, half>) {
+      HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+    }
 
+  throw std::runtime_error("Invalid LoadVecType\\n");
 #undef HANDLE_ONE_VEC_TYPE
 }
 
@@ -276,29 +287,30 @@ void split_kernel_launcher(
 
 EXEC_COND_TEMPLATE = jinja2.Template(
     """
-{{indent}}if (rank == {{rank}} && num_splits == {{num_splits}}) {
-{% for split_idx in range(num_splits) %}
-{{indent}}  {{index_type}} local_shape{{split_idx}}[{{rank}}];
+{{indent}}if (rank == {{rank}} && real_num_splits == {{real_num_splits}}) {
+{% for split_idx in split_indices %}
+{% set outer_loop = loop %}
+{{indent}}  {{index_type}} local_shape{{outer_loop.index0}}[{{rank}}];
 {% for rank_idx in range(rank) %}
-{{indent}}  local_shape{{split_idx}}[{{rank_idx}}] = input_shape[{{rank_idx}}];
+{{indent}}  local_shape{{outer_loop.index0}}[{{rank_idx}}] = input_shape[{{rank_idx}}];
 {% endfor %}
-{{indent}}  local_shape{{split_idx}}[split_dim] = split_sizes[{{split_idx}}];
+{{indent}}  local_shape{{outer_loop.index0}}[split_dim] = split_sizes[{{split_idx}}];
 
 {% endfor %}
 
-{{indent}}  {{index_type}}* local_output_shapes[{{num_splits}}] = {
-{% for idx in range(num_splits - 1) %}
+{{indent}}  {{index_type}}* local_output_shapes[{{real_num_splits}}] = {
+{% for idx in range(real_num_splits - 1) %}
 {{indent}}    local_shape{{idx}},
 {% endfor %}
-{{indent}}    local_shape{{num_splits - 1}}
+{{indent}}    local_shape{{real_num_splits - 1}}
 {{indent}}  };
 {{indent}}  /* TODO: more profiling on ElemsPerThread and ThreadsPerBlock */
 {{indent}}  split_kernel_launcher<{{elem_type}},
 {{indent}}                        {{rank}}/*Rank*/,
-{{indent}}                        {{num_splits}}/*NumSplits*/,
+{{indent}}                        {{real_num_splits}}/*NumSplits*/,
 {{indent}}                        {{elems_per_thread}}/*ElemsPerThread*/,
 {{indent}}                        {{threads_per_block}}/*THREADS_PER_BLOCK*/>(
-{{indent}}      outputs, local_output_shapes, input, input_shape, split_dim, stream);
+{{indent}}      outputs, local_output_shapes, output_masks, input, input_shape, split_dim, split_sizes, stream);
 {{indent}}  return;
 {{indent}}}
 """
@@ -311,9 +323,11 @@ SRC_TEMPLATE = jinja2.Template(
 void {{func_name}}(
     void* outputs[],
     {{index_type}} **output_shapes[],
+    const bool output_masks[],
     const void* input,
     const {{index_type}} *input_shape,
-    {{index_type}} num_splits,
+    {{index_type}} real_num_splits,
+    {{index_type}} all_num_splits,
     {{index_type}} split_sizes[],
     {{index_type}} split_dim,
     {{index_type}} rank,
@@ -326,23 +340,28 @@ void {{func_name}}(
   if (split_dim >= rank) {
     throw std::runtime_error("cat_dim must be smaller than rank!");
   }
-  if (num_splits < 1) {
+  if (real_num_splits < 1) {
     throw std::runtime_error("the number of splits must be larger than 0!");
   }
 
   // now we update the shape for each output
-  for ({{index_type}} i = 0; i < num_splits; i++) {
-    {{index_type}} **shape_ptr = output_shapes[i];
+  {{index_type}} real_idx = 0;
+  for ({{index_type}} i = 0; i < all_num_splits; i++) {
+    if (!output_masks[i]) {
+      continue;
+    }
+    {{index_type}} **shape_ptr = output_shapes[real_idx];
     for ({{index_type}} dim_idx = 0; dim_idx < rank; dim_idx++) {
       *(shape_ptr[dim_idx]) = input_shape[dim_idx];
     }
     // update dim size for the split axis
     *(shape_ptr[split_dim]) = split_sizes[i];
+    real_idx++;
   }
 
   {{index_type}} split_dim_size = input_shape[split_dim];
   {{index_type}} sum_of_split_sizes = 0;
-  for ({{index_type}} i = 0; i < num_splits; i++) {
+  for ({{index_type}} i = 0; i < all_num_splits; i++) {
     sum_of_split_sizes += split_sizes[i];
   }
   if (split_dim_size != sum_of_split_sizes) {
@@ -361,7 +380,7 @@ void {{func_name}}(
   if (!input) {
     throw std::runtime_error("input is NULL!");
   }
-  for (int i = 0; i < num_splits; i++) {
+  for (int i = 0; i < real_num_splits; i++) {
     if (!outputs[i]) {
       throw std::runtime_error("NULL output found at: " + std::to_string(i));
     }
@@ -370,7 +389,7 @@ void {{func_name}}(
 {{exec_paths}}
 
   throw std::runtime_error(
-      "Unsupported cat kernel specialization!"
+      "Unsupported split kernel specialization!"
   );
 }
 """
@@ -408,12 +427,18 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{split_sizes}}
 {{indent}}  };
 
+{{indent}}  bool output_masks[] = {
+{{indent}}    {{output_masks}}
+{{indent}}  };
+
 {{indent}}  {{func_name}}(
 {{indent}}      outputs,
 {{indent}}      output_shapes,
+{{indent}}      output_masks,
 {{indent}}      {{input_ptr}},
 {{indent}}      {{input_name}}_shape,
-{{indent}}      {{num_splits}}/*num_splits*/,
+{{indent}}      {{real_num_splits}}/*real_num_splits*/,
+{{indent}}      {{all_num_splits}}/*all_num_splits*/,
 {{indent}}      split_sizes,
 {{indent}}      {{split_dim}}/*split_dim*/,
 {{indent}}      {{rank}}/*rank*/,
@@ -469,12 +494,15 @@ def gen_function(func_attrs, backend_spec):
     if input_type != output_type:
         raise NotImplementedError("input type must equal to output type")
 
+    split_indices = [idx for idx, mask in enumerate(func_attrs["output_masks"]) if mask]
+
     # TODO: consider to add profiling paths for tuning
     # elems_per_thread and threads_per_block
     exec_paths = EXEC_COND_TEMPLATE.render(
         indent="  ",
         rank=len(x_shape),
-        num_splits=len(func_attrs["split_sizes"]),
+        real_num_splits=len(func_attrs["outputs"]),
+        split_indices=split_indices,
         elem_type=input_type,
         elems_per_thread=128,
         threads_per_block=128,
@@ -513,7 +541,7 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
     x = func_attrs["inputs"][0]
     outputs = func_attrs["outputs"]
     split_dim = func_attrs["split_dim"]
-    num_splits = len(func_attrs["split_sizes"])
+    num_splits = len(func_attrs["outputs"])
 
     output_names = ",\n      ".join([i._attrs["name"] for i in outputs])
 
@@ -539,16 +567,23 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
 
     split_sizes = ", ".join([str(i) for i in func_attrs["split_sizes"]])
 
+    output_masks_str = ", ".join(
+        ["true" if mask is True else "false" for mask in func_attrs["output_masks"]]
+    )
+
     return FUNC_CALL_TEMPLATE.render(
         indent=indent,
         outputs=output_names,
         output_shape_defs="".join(output_shape_defs),
         output_shapes=", ".join(output_shape_names),
+        output_masks=output_masks_str,
         input_dims=x_dims,
         func_name=func_attrs["name"],
         input_name=x._attrs["name"],
         input_ptr=x._attrs["name"],
         split_dim=split_dim,
+        real_num_splits=len(func_attrs["outputs"]),
+        all_num_splits=len(func_attrs["output_masks"]),
         rank=len(x._attrs["shape"]),
         num_splits=num_splits,
         split_sizes=split_sizes,

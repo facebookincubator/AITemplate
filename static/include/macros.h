@@ -27,3 +27,10 @@
   }
 
 #define LAUNCH_CHECK() DEVICE_CHECK(GetLastError())
+
+#define CHECK_VECTOR_ACCESS(vector, idx)                                 \
+  if (idx >= vector.size()) {                                            \
+    throw std::out_of_range(                                             \
+        "[__func__]: index out of range, " #vector ".size()=" +          \
+        std::to_string(vector.size()) + ", got " + std::to_string(idx)); \
+  }

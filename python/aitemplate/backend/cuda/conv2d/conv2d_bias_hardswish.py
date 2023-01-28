@@ -22,46 +22,72 @@ from . import common, common_conv2d_bias_activation as cba
 
 
 @registry.reg("cuda.conv2d_bias_hardswish.config")
-def conv2d_config(func_attrs, dtype="float16"):
-    func_attrs["op_instance"] = common.extract_config(func_attrs)
+def conv2d_bias_hardswish_config(
+    func_attrs,
+    dtype="float16",
+):
+    func_attrs["op_instance"] = common.extract_config(
+        func_attrs=func_attrs,
+        dtype=dtype,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_hardswish.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
-    return cba.gen_profiler(func_attrs, workdir, shape_template)
+def conv2d_bias_hardswish_gen_profiler(
+    func_attrs,
+    workdir,
+    profiler_filename,
+    shape_template,
+):
+    return cba.gen_profiler(
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        shape_template=shape_template,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_hardswish.gen_function")
-def gen_function(
+def conv2d_bias_hardswish_gen_function(
     func_attrs,
     exec_cond_remplate,
     shape_eval_template,
     shape_save_template,
 ):
-    return common.gen_function(
-        func_attrs,
-        cba.INSTANCE_TEMPLATE,
-        cba.EXEC_TEMPLATE,
-        cba.SRC_TEMPLATE,
-        exec_cond_remplate,
-        shape_eval_template,
-        shape_save_template,
+    return cba.gen_function(
+        func_attrs=func_attrs,
+        exec_cond_remplate=exec_cond_remplate,
+        shape_eval_template=shape_eval_template,
+        shape_save_template=shape_save_template,
     )
 
 
 @registry.reg("cuda.conv2d_bias_hardswish.func_decl")
-def conv2d_gen_function_decl(func_attrs):
-    func_name = func_attrs["name"]
-    return cba.FUNC_DECL_TEMPLATE.render(func_name=func_name)
+def conv2d_bias_hardswish_func_decl(
+    func_attrs,
+):
+    return cba.gen_function_decl(
+        func_attrs=func_attrs,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_hardswish.func_call")
-def conv2d_gen_function_call(func_attrs, indent="  "):
-    return cba.gen_function_call(func_attrs, indent)
+def conv2d_bias_hardswish_func_call(
+    func_attrs,
+    indent="  ",
+):
+    return cba.gen_function_call(
+        func_attrs=func_attrs,
+        indent=indent,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_hardswish.filter")
-def conv2d_function_filter(cfg, func_attrs, x_shape):
+def conv2d_bias_hardswish_filter(
+    cfg,
+    func_attrs,
+    x_shape,
+):
     """Generates function filter.
 
     Parameters
@@ -78,4 +104,8 @@ def conv2d_function_filter(cfg, func_attrs, x_shape):
     bool
         If input cfg should be filtered.
     """
-    return common.function_filter(cfg, func_attrs, x_shape)
+    return common.function_filter(
+        cfg=cfg,
+        func_attrs=func_attrs,
+        x_shape=x_shape,
+    )

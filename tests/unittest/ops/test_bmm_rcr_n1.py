@@ -22,24 +22,29 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 from aitemplate.utils import shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMRcrN1TestCase(unittest.TestCase):
-    def _test_rcr_n1(self, Bs, Ms, N, K, use_fp16_acc, test_name):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_count = 0
+
+    def _test_rcr_n1(self, Bs, Ms, N, K, use_fp16_acc, test_name, dtype="float16"):
         target = detect_target(use_fp16_acc=use_fp16_acc)
         BDim = shape_utils.gen_int_var_min_max(Bs, name="batch")
         MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
         X = Tensor(
             shape=[BDim, MDim, IntImm(K)],
-            dtype="float16",
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
         W = Tensor(
             shape=[BDim, IntImm(N), IntImm(K)],
-            dtype="float16",
+            dtype=dtype,
             name="input_1",
             is_input=True,
         )
@@ -48,22 +53,26 @@ class BMMRcrN1TestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         module = compile_model(
-            Y, target, "./tmp", f"bmm_rcr_n1_{use_fp16_acc}_{test_name}"
+            Y,
+            target,
+            "./tmp",
+            f"bmm_rcr_n1_{use_fp16_acc}_{test_name}_{self.test_count}",
         )
         for B, M in itertools.product(Bs, Ms):
             logging.info(f"Testing {B=} {M=}")
-            X_pt = torch.randn(B, M, K).cuda().half()
-            W_pt = torch.randn(B, N, K).cuda().half()
+            X_pt = get_random_torch_tensor((B, M, K), dtype)
+            W_pt = get_random_torch_tensor((B, N, K), dtype)
 
             Y_pt = torch.bmm(X_pt, torch.transpose(W_pt, 2, 1))
 
-            y = torch.empty([B, M, N]).half().cuda()
+            y = torch.empty_like(Y_pt)
             module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
 
             if X_pt.nelement() == 0 or W_pt.nelement() == 0:
                 pass
             else:
                 self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+        self.test_count += 1
 
     def test_rcr_n1(self):
         self._test_rcr_n1([1], [1000000], 1, 32, True, "static")
@@ -83,6 +92,20 @@ class BMMRcrN1TestCase(unittest.TestCase):
 
         self._test_rcr_n1([1], [100], 1, 0, False, "zero_k")
         self._test_rcr_n1([1], [0], 1, 3, False, "zero_m")
+
+    def test_float32(self):
+        self._test_rcr_n1(
+            [1], [1000000], 1, 32, True, "static_float32", dtype="float32"
+        )
+        self._test_rcr_n1(
+            [1], [1000000], 1, 32, False, "static_float32", dtype="float32"
+        )
+        self._test_rcr_n1(
+            [1, 5, 8], [100], 1, 7, True, "static_float32", dtype="float32"
+        )
+        self._test_rcr_n1(
+            [1, 5, 8], [100], 1, 123, False, "static_float32", dtype="float32"
+        )
 
 
 if __name__ == "__main__":

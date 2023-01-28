@@ -15,13 +15,12 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
 
+from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
-
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import graph_has_op
+from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -40,44 +39,98 @@ class ExpandTestCase(unittest.TestCase):
         expand_shape = [20]
         self.assertRaises(ValueError, ops.expand().__call__, x, expand_shape)
 
-    def test_no_op_expands_removed_static_shapes(self):
-        x = Tensor([1, 2, 3], name="input_0", is_input=True)
+    def _test_no_op_expands_removed_static_shapes(
+        self,
+        test_name="no_op_expands_removed_static_shapes",
+        dtype="float16",
+    ):
+        x = Tensor(
+            [1, 2, 3],
+            name="input_0",
+            is_input=True,
+            dtype=dtype,
+        )
         y = ops.expand()(x, [1, -1, -1])
         z = ops.elementwise(FuncEnum.MUL)(y, y)
         z._attrs["is_output"] = True
         z._attrs["name"] = "output_0"
 
-        x_pt = torch.randn((1, 2, 3)).half().cuda()
+        x_pt = get_random_torch_tensor([1, 2, 3], dtype=dtype)
         z_pt = x_pt * x_pt
         z_ait = torch.empty_like(z_pt)
-        with compile_model(
-            z, detect_target(), "./tmp", "test_no_op_expands_removed_static_shapes"
-        ) as module:
+        with compile_model(z, detect_target(), "./tmp", test_name) as module:
             module.run_with_tensors({"input_0": x_pt}, {"output_0": z_ait})
             self.assertFalse(graph_has_op(module.debug_sorted_graph, "expand"))
             self.assertTrue(torch.equal(z_ait, z_pt))
 
-    def test_no_op_expands_removed_dynamic_shapes(self):
+    def test_no_op_expands_removed_static_shapes_fp16(self):
+        self._test_no_op_expands_removed_static_shapes(
+            test_name="no_op_expands_removed_static_shapes_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_no_op_expands_removed_static_shapes_fp32(self):
+        self._test_no_op_expands_removed_static_shapes(
+            test_name="no_op_expands_removed_static_shapes_fp32",
+            dtype="float32",
+        )
+
+    def _test_no_op_expands_removed_dynamic_shapes(
+        self,
+        test_name="no_op_expands_removed_dynamic_shapes",
+        dtype="float16",
+    ):
         dynamic_dim = IntVar([1, 5], name="dynamic_dim")
-        x = Tensor([1, dynamic_dim, 3], name="input_0", is_input=True)
+        x = Tensor(
+            [1, dynamic_dim, 3],
+            name="input_0",
+            is_input=True,
+            dtype=dtype,
+        )
         y = ops.expand()(x, [IntVar([1, 1]), -1, -1])
         z = ops.elementwise(FuncEnum.MUL)(y, y)
         z._attrs["is_output"] = True
         z._attrs["name"] = "output_0"
 
-        x_pt = torch.randn((1, 2, 3)).half().cuda()
+        x_pt = get_random_torch_tensor([1, 2, 3], dtype=dtype)
         z_pt = x_pt * x_pt
         z_ait = torch.empty_like(z_pt)
-        with compile_model(
-            z, detect_target(), "./tmp", "test_no_op_expands_removed_dynamic_shapes"
-        ) as module:
+        with compile_model(z, detect_target(), "./tmp", test_name) as module:
             module.run_with_tensors({"input_0": x_pt}, {"output_0": z_ait})
             self.assertFalse(graph_has_op(module.debug_sorted_graph, "expand"))
             self.assertTrue(torch.equal(z_ait, z_pt))
 
-    def test_no_op_expands_removed_size_op(self):
-        x = Tensor([1, 2, 3], name="input_0", is_input=True)
-        y = Tensor([IntVar([1, 1]), 2, 3], name="input_1", is_input=True)
+    def test_no_op_expands_removed_dynamic_shapes_fp16(self):
+        self._test_no_op_expands_removed_dynamic_shapes(
+            test_name="no_op_expands_removed_dynamic_shapes_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_no_op_expands_removed_dynamic_shapes_fp32(self):
+        self._test_no_op_expands_removed_dynamic_shapes(
+            test_name="no_op_expands_removed_dynamic_shapes_fp32",
+            dtype="float32",
+        )
+
+    def _test_no_op_expands_removed_size_op(
+        self,
+        test_name="no_op_expands_removed_size_op",
+        dtype="float16",
+    ):
+        x = Tensor(
+            [1, 2, 3],
+            name="input_0",
+            is_input=True,
+            dtype=dtype,
+        )
+        y = Tensor(
+            [IntVar([1, 1]), 2, 3],
+            name="input_1",
+            is_input=True,
+            dtype=dtype,
+        )
         x_size = ops.size()(x, 0)
         y_size = ops.size()(y, 0)
         x_expand = ops.expand()(x, [x_size, -1, -1])
@@ -86,19 +139,31 @@ class ExpandTestCase(unittest.TestCase):
         z._attrs["is_output"] = True
         z._attrs["name"] = "output_0"
 
-        x_pt = torch.randn((1, 2, 3)).half().cuda()
-        y_pt = torch.randn((1, 2, 3)).half().cuda()
+        x_pt = get_random_torch_tensor([1, 2, 3], dtype=dtype)
+        y_pt = get_random_torch_tensor([1, 2, 3], dtype=dtype)
         z_pt = x_pt * y_pt
         z_ait = torch.empty_like(z_pt)
-        with compile_model(
-            z, detect_target(), "./tmp", "test_no_op_expands_removed_dynamic_shapes"
-        ) as module:
+        with compile_model(z, detect_target(), "./tmp", test_name) as module:
             module.run_with_tensors(
                 {"input_0": x_pt, "input_1": y_pt}, {"output_0": z_ait}
             )
             self.assertFalse(graph_has_op(module.debug_sorted_graph, "expand"))
             self.assertTrue(torch.equal(z_ait, z_pt))
 
+    def test_no_op_expands_removed_size_op_fp16(self):
+        self._test_no_op_expands_removed_size_op(
+            test_name="no_op_expands_removed_size_op_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_no_op_expands_removed_size_op_fp32(self):
+        self._test_no_op_expands_removed_size_op(
+            test_name="no_op_expands_removed_size_op_fp32",
+            dtype="float32",
+        )
+
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

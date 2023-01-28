@@ -19,7 +19,11 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import has_op
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+    has_op,
+)
 from aitemplate.utils import graph_utils, shape_utils
 
 
@@ -32,6 +36,7 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
         n,
         shape,
         test_name,
+        dtype="float16",
         has_bias=False,
         layout="0213",
         should_fuse=True,
@@ -39,11 +44,11 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
         target = detect_target()
         X = Tensor(
             shape=[shape_utils.gen_int_var_min_max(ms), k],
-            dtype="float16",
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
-        W = Tensor(shape=[n, k], dtype="float16", name="input_1", is_input=True)
+        W = Tensor(shape=[n, k], dtype=dtype, name="input_1", is_input=True)
         # B = Tensor(shape=[n], dtype="float16", name="input_2", is_input=True)
         t1, t2 = shape
 
@@ -67,9 +72,9 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
             return
 
         for m in ms:
-            X_pt = torch.randn(m, k).cuda().half()
-            W_pt = torch.randn(n, k).cuda().half()
-            B_pt = torch.randn(n).cuda().half()
+            X_pt = get_random_torch_tensor([m, k], dtype)
+            W_pt = get_random_torch_tensor([n, k], dtype)
+            B_pt = get_random_torch_tensor([n], dtype)
 
             def torch_f(x, w, b, has_bias, shape):
                 if has_bias:
@@ -87,7 +92,7 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
             inputs = {"input_0": X_pt, "input_1": W_pt}
             if has_bias:
                 inputs["input_2"] = B_pt
-            y = torch.empty(Y_pt.shape).cuda().half()
+            y = get_torch_empty_tensor(Y_pt.shape, dtype)
             module.run_with_tensors(inputs, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
@@ -103,8 +108,8 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
         self._test_rcr_0213(
             [54],
             256,
-            4000000,
-            [54, 1000000],
+            40000,
+            [54, 10000],
             "permute_0213_1",
             has_bias=False,
             layout="0213",
@@ -112,9 +117,26 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
         self._test_rcr_0213(
             [29, 29 * 8],
             256,
-            300000,
-            [29, 100000],
+            3000,
+            [29, 1000],
             "permute_0213_2",
+            has_bias=False,
+            layout="0213",
+            should_fuse=False,
+        )
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_rcr_0213_float(self):
+        self._test_rcr_0213(
+            [29, 29 * 8],
+            256,
+            3000,
+            [29, 1000],
+            "permute_0213_float_2",
+            dtype="float",
             has_bias=False,
             layout="0213",
             should_fuse=False,

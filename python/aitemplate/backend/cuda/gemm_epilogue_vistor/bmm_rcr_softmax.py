@@ -56,26 +56,24 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
         N: B*M*1 (RowMajor)
     */
 
-        {M, N, K},
-        B,
-        {a_ptr, LayoutA(K)},
-        {b_ptr, LayoutB(K)},
-        {c_ptr, LayoutC(N)},
-        {d_ptr, LayoutC(N)},
-        {
-            float(1.0),
-            float(0.0)
-        },
-        {n_ptr, LayoutC(1)},
-        {soft_ptr, LayoutC(N)},
-        M*K,
-        N*K,
-        M*N,
-        M*N,
-        M*N,
-        M*N
-
-
+    {M, N, K},               // cutlass::gemm::GemmCoord problem_size
+    B,                       // int32_t batch_count_
+    {a_ptr, LayoutA(K)},     // TensorRefA ref_A_
+    {b_ptr, LayoutB(K)},     // TensorRefB ref_B_
+    {c_ptr, LayoutC(N)},     // TensorRefC ref_C_
+    {d_ptr, LayoutC(N)},     // TensorRefC ref_D_
+    {
+        float(1.0),
+        float(0.0)
+    },                       // typename EpilogueFunctorOp::Params linear_scaling
+    {n_ptr, LayoutC(1)},     // ???
+    {soft_ptr, LayoutC(N)},  // ???
+    M*K,                     // int64_t batch_stride_A_
+    N*K,                     // int64_t batch_stride_B_
+    M*N,                     // int64_t batch_stride_C_
+    M*N,                     // int64_t batch_stride_D_
+    M*N,                     // ???
+    M*N,                     // ???
 """
 )
 
@@ -95,7 +93,7 @@ def bmm_rcr_softmax_config(func_attrs, dtype="float16"):
     -------
     None
     """
-    common.make_fproc_f16(func_attrs, RCR)
+    common.make_fproc(func_attrs, RCR)
 
 
 @registry.reg("cuda.bmm_rcr_softmax.gen_profiler")

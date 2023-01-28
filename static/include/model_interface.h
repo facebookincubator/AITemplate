@@ -64,6 +64,7 @@ enum class AITemplateDtype {
   kInt,
   kLong,
   kBool,
+  kBFloat16,
 };
 
 struct AITData {
@@ -83,6 +84,7 @@ struct AITData {
 inline size_t AITemplateDtypeSizeBytes(AITemplateDtype dtype) {
   switch (dtype) {
     case AITemplateDtype::kHalf:
+    case AITemplateDtype::kBFloat16:
       return 2;
     case AITemplateDtype::kFloat:
       return 4;
@@ -164,6 +166,17 @@ AIT_EXPORT AITemplateError AITemplateModelContainerRunWithOutputsOnHost(
     AITemplateStreamHandle stream_handle,
     bool graph_mode,
     int64_t** output_shapes_out);
+
+/// Do per op profile and write the profiling report to file.
+AIT_EXPORT AITemplateError AITemplateModelContainerProfile(
+    AITemplateModelHandle handle,
+    const AITData* inputs,
+    size_t num_inputs,
+    AITData* outputs,
+    size_t num_outputs,
+    AITemplateStreamHandle stream_handle,
+    size_t num_iters,
+    const char* filename);
 
 AIT_EXPORT AITemplateError AITemplateModelContainerBenchmark(
     AITemplateModelHandle handle,

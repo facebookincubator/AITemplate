@@ -25,11 +25,13 @@ from ...common import elementwise_common
 from ...target import Target
 
 HEAD_TEMPLATE = """
-#include <cuda_fp16.hpp>
+#include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include "cutlass/cutlass.h"
 #include "cutlass/fast_math.h"
 #include "cutlass/constants.h"
 #include "cutlass/epilogue/thread/activation.h"
+#include "math_constants.h"
 """
 
 

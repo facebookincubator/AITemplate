@@ -15,22 +15,31 @@
 """
 Unittests for fused_elementwise Operator.
 """
-import math
+
 import unittest
 from typing import List
 
-import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.transform.fuse_ops import _get_inputs_outputs
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+    get_torch_full_tensor,
+)
 from aitemplate.utils import shape_utils
 
 ait_dtype_to_pytorch = {"float16": torch.float16}
+if detect_target().name() != "rocm":
+    ait_dtype_to_pytorch["float32"] = torch.float32
+    if int(detect_target()._arch) >= 80:
+        ait_dtype_to_pytorch["bfloat16"] = torch.bfloat16
 
 
 class FusedElementwiseTestCase(unittest.TestCase):
@@ -65,8 +74,17 @@ class FusedElementwiseTestCase(unittest.TestCase):
         transform.name_graph(graph)
         transform.mark_param_tensor(graph)
         transform.refine_graph(graph)
-
-        fused_op = ops.fused_elementwise([op1, op2])
+        inputs, outputs, external_inputs, external_outputs = _get_inputs_outputs(
+            {op1, op2}, {op1, op2}
+        )
+        for tensor in inputs | outputs:
+            tensor._attrs["src_ops"] = tensor._attrs["src_ops"] - {op1, op2}
+            tensor._attrs["dst_ops"] = tensor._attrs["dst_ops"] - {op1, op2}
+        fused_op = ops.fused_elementwise(
+            [op1, op2],
+            external_inputs,
+            external_outputs,
+        )
         fused_op._attrs["name"] = "fused_elementwise0"
 
         self.assertEqual(fused_op._attrs["inputs"], [X1])
@@ -166,7 +184,6 @@ class FusedElementwiseTestCase(unittest.TestCase):
     def _test_fused_elementwise_kernel1(self, ait_dtype):
         BATCH_SIZE = 1024
         M = 1496
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
         X1 = Tensor(
             shape=[IntImm(BATCH_SIZE), IntImm(2), IntImm(M)],
             dtype=ait_dtype,
@@ -177,7 +194,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
             shape=[],
             dtype=ait_dtype,
             name="constant_number",
-            value=1.0,
+            value=2.0,
         )
         X3 = Tensor(
             shape=[IntImm(2), IntImm(M)],
@@ -199,14 +216,14 @@ class FusedElementwiseTestCase(unittest.TestCase):
             X9, target, "./tmp", f"fused_elementwise_kernel1_{ait_dtype}"
         )
 
-        x1_pt = torch.randn(BATCH_SIZE, 2, M).cuda().to(dtype=torch_dtype)
-        x3_pt = torch.randn(2, M).cuda().to(dtype=torch_dtype)
-        x9_pt = torch.sign(x1_pt) * torch.log1p(torch.abs(x1_pt)) * x3_pt
+        x1_pt = get_random_torch_tensor((BATCH_SIZE, 2, M), ait_dtype)
+        x3_pt = get_random_torch_tensor((2, M), ait_dtype)
+        x9_pt = torch.sign(x1_pt) * torch.log1p(torch.abs(x1_pt) + 1) * x3_pt
 
         inputs = {"input0": x1_pt, "constant_matrix": x3_pt}
-        x9 = torch.empty([BATCH_SIZE, 2, M]).cuda().to(dtype=torch_dtype)
+        x9 = get_torch_empty_tensor([BATCH_SIZE, 2, M], ait_dtype)
         module.run_with_tensors(inputs, [x9])
-        self.assertTrue(torch.allclose(x9, x9_pt, atol=1e-2, rtol=1e-2))
+        torch.testing.assert_close(x9, x9_pt, atol=1e-2, rtol=1e-2)
 
     def test_fused_elementwise_kernel1(self):
         for ait_dtype in ait_dtype_to_pytorch.keys():
@@ -227,12 +244,17 @@ class FusedElementwiseTestCase(unittest.TestCase):
         target = detect_target()
         module = compile_model(X2, target, "./tmp", test_name)
 
-        x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
+        x1_pt = (
+            (torch.rand(input_size, device="cuda", dtype=torch_dtype) - 0.5) * 2.0
+        ) * torch.finfo(torch_dtype).max
         x2_pt = torch.sigmoid(x1_pt)
 
-        x2 = torch.empty(input_size).cuda().to(dtype=torch_dtype)
+        x2 = torch.empty_like(x2_pt)
         module.run_with_tensors([x1_pt], [x2])
         self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+        # sanity checks
+        self.assertEqual(torch.sum(x2 < 0), 0)
+        self.assertEqual(torch.sum(x2 > 1), 0)
 
     def test_sigmoid(self):
         for ait_dtype in ait_dtype_to_pytorch.keys():
@@ -363,7 +385,6 @@ class FusedElementwiseTestCase(unittest.TestCase):
         ait_dtype,
     ) -> None:
         assert len(input_size) == 2
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
         X0 = Tensor(
             shape=[IntImm(input_size[0]), IntImm(input_size[1])],
             dtype=ait_dtype,
@@ -387,8 +408,8 @@ class FusedElementwiseTestCase(unittest.TestCase):
         target = detect_target()
         module = compile_model(result, target, "./tmp", test_name)
 
-        x0_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
-        x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
+        x0_pt = get_random_torch_tensor(input_size, ait_dtype)
+        x1_pt = get_random_torch_tensor(input_size, ait_dtype)
         if add_nans:
             x1_pt[0].fill_(float("nan"))
 
@@ -396,19 +417,17 @@ class FusedElementwiseTestCase(unittest.TestCase):
             x2_pt = torch.min(x0_pt, x1_pt)
         else:
             x2_pt = torch.max(x0_pt, x1_pt)
-        x2_np = x2_pt.cpu().numpy()
 
         inputs = {"input0": x0_pt, "input1": x1_pt}
-        x2 = torch.empty(input_size).cuda().to(dtype=torch_dtype)
+        x2 = get_torch_empty_tensor(input_size, ait_dtype)
         module.run_with_tensors(inputs, [x2])
-        x2 = x2.cpu().numpy()
 
         if add_nans:
-            nans = np.full(x2_np[0].shape, np.nan)
-            np.testing.assert_allclose(nans, x2_np[0], equal_nan=True)
-            np.testing.assert_allclose(nans, x2[0], equal_nan=True)
+            nans = get_torch_full_tensor(x2_pt[0].shape, float("nan"), ait_dtype)
+            torch.testing.assert_close(nans, x2_pt[0], equal_nan=True)
+            torch.testing.assert_close(nans, x2[0], equal_nan=True)
 
-        np.testing.assert_allclose(x2, x2_np, atol=1e-2, rtol=1e-2)
+        torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2, equal_nan=True)
 
     def test_min(self):
         for ait_dtype in ait_dtype_to_pytorch.keys():
@@ -452,10 +471,10 @@ class FusedElementwiseTestCase(unittest.TestCase):
         test_name: str,
         ait_dtype,
     ) -> None:
-        assert len(input_size) == 2
+        assert len(input_size) == 2 or len(input_size) == 0
         torch_dtype = ait_dtype_to_pytorch[ait_dtype]
         X0 = Tensor(
-            shape=[IntImm(input_size[0]), IntImm(input_size[1])],
+            shape=[IntImm(input_size[0]), IntImm(input_size[1])] if input_size else [],
             dtype=ait_dtype,
             name="input0",
             is_input=True,
@@ -482,6 +501,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
             self._test_clamp([128, 46], None, 1, f"clamp_1_{ait_dtype}", ait_dtype)
             self._test_clamp([56, 265], -1, None, f"clamp_2_{ait_dtype}", ait_dtype)
             self._test_clamp([17, 123], 1, -1, f"clamp_3_{ait_dtype}", ait_dtype)
+            self._test_clamp([], 1, -1, f"clamp_4_{ait_dtype}", ait_dtype)
 
     def _test_operator_overload(self, ait_dtype):
         input_size = [4, 2]
@@ -526,7 +546,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
             name="input0",
             is_input=True,
         )
-        OUTPUT = 10 / ops.tanh(X1 + 5) - ops.cos(10)
+        OUTPUT = 10 / ops.tanh(X1 + 5)
         OUTPUT._attrs["is_output"] = True
         OUTPUT._attrs["name"] = "output"
 
@@ -534,7 +554,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         module = compile_model(OUTPUT, target, "./tmp", f"test_op_overload_{ait_dtype}")
 
         x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
-        output_pt = 10 / torch.tanh(x1_pt + 5) - math.cos(10)
+        output_pt = 10 / torch.tanh(x1_pt + 5)
         output = torch.empty(input_size).cuda().to(dtype=torch_dtype)
         module.run_with_tensors([x1_pt], [output])
         self.assertTrue(torch.allclose(output, output_pt, atol=1e-2, rtol=1e-2))

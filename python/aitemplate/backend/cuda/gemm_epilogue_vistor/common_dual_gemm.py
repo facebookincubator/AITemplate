@@ -25,27 +25,15 @@ from typing import Any, Dict
 
 import jinja2
 
+from ....utils import alignment
+
 from ...backend_spec import CUDASpec
 from ...common import gemm_common
 from ...target import Target
 from ..gemm_universal import common
 
+
 # pylint: disable=C0301,C0415,R1705
-
-EXTRA_CODE = jinja2.Template(
-    """
-#include "device/dual_gemm.h"
-#include "thread/left_silu_and_mul.h"
-
-typename cutlass::TensorRef<cutlass::half_t, cutlass::layout::RowMajor> nullptr_ref{};
-decltype(nullptr_ref) ref_B0, ref_B1;
-
-using LayoutA = cutlass::layout::RowMajor;
-using LayoutB = cutlass::layout::ColumnMajor;
-using LayoutC = cutlass::layout::RowMajor;
-
-"""
-)
 
 # HACK: we don't record different permutation shape,
 # because it has little impact on execution time compared.
@@ -60,22 +48,39 @@ cutlass_{{opcode_class_name}}_{{extended_name}}_{{threadblock}}_{{layout}}_align
 
 TENSOR_DECL_TEMPLATE = jinja2.Template(
     """
-  int64_t a_ptr_sz = a_dim0 * a_dim1;
-  int64_t b_ptr_sz = b_dim0 * b_dim1;
-  int64_t c_ptr_sz = c_dim0 * c_dim1;
+  int64_t a_ptr_sz = 1;
+{% for dim in adims %}
+  a_ptr_sz *= {{dim}};
+{% endfor %}
+
+  int64_t b0_ptr_sz = 1;
+{% for dim in bdims %}
+  b0_ptr_sz *= {{dim}};
+{% endfor %}
+
+  int64_t b1_ptr_sz = b0_ptr_sz;
+{% if broadcast_b1 %}
+  // scale b1_ptr_sz down by the broadcasted dim
+  b1_ptr_sz /= {{ bdims[broadcasted_bdim_id] }};
+{% endif %}
+
+  int64_t c_ptr_sz = 1;
+{% for dim in cdims %}
+  c_ptr_sz *= {{dim}};
+{% endfor %}
 
   // The value 1 is used to force ptr_max_sz to be non-zero
-  int64_t ptr_max_sz = std::max<int64_t>({1, a_ptr_sz, b_ptr_sz, c_ptr_sz});
+  int64_t ptr_max_sz = std::max<int64_t>({1, a_ptr_sz, b0_ptr_sz, c_ptr_sz});
   // TODO: special pool size for A100 L2 cache 40M
   // need to tune it for other devices
   int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
 
   memory_pool->AllocateTensor(a_ptr_sz, mem_pool_sz);  // a_ptr: index 0
-  memory_pool->AllocateTensor(b_ptr_sz, mem_pool_sz);  // b_ptr: index 1
+  memory_pool->AllocateTensor(b0_ptr_sz, mem_pool_sz);  // b_ptr: index 1
   memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz);  // c_ptr: index 2
 
 {% if has_bias %}
-  memory_pool->AllocateTensor(b_ptr_sz, mem_pool_sz);  // b_ptr: index 3
+  memory_pool->AllocateTensor(b1_ptr_sz, mem_pool_sz);  // b_ptr: index 3
 {% endif %}
 
 """
@@ -159,16 +164,17 @@ def emit_instance(
     f_instance_convertor=dual_gemm_instance,
     emit_kernel=False,
     func_attrs=None,
+    broadcast_b1=False,
 ):
     import cutlass_lib
 
     emiter = cutlass_lib.gemm_operation.EmitDualGemmInstance()
-    op_def = emiter.emit(op)
+    op_def = emiter.emit(op, broadcast_b1=broadcast_b1)
     op_def = f_instance_convertor(op_def, func_attrs, for_profiler)
     return op_def
 
 
-def default_fproc_f16(
+def default_fproc(
     *,
     op,
     a_layout,
@@ -177,22 +183,41 @@ def default_fproc_f16(
     epiligue_name,
     epiligue2_name,
     permute_layout=None,
+    dtype="float16",
 ):
     import copy
 
     import cutlass_lib
 
+    backend_spec = CUDASpec()
+    data_type = backend_spec.dtype_to_lib_type(dtype)
+
     ret = []
-    data_type = cutlass_lib.library.DataType.f16
+    # skip simt kernels
+    if (
+        op.tile_description.math_instruction.opcode_class
+        == cutlass_lib.library.OpcodeClass.Simt
+    ):
+        return ret
+
+    if data_type == "float":
+        if (
+            op.tile_description.math_instruction.element_a
+            != cutlass_lib.library.DataType.f32
+            and op.tile_description.math_instruction.element_a
+            != cutlass_lib.library.DataType.tf32
+        ):
+            return ret
     acc_type = cutlass_lib.library.DataType.f32
     # check target use fp16 acc
-    if "use_fp16_acc" in Target.current()._kwargs:
+    if "use_fp16_acc" in Target.current()._kwargs and data_type == "cutlass::half_t":
         if Target.current()._kwargs["use_fp16_acc"]:
             acc_type = cutlass_lib.library.DataType.f16
+
     if (
-        op.A.element == data_type
-        and op.B.element == data_type
-        and op.C.element == data_type
+        cutlass_lib.library.DataTypeTag[op.A.element] == data_type
+        and cutlass_lib.library.DataTypeTag[op.B.element] == data_type
+        and cutlass_lib.library.DataTypeTag[op.C.element] == data_type
         and op.accumulator_type() == acc_type
         and op.A.layout == a_layout
         and op.B.layout == b_layout
@@ -209,31 +234,37 @@ def default_fproc_f16(
                 permute_layout
             ]
         # set C alignment
-        for i in [8, 4, 2, 1]:
+        alignments = alignment.get_alignments(dtype)
+        for i in alignments:
             op = copy.deepcopy(op)
             op.C.alignment = i
             ret.append(op)
     return ret
 
 
-def make_fproc_f16(func_attrs, layout):
+def make_fproc(
+    func_attrs,
+    layout,
+    dtype="float16",
+):
     """
     This function sets a callback for processing the epilogue of the kernel
     associated with func_attrs.
     """
 
-    def fproc_f16(op):
+    def fproc(op):
         a_layout, b_layout, c_layout = layout.cutlass_lib_layouts()
-        return default_fproc_f16(
+        return default_fproc(
             op=op,
             a_layout=a_layout,
             b_layout=b_layout,
             c_layout=c_layout,
             epiligue_name=func_attrs["epilogue"],
             epiligue2_name=func_attrs["epilogue2"],
+            dtype=dtype,
         )
 
-    func_attrs["op_instance"] = extract_config(fproc_f16, func_attrs)
+    func_attrs["op_instance"] = extract_config(fproc, func_attrs)
 
 
 def gen_function(
@@ -251,6 +282,7 @@ def gen_function(
     input_addr_calculator="",
     output_addr_calculator="",
     extra_code="",
+    broadcast_b1=False,
 ):
     func_name = func_attrs["name"]
     exec_path = func_attrs["exec_path"]
@@ -268,6 +300,7 @@ def gen_function(
                 f_instance_convertor=f_instance_convertor,
                 emit_kernel=emit_kernel,
                 func_attrs=func_attrs,
+                broadcast_b1=broadcast_b1,
             )
             inst_def_flag.add(algo)
         else:
@@ -296,10 +329,16 @@ def gen_function(
         weight_ndims=weight_ndims,
         output_ndims=output_ndims,
     )
+
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+
     return src_template.render(
         instances=instance_decl,
         function_name=func_name,
-        dtype="cutlass::half_t",
+        dtype=elem_input_type,
         shape_eval=shape_eval_func,
         input_addr_calculator=input_addr_calculator,
         output_addr_calculator=output_addr_calculator,
@@ -328,6 +367,9 @@ def gen_profiler(
     output_addr_calculator="",
     bias_ptr_arg=None,
     extra_code="",
+    broadcast_b1=False,
+    broadcasted_bdim_id=0,
+    ndims=2,
 ):
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_lib_type(
@@ -342,7 +384,6 @@ def gen_profiler(
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
 
-    ndims = 2
     adims = ["&a_dim" + str(i) for i in range(ndims)]
     bdims = ["&b_dim" + str(i) for i in range(ndims)]
     cdims = ["&c_dim" + str(i) for i in range(ndims)]
@@ -360,6 +401,7 @@ def gen_profiler(
         problem_args=problem_args_template.render(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
+            broadcast_b1=broadcast_b1,
         ),
     )
     input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
@@ -373,7 +415,11 @@ def gen_profiler(
     benchmark_instances = []
     for instance_idx, (op_name, op) in enumerate(op_instance.items()):
         config = emit_instance(
-            op, for_profiler=True, emit_kernel=emit_kernel, func_attrs=func_attrs
+            op,
+            for_profiler=True,
+            emit_kernel=emit_kernel,
+            func_attrs=func_attrs,
+            broadcast_b1=broadcast_b1,
         )
         config_name = common.extract_config_name(config)
         instance_name = f"{instance_name_base}_{instance_idx}"
@@ -446,7 +492,14 @@ def gen_profiler(
         weight_ndims=ndims,
         output_ndims=ndims,
         func_call=func_call,
-        tensor_decl=TENSOR_DECL_TEMPLATE.render(has_bias=has_bias),
+        tensor_decl=TENSOR_DECL_TEMPLATE.render(
+            has_bias=has_bias,
+            adims=benchmark_adims,
+            bdims=benchmark_bdims,
+            cdims=benchmark_cdims,
+            broadcast_b1=broadcast_b1,
+            broadcasted_bdim_id=broadcasted_bdim_id,
+        ),
         benchmark_instances="\n".join(benchmark_instances),
         elem_type=elem_type,
     )

@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import unittest
 
 import torch
@@ -19,7 +20,9 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -38,10 +41,10 @@ class BMMSoftmaxTestCase(unittest.TestCase):
 
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Skip this test on SM75")
+            _LOGGER.warning("Skip this test on SM75")
             return
         if type(target).__name__ == "FBCUDA":
-            logger.warning(__file__, "Skip this test for special profiling requirement")
+            _LOGGER.warning("Skip this test for special profiling requirement")
             return
         module = compile_model(Y, target, "./tmp", test_name)
         X_pt = torch.randn(B, M, K).cuda().half()

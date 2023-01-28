@@ -13,22 +13,22 @@
 #  limitations under the License.
 #
 import unittest
-import uuid
 
 import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import shape_utils
+from aitemplate.utils import shape_utils, torch_utils
 
 
 def build_ait_module(
     *,
     batch_sizes,
     eps,
+    test_id,
     ait_dtype="float16",
     workdir="./tmp",
-    test_name="slice_layernorm_reshape",
+    test_name="strided_layernorm_reshape",
 ):
     input_nonbatch_shape = [6912]
     target = detect_target()
@@ -67,15 +67,11 @@ def build_ait_module(
 
     output._attrs["is_output"] = True
     output._attrs["name"] = "output"
+    dll_name = f"test_{test_id}.so"
     return (
         inputs,
         output,
-        compile_model(
-            output,
-            target,
-            workdir,
-            test_name,
-        ),
+        compile_model(output, target, workdir, test_name, dll_name=dll_name),
     )
 
 
@@ -106,9 +102,14 @@ def eval_pt(
 
 
 class SliceLayerNormReshapeTestCase(unittest.TestCase):
-    def test_slice_layer_norm_reshape(
+    def __init__(self, *args, **kwargs):
+        super(SliceLayerNormReshapeTestCase, self).__init__(*args, **kwargs)
+        self._test_id = 0
+
+    def _test_slice_layer_norm_reshape(
         self,
         *,
+        dtype="float16",
         batch_sizes=(3, 4),
         eps=1e-5,
         atol=1e-3,
@@ -116,9 +117,11 @@ class SliceLayerNormReshapeTestCase(unittest.TestCase):
     ):
         ait_in_node, ait_out_node, ait_module = build_ait_module(
             batch_sizes=batch_sizes,
-            workdir=uuid.uuid4().hex,
             eps=eps,
+            test_id=self._test_id,
+            ait_dtype=dtype,
         )
+        self._test_id += 1
 
         for op_name in (
             next(iter(ait_in_node._attrs["dst_ops"]))._attrs["name"],
@@ -126,11 +129,9 @@ class SliceLayerNormReshapeTestCase(unittest.TestCase):
         ):
             self.assertRegex(op_name, "layernorm")
 
+        pt_dtype = torch_utils.string_to_torch_dtype(dtype)
         for batch_size in batch_sizes:
-            pt_tensors = eval_pt(
-                batch_size=batch_size,
-                eps=eps,
-            )
+            pt_tensors = eval_pt(batch_size=batch_size, eps=eps, dtype=pt_dtype)
             ait_inputs = {k: v for k, v in pt_tensors.items() if k != "output"}
             ait_outputs = {"output": torch.empty_like(pt_tensors["output"])}
             ait_module.run_with_tensors(ait_inputs, ait_outputs)
@@ -140,6 +141,15 @@ class SliceLayerNormReshapeTestCase(unittest.TestCase):
                     ait_outputs["output"], pt_tensors["output"], atol=atol, rtol=rtol
                 )
             )
+
+    def test_slice_layer_norm_reshape_float16(self):
+        self._test_slice_layer_norm_reshape()
+
+    @unittest.skipIf(
+        detect_target().name() != "cuda", "fp32 is only supported in CUDA backend"
+    )
+    def test_slice_layer_norm_reshape_float32(self):
+        self._test_slice_layer_norm_reshape(dtype="float32")
 
 
 if __name__ == "__main__":

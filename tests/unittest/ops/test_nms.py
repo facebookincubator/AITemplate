@@ -24,6 +24,7 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 try:
     from torchvision.ops import boxes as box_ops
@@ -41,7 +42,7 @@ def nonempty(box, threshold=0.0):
     return keep
 
 
-def create_tensors(N):
+def create_tensors(N, dtype="float16"):
     dets = np.array(
         [
             [1.5862e02, 1.6100e02, 4.2800e02, 3.9400e02, 7.7100e-01],
@@ -75,7 +76,7 @@ def create_tensors(N):
             [1.4962e02, 1.6250e02, 4.3650e02, 3.9800e02, 7.9492e-01],
             [1.4850e02, 1.5975e02, 4.3250e02, 3.9275e02, 2.7051e-01],
         ],
-        dtype="float16",
+        dtype=dtype,
     )
 
     return dets[:N, :4], dets[:N, -1]
@@ -83,10 +84,10 @@ def create_tensors(N):
 
 @skipIfNoTorchVision
 class nmsTestCase(unittest.TestCase):
-    def _create_tensors(self, N):
+    def _create_tensors(self, N, dtype="float16"):
         boxes, scores = create_tensors(N)
-
-        return torch.tensor(boxes).cuda().half(), torch.tensor(scores).cuda().half()
+        torch_dtype = string_to_torch_dtype(dtype)
+        return [torch.tensor(x).cuda().to(dtype=torch_dtype) for x in (boxes, scores)]
 
     def _test_nms(
         self,
@@ -98,19 +99,20 @@ class nmsTestCase(unittest.TestCase):
         num_classes=1,
         test_name="proposal_nms",
         copy_op=False,
+        dtype="float16",
     ):
         target = detect_target()
 
         X1 = Tensor(
             shape=[1, N, 4],
-            dtype="float16",
+            dtype=dtype,
             name="X",
             is_input=True,
         )
 
         X2 = Tensor(
             shape=[1, N],
-            dtype="float16",
+            dtype=dtype,
             name="kernel",
             is_input=True,
         )
@@ -127,55 +129,79 @@ class nmsTestCase(unittest.TestCase):
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
 
-        module = compile_model(X4, target, "./tmp", test_name + str(copy_op))
+        module = compile_model(X4, target, "./tmp", test_name)
 
-        boxes, scores = self._create_tensors(N)
-        idxs = torch.randint(0, num_classes, (N,)).cuda().half()
-        iou = iouThreshold
+        torch_dtype = string_to_torch_dtype(dtype)
+        boxes, scores = self._create_tensors(N, dtype=dtype)
+        idxs = torch.randint(0, num_classes, (N,)).cuda().to(dtype=torch_dtype)
         kept = nonempty(boxes, threshold=minBoxSize)
         score_pt = scores.clone()
         score_pt[kept] = -1
-        keep = box_ops.batched_nms(boxes, score_pt, idxs, iou)
+        keep = box_ops.batched_nms(boxes, score_pt, idxs, iouThreshold)
 
         if keep.shape[0] >= nmsMaxOut:
             keep = keep[:nmsMaxOut]
             ref_box = boxes[keep]
         else:
-            ref_box = torch.zeros(nmsMaxOut, 4).half()
+            ref_box = torch.zeros(nmsMaxOut, 4)
             ref_box[
                 : keep.shape[0],
             ] = boxes[keep]
+        ref_box = ref_box.to(dtype=torch_dtype)
 
         x = boxes.reshape((1, N, 4)).contiguous()
         x_scores = scores.reshape((1, N)).contiguous()
         inputs = [x, x_scores]
-        y = torch.empty([1, nmsMaxOut, 4]).cuda().half()
+        y = torch.empty([1, nmsMaxOut, 4]).cuda().to(dtype=torch_dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(ref_box.cuda(), y, atol=1e-2, rtol=1e-2))
 
-    def test_nms(self):
-        self._test_nms()
-        self._test_nms(copy_op=True)
+    def test_nms_fp16(self):
+        self._test_nms(
+            test_name="proposal_nms_fp16",
+            dtype="float16",
+        )
+        self._test_nms(
+            test_name="proposal_nms_copy_op_fp16",
+            copy_op=True,
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "float23 not supported in ROCm")
+    def test_nms_fp32(self):
+        self._test_nms(
+            test_name="proposal_nms_fp32",
+            dtype="float32",
+        )
+        self._test_nms(
+            test_name="proposal_nms_copy_op_fp32",
+            copy_op=True,
+            dtype="float32",
+        )
 
     def _test_topk_nms(
-        self, batch_size=1, N=30, topK=30, iou=0.5, test_name="topk_nms", copy_op=False
+        self,
+        batch_size=1,
+        N=30,
+        topK=30,
+        iou=0.5,
+        test_name="topk_nms",
+        copy_op=False,
+        dtype="float16",
     ):
-
         target = detect_target()
-        if target.name() == "rocm":
-            return
         m_shape = (N, 4)
 
         def model():
             X_boxes = Tensor(
                 shape=m_shape,
-                dtype="float16",
+                dtype=dtype,
                 name="X",
                 is_input=True,
             )
             X_scores = Tensor(
                 shape=[N],
-                dtype="float16",
+                dtype=dtype,
                 name="scores",
                 is_input=True,
             )
@@ -195,8 +221,9 @@ class nmsTestCase(unittest.TestCase):
 
         module = compile_model(Y, target, "./tmp", test_name)
 
-        boxes, scores = self._create_tensors(N)
-        idxs = torch.randint(0, 1, (N,)).cuda().half()
+        torch_dtype = string_to_torch_dtype(dtype)
+        boxes, scores = self._create_tensors(N, dtype=dtype)
+        idxs = torch.randint(0, 1, (N,)).cuda().to(dtype=torch_dtype)
         y_pt = box_ops.batched_nms(boxes, scores, idxs, iou)
         y_np = y_pt.cpu().numpy()
 
@@ -215,9 +242,29 @@ class nmsTestCase(unittest.TestCase):
         y = score_inds[index]
         np.testing.assert_allclose(y_np, y, atol=1e-2, rtol=1e-2)
 
-    def test_topk_nms(self):
-        self._test_topk_nms()
-        self._test_topk_nms(copy_op=True)
+    @unittest.skipIf(detect_target().name() == "rocm", "not supported in ROCm")
+    def test_topk_nms_fp16(self):
+        self._test_topk_nms(
+            test_name="topk_nms_fp16",
+            dtype="float16",
+        )
+        self._test_topk_nms(
+            test_name="topk_nms_copy_op_fp16",
+            copy_op=True,
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "float23 not supported in ROCm")
+    def test_topk_nms_fp32(self):
+        self._test_topk_nms(
+            test_name="topk_nms_fp32",
+            dtype="float32",
+        )
+        self._test_topk_nms(
+            test_name="topk_nms_copy_op_fp32",
+            copy_op=True,
+            dtype="float32",
+        )
 
 
 if __name__ == "__main__":

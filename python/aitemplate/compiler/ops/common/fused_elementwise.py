@@ -15,7 +15,7 @@
 """
 Fused elementwise operator definition.
 """
-from typing import List
+from typing import List, Set
 
 from .... import backend
 from ....backend import registry
@@ -51,54 +51,15 @@ class fused_elementwise(Operator):
                     )
                 )
 
-    def _update_inputs_outputs(self) -> None:
-        ops = set(self._attrs["elementwise_ops"])
-        external_inputs = set()
-        external_outputs = set()
-        tmp_inputs = set()
-        tmp_outputs = set()
-
-        for op in ops:
-            for input_tensor in op._attrs["inputs"]:
-                tmp_inputs.add(input_tensor)
-                if (
-                    len(input_tensor._attrs["src_ops"]) == 0
-                    or len(set(input_tensor._attrs["src_ops"]) - ops) > 0
-                ) and (not input_tensor.is_a_const_num()):
-                    external_inputs.add(input_tensor)
-                assert op in input_tensor._attrs["dst_ops"]
-            for output_tensor in op._attrs["outputs"]:
-                tmp_outputs.add(output_tensor)
-                if (
-                    output_tensor._attrs["is_output"]
-                    or len(output_tensor._attrs["dst_ops"] - ops) > 0
-                ):
-                    external_outputs.add(output_tensor)
-                assert len(output_tensor._attrs["src_ops"]) == 1
-                assert list(output_tensor._attrs["src_ops"])[0] == op
-
-        assert (
-            external_inputs == tmp_inputs - tmp_outputs
-        ), "external_inputs: {} is not equal to tmp_inputs: {} - tmp_outputs: {}.".format(
-            external_inputs, tmp_inputs, tmp_outputs
-        )
-        assert (
-            len(tmp_outputs - tmp_inputs - external_outputs) == 0
-        ), "tmp_outputs: {} - tmp_inputs: {} - external_outputs: {} is not empty.".format(
-            tmp_outputs, tmp_inputs, external_outputs
-        )
-        assert (
-            len(external_outputs - tmp_outputs) == 0
-        ), "external_outputs: {} - tmp_outputs: {} is not empty.".format(
-            external_outputs, tmp_outputs
-        )
-
-        self._attrs["inputs"] = list(external_inputs)
+    def _update_inputs_outputs(
+        self, inputs: Set[Operator], outputs: Set[Operator]
+    ) -> None:
+        self._attrs["inputs"] = list(inputs)
         self._attrs["input_accessors"] = [
             TensorAccessor(tensor) for tensor in self._attrs["inputs"]
         ]
 
-        self._attrs["outputs"] = list(external_outputs)
+        self._attrs["outputs"] = list(outputs)
         self._attrs["output_accessors"] = [
             TensorAccessor(output_tensor) for output_tensor in self._attrs["outputs"]
         ]
@@ -109,12 +70,9 @@ class fused_elementwise(Operator):
         self._attrs["original_inputs"] = list(self._attrs["inputs"])
         self._attrs["original_outputs"] = list(self._attrs["outputs"])
 
-        for tensor in tmp_inputs | tmp_outputs:
-            tensor._attrs["src_ops"] = tensor._attrs["src_ops"] - ops
-            tensor._attrs["dst_ops"] = tensor._attrs["dst_ops"] - ops
-        for tensor in external_inputs:
+        for tensor in inputs:
             tensor._attrs["dst_ops"].add(self)
-        for tensor in external_outputs:
+        for tensor in outputs:
             tensor._attrs["src_ops"].add(self)
 
     def _check_constant(self) -> None:
@@ -128,24 +86,33 @@ class fused_elementwise(Operator):
             f"Please use Python to calculate directly. Operator: {self}"
         )
 
-    def __init__(self, elementwise_ops: List[elementwise]) -> None:
+    def __init__(
+        self,
+        elementwise_ops: List[elementwise],
+        inputs: Set[Operator],
+        outputs: Set[Operator],
+    ) -> None:
         super().__init__()
 
         if len(elementwise_ops) == 0:
             raise RuntimeError(
                 "fused_elementwise argument elementwise_ops cannot be empty!"
             )
-
+        # It is required that elementwise_ops need to be topologically sorted.
         self._attrs["op"] = "fused_elementwise"
         self._attrs["elementwise_ops"] = elementwise_ops
         self._attrs["has_profiler"] = False
 
-        self._update_inputs_outputs()
+        self._update_inputs_outputs(inputs, outputs)
         self._set_depth()
         self._check_constant()
 
     def _get_op_attributes(self):
-        return {"elementwise_ops": self._attrs["elementwise_ops"]}
+        return {
+            "elementwise_ops": self._attrs["elementwise_ops"],
+            "inputs": self._attrs["inputs"],
+            "outputs": self._attrs["outputs"],
+        }
 
     def gen_function(self) -> str:
         target = backend.target.Target.current()

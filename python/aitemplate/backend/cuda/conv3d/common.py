@@ -16,7 +16,6 @@
 CUDA conv3d common functions
 """
 import re
-from collections import OrderedDict
 from hashlib import sha1
 from typing import List
 
@@ -24,8 +23,10 @@ import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
 
-from ...target import Target
+from ....utils import alignment
+from ..conv2d.common import extract_config as conv2d_extract_config
 from ..gemm_universal.common import add_profiler, build_profiler  # noqa: F401
+
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
@@ -140,29 +141,6 @@ cutlass{{opcode_class}}_{{extended_name}}_{{threadblock}}_{{layout}}_align_{{ali
 )
 
 
-def kernel_name(op):
-    """generate cuda kernel name"""
-    from cutlass_lib import library
-
-    threadblock = op.tile_description.procedural_name()
-    extended_name = op.extended_name()
-    opcode_class_name = library.OpcodeClassNames[
-        op.tile_description.math_instruction.opcode_class
-    ]
-    layout = "ndhwc"  # op.layout_name()
-    align_ab = op.A.alignment
-    align_c = op.C.alignment
-    name = KERNEL_KEY_TEMPLATE.render(
-        threadblock=threadblock,
-        extended_name=extended_name,
-        opcode_class_name=opcode_class_name,
-        layout=layout,
-        align_ab=align_ab,
-        align_c=align_c,
-    )
-    return name.replace("\n", "")
-
-
 def emit_instance(op):
     """emit instance"""
     import cutlass_lib
@@ -176,61 +154,16 @@ def emit_instance(op):
     return op_def
 
 
-def extract_config(func_attrs, f_proc_op=None):
+def extract_config(func_attrs, dtype="float16"):
     """Extracts cutlass config for conv kernels."""
-    import copy
-
     import cutlass_lib
 
-    def f_proc_op_default(op):
-        # import cutlass_lib
-        ret = []
-        data_type = cutlass_lib.library.DataType.f16
-        acc_type = cutlass_lib.library.DataType.f32
-        # check target use fp16 acc
-        if "use_fp16_acc" in Target.current()._kwargs:
-            if Target.current()._kwargs["use_fp16_acc"]:
-                acc_type = cutlass_lib.library.DataType.f16
-
-        if (
-            op.A.element == data_type
-            and op.B.element == data_type
-            and op.C.element == data_type
-            and op.iterator_algorithm == cutlass_lib.library.IteratorAlgorithm.Optimized
-            and op.tile_description.math_instruction.element_accumulator == acc_type
-        ):
-
-            op = copy.deepcopy(op)
-            # set epilogue
-            epilogue_name = func_attrs["epilogue"]
-            op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epilogue_name]
-            op.element_epilogue = acc_type
-            # set C alignment
-            for i in [8, 4, 2, 1]:
-                op = copy.deepcopy(op)
-                op.C.alignment = i
-                ret.append(op)
-        return ret
-
-    op_kind = cutlass_lib.library.OperationKind.Conv3d
-    conv_kind = cutlass_lib.library.ConvKind.Fprop
-    ret = []
-    conv3d_ops = OrderedDict()
-    extract_ops = list(Target.current()._operators[op_kind].items())
-
-    for _, value in extract_ops:
-        op = value[0]
-        if op.conv_kind == conv_kind:
-            if f_proc_op is None:
-                ret = f_proc_op_default(op)
-            else:
-                ret = f_proc_op(op)
-            if len(ret) > 0:
-                for op_inst in ret:
-                    key = kernel_name(op_inst)
-                    conv3d_ops[key] = op_inst
-
-    return conv3d_ops
+    return conv2d_extract_config(
+        func_attrs=func_attrs,
+        dtype=dtype,
+        op_kind=cutlass_lib.library.OperationKind.Conv3d,
+        op_layout="ndhwc",
+    )
 
 
 def extract_config_name(config):
@@ -271,7 +204,7 @@ def gen_function(
             config = f_emit_instance(op_instance[value])
             inst_def_flag.add(value)
         else:
-            config = ""
+            continue
         inst = instance_template.render(
             config=config, name=fname, config_name=extract_config_name(config)
         )
@@ -324,16 +257,10 @@ def gen_function(
     )
 
 
-def cal_align_ab(x_shape: List[int]) -> int:
+def cal_align_ab(x_shape: List[int], dtype="float16") -> int:
     """Returns input alignment."""
     k = x_shape[4]  # CI
-    if k % 8 == 0:
-        return 8
-    if k % 4 == 0:
-        return 4
-    if k % 2 == 0:
-        return 2
-    raise RuntimeError("a/b is not aligned")
+    return alignment.find_max_alignment(k, dtype)
 
 
 def function_filter(cfg, func_attrs, x_shape):
@@ -353,7 +280,8 @@ def function_filter(cfg, func_attrs, x_shape):
     bool
         If input cfg should be filtered.
     """
-    ab_alignment = cal_align_ab(x_shape)
+    dtype = func_attrs["inputs"][0]._attrs["dtype"]
+    ab_alignment = cal_align_ab(x_shape, dtype=dtype)
     tmp = cfg.split("_")
     align_c = int(tmp[-1])
     align_ab = int(tmp[-2])

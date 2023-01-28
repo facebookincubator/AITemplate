@@ -44,7 +44,7 @@ class bmm_ccr(bmm):
         self._attrs["op"] = "bmm_ccr"
 
         def cal_align_ab(m, n, k):
-            return common.default_align_ab(m, k)
+            return common.default_align_ab(m, k, self._attrs["inputs"][0].dtype())
 
         self._attrs["f_ab_alignment"] = cal_align_ab
 

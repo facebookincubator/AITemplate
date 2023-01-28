@@ -112,6 +112,39 @@ void shared_load<32>(void *dst, uint32_t ptr) {
     : "r"(ptr));
 }
 
+template <>
+CUTLASS_DEVICE
+void shared_load<48>(void *dst, uint32_t ptr) {
+  uint4 *dst_u128 = reinterpret_cast<uint4 *>(dst);
+  asm volatile("ld.shared.v4.u32 {{ '{%0, %1, %2, %3}, [%4]' }};\\n"
+    :
+      "=r"(dst_u128->x),
+      "=r"(dst_u128->y),
+      "=r"(dst_u128->z),
+      "=r"(dst_u128->w)
+    : "r"(ptr));
+
+  dst_u128++;
+  ptr = ptr + sizeof(uint4);
+  asm volatile("ld.shared.v4.u32 {{ '{%0, %1, %2, %3}, [%4]' }};\\n"
+    :
+      "=r"(dst_u128->x),
+      "=r"(dst_u128->y),
+      "=r"(dst_u128->z),
+      "=r"(dst_u128->w)
+    : "r"(ptr));
+
+  dst_u128++;
+  ptr = ptr + sizeof(uint4);
+  asm volatile("ld.shared.v4.u32 {{ '{%0, %1, %2, %3}, [%4]' }};\\n"
+    :
+      "=r"(dst_u128->x),
+      "=r"(dst_u128->y),
+      "=r"(dst_u128->z),
+      "=r"(dst_u128->w)
+    : "r"(ptr));
+}
+
 } // namespace arch
 
 template <typename ElementT, bool BesselCorrection>
@@ -125,7 +158,7 @@ struct NumericConverter<WelfordData<ElementT, BesselCorrection>,
 
   CUTLASS_HOST_DEVICE
   static result_type convert(source_type const & s) {
-    return WelfordData<ElementT, BesselCorrection>(-1, s, ElementT(0));
+    return WelfordData<ElementT, BesselCorrection>(-1, static_cast<ElementT>(s), ElementT(0));
   }
 
   CUTLASS_HOST_DEVICE
@@ -261,10 +294,10 @@ def var_gen_function(func_attrs) -> str:
     """
     bessel = "true" if func_attrs["unbiased"] else "false"
     backend_spec = CUDASpec()
-    elem_input_type = backend_spec.dtype_to_lib_type(
-        func_attrs["inputs"][0]._attrs["dtype"]
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
     )
-    acc_type = f"WelfordData<{elem_input_type}, {bessel}>"
+    acc_type = f"WelfordData<{elem_output_type}, {bessel}>"
     return reduce_3d.gen_function(
         func_attrs,
         "cutlass::welford_op",

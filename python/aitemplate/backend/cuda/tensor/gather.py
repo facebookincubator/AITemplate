@@ -181,6 +181,7 @@ void gather_kernel_launcher(
       (num_output_elems / (ThreadsPerBlock * ElemsPerThread)) + m;
   int grid_config = num_blocks_x;
 
+{% if elem_type == "half" %}
   if (num_output_elems % 2 == 0) {
     gather_kernel<float, int4, ELEM_T, Rank, ElemsPerThread>
     <<<grid_config, ThreadsPerBlock, 0, stream>>>(
@@ -202,6 +203,17 @@ void gather_kernel_launcher(
         num_output_elems);
     CUDA_LAUNCH_CHECK_GATHER();
   }
+{% elif elem_type == "float" %}
+  gather_kernel<float, INDEX_TYPE, ELEM_T, Rank, ElemsPerThread>
+  <<<grid_config, ThreadsPerBlock, 0, stream>>>(
+      output,
+      input,
+      indices,
+      input_meta,
+      gather_dim,
+      num_output_elems);
+  CUDA_LAUNCH_CHECK_GATHER();
+{% endif %}
 }
 
 #undef CUDA_CHECK_ERROR_GATHER
@@ -349,8 +361,10 @@ def gen_function(func_attrs):
         elems_per_thread=2,
         threads_per_block=128,
     )
-
-    kernel_src = KERNEL_SRC_TEMPLATE.render(index_type=index_type)
+    kernel_src = KERNEL_SRC_TEMPLATE.render(
+        index_type=index_type,
+        elem_type=input_type,
+    )
     return SRC_TEMPLATE.render(
         kernel_src=kernel_src,
         func_name=func_attrs["name"],

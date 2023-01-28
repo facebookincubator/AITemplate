@@ -23,6 +23,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 class SoftmaxTestCase(unittest.TestCase):
@@ -34,7 +35,7 @@ class SoftmaxTestCase(unittest.TestCase):
         dtype="float16",
         testname="softmax",
     ):
-
+        torch_dtype = string_to_torch_dtype(dtype)
         X = Tensor(
             shape=[IntVar(name="input_batch", values=list(batch_sizes)), *input_shapes],
             dtype=dtype,
@@ -49,25 +50,42 @@ class SoftmaxTestCase(unittest.TestCase):
         module = compile_model(Y, target, "./tmp", testname)
 
         for batch_size in batch_sizes:
-            x_pt = torch.randn(batch_size, *input_shapes).cuda().half()
+            x_pt = torch.randn(batch_size, *input_shapes, dtype=torch_dtype).cuda()
             y_pt = torch.nn.functional.softmax(x_pt, dim=dim)
 
-            y = torch.empty([batch_size, *input_shapes]).cuda().half()
+            y = torch.empty([batch_size, *input_shapes], dtype=torch_dtype).cuda()
             module.run_with_tensors([x_pt], [y])
-            self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
+            torch.testing.assert_close(y_pt, y, atol=1e-2, rtol=1e-2)
 
     def test_softmax(self):
-        self._test_softmax()
-        self._test_softmax(dim=1)
-        self._test_softmax((1, 13), (7,))
-        self._test_softmax((10, 1025), (16,))
-        self._test_softmax((1, 17), (9, 8))
-        self._test_softmax((2, 64), (9, 1, 6))
-        self._test_softmax((1, 4096), (33,))
-        self._test_softmax((2, 21), (34,))
-        self._test_softmax((2, 17), (36,))
-        self._test_softmax((1, 64), (128,))
-        self._test_softmax((2, 31), (513,))
+        self._test_softmax(testname="softmax_0")
+        self._test_softmax(dim=1, testname="softmax_1")
+        self._test_softmax((1, 13), (7,), testname="softmax_2")
+        self._test_softmax((10, 1025), (16,), testname="softmax_3")
+        self._test_softmax((1, 17), (9, 8), testname="softmax_4")
+        self._test_softmax((2, 64), (9, 1, 6), testname="softmax_5")
+        self._test_softmax((1, 4096), (33,), testname="softmax_6")
+        self._test_softmax((2, 21), (34,), testname="softmax_7")
+        self._test_softmax((2, 17), (36,), testname="softmax_8")
+        self._test_softmax((1, 64), (128,), testname="softmax_9")
+        self._test_softmax((2, 31), (513,), testname="softmax_10")
+
+    def test_softmax_fp32(self):
+        self._test_softmax(dtype="float32", testname="softmax_fp32_0")
+        self._test_softmax(dim=1, dtype="float32", testname="softmax_fp32_1")
+        self._test_softmax((1, 13), (7,), dtype="float32", testname="softmax_fp32_2")
+        self._test_softmax(
+            (10, 1025), (16,), dtype="float32", testname="softmax_fp32_3"
+        )
+        self._test_softmax((1, 17), (9, 8), dtype="float32", testname="softmax_fp32_4")
+        self._test_softmax(
+            (2, 64), (9, 1, 6), dtype="float32", testname="softmax_fp32_5"
+        )
+        self._test_softmax((1, 4096), (33,), dtype="float32", testname="softmax_fp32_6")
+        self._test_softmax((2, 21), (34,), dtype="float32", testname="softmax_fp32_7")
+        self._test_softmax((2, 17), (36,), dtype="float32", testname="softmax_fp32_8")
+        self._test_softmax((1, 64), (128,), dtype="float32", testname="softmax_fp32_9")
+        self._test_softmax((2, 31), (513,), dtype="float32", testname="softmax_fp32_10")
 
 
 if __name__ == "__main__":

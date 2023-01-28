@@ -17,6 +17,7 @@ from .container import ModuleDict, ModuleList, Sequential
 from .embedding import BertEmbeddings, Embedding
 from .module import Module
 from .conv2d import *
+from .conv3d import *
 from .linear import *
 from .padding import *
 from .pool2d import *

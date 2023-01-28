@@ -34,7 +34,7 @@ L2_NORM_PROLOGUE_TEMPLATE = jinja2.Template(
 L2_NORM_EPILOGUE_SCALAR_TEMPLATE = jinja2.Template(
     """
 {{indent}}cutlass::NumericConverter<ElementCompute, float> local_converter;
-{{indent}}return local_converter(fast_sqrt(reduced_result));
+{{indent}}return local_converter(cutlass::fast_sqrt(reduced_result));
 """
 )
 

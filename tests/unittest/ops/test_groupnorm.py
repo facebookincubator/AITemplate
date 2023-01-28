@@ -15,6 +15,7 @@
 """
 Unittests for group norm Operator.
 """
+import logging
 import unittest
 
 import torch
@@ -22,7 +23,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger
+from aitemplate.testing.test_utils import get_random_torch_tensor
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @unittest.skipIf(detect_target()._arch == "75", "Skip GN on sm75.")
@@ -41,27 +45,26 @@ class GroupnormTestCase(unittest.TestCase):
         eps=1e-5,
         use_swish=False,
         copy_op=False,
+        dtype="float16",
     ):
         test_name = "group_norm_swish" if use_swish else "group_norm"
-        logger.info(
-            __file__, f"Testing {test_name}: {x_shape}, num_groups: {num_groups}"
-        )
+        _LOGGER.info(f"Testing {test_name}: {x_shape}, num_groups: {num_groups}")
         num_channels = x_shape[-1]
         X1 = Tensor(
             shape=x_shape,
-            dtype="float16",
+            dtype=dtype,
             name="X",
             is_input=True,
         )
         X2 = Tensor(
             shape=[num_channels],
-            dtype="float16",
+            dtype=dtype,
             name="gamma",
             is_input=True,
         )
         X3 = Tensor(
             shape=[num_channels],
-            dtype="float16",
+            dtype=dtype,
             name="beta",
             is_input=True,
         )
@@ -78,10 +81,10 @@ class GroupnormTestCase(unittest.TestCase):
         dll_name = f"test_{self.test_count}.so"
         module = compile_model(X4, target, "./tmp", op_name, dll_name=dll_name)
 
-        x1_nhwc_pt = torch.randn(*x_shape).cuda().half()
+        x1_nhwc_pt = get_random_torch_tensor(x_shape, dtype)
         x1_nchw_pt = x1_nhwc_pt.permute(0, 3, 1, 2).contiguous()
-        gamma_pt = torch.randn(num_channels).cuda().half()
-        beta_pt = torch.randn(num_channels).cuda().half()
+        gamma_pt = get_random_torch_tensor((num_channels,), dtype)
+        beta_pt = torch.randn_like(gamma_pt)
 
         x4_pt = torch.nn.functional.group_norm(
             x1_nchw_pt, num_groups, gamma_pt, beta_pt, eps=eps
@@ -92,7 +95,7 @@ class GroupnormTestCase(unittest.TestCase):
         inputs = {"X": x1_nhwc_pt}
         inputs["gamma"] = gamma_pt
         inputs["beta"] = beta_pt
-        x4 = torch.empty(x_shape).cuda().half()
+        x4 = torch.empty_like(x1_nhwc_pt)
         module.run_with_tensors(inputs, [x4])
 
         # from aitemplate.testing.benchmark_pt import benchmark_torch_function
@@ -108,10 +111,8 @@ class GroupnormTestCase(unittest.TestCase):
         # )
         # print("pt: ", t)
 
-        self.assertTrue(
-            torch.allclose(
-                x4, x4_pt.permute(0, 2, 3, 1).contiguous(), atol=1e-2, rtol=1e-2
-            )
+        torch.testing.assert_close(
+            x4, x4_pt.permute(0, 2, 3, 1).contiguous(), atol=1e-2, rtol=1e-2
         )
         self.test_count += 1
 
@@ -160,6 +161,25 @@ class GroupnormTestCase(unittest.TestCase):
             self._test_groupnorm(
                 x_shape=shape, num_groups=32, eps=1e-5, use_swish=True, copy_op=True
             )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
+    def test_float32(self):
+        # H % 8 != 0
+        self._test_groupnorm(
+            x_shape=[7, 13, 9, 12],
+            num_groups=4,
+            eps=1e-5,
+            dtype="float32",
+            use_swish=True,
+        )
+        # H % 8 == 0
+        self._test_groupnorm(
+            x_shape=[2, 16, 16, 640],
+            num_groups=32,
+            eps=1e-5,
+            dtype="float32",
+            use_swish=True,
+        )
 
 
 if __name__ == "__main__":

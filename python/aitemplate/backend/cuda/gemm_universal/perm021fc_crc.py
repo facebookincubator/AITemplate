@@ -47,19 +47,12 @@ def gemm_crc_config(func_attrs, dtype="float16"):
     def fproc(op):
         import cutlass_lib
 
-        from ...backend_spec import CUDASpec
-
-        backend_spec = CUDASpec()
-        elem_type = backend_spec.dtype_to_lib_type(
-            func_attrs["inputs"][0]._attrs["dtype"]
-        )
-
         return common.default_fproc(
             op=op,
             a_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             b_layout=cutlass_lib.library.LayoutType.RowMajor,
             c_layout=cutlass_lib.library.LayoutType.ColumnMajor,
-            elem_type=elem_type,
+            dtype=func_attrs["inputs"][0].dtype(),
             epiligue_name=func_attrs["epilogue"],
         )
 

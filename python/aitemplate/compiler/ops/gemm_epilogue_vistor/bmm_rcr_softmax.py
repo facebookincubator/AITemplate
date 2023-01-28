@@ -39,7 +39,7 @@ class bmm_rcr_softmax(bmm):
         raise Exception("BMM + Softmax is disabled for now")
 
         def cal_align_ab(m, n, k):
-            return common.default_align_ab(k, k)
+            return common.default_align_ab(k, k, self._attrs["inputs"][0].dtype())
 
         self._attrs["f_ab_alignment"] = cal_align_ab
 

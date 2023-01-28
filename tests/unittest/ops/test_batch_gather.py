@@ -22,21 +22,29 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 class gatherTestCase(unittest.TestCase):
-    def _create_tensors(self, N):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_count = 0
+
+    def _create_tensors(self, N, dtype):
         scores = torch.randperm(N) / N
-        return scores.cuda().half()
+        return scores.cuda().to(dtype=string_to_torch_dtype(dtype))
 
 
 class batchGatherTestCase(gatherTestCase):
-    def _create_tensors(self, N):
-        scores = torch.randperm(N) / N
-        return scores.cuda().half()
-
     def _test_batch_gather(
-        self, shape=(3, 2, 2), ind_shape=(3,), dim=0, max_ind=2, test_name="gather"
+        self,
+        shape=(3, 2, 2),
+        ind_shape=(3,),
+        dim=0,
+        max_ind=2,
+        test_name="gather",
+        dtype="float16",
     ):
 
         in_shape = shape
@@ -47,7 +55,7 @@ class batchGatherTestCase(gatherTestCase):
 
         X1 = Tensor(
             shape=in_shape,
-            dtype="float16",
+            dtype=dtype,
             name="X",
             is_input=True,
         )
@@ -62,9 +70,9 @@ class batchGatherTestCase(gatherTestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = compile_model(X4, target, "./tmp", f"{test_name}_{self.test_count}")
 
-        input_x = torch.rand(in_shape).cuda().half()
+        input_x = get_random_torch_tensor(in_shape, dtype)
         init_index = torch.randint(max_ind, size=ind_shape, dtype=torch.int64).cuda()
 
         reshaped_shape = list(ind_shape)
@@ -80,10 +88,10 @@ class batchGatherTestCase(gatherTestCase):
 
         indices = init_index.reshape(ind_shape).contiguous()
 
-        y = torch.empty(o_shape).cuda().half()
+        y = torch.empty_like(y_pt)
         module.run_with_tensors({"X": x, "indices": indices}, [y])
 
-        self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
+        torch.testing.assert_close(y_pt, y, atol=1e-2, rtol=1e-2)
 
     def test_batch_gather(self):
         self._test_batch_gather(
@@ -103,10 +111,27 @@ class batchGatherTestCase(gatherTestCase):
             test_name="batch_gather4",
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported by ROCM.")
+    def test_float32(self):
+        self._test_batch_gather(
+            shape=(8, 2, 2),
+            ind_shape=(2,),
+            dim=0,
+            max_ind=8,
+            test_name="batch_gather_f32",
+            dtype="float32",
+        )
+
 
 class batchGatherTopkTestCase(gatherTestCase):
     def _test_batch_gather_topk(
-        self, shape=(2, 2, 2), batch_size=1, N=1000, topK=100, test_name="topk"
+        self,
+        shape=(2, 2, 2),
+        batch_size=1,
+        N=1000,
+        topK=100,
+        test_name="topk",
+        dtype="float16",
     ):
 
         m_shape = (N,) + shape
@@ -114,13 +139,13 @@ class batchGatherTopkTestCase(gatherTestCase):
 
         X1 = Tensor(
             shape=m_shape,
-            dtype="float16",
+            dtype=dtype,
             name="X",
             is_input=True,
         )
         X2 = Tensor(
             shape=[N],
-            dtype="float16",
+            dtype=dtype,
             name="scores",
             is_input=True,
         )
@@ -130,10 +155,10 @@ class batchGatherTopkTestCase(gatherTestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = compile_model(X4, target, "./tmp", f"{test_name}_{self.test_count}")
 
-        input_x = torch.rand(m_shape).cuda().half()
-        scores = self._create_tensors(N)
+        input_x = get_random_torch_tensor(m_shape, dtype)
+        scores = self._create_tensors(N, dtype)
 
         (_, init_index) = torch.topk(scores, k=topK, dim=0)
 
@@ -150,7 +175,7 @@ class batchGatherTopkTestCase(gatherTestCase):
 
         x_scores = scores.reshape((N,)).contiguous()
 
-        y = torch.empty(n_shape).cuda().half()
+        y = torch.empty_like(y_pt)
         module.run_with_tensors({"X": x, "scores": x_scores}, [y])
 
         self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
@@ -158,6 +183,16 @@ class batchGatherTopkTestCase(gatherTestCase):
     def test_batch_gather_topk(self):
         self._test_batch_gather_topk(
             shape=(4, 1, 1), N=2000, topK=300, test_name="batch_gather_topk"
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported by ROCM.")
+    def test_float32(self):
+        self._test_batch_gather_topk(
+            shape=(4, 1, 1),
+            N=2000,
+            topK=300,
+            test_name="batch_gather_topk_f32",
+            dtype="float32",
         )
 
 
