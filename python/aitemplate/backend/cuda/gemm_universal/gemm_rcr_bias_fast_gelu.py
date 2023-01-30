@@ -62,22 +62,22 @@ using LinearCombinationFastGELU = LinearCombinationGeneric<GELU_taylor, ElementO
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-    cutlass::gemm::GemmUniversalMode::kGemm,
-    {M, N, K},
-    split_k,
-    {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
-    ({{elem_input_type}}*)(a_ptr),
-    ({{elem_input_type}}*)(b_ptr),
-    ({{elem_input_type}}*)(bias_ptr),
-    ({{elem_output_type}}*)(c_ptr) + output_offset,
-    M * K,
-    N * K,
-    N,
-    M * N,
-    K,
-    K,
-    0,
-    output_stride
+    cutlass::gemm::GemmUniversalMode::kGemm,                 // GemmUniversalMode mode
+    {M, N, K},                                               // GemmCoord problem_size
+    split_k,                                                 // int batch_count
+    {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename EpilogueOutputOp::Params epilogue
+    ({{elem_input_type}}*)(a_ptr),                           // void const * ptr_A
+    ({{elem_input_type}}*)(b_ptr),                           // void const * ptr_B
+    ({{elem_input_type}}*)(bias_ptr),                        // void const * ptr_C
+    ({{elem_output_type}}*)(c_ptr) + output_offset,          // void * ptr_D
+    M * K,                                                   // int64_t batch_stride_A
+    N * K,                                                   // int64_t batch_stride_B
+    N,                                                       // int64_t batch_stride_C
+    M * N,                                                   // int64_t batch_stride_D
+    K,                                                       // typename LayoutA::Stride::LongIndex lda
+    K,                                                       // typename LayoutB::Stride::LongIndex ldb
+    0,                                                       // typename LayoutC::Stride::LongIndex ldc
+    output_stride,                                           // typename LayoutC::Stride::LongIndex ldd
 """
 )
 

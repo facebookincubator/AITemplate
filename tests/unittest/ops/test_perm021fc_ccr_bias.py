@@ -25,11 +25,16 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm021FCCCRBiasTestCase(unittest.TestCase):
-    def test_ccr(self):
+    def _test_perm021fc_ccr_bias(
+        self,
+        test_name="perm021fc_ccr_bias",
+        dtype="float16",
+    ):
         B = 1024
         M = 128
         # K = 745
@@ -37,32 +42,64 @@ class Perm021FCCCRBiasTestCase(unittest.TestCase):
         # N = 30
         N = 64
         target = detect_target()
-        X = Tensor(shape=[B, K, M], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[1, N, K], dtype="float16", name="input_1", is_input=True)
-        BIAS = Tensor(shape=[N], dtype="float16", name="input_2", is_input=True)
+        X = Tensor(
+            shape=[B, K, M],
+            dtype=dtype,
+            name="input_0",
+            is_input=True,
+        )
+        W = Tensor(
+            shape=[1, N, K],
+            dtype=dtype,
+            name="input_1",
+            is_input=True,
+        )
+        BIAS = Tensor(
+            shape=[N],
+            dtype=dtype,
+            name="input_2",
+            is_input=True,
+        )
         OP = ops.perm021fc_ccr_bias()
         Y = OP(X, W, BIAS)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "perm021_fc_bias")
+        module = compile_model(Y, target, "./tmp", test_name)
 
-        X_pt = torch.randn(B, K, M).cuda().half()
-        W_pt = torch.randn(N, K).cuda().half()
-        # B_pt = torch.randn(N).cuda().half()
-        B_pt = torch.ones(N).cuda().half() * 0.5
+        X_pt = get_random_torch_tensor([B, K, M], dtype=dtype)
+        W_pt = get_random_torch_tensor([N, K], dtype=dtype)
+        B_pt = get_random_torch_tensor([N], dtype=dtype) * 0.5
 
         XT = X_pt.permute(0, 2, 1)
         XT = torch.reshape(XT, (-1, K))
         Y_pt = torch.nn.functional.linear(XT, W_pt, bias=B_pt)
         Y_pt = torch.reshape(Y_pt, (B, M, N))
 
-        y = torch.empty([B, M, N]).cuda().half()
+        y = torch.empty_like(Y_pt)
         module.run_with_tensors(
             {"input_0": X_pt, "input_1": W_pt.unsqueeze(0), "input_2": B_pt}, [y]
         )
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
+    def test_perm021fc_ccr_bias_fp16(self):
+        self._test_perm021fc_ccr_bias(
+            test_name="perm021fc_ccr_bias_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        int(detect_target()._arch) < 80,
+        f"fp32 BMM not supported in {detect_target()._arch}",
+    )
+    def test_perm021fc_ccr_bias_fp32(self):
+        self._test_perm021fc_ccr_bias(
+            test_name="perm021fc_ccr_bias_fp32",
+            dtype="float32",
+        )
+
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

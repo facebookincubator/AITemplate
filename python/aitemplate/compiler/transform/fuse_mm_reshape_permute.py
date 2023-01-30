@@ -134,7 +134,7 @@ def _fuse_gemm_reshape_permute0213(
 
         permute_op = list(reshape_output.dst_ops())[0]
 
-        if permute_op._attrs["op"] != "permute":
+        if permute_op._attrs["op"] not in ("permute", "permute0213"):
             continue
 
         permute_output = permute_op._attrs["outputs"][0]
@@ -143,7 +143,11 @@ def _fuse_gemm_reshape_permute0213(
         if not _check_reshape(reshape_op):
             continue
 
-        if not _check_permute(permute_op, [0, 2, 1, 3]):
+        # check permute dims match [0, 2, 1, 3]: either
+        # permute0213 or generic permute with those dims
+        if permute_op._attrs["op"] != "permute0213" and not _check_permute(
+            permute_op, [0, 2, 1, 3]
+        ):
             continue
 
         # fuse ops together

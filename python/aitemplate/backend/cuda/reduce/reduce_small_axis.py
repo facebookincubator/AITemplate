@@ -68,15 +68,16 @@ KERNEL_SRC_TEMPLATE = jinja2.Template(
     """
 constexpr const int ThreadsPerBlock = 128;
 
-template <typename ElemT,
+template <typename ElementInput,
+          typename ElementOutput,
           typename ElementCompute,
           typename ReadVecT,
           typename WriteVecT,
           int64_t num_rows_per_thread,
           int64_t num_cols>
 __global__ void reduce_small_in_v_out_v(
-    ElemT *output,
-    const ElemT *input,
+    ElementOutput *output,
+    const ElementInput *input,
     int64_t num_rows,
     int64_t batch_stride_input,
     int64_t batch_stride_output) {
@@ -88,13 +89,13 @@ __global__ void reduce_small_in_v_out_v(
     return;
   // input within the batch
   int64_t input_offset = idx * num_cols;
-  const ElemT *this_input =
+  const ElementInput *this_input =
       input + block_batch * batch_stride_input + input_offset;
   size_t output_idx = block_batch * batch_stride_output + idx;
-  ElemT *this_output = get_strided_address_at_idx<ElemT, ElemT>(output, output_idx);
+  ElementOutput *this_output = get_strided_address_at_idx<ElementOutput, ElementOutput>(output, output_idx);
 
-  static_assert(sizeof(ReadVecT) % sizeof(ElemT) == 0);
-  constexpr int n_read_elems_in_v = sizeof(ReadVecT) / sizeof(ElemT);
+  static_assert(sizeof(ReadVecT) % sizeof(ElementInput) == 0);
+  constexpr int n_read_elems_in_v = sizeof(ReadVecT) / sizeof(ElementInput);
   // number of original elements
   constexpr int64_t num_elems_per_thread = num_rows_per_thread * num_cols;
   // number of vector elements
@@ -114,7 +115,7 @@ __global__ void reduce_small_in_v_out_v(
 
   // compute
   using FragmentCompute = ElementCompute;
-  ElemT *read_elems = reinterpret_cast<ElemT *>(read_elems_v);
+  ElementInput *read_elems = reinterpret_cast<ElementInput *>(read_elems_v);
   using ReduceScalarOp = {{reduce_op}}<ElementCompute>;
   ReduceScalarOp reduce_s_op;
   constexpr int num_reduced_elems = num_cols;
@@ -126,8 +127,9 @@ __global__ void reduce_small_in_v_out_v(
     {{epilogue_scalar_code}}
   };
 
-  ElemT reduced_elems[num_rows_per_thread];
+  ElementOutput reduced_elems[num_rows_per_thread];
   static_assert(num_elems_per_thread % num_cols == 0);
+  cutlass::NumericConverter<ElementCompute, ElementInput> convert_input;
   CUTLASS_PRAGMA_UNROLL
   for (int64_t i = 0; i < num_elems_per_thread / num_cols; i++) {
     static_assert(num_elems_per_thread % num_rows_per_thread == 0);
@@ -135,17 +137,17 @@ __global__ void reduce_small_in_v_out_v(
     CUTLASS_PRAGMA_UNROLL
     for (int64_t j = 0; j < num_cols; j++) {
       int64_t read_idx = i * num_cols + j;
-      FragmentCompute tmp = prologue_fn(read_elems[read_idx]);
+      FragmentCompute tmp = prologue_fn(convert_input(read_elems[read_idx]));
       frag_compute = reduce_s_op(frag_compute, tmp);
     }
-    cutlass::NumericConverter<ElemT, ElementCompute> convert_output;
+    cutlass::NumericConverter<ElementOutput, ElementCompute> convert_output;
     ElementCompute tmp = epilogue_scalar_fn(frag_compute);
     reduced_elems[i] = convert_output(tmp);
   }
 
   WriteVecT *this_output_v = reinterpret_cast<WriteVecT*>(this_output);
   WriteVecT *reduced_elems_v = reinterpret_cast<WriteVecT*>(&reduced_elems[0]);
-  constexpr int n_write_elems_in_v = sizeof(WriteVecT) / sizeof(ElemT);
+  constexpr int n_write_elems_in_v = sizeof(WriteVecT) / sizeof(ElementOutput);
   CUTLASS_PRAGMA_UNROLL
 {% if output_accessor.is_contiguous %}
   for (int64_t i = 0; i < num_rows_per_thread / n_write_elems_in_v; i++) {
@@ -198,8 +200,9 @@ void reduce_mean_launcher_small_axis(
   if (num_rows % num_rows_per_thread == 0) {
 
 #define HANDLE_ONE_WRITE_VEC(write_bytes, write_vec_type) \\
-    case write_bytes:                                     \\
+    if (write_bytes == num_write_bytes_v) {               \\
       reduce_small_in_v_out_v<ElemInputType,              \\
+                              ElemOutputType,             \\
                               ElemComputeType,            \\
                               {{read_vec_type}},          \\
                               write_vec_type,             \\
@@ -211,20 +214,19 @@ void reduce_mean_launcher_small_axis(
           num_rows,                                       \\
           batch_stride_input,                             \\
           batch_stride_output);                           \\
-      break;                                              \\
-
-    switch(num_write_bytes_v) {
-      HANDLE_ONE_WRITE_VEC(16, uint4)
-      HANDLE_ONE_WRITE_VEC(8, uint2)
-      HANDLE_ONE_WRITE_VEC(4, unsigned)
-      HANDLE_ONE_WRITE_VEC(2, cutlass::half_t)
-      default:
-        throw std::runtime_error("unsupported vector size for write");
+      LAUNCH_CHECK_REDUCE();                              \\
+      return;                                             \\
     }
+    HANDLE_ONE_WRITE_VEC(16, uint4)
+    HANDLE_ONE_WRITE_VEC(8, uint2)
+    HANDLE_ONE_WRITE_VEC(4, unsigned)
+    if constexpr (std::is_same_v<ElemOutputType, cutlass::half_t>) {
+      HANDLE_ONE_WRITE_VEC(2, cutlass::half_t)
+    }
+    throw std::runtime_error("unsupported vector size for write");
   } else {
     throw std::runtime_error("unsupported num_row_per_threads");
   }
-  LAUNCH_CHECK_REDUCE();
 }
 
 template <typename ElemOutputType, typename ElemInputType>

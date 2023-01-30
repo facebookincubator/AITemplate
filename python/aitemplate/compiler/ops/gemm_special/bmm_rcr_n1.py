@@ -83,7 +83,7 @@ class bmm_rcr_n1(bmm_rcr):
         self._attrs["alpha"] = alpha
         self._set_depth()
         output_shape = self._infer_shapes(a, b)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=a.dtype())
         self._attrs["outputs"] = [output]
         self._attrs["input_accessors"] = [TensorAccessor(a), TensorAccessor(b)]
         self._attrs["output_accessors"] = [TensorAccessor(output)]

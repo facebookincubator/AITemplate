@@ -20,8 +20,9 @@ from typing import List, Sequence
 from .... import backend
 from ....backend import registry
 from ....utils.tensor_utils import wrap_dim
-from ...base import IntVar, Operator, Tensor
+from ...base import IntImm, IntVar, Operator, Tensor
 from .permute021 import permute021
+from .permute0213 import permute0213
 from .permute102 import permute102
 from .permute210 import permute210
 
@@ -49,6 +50,16 @@ class permute(Operator):
         for i, dim in enumerate(dims):
             dims[i] = wrap_dim(dim, x._rank())
 
+        sorted_dims = list(range(x._rank()))
+        assert (
+            sorted(dims) == sorted_dims
+        ), f"expected a permutation of {sorted_dims}, but got {dims}"
+
+        # "dims" is set here before possible dispatching to the
+        # static-shape permute kernels below to keep the call to
+        # ops.permute(..., dims) recoverable from the self._attrs
+        self._attrs["dims"] = dims
+
         if dims == [0, 2, 1]:
             return permute021()(x)
         if dims == [1, 0, 2]:
@@ -56,13 +67,35 @@ class permute(Operator):
         if dims == [2, 1, 0]:
             return permute210()(x)
 
-        self._attrs["dims"] = dims
+        if dims == [0, 2, 1, 3]:
+            second_dim = x.shape()[1]
+            if (isinstance(second_dim, IntImm) and second_dim.value() >= 24) or (
+                isinstance(second_dim, IntVar) and second_dim.lower_bound() >= 24
+            ):
+                # for (0, 2, 1, 3) dims, we dispatch to the permute0213 op
+                # when the second dim >= 24 due to a better performance
+                return permute0213()(x)
+
+        last_dim = x.shape()[-1]
+        if (
+            len(dims) > 3
+            and dims[:-2] + [dims[-1], dims[-2]] == sorted_dims
+            and (
+                (isinstance(last_dim, IntImm) and last_dim.value() >= 8)
+                or (isinstance(last_dim, IntVar) and last_dim.lower_bound() >= 8)
+            )
+        ):
+            # when swapping the last two dims and the last_dim >= 8, we
+            # dispatch to the permute021 op due to a better performance
+            return permute021()(x)
+
         self._attrs["inputs"] = [x]
         self._set_depth()
 
         output_shapes = self._infer_shapes(x)
         output = Tensor(output_shapes, src_ops={self})
         self._attrs["outputs"] = [output]
+        output._attrs["dtype"] = x.dtype()
 
         # TODO: support output TensorAccessor
         return output

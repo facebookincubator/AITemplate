@@ -352,11 +352,6 @@ class CrossAttention(Module):
         self.proj = Linear(dim, dim, specialization="add" if has_residual else None)
         self.proj_drop = Dropout(proj_drop)
 
-    def qkv_proj(self, x):
-        batch, seq, hidden = self.get_shape(x)
-        x = ops.reshape()(x, [-1, hidden])
-        return self.qkv(x)
-
     def attention(self, q, k, v):
         seqlen = self.seqlen
         seqlen_kv = self.seqlen_kv

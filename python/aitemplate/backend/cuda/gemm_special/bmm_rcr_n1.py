@@ -172,6 +172,123 @@ __forceinline__ __device__ bool load_vec_data(
   return true;
 }
 
+namespace detail {
+  template<typename TInput>
+  struct InputHelper;
+
+  template<>
+  struct InputHelper<float>{
+    typedef float scalar_type;
+    typedef float2 vec2_type;
+
+    static
+    __inline__ __device__ vec2_type fma2(vec2_type a, vec2_type b, vec2_type c) {
+      return make_float2(__fmaf_rn(a.x, b.x, c.x), __fmaf_rn(a.y, b.y, c.y));
+    }
+
+    static
+    __inline__ __device__ scalar_type fma(scalar_type a, scalar_type b, scalar_type c) {
+      return __fmaf_rn(a, b, c);
+    }
+
+    static
+    __inline__ __device__ vec2_type mul2(vec2_type a, vec2_type b) {
+      return make_float2(__fmul_rn(a.x, b.x), __fmul_rn(a.y, b.y));
+    }
+
+    static
+    __inline__ __device__ scalar_type mul(scalar_type a, scalar_type b) {
+      return __fmul_rn(a, b);
+    }
+
+    static
+    __inline__ __device__ vec2_type add2(vec2_type a, vec2_type b) {
+      return make_float2(__fadd_rn(a.x, b.x), __fadd_rn(a.y, b.y));
+    }
+
+    static
+    __inline__ __device__ scalar_type add(scalar_type a, scalar_type b) {
+      return __fadd_rn(a, b);
+    }
+
+    static
+    __inline__ __device__ scalar_type low(vec2_type a) {
+      return a.x;
+    }
+
+    static
+    __inline__ __device__ scalar_type high(vec2_type a) {
+      return a.y;
+    }
+
+    static
+    __inline__ __device__ float lowf(vec2_type a) {
+      return a.x;
+    }
+
+    static
+    __inline__ __device__ float highf(vec2_type a) {
+      return a.y;
+    }
+  };
+
+  template<>
+  struct InputHelper<half>{
+    typedef half scalar_type;
+    typedef half2 vec2_type;
+
+    static
+    __inline__ __device__ vec2_type fma2(vec2_type a, vec2_type b, vec2_type c) {
+      return __hfma2(a, b, c);
+    }
+
+    static
+    __inline__ __device__ scalar_type fma(scalar_type a, scalar_type b, scalar_type c) {
+      return __hfma(a, b, c);
+    }
+
+    static
+    __inline__ __device__ vec2_type mul2(vec2_type a, vec2_type b) {
+      return __hmul2(a, b);
+    }
+
+    static
+    __inline__ __device__ scalar_type mul(scalar_type a, scalar_type b) {
+      return __hmul(a, b);
+    }
+
+    static
+    __inline__ __device__ vec2_type add2(vec2_type a, vec2_type b) {
+      return __hadd2(a, b);
+    }
+
+    static
+    __inline__ __device__ scalar_type add(scalar_type a, scalar_type b) {
+      return __hadd(a, b);
+    }
+
+    static
+    __inline__ __device__ scalar_type low(vec2_type a) {
+      return __low2half(a);
+    }
+
+    static
+    __inline__ __device__ scalar_type high(vec2_type a) {
+      return __high2half(a);
+    }
+
+    static
+    __inline__ __device__ float lowf(vec2_type a) {
+      return __low2float(a);
+    }
+
+    static
+    __inline__ __device__ float highf(vec2_type a) {
+      return __high2float(a);
+    }
+  };
+}
+
 // Each thread reads one row from "a" and one column from "b",
 // computes dot_product(a_row, b_col), and writes the result to "c".
 // This kernel assumes loading "a" and "b" can be fully vectorized,
@@ -204,14 +321,16 @@ __global__ void bmm_rcr_n1_kernel_fp32_acc_vec(
 
   float result = 0.0;
 
+  using dispatch = typename detail::InputHelper<ElemT>;
+  using vec2_type = typename dispatch::vec2_type;
   CUTLASS_PRAGMA_UNROLL
   for (int64_t i = 0; i < N_NUM_ELEMS_IN_V; i++) {
-    const half2* a_vec_h2 = reinterpret_cast<const half2*>(&a_vec[i]);
-    const half2* b_vec_h2 = reinterpret_cast<const half2*>(&b_vec[i]);
+    auto* a_vec_h2 = reinterpret_cast<const vec2_type*>(&a_vec[i]);
+    auto* b_vec_h2 = reinterpret_cast<const vec2_type*>(&b_vec[i]);
     CUTLASS_PRAGMA_UNROLL
     for (int64_t j = 0; j < N_READ_ELEMS_IN_V / 2; ++j) {
-      half2 c_h2 = __hmul2(a_vec_h2[j], b_vec_h2[j]);
-      result += float(__low2half(c_h2)) + float(__high2half(c_h2));
+      auto c_h2 = dispatch::mul2(a_vec_h2[j], b_vec_h2[j]);
+      result += dispatch::lowf(c_h2) + dispatch::highf(c_h2);
     }
   }
 
@@ -295,16 +414,18 @@ __global__ void bmm_rcr_n1_kernel_fp32_acc(
 
   float result = 0.0;
 
-  const half2* a_data_h2 = reinterpret_cast<const half2*>(&a_data[0]);
-  const half2* b_data_h2 = reinterpret_cast<const half2*>(&b_data[0]);
+  using dispatch = typename detail::InputHelper<ElemT>;
+  using vec2_type = typename dispatch::vec2_type;
+
+  auto* a_data_h2 = reinterpret_cast<const vec2_type*>(&a_data[0]);
+  auto* b_data_h2 = reinterpret_cast<const vec2_type*>(&b_data[0]);
   CUTLASS_PRAGMA_UNROLL
   for (int64_t i = 0; i < K / 2; ++i) {
-    half2 c_h2 = __hmul2(a_data_h2[i], b_data_h2[i]);
-    result += float(__low2half(c_h2)) + float(__high2half(c_h2));
+    auto c_h2 = dispatch::mul2(a_data_h2[i], b_data_h2[i]);
+    result += dispatch::lowf(c_h2) + dispatch::highf(c_h2);
   }
   if (K % 2) {
-    result += float(__hmul(reinterpret_cast<half&>(a_data[K-1]),
-                           reinterpret_cast<half&>(b_data[K-1])));
+    result += float(dispatch::mul(a_data[K-1], b_data[K-1]));
   }
 
   int64_t batch_idx = blockIdx.y;
@@ -339,19 +460,21 @@ __global__ void bmm_rcr_n1_kernel_fp16_acc_vec(
     return;
   }
 
-  half2 result_h2 = {0.0, 0.0};
+  using dispatch = typename detail::InputHelper<ElemT>;
+  using vec2_type = typename dispatch::vec2_type;
+  vec2_type result_h2 = {0.0, 0.0};
 
   CUTLASS_PRAGMA_UNROLL
   for (int64_t i = 0; i < N_NUM_ELEMS_IN_V; i++) {
-    const half2* a_vec_h2 = reinterpret_cast<const half2*>(&a_vec[i]);
-    const half2* b_vec_h2 = reinterpret_cast<const half2*>(&b_vec[i]);
+    auto* a_vec_h2 = reinterpret_cast<const vec2_type*>(&a_vec[i]);
+    auto* b_vec_h2 = reinterpret_cast<const vec2_type*>(&b_vec[i]);
     CUTLASS_PRAGMA_UNROLL
     for (int64_t j = 0; j < N_READ_ELEMS_IN_V / 2; ++j) {
-      result_h2 = __hfma2(a_vec_h2[j], b_vec_h2[j], result_h2);
+      result_h2 = dispatch::fma2(a_vec_h2[j], b_vec_h2[j], result_h2);
     }
   }
 
-  float result = __hadd(__low2half(result_h2), __high2half(result_h2));
+  float result = float(dispatch::add(dispatch::low(result_h2), dispatch::high(result_h2)));
 
   int64_t batch_idx = blockIdx.y;
   int64_t row_idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -378,20 +501,21 @@ __global__ void bmm_rcr_n1_kernel_fp16_acc(
     return;
   }
 
-  half2 result_h2 = {0.0, 0.0};
+  using dispatch = typename detail::InputHelper<ElemT>;
+  using vec2_type = typename dispatch::vec2_type;
 
-  const half2* a_data_h2 = reinterpret_cast<const half2*>(&a_data[0]);
-  const half2* b_data_h2 = reinterpret_cast<const half2*>(&b_data[0]);
+  vec2_type result_h2 = {0.0, 0.0};
+
+  const auto* a_data_h2 = reinterpret_cast<const vec2_type*>(&a_data[0]);
+  const auto* b_data_h2 = reinterpret_cast<const vec2_type*>(&b_data[0]);
   CUTLASS_PRAGMA_UNROLL
   for (int64_t i = 0; i < K / 2; ++i) {
-    result_h2 = __hfma2(a_data_h2[i], b_data_h2[i], result_h2);
+    result_h2 = dispatch::fma2(a_data_h2[i], b_data_h2[i], result_h2);
   }
 
-  half result = __hadd(__low2half(result_h2), __high2half(result_h2));
+  auto result = dispatch::add(dispatch::low(result_h2), dispatch::high(result_h2));
   if (K % 2) {
-    result = __hfma(reinterpret_cast<const half&>(a_data[K-1]),
-                    reinterpret_cast<const half&>(b_data[K-1]),
-                    result);
+    result = dispatch::fma(a_data[K-1], b_data[K-1], result);
   }
 
   int64_t batch_idx = blockIdx.y;
@@ -497,12 +621,17 @@ def gen_function(func_attrs, exec_cond_template, dim_info_dict):
     assert ak == bk, f"ak is not equal to bk. ak: {ak}, bk: {bk}"
 
     backend_spec = CUDASpec()
-    elem_input_type = backend_spec.dtype_to_backend_type(
-        func_attrs["inputs"][0]._attrs["dtype"]
-    )
-    vec_lens = list(zip(*backend_spec.read_num_elements_to_backend_type))[0][:-1]
+    dtype = func_attrs["inputs"][0].dtype()
+    elem_input_type = backend_spec.dtype_to_backend_type(dtype)
+    vec_lens = [8, 4, 2]
+    # Each corresponds to a vec_len in the list above
+    backend_types = [
+        "uint4",
+        "uint2",
+        "uint",
+    ]
     alignment = tensor_accessor_codegen.find_max_alignment(
-        ak, func_attrs["input_accessors"]
+        ak, dtype, func_attrs["input_accessors"]
     )
     if alignment % 2:
         bmm_rcr_n1_kernel_fp32 = "bmm_rcr_n1_kernel_fp32_acc"
@@ -513,9 +642,7 @@ def gen_function(func_attrs, exec_cond_template, dim_info_dict):
             if ak % vec_len == 0:
                 bmm_rcr_n1_kernel_fp32 = "bmm_rcr_n1_kernel_fp32_acc_vec"
                 bmm_rcr_n1_kernel_fp16 = "bmm_rcr_n1_kernel_fp16_acc_vec"
-                read_vec_type = backend_spec.read_num_elements_to_backend_type[vec_idx][
-                    1
-                ]
+                read_vec_type = backend_types[vec_idx]
                 break
 
     input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(

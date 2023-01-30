@@ -1,0 +1,29 @@
+load("@fbcode_macros//build_defs:cpp_library.bzl", "cpp_library")
+
+oncall("aitemplate")
+
+cpp_library(
+    name = "AITModelImpl",
+    srcs = ["AITModelImpl.cpp"],
+    headers = ["AITModelImpl.h"],
+    propagated_pp_flags = [
+        "-DFBCODE_AIT",
+        "-Iaitemplate/AITemplate/static/include",
+    ],
+    supports_python_dlopen = True,
+    deps = [
+        "//caffe2:ATen-cu",
+        "//caffe2/c10:c10",
+        "//caffe2/c10:c10_cuda",
+        "//folly:map_util",
+    ],
+    exported_deps = [
+        "//aitemplate/AITemplate/static/include:aitemplate",  # @manual
+        "//caffe2:ATen-cu",
+        "//caffe2:torch-cpp",
+        "//folly/container:f14_hash",
+    ],
+    exported_external_deps = [
+        ("glibc", None, "dl"),
+    ],
+)

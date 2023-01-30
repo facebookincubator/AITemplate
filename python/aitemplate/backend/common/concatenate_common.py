@@ -17,6 +17,8 @@ backend concatenate function common templates.
 """
 import jinja2
 
+from ...compiler.ops.tensor import concatenate
+
 from . import tensor_accessor_codegen
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
@@ -194,6 +196,7 @@ concatenate_kernel(
 
 enum class LoadVecType {
   VT_HALF = 0,
+  VT_BFLOAT16,
   VT_FLOAT,
   VT_FLOAT2,
   VT_FLOAT4
@@ -214,8 +217,12 @@ static inline LoadVecType get_vec_type({{index_type}} dim_size) {
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT4, float4)
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT2, float2)
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
-  HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
-
+  if constexpr (std::is_same_v<ELEM_T, half>) {
+    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+  }
+  if constexpr (std::is_same_v<ELEM_T, bfloat16>) {
+    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_BFLOAT16, bfloat16)
+  }
 #undef HANDLE_ONE_VEC_TYPE
   throw std::runtime_error(
       "Cannot resolve LoadVecType."
@@ -265,7 +272,7 @@ void concatenate_kernel_launcher(
   dim3 grid_config = dim3(static_cast<unsigned>(num_blocks_x), NumInputs);
 
 #define HANDLE_ONE_VEC_TYPE(load_vec_type, vec_type)                        \\
-    case load_vec_type: {                                                   \\
+    if (min_vec_type == load_vec_type) {                                    \\
       if (ElemsPerThread * sizeof(ELEM_T) < sizeof(vec_type)) {             \\
          throw std::runtime_error(                                          \\
            std::string("No valid kernel available for ") + #vec_type);      \\
@@ -278,19 +285,21 @@ void concatenate_kernel_launcher(
             concat_dim,                                                     \\
             output_meta.output_strides[concat_dim]);                        \\
       LAUNCH_CHECK_CAT();                                                   \\
-      break;                                                                \\
+      return;                                                               \\
     }
 
-  switch (min_vec_type) {
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT4, float4)
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT2, float2)
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
-    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
-    default:
-      throw std::runtime_error("Invalid LoadVecType\\n");
-  }
+    if constexpr (std::is_same_v<ELEM_T, half>) {
+      HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+    }
+    if constexpr (std::is_same_v<ELEM_T, bfloat16>) {
+      HANDLE_ONE_VEC_TYPE(LoadVecType::VT_BFLOAT16, bfloat16)
+    }
 
 #undef HANDLE_ONE_VEC_TYPE
+  throw std::runtime_error("Invalid LoadVecType\\n");
 }
 
 #undef CHECK_ERROR_CAT
@@ -614,6 +623,7 @@ def gen_function(
     """
     inputs = func_attrs["inputs"]
     original_inputs = func_attrs["original_inputs"]
+    concatenate.check_rank(original_inputs, func_attrs["concat_dim"])
     orig_x = original_inputs[0]
     y = func_attrs["outputs"][0]
     x_shape = orig_x._attrs["shape"]
@@ -725,6 +735,7 @@ def gen_function_call(
         f'{len(inputs)}, {len(input_accessors)}, op: {func_attrs["name"]}'
     )
     original_inputs = func_attrs["original_inputs"]
+    concatenate.check_rank(original_inputs, func_attrs["concat_dim"])
     orig_x = original_inputs[0]
     y = func_attrs["outputs"][0]
     concat_dim = func_attrs["concat_dim"]

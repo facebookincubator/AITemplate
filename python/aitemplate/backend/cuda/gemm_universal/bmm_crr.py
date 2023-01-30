@@ -19,29 +19,22 @@ A[ColMajor], B[RowMajor], bias[RowMajor]
 """
 
 from ... import registry
-from ...common import gemm_common
 from . import bmm_common, common
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 
 
-def _get_problem_info(**kwargs):
-    problem_args = {
-        "bias_ptr": "c_ptr",
-        "a_batch_stride": "M * K",
-        "b_batch_stride": "N * K",
-        "bias_batch_stride": "M * N",
-        "c_batch_stride": "M * N",
-        "lda": "M",
-        "ldb": "N",
-        "ldbias": "N",
-        "ldc": "N",
-    }
-    for k, v in kwargs.items():
-        problem_args[k] = v
-
-    bmm_problem_info = bmm_common.Bmm_problem_info(**problem_args)
-    return bmm_problem_info
+PROBLEM_ARGS = {
+    "bias_ptr": "c_ptr",
+    "a_batch_stride": "M * K",
+    "b_batch_stride": "N * K",
+    "bias_batch_stride": "M * N",
+    "c_batch_stride": "M * N",
+    "lda": "M",
+    "ldb": "N",
+    "ldbias": "N",
+    "ldc": "N",
+}
 
 
 @registry.reg("cuda.bmm_crr.config")
@@ -49,19 +42,12 @@ def bmm_crr_config(func_attrs, dtype="float16"):
     def fproc(op):
         import cutlass_lib
 
-        from ...backend_spec import CUDASpec
-
-        backend_spec = CUDASpec()
-        elem_type = backend_spec.dtype_to_lib_type(
-            func_attrs["inputs"][0]._attrs["dtype"]
-        )
-
         return common.default_fproc(
             op=op,
             a_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             b_layout=cutlass_lib.library.LayoutType.RowMajor,
             c_layout=cutlass_lib.library.LayoutType.RowMajor,
-            elem_type=elem_type,
+            dtype=func_attrs["inputs"][0].dtype(),
             epiligue_name=func_attrs["epilogue"],
         )
 
@@ -70,39 +56,12 @@ def bmm_crr_config(func_attrs, dtype="float16"):
 
 @registry.reg("cuda.bmm_crr.gen_profiler")
 def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
-    a_dims = bmm_common.reverse_dim_info_mapping(
-        dim_info_dict, gemm_common.Source.INPUT, 0
-    )
-    b_dims = bmm_common.reverse_dim_info_mapping(
-        dim_info_dict, gemm_common.Source.INPUT, 1
-    )
-    c_dims = bmm_common.reverse_dim_info_mapping(
-        dim_info_dict, gemm_common.Source.OUTPUT, 0
-    )
-
-    args_parser = bmm_common.ARGS_PARSER_TEMPLATE.render(
-        a_dims=a_dims, b_dims=b_dims, c_dims=c_dims
-    )
-
-    mm_info = _get_problem_info(
-        alpha_value=func_attrs.get("alpha", 1),
-    )
-    a_shapes = func_attrs["input_accessors"][0].original_shapes
-    b_shapes = func_attrs["input_accessors"][1].original_shapes
-    bmm_common._update_stride_info(mm_info, a_shapes, b_shapes)
-
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
-        mm_info=mm_info,
-    )
-
-    return bmm_common.gen_profiler(
+    return bmm_common.default_gen_profiler(
         func_attrs,
         workdir,
         profiler_filename,
         dim_info_dict,
-        common.SRC_TEMPLATE,
-        problem_args,
-        args_parser,
+        PROBLEM_ARGS,
     )
 
 
@@ -112,21 +71,25 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
 ):
-    mm_info = _get_problem_info(
+    default_mm_info = bmm_common.get_default_problem_info(
+        PROBLEM_ARGS,
         alpha_value=func_attrs.get("alpha", 1),
     )
-    a_shapes = func_attrs["input_accessors"][0].original_shapes
-    b_shapes = func_attrs["input_accessors"][1].original_shapes
-    bmm_common._update_stride_info(mm_info, a_shapes, b_shapes)
-
-    problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
-        mm_info=mm_info,
+    (
+        problem_args,
+        input_addr_calculator,
+        output_addr_calculator,
+    ) = bmm_common.make_function_strided_args(
+        func_attrs, dim_info_dict, default_mm_info, is_permute=False
     )
+
     return bmm_common.gen_function(
         func_attrs,
         exec_cond_template,
         problem_args,
         dim_info_dict,
+        input_addr_calculator=input_addr_calculator,
+        output_addr_calculator=output_addr_calculator,
     )
 
 

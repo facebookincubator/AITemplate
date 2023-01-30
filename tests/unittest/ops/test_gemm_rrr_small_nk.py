@@ -20,30 +20,48 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.utils import shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class GEMMRrrSmallNKTestCase(unittest.TestCase):
-    def _test_rrr(self, M, N, K, use_fp16_acc=True):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_count = 0
+
+    def _test_rrr(
+        self, M, N, K, use_fp16_acc=True, dtype="float16", atol=1e-1, rtol=1e-1
+    ):
         target = detect_target(use_fp16_acc=use_fp16_acc)
-        X = Tensor(shape=[*M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[K, N], dtype="float16", name="input_1", is_input=True)
+        X = Tensor(
+            shape=[shape_utils.gen_int_var_min_max(M, name="batch_dim"), K],
+            dtype=dtype,
+            name="input_0",
+            is_input=True,
+        )
+        W = Tensor(shape=[K, N], dtype=dtype, name="input_1", is_input=True)
         OP = ops.gemm_rrr_small_nk()
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "gemm_rrr_small_nk")
-        X_pt = torch.randn(*M, K).cuda().half()
-        W_pt = torch.randn(K, N).cuda().half()
-        Y_pt = torch.matmul(X_pt, W_pt)
+        module = compile_model(
+            Y, target, "./tmp", f"gemm_rrr_small_nk_{self.test_count}"
+        )
 
-        inputs = {"input_0": X_pt, "input_1": W_pt}
-        y = torch.empty([*M, N]).cuda().half()
-        module.run_with_tensors(inputs, [y])
-        if X_pt.nelement() == 0 or W_pt.nelement() == 0:
-            pass
-        else:
-            self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+        for m in M:
+            X_pt = get_random_torch_tensor([m, K], dtype)
+            W_pt = get_random_torch_tensor([K, N], dtype)
+            Y_pt = torch.matmul(X_pt, W_pt)
+
+            inputs = {"input_0": X_pt, "input_1": W_pt}
+            y = torch.empty_like(Y_pt)
+            module.run_with_tensors(inputs, [y])
+            if X_pt.nelement() == 0 or W_pt.nelement() == 0:
+                pass
+            else:
+                torch.testing.assert_close(Y_pt, y, atol=atol, rtol=rtol)
+        self.test_count += 1
 
         # from aitemplate.testing.benchmark_pt import benchmark_torch_function
         # t = benchmark_torch_function(100, torch.matmul, X_pt, W_pt)
@@ -62,6 +80,10 @@ class GEMMRrrSmallNKTestCase(unittest.TestCase):
         # self._test_rrr([1000000], 6, 10)
         # self._test_rrr([1000000], 8, 16)
         # self._test_rrr([1000000], 6, 3, False)
+
+    def test_float32(self):
+        self._test_rrr([0, 1], 6, 3, False, dtype="float32", atol=1e-5, rtol=1.3e-6)
+        self._test_rrr([100001], 7, 10, False, dtype="float32", atol=1e-5, rtol=1.3e-6)
 
 
 if __name__ == "__main__":

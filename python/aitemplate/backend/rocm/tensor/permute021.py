@@ -30,7 +30,7 @@ Header_files = """
 
 
 @registry.reg("rocm.permute021.gen_function")
-def gen_function(func_attrs, template_path, shape_eval_template, shape_save_template):
+def gen_function(func_attrs, template_path):
     """
     Parameters
     ----------
@@ -38,8 +38,6 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
         Attributes from Operator
     template_path : str
         path to library used
-    shape_eval_template : jinja template
-    shape_save_template : jinja template
 
     Returns
     -------
@@ -49,8 +47,6 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
     return permute021_common.gen_function(
         func_attrs,
         template_path,
-        shape_eval_template,
-        shape_save_template,
         Header_files,
         ROCMSpec(),
     )

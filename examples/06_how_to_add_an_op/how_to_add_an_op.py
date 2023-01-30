@@ -71,15 +71,19 @@ namespace {
 
 {{func_signature}}
 {
-    invoke_add_one(output, input, num_elements, stream);
+    invoke_add_one(
+        static_cast<{{elem_type}}*>(output),
+        static_cast<const {{elem_type}}*>(input),
+        num_elements,
+        stream);
 }
     """
 )
 
 FUNC_SIGNATURE = jinja2.Template(
     """
-void {{func_name}}(half* output,
-                   const half* input,
+void {{func_name}}(void* output,
+                   const void* input,
                    const int64_t num_elements,
                    {{prefix}}Stream_t stream)
     """
@@ -108,14 +112,14 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 KERNEL_TEMPLATE = jinja2.Template(
     """
-__global__ void add_one(half* output, const half* input, const int64_t num_elements) {
+__global__ void add_one({{elem_type}}* output, const {{elem_type}}* input, const int64_t num_elements) {
   const int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < num_elements) {
-    output[idx] = input[idx] + half(1.0);
+    output[idx] = input[idx] + {{elem_type}}(1.0);
   }
 }
 
-void invoke_add_one(half* output, const half* input, int64_t num_elements, {{prefix}}Stream_t stream) {
+void invoke_add_one({{elem_type}}* output, const {{elem_type}}* input, int64_t num_elements, {{prefix}}Stream_t stream) {
   if (num_elements < 1024) {
     dim3 grid(1);
     dim3 block(num_elements);
@@ -130,22 +134,12 @@ void invoke_add_one(half* output, const half* input, int64_t num_elements, {{pre
 )
 
 
-FUNC_CALL_FP16_PARAM_TEMPLATE = jinja2.Template(
-    """reinterpret_cast<half*>(
-        {% if is_cuda %}&({% endif %}{{name}}{% if is_cuda %}->raw()){% endif %})"""
-)
-
-
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ", is_cuda=False) -> str:
+def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 1
 
-    output_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["outputs"][0]._attrs["name"], is_cuda=is_cuda
-    )
-    input_name = FUNC_CALL_FP16_PARAM_TEMPLATE.render(
-        name=func_attrs["inputs"][0]._attrs["name"], is_cuda=is_cuda
-    )
+    output_name = func_attrs["outputs"][0]._attrs["name"]
+    input_name = func_attrs["inputs"][0]._attrs["name"]
 
     dim_names = [dim._attrs["name"] for dim in func_attrs["inputs"][0].shape()]
     return FUNC_CALL_TEMPLATE.render(
@@ -158,10 +152,20 @@ def gen_function_call(func_attrs: Dict[str, Any], indent="  ", is_cuda=False) ->
 
 
 def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) -> str:
+    input_x = func_attrs["inputs"][0]
+    output_y = func_attrs["outputs"][0]
+    input_type = backend_spec.dtype_to_backend_type(input_x._attrs["dtype"])
+    output_type = backend_spec.dtype_to_backend_type(output_y._attrs["dtype"])
+
+    if input_type != output_type:
+        raise NotImplementedError("input type must equal to output type")
+
     prefix = backend_spec.prefix
+
     return FUNC_TEMPLATE.render(
         header_files=header_files,
-        kernel=KERNEL_TEMPLATE.render(prefix=prefix),
+        elem_type=input_type,
+        kernel=KERNEL_TEMPLATE.render(prefix=prefix, elem_type=input_type),
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"], prefix=prefix
         ),
@@ -194,7 +198,7 @@ def cuda_add_one_gen_function_decl(func_attrs: Dict[str, Any]) -> str:
 
 @registry.reg("cuda.add_one.func_call")
 def cuda_add_one_gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
-    return gen_function_call(func_attrs, indent, is_cuda=True)
+    return gen_function_call(func_attrs, indent)
 
 
 HIP_HEADER_FILES = """
@@ -215,7 +219,7 @@ def rocm_add_one_gen_function_decl(func_attrs: Dict[str, Any]) -> str:
 
 @registry.reg("rocm.add_one.func_call")
 def rocm_add_one_gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
-    return gen_function_call(func_attrs, indent, is_cuda=False)
+    return gen_function_call(func_attrs, indent)
 
 
 def create_ait_model(shapes):

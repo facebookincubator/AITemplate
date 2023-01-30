@@ -21,21 +21,23 @@ from aitemplate.compiler.ops.common.view_ops import reshape
 
 from aitemplate.frontend import IntImm, IntVar, nn, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 class ReshapeTestCase(unittest.TestCase):
-    def _test_fp16(
+    def _test_reshape(
         self,
         batch_size=(1, 3),
         X_shape=(16, 32, 64),
         Y_shape=(-1, 16, 16, 128),
         test_name="reshape",
+        input_type="float16",
     ):
         target = detect_target()
         # N, H, W, C
         X = Tensor(
             shape=[IntVar(values=list(batch_size), name="input_batch"), *X_shape],
-            dtype="float16",
+            dtype=input_type,
             name="input_0",
             is_input=True,
         )
@@ -57,30 +59,31 @@ class ReshapeTestCase(unittest.TestCase):
         for b in batch_size:
             # C, H, W
             X_shape_pt = (X_shape[2], X_shape[0], X_shape[1])
-            X_pt = torch.randn(b, *X_shape_pt).cuda().half()
+            X_pt = get_random_torch_tensor(shape=(b, *X_shape_pt), dtype=input_type)
             OP_pt = torch.nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
             Y1_pt = OP_pt(X_pt).permute([0, 2, 3, 1])
             Y2_pt = torch.reshape(Y1_pt, shape)  # reshape 1
             Y_pt = torch.reshape(Y2_pt, shape + [1])  # reshape 2
 
             x = X_pt.permute((0, 2, 3, 1)).contiguous()
-            y = torch.empty(Y_pt.size()).cuda().half()
+            y = torch.empty_like(Y_pt)
             module.run_with_tensors([x], [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def _test_fp16_single_op(
+    def _test_reshape_single_op(
         self,
-        X_shape,
-        Y_shape,
+        X_shape=(16, 32, 64),
+        Y_shape=(-1, 16, 16, 128),
         test_name="reshape",
         check_name_retention=False,
+        input_type="float16",
     ):
         target = detect_target()
         X_shape = [dim if isinstance(dim, IntVar) else IntImm(dim) for dim in X_shape]
         Y_shape = [dim if isinstance(dim, IntVar) else IntImm(dim) for dim in Y_shape]
         X = Tensor(
             shape=X_shape,
-            dtype="float16",
+            dtype=input_type,
             name="input_0",
             is_input=True,
         )
@@ -106,9 +109,9 @@ class ReshapeTestCase(unittest.TestCase):
         ]
 
         for x_shape, y_shape in zip(x_shapes, y_shapes):
-            X_pt = torch.randn(x_shape).cuda().half()
+            X_pt = get_random_torch_tensor(x_shape, input_type)
             Y_pt = torch.reshape(X_pt, y_shape)
-            y = torch.empty(Y_pt.size()).cuda().half()
+            y = torch.empty_like(Y_pt)
             module.run_with_tensors([X_pt], [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
         if check_name_retention:
@@ -118,50 +121,54 @@ class ReshapeTestCase(unittest.TestCase):
             )
 
     def test_reshape(self):
-        self._test_fp16(test_name="reshape0")
-        self._test_fp16([4, 2], (4, 8, 8), (-1,), "reshape1")
-        self._test_fp16([3, 1], (5, 4, 16), (-1, 8), "reshape2")
-        self._test_fp16_single_op(
+        self._test_reshape(test_name="reshape0")
+        self._test_reshape([4, 2], (4, 8, 8), (-1,), "reshape1")
+        self._test_reshape([3, 1], (5, 4, 16), (-1, 8), "reshape2")
+        self._test_reshape_single_op(
             X_shape=(IntVar(values=(1, 3), name="input_batch"), 16, 32, 64),
             Y_shape=(-1, 16, 16, 128),
             test_name="reshape3",
         )
-        self._test_fp16_single_op(
+        self._test_reshape_single_op(
             X_shape=(1, 16, 32, 64), Y_shape=[1, 64, 16, 32], test_name="reshape4"
         )
-        self._test_fp16_single_op(
+        self._test_reshape_single_op(
             X_shape=(IntVar(values=(2, 4), name="input_batch"), 0, 8),
             Y_shape=(0, 2, 4),
             test_name="reshape1",
         )
-        self._test_fp16_single_op(
+        self._test_reshape_single_op(
             X_shape=(IntVar(values=(2, 4), name="input_batch"), 1, 120),
             Y_shape=(5, 4, -1, 3, 2),
             test_name="reshape_name",
             check_name_retention=True,
         )
-        self._test_fp16_single_op(
+        self._test_reshape_single_op(
             X_shape=(IntVar(values=(2, 4), name="input_batch"), 1, 120),
             Y_shape=(5, 4, IntVar(values=(2, 4)), 3, -1),
             test_name="reshape_name_unknown_static_dim",
             check_name_retention=True,
         )
-        self._test_fp16_single_op(
+        self._test_reshape_single_op(
             X_shape=(IntVar(values=(2, 4), name="input_batch"), 1, 120),
             Y_shape=(5, IntVar(values=(2, 4)), 3, 4, 2),
             test_name="reshape_name_no_unknown_dims",
             check_name_retention=True,
         )
-        self._test_fp16_single_op(
+        self._test_reshape_single_op(
             X_shape=(IntVar(values=(2, 4), name="input_batch"), 1, 120),
             Y_shape=(IntVar(values=(10, 20)), 4, 2, 3, -1),
             test_name="reshape_squeeze_intvar_dim",
         )
-        self._test_fp16_single_op(
+        self._test_reshape_single_op(
             X_shape=(IntVar(values=(20, 40), name="input_batch"), 1, 12),
             Y_shape=(4, 2, IntVar(values=(2, 4)), 3, 5),
             test_name="reshape_unsqueeze_intvar_dim",
         )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
+    def test_reshape_float32(self):
+        self._test_reshape_single_op(input_type="float32", test_name="reshape_float32")
 
 
 if __name__ == "__main__":

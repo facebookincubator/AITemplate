@@ -15,16 +15,21 @@
 import unittest
 
 import torch
+
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
-
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 from aitemplate.utils import shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class SplitGetItemTestCase(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(SplitGetItemTestCase, self).__init__(*args, **kwargs)
+        self._test_id = 0
+
     def _test_split_getitem(
         self,
         batch_size=(1, 3),
@@ -33,15 +38,14 @@ class SplitGetItemTestCase(unittest.TestCase):
         split_dim=1,
         item_idx=0,
         test_name="split_getitem",
+        dtype="float16",
     ):
-        assert len(X_shape) == 2, "expected X_shape to be 2 but got {}".format(
-            len(X_shape)
-        )
+        assert len(X_shape) == 2, f"expected X_shape to be 2 but got {X_shape}"
         target = detect_target()
         b_dim = shape_utils.gen_int_var_min_max(batch_size, name="input_batch")
         X = Tensor(
             shape=[b_dim, *X_shape],
-            dtype="float16",
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
@@ -53,7 +57,12 @@ class SplitGetItemTestCase(unittest.TestCase):
         else:
             assert 0, f"expected split_dim to be either 1 or 2 but got {split_dim}"
 
-        W = Tensor(shape=[b_dim, N, K], dtype="float16", name="input_1", is_input=True)
+        W = Tensor(
+            shape=[b_dim, N, K],
+            dtype=dtype,
+            name="input_1",
+            is_input=True,
+        )
 
         Y1 = ops.split()(X, split_sections, split_dim)
         Y2 = ops.getitem()(Y1, item_idx)
@@ -62,12 +71,13 @@ class SplitGetItemTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         for b in batch_size:
             X_shape_pt = (b, *X_shape)
-            X_pt = torch.randn(X_shape_pt).cuda().half()
-            W_pt = torch.randn(b, N, K).cuda().half()
+            X_pt = get_random_torch_tensor(X_shape_pt, dtype=dtype)
+            W_pt = get_random_torch_tensor([b, N, K], dtype=dtype)
             WT = torch.transpose(W_pt, 2, 1)
 
             Y1_pt = torch.split(X_pt, split_sections, split_dim)
@@ -77,15 +87,39 @@ class SplitGetItemTestCase(unittest.TestCase):
             module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_split_getitem(self):
-        self._test_split_getitem(test_name="split_getitem_0")
+    def test_split_getitem_fp16(self):
+        self._test_split_getitem(
+            test_name="split_getitem_fp16",
+            dtype="float16",
+        )
         self._test_split_getitem(
             batch_size=[5],
             X_shape=(16, 32),
             split_sections=[8, 20, 4],
             split_dim=2,
             item_idx=1,
-            test_name="split_getitem_1",
+            test_name="split_getitem_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        int(detect_target()._arch) < 80,
+        f"fp32 BMM not supported in {detect_target()._arch}",
+    )
+    def test_split_getitem_fp32(self):
+        self._test_split_getitem(
+            test_name="split_getitem_fp32",
+            dtype="float32",
+        )
+        self._test_split_getitem(
+            batch_size=[5],
+            X_shape=(16, 32),
+            split_sections=[8, 20, 4],
+            split_dim=2,
+            item_idx=1,
+            test_name="split_getitem_fp32",
+            dtype="float32",
         )
 
     def _test_split_getitem_output(
@@ -95,16 +129,15 @@ class SplitGetItemTestCase(unittest.TestCase):
         split_sections=(4, 8, 2, 2),
         split_dim=1,
         item_idx=0,
-        test_name="split_getitem",
+        test_name="split_getitem_output",
+        dtype="float16",
     ):
-        assert len(X_shape) == 2, "expected X_shape to be 2 but got {}".format(
-            len(X_shape)
-        )
+        assert len(X_shape) == 2, f"expected X_shape to be 2 but got {X_shape}"
         target = detect_target()
         b_dim = shape_utils.gen_int_var_min_max(batch_size, name="input_batch")
         X = Tensor(
             shape=[b_dim, *X_shape],
-            dtype="float16",
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
@@ -115,11 +148,12 @@ class SplitGetItemTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         for b in batch_size:
             X_shape_pt = (b, *X_shape)
-            X_pt = torch.randn(X_shape_pt).cuda().half()
+            X_pt = get_random_torch_tensor(X_shape_pt, dtype=dtype)
 
             Y1_pt = torch.split(X_pt, split_sections, split_dim)
             Y_pt = Y1_pt[item_idx]
@@ -127,15 +161,35 @@ class SplitGetItemTestCase(unittest.TestCase):
             module.run_with_tensors([X_pt], [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_split_getitem_output(self):
-        self._test_split_getitem_output(test_name="split_getitem_output_0")
+    def test_split_getitem_output_fp16(self):
+        self._test_split_getitem_output(
+            test_name="split_getitem_output",
+            dtype="float16",
+        )
         self._test_split_getitem_output(
             batch_size=[10],
             X_shape=(16, 31),
             split_sections=[9, 19, 3],
             split_dim=2,
             item_idx=1,
-            test_name="split_getitem_output_1",
+            test_name="split_getitem_output",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_split_getitem_output_fp32(self):
+        self._test_split_getitem_output(
+            test_name="split_getitem_output_fp32",
+            dtype="float32",
+        )
+        self._test_split_getitem_output(
+            batch_size=[10],
+            X_shape=(16, 31),
+            split_sections=[9, 19, 3],
+            split_dim=2,
+            item_idx=1,
+            test_name="split_getitem_output_fp32",
+            dtype="float32",
         )
 
     def _test_split_multiple_getitems(
@@ -144,21 +198,18 @@ class SplitGetItemTestCase(unittest.TestCase):
         X_shape=(16, 32),
         split_sections=(4, 4, 6, 2),
         split_dim=1,
-        test_name="split_getitem",
+        test_name="split_multiple_getitems",
+        dtype="float16",
     ):
-        assert len(X_shape) == 2, "expected X_shape to be 2 but got {}".format(
-            len(X_shape)
-        )
+        assert len(X_shape) == 2, f"expected X_shape to be 2 but got {X_shape}"
         assert (
             len(split_sections) >= 2
-        ), "expected split_sections to have at least 2 values, but got {}".format(
-            split_sections
-        )
+        ), f"expected split_sections to have at least 2 values, but got {split_sections}"
         target = detect_target()
         b_dim = shape_utils.gen_int_var_min_max(batch_size, name="input_batch")
         X = Tensor(
             shape=[b_dim, *X_shape],
-            dtype="float16",
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
@@ -173,7 +224,7 @@ class SplitGetItemTestCase(unittest.TestCase):
         X2_shape[split_dim - 1] = split_sections[item_idx0]
         X2 = Tensor(
             shape=[b_dim, *X2_shape],
-            dtype="float16",
+            dtype=dtype,
             name="input_2",
             is_input=True,
         )
@@ -188,13 +239,14 @@ class SplitGetItemTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         for b in batch_size:
             X_shape_pt = (b, *X_shape)
-            X_pt = torch.randn(X_shape_pt).cuda().half()
+            X_pt = get_random_torch_tensor(X_shape_pt, dtype=dtype)
             X2_shape_pt = (b, *X2_shape)
-            X2_pt = torch.randn(X2_shape_pt).cuda().half()
+            X2_pt = get_random_torch_tensor(X2_shape_pt, dtype=dtype)
 
             Y1_pt = torch.split(X_pt, split_sections, split_dim)
             Y2_pt = Y1_pt[item_idx0]
@@ -207,16 +259,36 @@ class SplitGetItemTestCase(unittest.TestCase):
             module.run_with_tensors({"input_0": X_pt, "input_2": X2_pt}, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_split_mutiple_getitems(self):
-        self._test_split_multiple_getitems(test_name="split_multiple_getitems_0")
+    def test_split_mutiple_getitems_fp16(self):
+        self._test_split_multiple_getitems(
+            test_name="split_multiple_getitems_fp16",
+            dtype="float16",
+        )
         self._test_split_multiple_getitems(
             batch_size=[10],
             X_shape=(16, 31),
             split_sections=[9, 9, 13],
             split_dim=2,
-            test_name="split_multiple_getitems_1",
+            test_name="split_multiple_getitems_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_split_mutiple_getitems_fp32(self):
+        self._test_split_multiple_getitems(
+            test_name="split_multiple_getitems_fp32",
+            dtype="float32",
+        )
+        self._test_split_multiple_getitems(
+            batch_size=[10],
+            X_shape=(16, 31),
+            split_sections=[9, 9, 13],
+            split_dim=2,
+            test_name="split_multiple_getitems_fp32",
+            dtype="float32",
         )
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

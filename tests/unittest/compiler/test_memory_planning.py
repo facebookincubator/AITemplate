@@ -22,12 +22,21 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import Operator
 from aitemplate.frontend import IntImm, nn, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
+
+from parameterized import parameterized
 
 
 class MemoryPlanningTestCase(unittest.TestCase):
-    def test_memory_planning_with_tensor_views(self):
+    @parameterized.expand([("float16"), ("float32")])
+    def test_memory_planning_with_tensor_views(self, dtype):
         target = detect_target()
-        dtype = "float16"
+        if dtype == "float32" and target.name == "rocm":
+            self.skipTest("float tensors not supported by rocm")
+
         # batch_size = [4, 16] # reduce_sum doesn't work with dynamic shape
         batch_size = [4]
         in_shape = [32, 16, 8]
@@ -72,7 +81,7 @@ class MemoryPlanningTestCase(unittest.TestCase):
 
         for b in batch_size:
             X_shape = [b] + in_shape
-            x_pt = torch.randn(X_shape).cuda().half()
+            x_pt = get_random_torch_tensor(X_shape, dtype)
             t0_pt = torch.sum(x_pt, dim=3, keepdim=True)
             t1_pt = torch.sum(t0_pt, dim=2, keepdim=True)
             t2_pt = torch.reshape(t1_pt, [-1, 32])
@@ -80,7 +89,7 @@ class MemoryPlanningTestCase(unittest.TestCase):
             t4_pt = torch.sum(t3_pt, dim=2, keepdim=False)
             out_pt = torch.add(t2_pt, t4_pt).flatten()
 
-            out = torch.empty(out_pt.size()).cuda().half()
+            out = get_torch_empty_tensor(out_pt.size(), dtype)
             module.run_with_tensors([x_pt], [out])
             self.assertTrue(torch.allclose(out_pt, out, atol=1e-1, rtol=1e-2))
 

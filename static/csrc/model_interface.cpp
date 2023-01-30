@@ -162,6 +162,25 @@ AITemplateError AITemplateModelContainerRunWithOutputsOnHost(
   })
 }
 
+AITemplateError AITemplateModelContainerProfile(
+    AITemplateModelHandle handle,
+    const AITData* inputs,
+    size_t num_inputs,
+    AITData* outputs,
+    size_t num_outputs,
+    AITemplateStreamHandle stream_handle,
+    size_t num_iters,
+    const char* filename) {
+  RETURN_ERROR_IF_NULL(handle);
+  RETURN_ERROR_IF_NULL(filename);
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  auto stream = reinterpret_cast<ait::StreamType>(stream_handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({
+    m->Profile(
+        inputs, num_inputs, outputs, num_outputs, stream, num_iters, filename);
+  })
+}
+
 AITemplateError AITemplateModelContainerBenchmark(
     AITemplateModelHandle handle,
     const AITData* inputs,

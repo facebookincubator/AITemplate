@@ -85,29 +85,33 @@ def find_max_alignment_for_accessor(accessor: TensorAccessor) -> int:
     int
         the max alignment value
     """
-    align = alignment.find_max_alignment(accessor.offset)
+    align = alignment.find_max_alignment(accessor.offset, accessor.tensor_dtype)
     if not accessor.is_contiguous:
         align = min(
             align,
             alignment.find_max_alignment(
-                accessor.original_total_elements_from_stride_dim
+                accessor.original_total_elements_from_stride_dim, accessor.tensor_dtype
             ),
         )
         align = min(
             align,
             alignment.find_max_alignment(
-                accessor.actual_total_elements_from_stride_dim
+                accessor.actual_total_elements_from_stride_dim, accessor.tensor_dtype
             ),
         )
     return align
 
 
-def find_max_alignment_for_accessors(accessors: List[TensorAccessor]) -> int:
+def find_max_alignment_for_accessors(
+    dtype: str, accessors: List[TensorAccessor]
+) -> int:
     """the max alignment value that meets the requirement specified by
-       the accessors
+       the accessors and dtype
 
     Parameters
     ----------
+    dtype: str
+        dtype of the tensor for which the accessors are attached
     accessors: List[TensorAccessor]
         TensorAccessor(s) attached to the relevant tensor being accessed
 
@@ -116,14 +120,16 @@ def find_max_alignment_for_accessors(accessors: List[TensorAccessor]) -> int:
     int
         the max alignment value
     """
-    align = max(alignment.ALIGNMENTS)
+    align = max(alignment.get_alignments(dtype))
     # Handle accessors
     for accessor in accessors:
         align = min(align, find_max_alignment_for_accessor(accessor))
     return align
 
 
-def find_max_alignment(num_elements: int, accessors: List[TensorAccessor]) -> int:
+def find_max_alignment(
+    num_elements: int, dtype: str, accessors: List[TensorAccessor]
+) -> int:
     """find the max alignment value that meets the requirement of accessing
        num_elements of data with access patterns (strides and offsets)
        specified by accessors
@@ -132,6 +138,8 @@ def find_max_alignment(num_elements: int, accessors: List[TensorAccessor]) -> in
     ----------
     num_elements: int
         specify the number of elements being accessed
+    dtype: str
+        dtype of the tensor for which the accessors are attached
 
     accessors: List[TensorAccessor]
         TensorAccessor(s) attached to the relevant tensor being accessed
@@ -142,6 +150,6 @@ def find_max_alignment(num_elements: int, accessors: List[TensorAccessor]) -> in
         the max alignment value
     """
     # get initial alignment based on the number of elements being accessed
-    align = alignment.find_max_alignment(num_elements)
-    accessor_alignment = find_max_alignment_for_accessors(accessors)
+    align = alignment.find_max_alignment(num_elements, dtype)
+    accessor_alignment = find_max_alignment_for_accessors(dtype, accessors)
     return min(align, accessor_alignment)

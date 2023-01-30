@@ -20,7 +20,11 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import has_op
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+    has_op,
+)
 from aitemplate.utils import graph_utils
 
 
@@ -37,9 +41,8 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         split_dim,
         testname,
         with_padding=False,
+        dtype="float16",
     ):
-        dtype = "float16"
-
         T_A = Tensor(
             shape=[B, M, K],
             dtype=dtype,
@@ -67,8 +70,8 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        a = torch.randn(B, M, K).cuda().half()
-        b = torch.randn(B, N, K).cuda().half()
+        a = get_random_torch_tensor([B, M, K], dtype)
+        b = get_random_torch_tensor([B, N, K], dtype)
         xs = a.split(split_size_or_sections, split_dim)
         ys = b.split(split_size_or_sections, split_dim)
         cs = []
@@ -88,7 +91,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
                 f"The final graph should have only 3 tensors. "
                 f"But it has {len(graph)} tensors now."
             )
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors({"input0": a, "input1": b}, [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
@@ -158,8 +161,8 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         split_size_or_sections,
         split_dim,
         testname,
+        dtype="float16",
     ):
-        dtype = "float16"
         assert isinstance(Ms, (list, tuple))
 
         T_A = Tensor(
@@ -199,8 +202,8 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         )
 
         for M in Ms:
-            a = torch.randn(B, M, K).cuda().half()
-            b = torch.randn(B, N, K).cuda().half()
+            a = get_random_torch_tensor([B, M, K], dtype)
+            b = get_random_torch_tensor([B, N, K], dtype)
             xs = a.split(split_size_or_sections, split_dim)
             ys = b.split(split_size_or_sections, split_dim)
             cs = []
@@ -211,7 +214,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
                 cs.append(c)
             y_pt = torch.cat(cs, dim=split_dim)
 
-            y = torch.empty(y_pt.size()).cuda().half()
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
             module.run_with_tensors({"input0": a, "input1": b}, [y])
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
@@ -249,17 +252,16 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         split_size_or_sections,
         split_dim=0,
         testname="test_split_qkv",
+        dtype="float16",
         should_fail=False,
     ):
-        dtype = "float16"
-
         X = Tensor(
             shape=[B, M, K],
             dtype=dtype,
             name="input0",
             is_input=True,
         )
-        scale = Tensor(shape=[], dtype="float16", name="scale", value=K ** -0.5)
+        scale = Tensor(shape=[], dtype=dtype, name="scale", value=K**-0.5)
 
         (Q, KK, V) = ops.split()(X, split_size_or_sections, split_dim)
         QK = ops.bmm_rcr()(Q, KK)
@@ -269,7 +271,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        a = torch.randn(B, M, K).cuda().half()
+        a = get_random_torch_tensor([B, M, K], dtype)
         (q, k, v) = a.split(split_size_or_sections, split_dim)
         qk = torch.bmm(q, k.permute(0, 2, 1)) * K ** -0.5
         qk = torch.softmax(qk, -1)
@@ -286,13 +288,95 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         else:
             assert not has_op(sorted_ops, "split"), "The final graph has split op!"
 
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors({"input0": a}, [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
     def test_split_bmm_rcr_fusion_qkv(self):
         self._test_split_bmm_rcr_fusion_qkv(3, 4096, 4096, 512, 1, 1)
         self._test_split_bmm_rcr_fusion_qkv(3 * 16, 1024, 1024, 256, 16, 16)
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_split_bmm_fusion_float(self):
+        # bmm_rcr (K with an odd value) with padding:
+        # in this case, split and bmm_rcr are not going to be fused actually because
+        # of the padding applied to bmm_rcr.
+        self._test_split_bmm_rcr_fusion(
+            ops.bmm_rcr,
+            1,
+            10000,
+            3,
+            5,
+            [2, 3],
+            2,
+            "test_split_bmm_rcr",
+            with_padding=True,
+            dtype="float",
+        )
+        # bmm_rcr_n1, split_dim = 2
+        self._test_split_bmm_rcr_fusion(
+            ops.bmm_rcr_n1,
+            1,
+            10000,
+            1,
+            5,
+            [2, 3],
+            2,
+            "test_split_bmm_rcr_float",
+            dtype="float",
+        )
+        # bmm_rcr
+        self._test_split_bmm_rcr_fusion(
+            ops.bmm_rcr,
+            10,
+            8,
+            32,
+            16 * 2,
+            16,
+            2,
+            "test_split_bmm_rcr_float",
+            dtype="float",
+        )
+        # bmm_rcr, split_dim = 0, can only be static
+        self._test_split_bmm_rcr_fusion(
+            ops.bmm_rcr,
+            10,
+            8,
+            32,
+            16 * 2,
+            32,
+            0,
+            "test_split_bmm_rcr_float",
+            dtype="float",
+        )
+        # bmm_rcr_n1
+        self._test_split_bmm_rcr_fusion_dynamic_M(
+            ops.bmm_rcr_n1,
+            1,
+            [100, 160],
+            1,
+            32,
+            8,
+            2,
+            "test_split_bmm_rcr_n1_dynamic_M_float",
+            dtype="float",
+        )
+        # bmm_rcr
+        self._test_split_bmm_rcr_fusion_dynamic_M(
+            ops.bmm_rcr,
+            10,
+            [8, 16],
+            32,
+            16 * 2,
+            16,
+            2,
+            "test_split_bmm_rcr_dynamic_M_float",
+            dtype="float",
+        )
+        self._test_split_bmm_rcr_fusion_qkv(3 * 16, 10, 10, 8, 16, 16, dtype="float")
 
 
 if __name__ == "__main__":

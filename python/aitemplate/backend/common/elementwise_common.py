@@ -16,6 +16,7 @@
 Backend-agnostic functions for elementwise codegen.
 """
 
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
@@ -246,16 +247,21 @@ def gen_function_single_thread(
                     else param
                 )
             elif arg.is_a_const_num():
+                arg_str = ""
+                if math.isinf(arg._attrs["value"]):
+                    arg_str = "CUDART_INF_F"
+                else:
+                    arg_str = str(arg._attrs["value"])
                 if func_op_t[-1] == "2":
                     params.append(
                         "{}({},{})".format(
                             func_op_t,
-                            str(arg._attrs["value"]),
-                            str(arg._attrs["value"]),
+                            arg_str,
+                            arg_str,
                         )
                     )
                 else:
-                    params.append("{}({})".format(func_op_t, str(arg._attrs["value"])))
+                    params.append("{}({})".format(func_op_t, arg_str))
             else:
                 raise RuntimeError(
                     "Cannot generate expression for node {}, ops: {}".format(
@@ -312,7 +318,7 @@ def _get_sub_func_metadata(
                 break
     if len(candidate_op_types) == 0:
         raise RuntimeError(
-            "Cannot find a common rocm data type! candidate_op_types: {}, op_t: {}.".format(
+            "Cannot find a common backend data type! candidate_op_types: {}, op_t: {}.".format(
                 candidate_op_types, op_t
             )
         )
@@ -391,13 +397,15 @@ def _get_types_and_sizes(
         else:
             min_num_elements = min(min_num_elements, num_elements_for_alignments)
     alignment = tensor_accessor_codegen.find_max_alignment(
-        min_num_elements, output_accessors
+        min_num_elements, dtype, output_accessors
     )
     # Note that we use the same alignment for accessing inputs and outputs, although
     # they may have different alignment requirements. We may lose perf a little bit,
     # but reduce the complexity of our jinja template. We can do some perf
     # experiments later to determine if we want to chase more perf gains.
-    alignment = tensor_accessor_codegen.find_max_alignment(alignment, input_accessors)
+    alignment = tensor_accessor_codegen.find_max_alignment(
+        alignment, dtype, input_accessors
+    )
     return alignment, input_broadcast_sizes, dtype
 
 
@@ -423,12 +431,8 @@ def _parse_func_metadata(
     alignment, input_broadcast_sizes, dtype = _get_types_and_sizes(
         inputs, input_accessors, output_accessors, backend_spec
     )
-    read_type = backend_spec.get_backend_type(
-        alignment, dtype, backend_spec.read_num_elements_to_backend_type
-    )
-    op_type = backend_spec.get_backend_type(
-        alignment, dtype, backend_spec.op_num_elements_to_backend_type
-    )
+    read_type = backend_spec.get_elementwise_read_backend_type(alignment, dtype)
+    op_type = backend_spec.get_elementwise_op_backend_type(alignment, dtype)
     data_type = backend_spec.dtype_to_backend_type(dtype)
     sub_func_metadata, op_type = _get_sub_func_metadata(
         ops, data_type, op_type, backend_spec
@@ -464,7 +468,7 @@ def _gen_int_var_product_str(
             raise RuntimeError(
                 "A dim must be an IntVar! Current type: {}".format(type(int_var))
             )
-    return " * ".join(res)
+    return " * ".join(res) if res else "1"
 
 
 def _gen_input_broadcast_calculator_str(

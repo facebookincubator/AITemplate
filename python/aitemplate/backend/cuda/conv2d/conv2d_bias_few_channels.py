@@ -15,136 +15,59 @@
 """
 specialize conv2d op with few channels(< 8)
 """
-from collections import OrderedDict
 
 from ... import registry
-from ...target import Target
-from . import common, common_conv2d_bias_activation as cba
+from . import (
+    common,
+    common_conv2d_bias_activation as cba,
+    common_conv2d_few_channels as cfc,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301
 
 
-def apply_special_config(func_attrs, op):
-    import cutlass_lib
-
-    x = func_attrs["inputs"][0]
-    in_ch = x._attrs["shape"][-1]._attrs["values"][0]
-
-    if in_ch == 3:
-        # By default we don't use it since the perf is worse than pad4+fixchannel
-        op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.FewChannels
-        op.A.alignment = 1
-        op.B.alignment = 1
-        op.tile_description.stages = 2
-    elif in_ch in [2, 4, 8]:
-        op.iterator_algorithm = cutlass_lib.library.IteratorAlgorithm.FixedChannels
-        op.A.alignment = in_ch
-        op.B.alignment = in_ch
-        op.tile_description.stages = 3
-    return op
-
-
-def extract_config(func_attrs):
-    """extract epilogue for conv op
-
-    Parameters
-    ----------
-    func_attrs : Dict
-        [description] op attributes
-
-    Returns
-    -------
-    [type]: Dict
-        [description]
-
-    Raises
-    ------
-    NotImplementedError
-        [description]
-    """
-    import copy
-
-    import cutlass_lib
-
-    def f_proc_op_special(op):
-        ret = []
-        data_type = cutlass_lib.library.DataType.f16
-        acc_type = cutlass_lib.library.DataType.f32
-        # check target use fp16 acc
-        if "use_fp16_acc" in Target.current()._kwargs:
-            if Target.current()._kwargs["use_fp16_acc"]:
-                acc_type = cutlass_lib.library.DataType.f16
-
-        if (
-            op.A.element == data_type
-            and op.B.element == data_type
-            and op.C.element == data_type
-            and op.iterator_algorithm == cutlass_lib.library.IteratorAlgorithm.Optimized
-            and op.accumulator_type() == acc_type
-        ):
-
-            op = copy.deepcopy(op)
-            # set epilogue
-            epilogue_name = func_attrs["epilogue"]
-            op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epilogue_name]
-            op.element_epilogue = acc_type
-            op = apply_special_config(func_attrs, op)
-            # set C alignment
-            for i in [8, 4, 2, 1]:
-                op = copy.deepcopy(op)
-                op.C.alignment = i
-                ret.append(op)
-        return ret
-
-    op_kind = cutlass_lib.library.OperationKind.Conv2d
-    conv_kind = cutlass_lib.library.ConvKind.Fprop
-    ret = []
-    conv2d_ops = OrderedDict()
-    extract_ops = list(Target.current()._operators[op_kind].items())
-
-    for _, value in extract_ops:
-        op = value[0]
-        if op.conv_kind == conv_kind:
-            ret = f_proc_op_special(op)
-            if len(ret) > 0:
-                for op_inst in ret:
-                    key = common.kernel_name(op_inst)
-                    conv2d_ops[key] = op_inst
-    return conv2d_ops
-
-
 @registry.reg("cuda.conv2d_bias_few_channels.config")
-def conv2d_config(func_attrs, dtype="float16"):
+def conv2d_bias_few_channels_config(
+    func_attrs,
+    dtype="float16",
+):
     """extract configurations for profiling
 
     Parameters
     ----------
     func_attrs : Dict
-        [description] op attributes
+        op attributes
     dtype : str, optional
-        [description] by default "float16"
+        by default "float16"
 
     Returns
     -------
-    [type]
-        [description]
-
-    Raises
-    ------
-    NotImplementedError
-        [description]
+    None
     """
-    func_attrs["op_instance"] = extract_config(func_attrs)
+    func_attrs["op_instance"] = cfc.extract_config(
+        func_attrs=func_attrs,
+        dtype=dtype,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_few_channels.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
+def conv2d_bias_few_channels_gen_profiler(
+    func_attrs,
+    workdir,
+    profiler_filename,
+    shape_template,
+):
     """generate code for profiling"""
-    return cba.gen_profiler(func_attrs, workdir, shape_template)
+    return cba.gen_profiler(
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        shape_template=shape_template,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_few_channels.gen_function")
-def gen_function(
+def conv2d_bias_few_channels_gen_function(
     func_attrs,
     exec_cond_remplate,
     shape_eval_template,
@@ -168,30 +91,40 @@ def gen_function(
     [type]
         [description]
     """
-    return common.gen_function(
-        func_attrs,
-        cba.INSTANCE_TEMPLATE,
-        cba.EXEC_TEMPLATE,
-        cba.SRC_TEMPLATE,
-        exec_cond_remplate,
-        shape_eval_template,
-        shape_save_template,
+    return cba.gen_function(
+        func_attrs=func_attrs,
+        exec_cond_remplate=exec_cond_remplate,
+        shape_eval_template=shape_eval_template,
+        shape_save_template=shape_save_template,
     )
 
 
 @registry.reg("cuda.conv2d_bias_few_channels.func_decl")
-def conv2d_gen_function_decl(func_attrs):
-    func_name = func_attrs["name"]
-    return cba.FUNC_DECL_TEMPLATE.render(func_name=func_name)
+def conv2d_bias_few_channels_func_decl(
+    func_attrs,
+):
+    return cba.gen_function_decl(
+        func_attrs=func_attrs,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_few_channels.func_call")
-def conv2d_gen_function_call(func_attrs, indent="  "):
-    return cba.gen_function_call(func_attrs, indent)
+def conv2d_bias_few_channels_func_call(
+    func_attrs,
+    indent="  ",
+):
+    return cba.gen_function_call(
+        func_attrs=func_attrs,
+        indent=indent,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_few_channels.filter")
-def conv2d_function_filter(cfg, func_attrs, x_shape):
+def conv2d_bias_few_channels_filter(
+    cfg,
+    func_attrs,
+    x_shape,
+):
     """Generates function filter.
 
     Parameters
@@ -208,4 +141,8 @@ def conv2d_function_filter(cfg, func_attrs, x_shape):
     bool
         If input cfg should be filtered.
     """
-    return common.function_filter(cfg, func_attrs, x_shape)
+    return common.function_filter(
+        cfg=cfg,
+        func_attrs=func_attrs,
+        x_shape=x_shape,
+    )

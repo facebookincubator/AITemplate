@@ -17,7 +17,8 @@ A subprocess based multiple GPUs runner for auto-tuning
 """
 from __future__ import annotations
 
-import concurrent
+import concurrent.futures
+import logging
 import os
 
 import re
@@ -27,11 +28,14 @@ from collections import namedtuple
 from queue import Queue
 from typing import Callable, List, Tuple
 
-from ..utils import logger
 from .target import Target
 from .task_runner import BaseRunner, Task
 
 # pylint: disable=W0221
+
+
+_LOGGER = logging.getLogger(__name__)
+
 
 PROF_RUNTIME_PATTERN = re.compile(r"OP:([a-zA-Z0-9_]+),TIME:([\d\.]+),WS:([\d]+)")
 # FIXME: We will remove the following two patterns once we implement the
@@ -48,27 +52,50 @@ def optimization_key(result):
     return float(result[1])
 
 
-def extract_profile_result(stdout) -> Tuple[ProfileResult, bool]:
+def extract_profile_result(
+    stdout,
+    return_ops=None,
+) -> Tuple[ProfileResult | List[ProfileResult], bool]:
     failed = False
     try:
         runtimes = PROF_RUNTIME_PATTERN.findall(stdout)
         if len(runtimes) > 0:
-            logger.debug(__name__, f"all runtimes (unsorted): {runtimes}")
+            _LOGGER.debug(f"all runtimes (unsorted): {runtimes}")
             # format - OP:xx,TIME:x.xx,WS:xx
-            best_runtime = min(runtimes, key=optimization_key)
-            op_config = best_runtime[0]
-            duration = float(best_runtime[1])
-            workspace = int(best_runtime[2])
+            if return_ops is not None:
+                _LOGGER.debug(f"return ops: {return_ops}")
+                return_ops = set(return_ops)
+                result = [
+                    ProfileResult(
+                        op_config=runtime[0],
+                        duration=float(runtime[1]),
+                        workspace=int(runtime[2]),
+                    )
+                    for runtime in runtimes
+                    if runtime[0] in return_ops
+                ]
+            else:
+                best_runtime = min(runtimes, key=optimization_key)
+                result = ProfileResult(
+                    op_config=best_runtime[0],
+                    duration=float(best_runtime[1]),
+                    workspace=int(best_runtime[2]),
+                )
         else:
             # FIXME: remove it once we unify our profiling mechanism for conv and amd
-            op_config = ""
-            duration = float(RUNTIME_PATTERN.findall(stdout)[0])
-            workspace = int(WORKSPACE_PATTERN.findall(stdout)[0])
+            result = ProfileResult(
+                op_config="",
+                duration=float(RUNTIME_PATTERN.findall(stdout)[0]),
+                workspace=int(WORKSPACE_PATTERN.findall(stdout)[0]),
+            )
     except Exception:
-        duration = float("inf")
-        workspace = 0
+        result = ProfileResult(
+            op_config="",
+            duration=float("inf"),
+            workspace=0,
+        )
         failed = True
-    return ProfileResult(op_config, duration, workspace), failed
+    return result, failed
 
 
 def update_inplace(d, new_d):
@@ -99,8 +126,7 @@ def process_task(task: Task) -> None:
         cmd = task._cmd
         if Target.current().name() == "rocm":
             cmd = " ".join(cmd)
-        logger.debug(
-            __name__,
+        _LOGGER.debug(
             "Failed: [{name}][{algo}]\ncmd:\n{cmd}\nstderr:\n{stderr}".format(
                 name=task._name,
                 algo=task._idx,
@@ -108,13 +134,19 @@ def process_task(task: Task) -> None:
                 stderr=stderr,
             ),
         )
-    task._ret, task._failed = extract_profile_result(stdout)
+    task._ret, task._failed = extract_profile_result(
+        stdout=stdout,
+        return_ops=task._kwargs.get("return_ops", None),
+    )
     if not task._failed:
-        logger.debug(
-            __name__,
-            f"Successful: [{task._name}][{task._idx}]: OP: {task._ret.op_config} "
-            f"TIME: {task._ret.duration} WS:{task._ret.workspace}",
-        )
+        results = task._ret
+        if not isinstance(results, list):
+            results = [results]
+        for result in results:
+            _LOGGER.debug(
+                f"Successful: [{task._name}][{task._idx}]: OP: {result.op_config} "
+                f"TIME: {result.duration} WS:{result.workspace}",
+            )
 
 
 def process_return(task: Task) -> typing.Tuple[typing.Union[int, str], ProfileResult]:
@@ -139,15 +171,13 @@ class Runner(BaseRunner):
     """
 
     def __init__(self, devs: list[int], op_name: str, timeout: int = 30):
-        logger.info(
-            __name__, "Using {n} GPU for profiling {op}".format(n=len(devs), op=op_name)
-        )
+        _LOGGER.info("Using {n} GPU for profiling {op}".format(n=len(devs), op=op_name))
         super().__init__(devs, op_name, timeout)
         self._dev_flag = Target.current().dev_select_flag()
         self._ftask_proc = process_task
         self._fret_proc = process_return
 
-    def push(self, idx: typing.Union[int, str], cmd: str):
+    def push(self, idx: typing.Union[int, str], cmd: str, return_ops: List[str] = None):
         """Push a new profiling task into runner's queue
 
         Parameters
@@ -156,8 +186,20 @@ class Runner(BaseRunner):
             Profiling task id (usually is algorithm id or name)
         cmd : str
             Bash command to execute the profiling task
+        return_ops : list[str]
+            Names of the ops to return the profiling results for. If specified,
+            instead of a single (best) ProfileResult instance, a list with the
+            ProfileResults for each op in the return_ops is returned from `pull`.
         """
-        self._queue.append(Task(idx, cmd, self._tag, dev_flag=self._dev_flag))
+        self._queue.append(
+            Task(
+                idx,
+                cmd,
+                self._tag,
+                dev_flag=self._dev_flag,
+                return_ops=return_ops,
+            )
+        )
 
     def pull(self):
         """Pull results from all profiling tasks assigned to runner.
@@ -174,7 +216,7 @@ class Runner(BaseRunner):
 def run_task(cmds, queue, dev_select_flag):
     # get device or block until one is available
     device = queue.get()
-    logger.debug(__name__, f"running profiler {cmds=} on GPU #{device}")
+    _LOGGER.debug(f"running profiler {cmds=} on GPU #{device}")
 
     completed_process = subprocess.run(
         cmds,
@@ -216,7 +258,7 @@ class ProfilerRunner:
         self._done_queue = Queue()
         for d in devices:
             self._device_queue.put(str(d))
-        logger.info(__name__, f"Initialized profiler runner with devices: {devices}")
+        _LOGGER.info(f"Initialized profiler runner with devices: {devices}")
         self._timeout = timeout
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(devices))
         self._futures = []
@@ -248,23 +290,25 @@ class ProfilerRunner:
         # they are launched asynchronously, in a separate thread,
         # some time after a future holding profiler result completes
         def callback_when_done(fut):
+            stdout = None
+            stderr = None
             try:
                 stdout, stderr = "", ""
                 stdout, stderr = fut.result()
                 profile_result, err = extract_profile_result(stdout)
                 if err:
-                    logger.debug(
-                        __name__,
+                    _LOGGER.debug(
                         f"Profiler failure!\nProfiler stdout: {stdout}\nProfiler stderr: {stderr}",
                     )
-                    logger.debug(
-                        __name__, f"Failed to extract profiler result for {cmds}"
+                    _LOGGER.debug(
+                        f"Failed to extract profiler result for {cmds}"
                     )
                 else:
                     process_result_callback(profile_result, self._postprocessing_delegate)
             finally:
                 # unblock one future in `join()`
-                self._done_queue.put(stdout)
+                if stdout is not None:
+                    self._done_queue.put(stdout)
 
         future.add_done_callback(callback_when_done)
         self._futures.append(future)

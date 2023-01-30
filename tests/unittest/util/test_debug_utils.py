@@ -25,6 +25,7 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.utils.debug_settings import AITDebugSettings
 
 
 def _test_inf_and_nan(
@@ -43,8 +44,9 @@ def _test_inf_and_nan(
     X2._attrs["check_nan_and_inf"] = check_tensor
 
     target = detect_target()
+    debug_settings = AITDebugSettings(check_all_nan_and_inf=check_all)
     module = compile_model(
-        X2, target, "./tmp", test_name, check_all_nan_and_inf=check_all
+        X2, target, "./tmp", test_name, debug_settings=debug_settings
     )
 
     x1_pt = torch.Tensor([[1.0, -2.0, 0.0]]).cuda().half()
@@ -78,7 +80,10 @@ def _test_outputs(
     X2._attrs["check_outputs"] = check_tensor
 
     target = detect_target()
-    module = compile_model(X2, target, "./tmp", test_name, check_all_outputs=check_all)
+    debug_settings = AITDebugSettings(check_all_outputs=check_all)
+    module = compile_model(
+        X2, target, "./tmp", test_name, debug_settings=debug_settings
+    )
 
     x1_pt = torch.Tensor([[1.0, 1.5, 2.0]]).cuda().half()
     x2 = torch.empty_like(x1_pt)
@@ -86,9 +91,10 @@ def _test_outputs(
 
     out, _ = capfd.readouterr()
     output_str = "Tensor (output0) output:"
-    assert out.find(output_str) != -1
+    idx = out.find(output_str)
+    assert idx != -1
 
-    out = out[len(output_str) :].strip()
+    out = out[idx + len(output_str) :].strip()
     values = out.split(", ")
     assert len(values) == 3, f"Got {len(values)} outputs, expected 3"
 
@@ -121,7 +127,10 @@ def _test_special_outputs(
     X2._attrs["check_outputs"] = check_tensor
 
     target = detect_target()
-    module = compile_model(X2, target, "./tmp", test_name, check_all_outputs=check_all)
+    debug_settings = AITDebugSettings(check_all_outputs=check_all)
+    module = compile_model(
+        X2, target, "./tmp", test_name, debug_settings=debug_settings
+    )
 
     x1_pt = torch.Tensor([[1.0, -2.0, 0.0]]).cuda().half()
     x2 = torch.empty_like(x1_pt)

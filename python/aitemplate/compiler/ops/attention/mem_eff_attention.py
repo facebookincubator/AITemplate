@@ -138,7 +138,11 @@ class mem_eff_attention(Operator):
         o_shape = [var._attrs["values"][-1] for var in output_shape]
         if o_shape[-1] > 128:
             self._attrs["workspace"] = 4 * np.prod(o_shape)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(
+            output_shape,
+            src_ops={self},
+            dtype=self._attrs["inputs"][0]._attrs["dtype"],
+        )
         self._attrs["outputs"] = [output]
         return output
 

@@ -34,27 +34,28 @@ using {{name}} = cutlass::conv::device::ImplicitGemmConvolution<{{config_name}}>
 EXEC_TEMPLATE = jinja2.Template(
     """
 {{indent}}using ElementComputeEpilogue = typename {{instance}}::ElementCompute;
-//  TODO: cast to right dtype
+{{indent}}//  TODO: cast to right dtype
 {{indent}}typename {{instance}}::Arguments arguments{
-{{indent}}    problem_size,
-{{indent}}    {static_cast<{{dtype}}*>(in_ptr), layout_A},
-{{indent}}    {static_cast<{{dtype}}*>(weight_ptr), layout_B},
-{{indent}}    {static_cast<{{dtype}}*>(out_ptr), layout_C},
-{{indent}}    {static_cast<{{dtype}}*>(out_ptr), layout_C},
-{{indent}}    {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},
+{{indent}}    problem_size,                                            // ConvProblemSize const & problem_size
+{{indent}}    {static_cast<{{dtype}}*>(in_ptr), layout_A},             // TensorRefA const & ref_A
+{{indent}}    {static_cast<{{dtype}}*>(weight_ptr), layout_B},         // TensorRefB const & ref_B
+{{indent}}    {static_cast<{{dtype}}*>(out_ptr), layout_C},            // TensorRefC const & ref_C
+{{indent}}    {static_cast<{{dtype}}*>(out_ptr), layout_C},            // TensorRefC const & ref_D
+{{indent}}    {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},  // typename EpilogueOutputOp::Params const & output_op
 {{indent}}};
-{{indent}}{{instance}} implicit_gemm_op;
 {% if is_profiler %}
-{{indent}}size_t workspace_size = implicit_gemm_op.get_workspace_size(arguments);
+{{indent}}size_t workspace_size = conv_op.get_workspace_size(arguments);
 {{indent}}cutlass::device_memory::allocation<uint8_t> local_workspace(workspace_size);
 {{indent}}workspace = local_workspace.get();
 {{indent}}GLOBAL_WORKSPACE_SIZE = workspace_size;
+{% else %}
+{{indent}}{{instance}} conv_op;
 {% endif %}
-{{indent}}auto status = implicit_gemm_op.can_implement(arguments);
+{{indent}}auto status = conv_op.can_implement(arguments);
 {{indent}}CUTLASS_CHECK(status);
-{{indent}}status = implicit_gemm_op.initialize(arguments, workspace);
+{{indent}}status = conv_op.initialize(arguments, workspace);
 {{indent}}CUTLASS_CHECK(status);
-{{indent}}status = implicit_gemm_op(stream);
+{{indent}}status = conv_op(stream);
 {{indent}}CUTLASS_CHECK(status);
 {{indent}}return;
 """
@@ -88,7 +89,13 @@ SRC_TEMPLATE = jinja2.Template(
 
 {{instances_def}}
 
+{% if is_profiler %}
+template <typename {{instance_name_base}}>
 void {{function_name}} (
+    {{instance_name_base}}& conv_op,
+{% else %}
+void {{function_name}} (
+{% endif %}
     void* in_ptr,
     void* weight_ptr,
     void* out_ptr,
@@ -139,14 +146,14 @@ void {{function_name}} (
   TensorNDHWC layout_C(TensorNDHWC::packed(cutlass::make_Coord(i32_out_batch, i32_out_d, i32_out_h, i32_out_w, i32_out_ch)));
 
   cutlass::conv::Conv3dProblemSize problem_size(
-    cutlass::Tensor5DCoord(i32_batch, i32_in_d, i32_in_h, i32_in_w, i32_in_ch),
-    cutlass::Tensor5DCoord(i32_out_ch, i32_kernel_d, i32_kernel_h, i32_kernel_w, i32_in_ch),
-    cutlass::make_Coord(pad_d, pad_h, pad_w),
-    cutlass::make_Coord(stride_d, stride_h, stride_w),
-    cutlass::make_Coord(dilation_d, dilation_h, dilation_w),
-    cutlass::conv::Mode::kCrossCorrelation,
-    1,
-    1
+    cutlass::Tensor5DCoord(i32_batch, i32_in_d, i32_in_h, i32_in_w, i32_in_ch),               // cutlass::Tensor5DCoord input_size
+    cutlass::Tensor5DCoord(i32_out_ch, i32_kernel_d, i32_kernel_h, i32_kernel_w, i32_in_ch),  // cutlass::Tensor5DCoord filter_size
+    cutlass::make_Coord(pad_d, pad_h, pad_w),                                                 // Coord3D padding
+    cutlass::make_Coord(stride_d, stride_h, stride_w),                                        // Coord3D stride
+    cutlass::make_Coord(dilation_d, dilation_h, dilation_w),                                  // Coord3D dilation
+    cutlass::conv::Mode::kCrossCorrelation,                                                   // cutlass::conv::Mode mode
+    1,                                                                                        // int split_k_slices
+    1                                                                                         // int groups
   );
 
   {{exec_paths}}
@@ -157,12 +164,119 @@ void {{function_name}} (
 """
 )
 
+BENCHMARK_INSTANCE_TEMPLATE = jinja2.Template(
+    """
+{{indent}}{
+{{indent}}  {{instance_name}} {{conv_op}};
+{{indent}}  const char *conv_op_name = "{{conv_op_name}}";
+{{indent}}  int ret = 0;
+{{indent}}  try {
+{{indent}}    ret = {{func_name}}(
+{{indent}}      {{conv_op}},
+{{indent}}      conv_op_name,
+{{indent}}      {{ni}},
+{{indent}}      {{di}},
+{{indent}}      {{hi}},
+{{indent}}      {{wi}},
+{{indent}}      {{ci}},
+{{indent}}      {{co}},
+{{indent}}      {{kd}},
+{{indent}}      {{kh}},
+{{indent}}      {{kw}},
+{{indent}}      {{no}},
+{{indent}}      {{do}},
+{{indent}}      {{ho}},
+{{indent}}      {{wo}},
+{{indent}}      {{stride_d}},
+{{indent}}      {{stride_h}},
+{{indent}}      {{stride_w}},
+{{indent}}      {{dilation_d}},
+{{indent}}      {{dilation_h}},
+{{indent}}      {{dilation_w}},
+{{indent}}      {{pad_d}},
+{{indent}}      {{pad_h}},
+{{indent}}      {{pad_w}},
+{{indent}}      global_workspace_,
+{{indent}}      stream
+{{indent}}    );
+{{indent}}  } catch (...) {}
+{{indent}}  if (ret != 0)
+{{indent}}    return ret;
+{{indent}}}
+"""
+)
 
 PROFILER_TEMPLATE = jinja2.Template(
     """
 size_t GLOBAL_WORKSPACE_SIZE = 0;
 
 {{op_func}}
+
+template <typename {{instance_name_base}}>
+int benchmark_{{function_name}} (
+  {{instance_name_base}} &conv_op,
+  const char *conv_op_name,
+  int64_t NI,
+  int64_t DI,
+  int64_t HI,
+  int64_t WI,
+  int64_t CI,
+  int64_t CO,
+  int64_t KD,
+  int64_t KH,
+  int64_t KW,
+  int64_t NO,
+  int64_t DO,
+  int64_t HO,
+  int64_t WO,
+  int stride_d,
+  int stride_h,
+  int stride_w,
+  int dilation_d,
+  int dilation_h,
+  int dilation_w,
+  int pad_d,
+  int pad_h,
+  int pad_w,
+  uint8_t* global_workspace_,
+  cudaStream_t stream
+) {
+  using ElementOutput = typename {{instance_name_base}}::ElementC;
+  using ElementInputA = typename {{instance_name_base}}::ElementA;
+  using ElementInputB = typename {{instance_name_base}}::ElementB;
+
+  cutlass::HostTensor<ElementInputA, typename {{instance_name_base}}::LayoutA> x({NI, DI, HI, WI, CI});
+  cutlass::HostTensor<ElementInputB, typename {{instance_name_base}}::LayoutB> w({CO, KD, KH, KW, CI});
+  cutlass::HostTensor<ElementOutput, typename {{instance_name_base}}::LayoutC> y({NO, DO, HO, WO, CO});
+
+  // warmup
+{{func_call}}
+  cudaEvent_t events[2];
+  for (auto & event : events) {
+    cudaEventCreate(&event);
+  }
+  cudaEventRecord(events[0], stream);
+  for (int i = 0; i < 5; ++i) {
+{{func_call}}
+  }
+  cudaEventRecord(events[1], stream);
+  cudaEventSynchronize(events[1]);
+  float runtime_ms = 0;
+  cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
+  for (auto event : events) {
+    (void)cudaEventDestroy(event);
+  }
+  // TODO: output workspace
+  if (runtime_ms < 0.00001) {
+      throw std::runtime_error(
+      "OOB in cutlass."
+    );
+  }
+  std::cout << "OP:" << conv_op_name << ",";
+  std::cout << "TIME:" << runtime_ms << ",";
+  std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
+  return 0;
+}
 
 int main(int argc, char** argv) {
   int64_t batch = std::stoi(argv[1]);
@@ -183,98 +297,16 @@ int main(int argc, char** argv) {
   int dilation_d = std::stoi(argv[16]);
   int dilation_h = std::stoi(argv[17]);
   int dilation_w = std::stoi(argv[18]);
-  {{shape_func}}
-  using ElementOutput = typename {{name}}::ElementC;
-  using ElementInputA = typename {{name}}::ElementA;
-  using ElementInputB = typename {{name}}::ElementB;
 
-  uint8_t* global_workspace = nullptr;
+{{shape_func}}
+
+  uint8_t* global_workspace_ = nullptr;
   cudaStream_t stream = nullptr;
 
-  cutlass::HostTensor<ElementInputA, typename {{name}}::LayoutA> x({NI, DI, HI, WI, CI});
-  cutlass::HostTensor<ElementInputB, typename {{name}}::LayoutB> w({CO, KD, KH, KW, CI});
-  cutlass::HostTensor<ElementOutput, typename {{name}}::LayoutC> y({NO, DO, HO, WO, CO});
+{{benchmark_instances}}
 
-  //
-  // warmup
-  conv(x.device_data(),
-       w.device_data(),
-       y.device_data(),
-       global_workspace,
-       &NI,
-       &CO,
-       &CI,
-       &KD,
-       &KH,
-       &KW,
-       &DI,
-       &HI,
-       &WI,
-       &NO,
-       &DO,
-       &HO,
-       &WO,
-       stride_d,
-       stride_h,
-       stride_w,
-       dilation_d,
-       dilation_h,
-       dilation_w,
-       pad_d,
-       pad_h,
-       pad_w,
-       stream);
-  cudaEvent_t events[2];
-  for (auto & event : events) {
-    cudaEventCreate(&event);
-  }
-  cudaEventRecord(events[0]);
-  for (int i = 0; i < 5; ++i) {
-      conv(x.device_data(),
-       w.device_data(),
-       y.device_data(),
-       global_workspace,
-       &NI,
-       &CO,
-       &CI,
-       &KD,
-       &KH,
-       &KW,
-       &DI,
-       &HI,
-       &WI,
-       &NO,
-       &DO,
-       &HO,
-       &WO,
-       stride_d,
-       stride_h,
-       stride_w,
-       dilation_d,
-       dilation_h,
-       dilation_w,
-       pad_d,
-       pad_h,
-       pad_w,
-       stream);
-  }
-  cudaEventRecord(events[1]);
-  cudaEventSynchronize(events[1]);
-  float runtime_ms = 0;
-  cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
-  for (auto event : events) {
-    (void)cudaEventDestroy(event);
-  }
-  // TODO: output workspace
-  if (runtime_ms < 0.00001) {
-      throw std::runtime_error(
-      "OOB in cutlass."
-    );
-  }
-  std::cout << "TIME:" << runtime_ms << std::endl;
-  std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
+  return 0;
 }
-
 """
 )
 
@@ -315,6 +347,9 @@ void {{func_name}}(
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
+{% if is_profiler %}
+{{indent}}    conv_op,
+{% endif %}
 {{indent}}    {{in_ptr}},
 {{indent}}    {{weight_ptr}},
 {{indent}}    {{out_ptr}},
@@ -350,14 +385,15 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 @registry.reg("cuda.conv3d.config")
 def conv3d_config(func_attrs, dtype="float16"):
     """Populates conv3d cutlass configs into 'op_instance' field."""
-    func_attrs["op_instance"] = common.extract_config(func_attrs)
+    func_attrs["op_instance"] = common.extract_config(func_attrs, dtype=dtype)
 
 
 @registry.reg("cuda.conv3d.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
+def gen_profiler(func_attrs, workdir, profiler_filename, shape_template):
     """Codegen for conv3d profiler."""
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
+
     # shape func
     shape_func = shape_template.render(
         indent="  ",
@@ -382,29 +418,113 @@ def gen_profiler(func_attrs, workdir, shape_template):
         pad_h="pad_h",
         pad_w="pad_w",
     )
+
     backend_spec = CUDASpec()
     dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
-    file_pairs = []
-    for op_name, op in op_instance.items():
+    instance_name_base = "DeviceConvFwdInstance"
+    exec_program = EXEC_TEMPLATE.render(
+        indent="  ",
+        is_profiler=True,
+        instance=instance_name_base,
+        dtype=dtype,
+    )
+
+    function_name = "conv"
+    instances = []
+    benchmark_instances = []
+    for instance_idx, (op_name, op) in enumerate(op_instance.items()):
         config = common.emit_instance(op)
         config_name = common.extract_config_name(config)
-        name = "DeviceConvFwdInstance"
+        instance_name = f"{instance_name_base}_{instance_idx}"
+        conv_op = f"conv_op_{instance_idx}"
         instance = INSTANCE_TEMPLATE.render(
-            config_name=config_name, name=name, config=config
+            config_name=config_name,
+            name=instance_name,
+            config=config,
         )
-        exec_program = EXEC_TEMPLATE.render(
-            indent="  ", is_profiler=True, instance=name, dtype=dtype
+        benchmark_instance = BENCHMARK_INSTANCE_TEMPLATE.render(
+            indent="  ",
+            instance_name=instance_name,
+            conv_op=conv_op,
+            conv_op_name=op_name,
+            func_name=f"benchmark_{function_name}",
+            ni="NI",
+            di="DI",
+            hi="HI",
+            wi="WI",
+            ci="CI",
+            co="CO",
+            kd="KD",
+            kh="KH",
+            kw="KW",
+            no="NO",
+            do="DO",
+            ho="HO",
+            wo="WO",
+            stride_d="stride_d",
+            stride_h="stride_h",
+            stride_w="stride_w",
+            dilation_d="dilation_d",
+            dilation_h="dilation_h",
+            dilation_w="dilation_w",
+            pad_d="pad_d",
+            pad_h="pad_h",
+            pad_w="pad_w",
         )
-        op_func = SRC_TEMPLATE.render(
-            instances=instance,
-            function_name="conv",
-            shape_func="",
-            exec_paths=exec_program,
-        )
-        code = PROFILER_TEMPLATE.render(
-            op_func=op_func, shape_func=shape_func, name=name
-        )
-        common.add_profiler(file_pairs, workdir, op_type, op_name, code)
+        instances.append(instance)
+        benchmark_instances.append(benchmark_instance)
+
+    op_func = SRC_TEMPLATE.render(
+        is_profiler=True,
+        instances="\n".join(instances),
+        instance_name_base=instance_name_base,
+        function_name=function_name,
+        shape_function="",
+        exec_paths=exec_program,
+    )
+    func_call = FUNC_CALL_TEMPLATE.render(
+        indent="  ",
+        is_profiler=True,
+        func_name=function_name,
+        in_ptr="x.device_data()",
+        weight_ptr="w.device_data()",
+        out_ptr="y.device_data()",
+        p_batch="&NI",
+        p_out_ch="&CO",
+        p_in_ch="&CI",
+        p_kernel_d="&KD",
+        p_kernel_h="&KH",
+        p_kernel_w="&KW",
+        p_in_d="&DI",
+        p_in_h="&HI",
+        p_in_w="&WI",
+        p_out_batch="&NO",
+        p_out_d="&DO",
+        p_out_h="&HO",
+        p_out_w="&WO",
+        stride_d="stride_d",
+        stride_h="stride_h",
+        stride_w="stride_w",
+        dilation_d="dilation_d",
+        dilation_h="dilation_h",
+        dilation_w="dilation_w",
+        pad_d="pad_d",
+        pad_h="pad_h",
+        pad_w="pad_w",
+    )
+    code = PROFILER_TEMPLATE.render(
+        op_func=op_func,
+        shape_func=shape_func,
+        instance_name_base=instance_name_base,
+        function_name=function_name,
+        func_call=func_call,
+        benchmark_instances="\n".join(benchmark_instances),
+    )
+
+    # FIXME: remove file_pairs once we have make -j ready for building
+    # an entire graph
+    file_pairs = []
+    common.add_profiler(file_pairs, workdir, op_type, profiler_filename, code)
     # build
     return common.build_profiler(file_pairs)
 

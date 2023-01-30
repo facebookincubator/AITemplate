@@ -244,6 +244,7 @@ enum class LoadVecType {
   VT_FLOAT4
 };
 
+
 template <typename ELEM_T>
 static inline LoadVecType get_vec_type(int64_t dim_size) {
   {{index_type}}  size_elem_t = sizeof(ELEM_T);
@@ -259,7 +260,9 @@ static inline LoadVecType get_vec_type(int64_t dim_size) {
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT4, float4)
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT2, float2)
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
-  HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+  if constexpr (std::is_same_v<ELEM_T, half>) {
+    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+  }
 
 #undef HANDLE_ONE_VEC_TYPE
   throw std::runtime_error(
@@ -422,7 +425,7 @@ void slice_scatter_kernel_launcher(
   dim3 grid_config = dim3(num_blocks_x, NumInputs);
 
 #define HANDLE_ONE_VEC_TYPE(load_vec_type, vec_type)                          \\
-    case load_vec_type: {                                                     \\
+    if (min_vec_type == load_vec_type) {                                      \\
       if (ElemsPerThread * sizeof(ELEM_T) < sizeof(vec_type)) {               \\
          throw std::runtime_error(                                            \\
            std::string("No valid kernel available for ") + #vec_type);        \\
@@ -433,18 +436,17 @@ void slice_scatter_kernel_launcher(
             slice_meta_data,                                                  \\
             scatter_meta_data);                                               \\
       LAUNCH_CHECK_SLICE();                                                   \\
-      break;                                                                  \\
+      return;                                                                 \\
     }
 
-  switch (min_vec_type) {
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT4, float4)
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT2, float2)
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
-    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
-    default:
-      throw std::runtime_error("Invalid LoadVecType\\n");
-  }
+    if constexpr (std::is_same_v<ELEM_T, half>) {
+      HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+    }
 
+  throw std::runtime_error("Invalid LoadVecType\\n");
 #undef HANDLE_ONE_VEC_TYPE
 }
 

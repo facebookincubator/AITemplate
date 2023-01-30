@@ -152,7 +152,7 @@ class group_layernorm(layernorm):
         self._attrs["output_accessors"] = []
         for x in inputs:
             output_shape = self._infer_shapes(x)
-            output = Tensor(output_shape, src_ops={self})
+            output = Tensor(output_shape, src_ops={self}, dtype=x.dtype())
             self._attrs["outputs"].append(output)
             self._attrs["output_accessors"].append(TensorAccessor(output))
             self._attrs["input_accessors"].append(TensorAccessor(x))

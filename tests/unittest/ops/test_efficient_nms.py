@@ -27,6 +27,7 @@ from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 try:
     from torchvision.ops import boxes as box_ops
@@ -61,7 +62,7 @@ def mark_output(y):
         print("output_{} shape: {}".format(i, y_shape))
 
 
-def create_tensors(N):
+def create_tensors(N, dtype="float16"):
     dets = np.array(
         [
             [1.5862e02, 1.6100e02, 4.2800e02, 3.9400e02, 7.7100e-01],
@@ -95,7 +96,7 @@ def create_tensors(N):
             [1.4962e02, 1.6250e02, 4.3650e02, 3.9800e02, 7.9492e-01],
             [1.4850e02, 1.5975e02, 4.3250e02, 3.9275e02, 2.7051e-01],
         ],
-        dtype="float16",
+        dtype=dtype,
     )
     return dets[:N, :4], dets[:N, -1]
 
@@ -108,13 +109,16 @@ def op_gflop(bz, N, max_out):
 
 @skipIfNoTorchVision
 class nmsTestCase(unittest.TestCase):
-    def _create_tensors(self, N, rand=False):
+    def _create_tensors(self, N, rand=False, dtype="float16"):
         if rand:
             boxes = random_boxes(N, 200)
             scores = torch.rand(N)
-            return boxes.numpy().astype("float16"), scores.numpy().astype("float16")
+            return (
+                boxes.numpy().astype(dtype),
+                scores.numpy().astype(dtype),
+            )
         else:
-            boxes, scores = create_tensors(N)
+            boxes, scores = create_tensors(N, dtype=dtype)
             return boxes, scores
 
     def _test_nms(
@@ -133,17 +137,18 @@ class nmsTestCase(unittest.TestCase):
         test_name="efficient_nms",
         benchmark_shapes=False,
         copy_op=False,
+        dtype="float16",
     ):
         X1 = Tensor(
             shape=[batch_size, N, num_classes, 4],
-            dtype="float16",
+            dtype=dtype,
             name="boxes",
             is_input=True,
         )
 
         X2 = Tensor(
             shape=[batch_size, N, num_classes],
-            dtype="float16",
+            dtype=dtype,
             name="scores",
             is_input=True,
         )
@@ -159,24 +164,24 @@ class nmsTestCase(unittest.TestCase):
         Y = OP(X1, X2)
         mark_output(Y)
 
-        boxes, scores = self._create_tensors(N, rand=rand_box)
-        idxs = torch.randint(0, num_classes, (N,)).cuda().half()
-        iou = iouThreshold
-        boxes_pt = torch.tensor(boxes).cuda().half()
+        torch_dtype = string_to_torch_dtype(dtype)
+        boxes, scores = self._create_tensors(N, rand=rand_box, dtype=dtype)
+        idxs = torch.randint(0, num_classes, (N,)).cuda().to(dtype=torch_dtype)
+        boxes_pt = torch.tensor(boxes).cuda().to(dtype=torch_dtype)
         kept = nonempty(boxes_pt, threshold=minBoxSize)
-        score_pt = torch.tensor(scores).cuda().half()
+        score_pt = torch.tensor(scores).cuda().to(dtype=torch_dtype)
         score_pt[kept] = -1
 
         if bench_pt:
             func = box_ops.batched_nms
-            args = (boxes_pt, score_pt, idxs, iou)
+            args = (boxes_pt, score_pt, idxs, iouThreshold)
             batch_size = 1
             duration = benchmark_torch_function(100, func, *args)
             print(
                 f"PT:  BS: {batch_size}, Time per iter: {duration:.2f}ms, QPS: {batch_size / duration:.2f}"
             )
 
-        keep = box_ops.batched_nms(boxes_pt, score_pt, idxs, iou)
+        keep = box_ops.batched_nms(boxes_pt, score_pt, idxs, iouThreshold)
 
         if keep.shape[0] >= nmsMaxOut:
             keep = keep[:nmsMaxOut]
@@ -186,6 +191,7 @@ class nmsTestCase(unittest.TestCase):
             ref_box[
                 : keep.shape[0],
             ] = boxes_pt[keep].cpu()
+        ref_box = ref_box.cuda().to(dtype=torch_dtype)
 
         x = boxes.reshape((1, N, 1, 4)).copy()
         x_scores = scores.reshape((1, N, 1)).copy()
@@ -213,9 +219,9 @@ class nmsTestCase(unittest.TestCase):
         inputs = {"boxes": x_reshaped, "scores": scores_reshaped}
 
         y0 = torch.empty([batch_size, 1]).cuda().to(torch.int64)
-        y1 = torch.empty([batch_size, nmsMaxOut, 4]).cuda().half()
-        y2 = torch.empty([batch_size, nmsMaxOut]).cuda().half()
-        y3 = torch.empty([batch_size, nmsMaxOut]).cuda().to(torch.int64)
+        y1 = torch.empty([batch_size, nmsMaxOut, 4]).cuda().to(dtype=torch_dtype)
+        y2 = torch.empty([batch_size, nmsMaxOut]).cuda().to(dtype=torch_dtype)
+        y3 = torch.empty([batch_size, nmsMaxOut]).cuda().to(dtype=torch.int64)
         outputs = {"output_0": y0, "output_1": y1, "output_2": y2, "output_3": y3}
         module.run_with_tensors(inputs, outputs)
 
@@ -235,11 +241,9 @@ class nmsTestCase(unittest.TestCase):
                     torch.allclose(y[idx1, :], y[idx2, :], atol=1e-2, rtol=1e-2)
                 )
         else:
-            self.assertTrue(
-                torch.allclose(y1[0, :], ref_box.cuda().half(), atol=1e-2, rtol=1e-2)
-            )
+            self.assertTrue(torch.allclose(y1[0, :], ref_box, atol=1e-2, rtol=1e-2))
 
-    def test_nms(self):
+    def test_nms_fp16(self):
         # self._test_nms(
         #     N=15000,
         #     preNmsTop=6000,
@@ -273,7 +277,8 @@ class nmsTestCase(unittest.TestCase):
             batch_size=2,
             num_classes=4,
             rand_box=False,
-            test_name="nms2",
+            test_name="nms2_fp16",
+            dtype="float16",
         )
         self._test_nms(
             N=30,
@@ -284,8 +289,37 @@ class nmsTestCase(unittest.TestCase):
             batch_size=2,
             num_classes=4,
             rand_box=False,
-            test_name="nms2_copy_op",
+            test_name="nms2_copy_op_fp16",
             copy_op=True,
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "float32 not supported in ROCm")
+    def test_nms_fp32(self):
+        self._test_nms(
+            N=30,
+            preNmsTop=30,
+            nmsMaxOut=10,
+            iouThreshold=0.5,
+            minBoxSize=0,
+            batch_size=2,
+            num_classes=4,
+            rand_box=False,
+            test_name="nms2_fp32",
+            dtype="float32",
+        )
+        self._test_nms(
+            N=30,
+            preNmsTop=30,
+            nmsMaxOut=10,
+            iouThreshold=0.5,
+            minBoxSize=0,
+            batch_size=2,
+            num_classes=4,
+            rand_box=False,
+            test_name="nms2_copy_op_fp32",
+            copy_op=True,
+            dtype="float32",
         )
 
     @unittest.skip("manually enable it for benchmarking")

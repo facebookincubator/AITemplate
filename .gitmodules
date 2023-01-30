@@ -8,3 +8,6 @@
 	path = 3rdparty/composable_kernel
 	url = https://github.com/ROCmSoftwarePlatform/composable_kernel.git
 	branch = develop
+[submodule "3rdparty/picojson"]
+	path = 3rdparty/picojson
+	url = https://github.com/kazuho/picojson.git

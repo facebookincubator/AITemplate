@@ -15,38 +15,38 @@
 """
 Utils for unit tests.
 """
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import torch
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.utils.graph_utils import get_sorted_ops
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
-DTYPE_TO_TORCH_DTYPE: Dict[str, torch.dtype] = {
-    "float16": torch.half,
-    "float": torch.float,
-    "int": torch.int,
-}
+def _get_torch_tensor(torch_fn, shape, dtype):
+    dtype = normalize_dtype(dtype)
+    return torch_fn(shape, device="cuda", dtype=string_to_torch_dtype(dtype))
 
 
-def dtype_to_torch_dtype(dtype):
-    if dtype is None:
-        return None
-    torch_dtype = DTYPE_TO_TORCH_DTYPE.get(dtype)
-    if torch_dtype is None:
-        raise RuntimeError("Unsupported dtype: {}".format(dtype))
-    return torch_dtype
+def get_random_torch_tensor(shape, dtype="float16"):
+    return _get_torch_tensor(torch.randn, shape, dtype)
 
 
-def get_random_torch_tensor(shape, dtype):
-    if dtype == "float16":
-        return torch.randn(shape).cuda().half()
-    if dtype == "float":
-        return torch.randn(shape).cuda().float()
-    if dtype == "int":
-        return torch.randn(shape).cuda().int()
-    raise RuntimeError("unsupported dtype: {}".format(dtype))
+def get_torch_empty_tensor(shape, dtype="float16"):
+    return _get_torch_tensor(torch.empty, shape, dtype)
+
+
+def get_torch_zeros_tensor(shape, dtype="float16"):
+    return _get_torch_tensor(torch.zeros, shape, dtype)
+
+
+def get_torch_full_tensor(shape, fill_value, dtype="float16"):
+    dtype = normalize_dtype(dtype)
+    return torch.full(
+        shape, fill_value, device="cuda", dtype=string_to_torch_dtype(dtype)
+    )
 
 
 def has_op(sorted_ops: List[Operator], op_name: str) -> bool:
@@ -70,10 +70,12 @@ def count_ops(sorted_ops: List[Operator], op_name: str):
     return count
 
 
-def gen_input_tensor(shape: List[Any], name: str = None) -> Tensor:
+def gen_input_tensor(
+    shape: List[Any], dtype: str = "float16", name: Optional[str] = None
+) -> Tensor:
     tensor = Tensor(
         shape=shape,
-        dtype="float16",
+        dtype=dtype,
         name=name,
         is_input=True,
     )

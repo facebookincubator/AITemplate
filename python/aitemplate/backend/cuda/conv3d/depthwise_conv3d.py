@@ -17,6 +17,8 @@ Codegen functions for depthwise_conv3d.
 """
 import jinja2
 
+from aitemplate.backend.backend_spec import CUDASpec
+
 from ... import registry
 from . import common
 
@@ -40,7 +42,7 @@ namespace {
 template <typename scalar_t, typename accscalar_t, typename Telement, int element_in_Tio, int kernel_k, int dil_d>
 __global__ void conv_depthwise3d_cuda_kernel(
     const scalar_t * input,
-    const half* kernel,
+    const {{dtype}}* kernel,
     scalar_t * output,
     int _kT, int _kH, int _kW,
     int strideT, int strideH, int strideW,
@@ -81,7 +83,7 @@ __global__ void conv_depthwise3d_cuda_kernel(
     for (int tk = 0; tk < element_in_Tio; tk++){
         sum[tk] = 0;
     }
-    const half *kernel_ptr = kernel + out_channel * element_in_Tio * kT * kH * kW;
+    const {{dtype}} *kernel_ptr = kernel + out_channel * element_in_Tio * kT * kH * kW;
     const scalar_t *input_ptr = input + in_offset;
     for (int k_frame = 0; k_frame < kT; ++k_frame) {
       const int in_frame = in_frame_start + k_frame * dilationT;
@@ -95,8 +97,13 @@ __global__ void conv_depthwise3d_cuda_kernel(
             Telement* pack_input = reinterpret_cast<Telement*>(&input_val);
 
             for (int tk = 0; tk < element_in_Tio; tk++){
+              {% if dtype == "half" %}
                 accscalar_t op1 = __half2float(pack_input[tk]);
                 sum[tk] += op1 * __half2float(kernel_ptr[tk*kT*kH*kW]);
+              {% elif dtype == "float" %}
+                accscalar_t op1 = pack_input[tk];
+                sum[tk] += op1 * kernel_ptr[tk*kT*kH*kW];
+              {% endif %}
             }
           }
           kernel_ptr += 1;
@@ -110,7 +117,11 @@ __global__ void conv_depthwise3d_cuda_kernel(
     scalar_t output_val;
     Telement* pack_output = reinterpret_cast<Telement*>(&output_val);
     for (int tk = 0; tk < element_in_Tio; tk++){
+      {% if dtype == "half" %}
         pack_output[tk] = __float2half(sum[tk]);
+      {% elif dtype == "float" %}
+        pack_output[tk] = sum[tk];
+      {% endif %}
     }
     output[out_offset] = output_val;
   }
@@ -159,9 +170,9 @@ __global__ void conv_depthwise3d_cuda_kernel(
 
 
 void conv_depthwise3d_launcher(
-    const half * input,
-    const half * weight,
-    half * output,
+    const {{dtype}} * input,
+    const {{dtype}} * weight,
+    {{dtype}} * output,
     int kernel_t,
     int kernel_h,
     int kernel_w,
@@ -214,6 +225,7 @@ void conv_depthwise3d_launcher(
 
 
   using accscalar_t = float;
+{% if dtype == "half" %}
   using Telement = half;
   {% if csize == 0 %}
     using scalar_t = float4;
@@ -229,6 +241,18 @@ void conv_depthwise3d_launcher(
     using scalar_t = half;
     #define element_in_Tio 1
   {% endif %}
+{% elif dtype == "float" %}
+  using Telement = float;
+  {% if csize == 2 %}
+    using scalar_t = float2;
+    c =c/2;
+    num_outputs = num_outputs/2;
+    #define element_in_Tio 2
+  {% else %}
+    using scalar_t = float;
+    #define element_in_Tio 1
+  {% endif %}
+{% endif %}
 
   DWCONV3D_FORWARD_DISPATCH_SPECIALIZATION(3, 1)
   DWCONV3D_FORWARD_DISPATCH_SPECIALIZATION(-1, 1)
@@ -281,9 +305,9 @@ void {{function_name}} (
   int out_w = *p_out_w;
 
   conv_depthwise3d_launcher(
-    (const half*)in_ptr,
-    (const half*)weight_ptr,
-    (half*)out_ptr,
+    (const {{dtype}}*)in_ptr,
+    (const {{dtype}}*)weight_ptr,
+    ({{dtype}}*)out_ptr,
     kt,
     kh,
     kw,
@@ -317,7 +341,15 @@ void {{function_name}} (
 def gen_function(func_attrs):
     func_name = func_attrs["name"]
     csize = func_attrs["group"] % 8
-    return SRC_TEMPLATE.render(function_name=func_name, csize=csize)
+
+    backend_spec = CUDASpec()
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
+
+    return SRC_TEMPLATE.render(
+        function_name=func_name,
+        csize=csize,
+        dtype=dtype,
+    )
 
 
 @registry.reg("cuda.depthwise_conv3d.func_decl")

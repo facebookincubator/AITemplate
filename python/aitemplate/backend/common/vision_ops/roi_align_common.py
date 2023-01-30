@@ -23,10 +23,10 @@ import jinja2
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}roi_align_launcher<{{library_dtype}}, float, {{num_rois}}, {{pooled_size}}>(
-{{indent}}    static_cast<const {{library_dtype}}*>(in_ptr),
-{{indent}}    static_cast<const {{library_dtype}}*>(rois_ptr),
-{{indent}}    static_cast<{{library_dtype}}*>(out_ptr),
+{{indent}}roi_align_launcher<{{dtype}}, float, {{num_rois}}, {{pooled_size}}>(
+{{indent}}    static_cast<const {{dtype}}*>(in_ptr),
+{{indent}}    static_cast<const {{dtype}}*>(rois_ptr),
+{{indent}}    static_cast<{{dtype}}*>(out_ptr),
 {{indent}}    NI,
 {{indent}}    HI,
 {{indent}}    WI,
@@ -46,19 +46,20 @@ EXEC_TEMPLATE = jinja2.Template(
 SRC_TEMPLATE = jinja2.Template(
     """
 {{header_files}}
+{% set vec_dtype = {"half": "half2", "float": "float2"}[dtype] %}
 
 namespace {
 #define CUDA_KERNEL_LOOP(i, n) \
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < (n); i += blockDim.x * gridDim.x)
 
 template <typename T>
-__device__ float2 bilinear_interpolate(const half2* bottom_data,
-                                  const int height,
-                                  const int width,
-                                  T y,
-                                  T x,
-                                  const int channels,
-                                  const int index /* index for debug only*/) {
+__device__ float2 bilinear_interpolate(const {{vec_dtype}}* bottom_data,
+                                       const int height,
+                                       const int width,
+                                       T y,
+                                       T x,
+                                       const int channels,
+                                       const int index /* index for debug only*/) {
   // deal with cases that inverse elements are out of feature map boundary
   float2 val = {0.f, 0.f};
   if (y < -1.0 || y > height || x < -1.0 || x > width) {
@@ -87,11 +88,12 @@ __device__ float2 bilinear_interpolate(const half2* bottom_data,
   T lx = x - x_low;
   T hy = 1. - ly, hx = 1. - lx;
   // do bilinear interpolation
-  const half2  v1 = __ldg(bottom_data + (y_low * width + x_low) * channels);
-  const half2  v2 = __ldg(bottom_data + (y_low * width + x_high) * channels);
-  const half2  v3 = __ldg(bottom_data + (y_high * width + x_low) * channels);
-  const half2  v4 = __ldg(bottom_data + (y_high * width + x_high) * channels);
+  const {{vec_dtype}}  v1 = __ldg(bottom_data + (y_low * width + x_low) * channels);
+  const {{vec_dtype}}  v2 = __ldg(bottom_data + (y_low * width + x_high) * channels);
+  const {{vec_dtype}}  v3 = __ldg(bottom_data + (y_high * width + x_low) * channels);
+  const {{vec_dtype}}  v4 = __ldg(bottom_data + (y_high * width + x_high) * channels);
 
+{% if dtype == "half" %}
   T v1_x = __half2float(v1{{half2_data_ref}}.x);
   T v2_x = __half2float(v2{{half2_data_ref}}.x);
   T v3_x = __half2float(v3{{half2_data_ref}}.x);
@@ -101,6 +103,17 @@ __device__ float2 bilinear_interpolate(const half2* bottom_data,
   T v2_y = __half2float(v2{{half2_data_ref}}.y);
   T v3_y = __half2float(v3{{half2_data_ref}}.y);
   T v4_y = __half2float(v4{{half2_data_ref}}.y);
+{% elif dtype == "float" %}
+  T v1_x = v1{{half2_data_ref}}.x;
+  T v2_x = v2{{half2_data_ref}}.x;
+  T v3_x = v3{{half2_data_ref}}.x;
+  T v4_x = v4{{half2_data_ref}}.x;
+
+  T v1_y = v1{{half2_data_ref}}.y;
+  T v2_y = v2{{half2_data_ref}}.y;
+  T v3_y = v3{{half2_data_ref}}.y;
+  T v4_y = v4{{half2_data_ref}}.y;
+{% endif %}
 
   T w1 = hy * hx, w2 = hy * lx, w3 = ly * hx, w4 = ly * lx;
 
@@ -111,19 +124,21 @@ __device__ float2 bilinear_interpolate(const half2* bottom_data,
 }
 
 template <typename T, int64_t num_rois, int pool_size>
-__global__ void roi_align_f16_nhwc_kernel(const half2* bottom_data,
-                                         const half* bottom_rois,
-                                         half2* top_data,
-                                         const int64_t N,
-                                         const int64_t height,
-                                         const int64_t width,
-                                         const int64_t channels,
-                                         const int64_t pooled_height,
-                                         const int64_t pooled_width,
-                                         const int sampling_ratio,
-                                         const float spatial_scale,
-                                         const bool position_sensitive,
-                                         const bool continuous_coordinate) {
+__global__ void roi_align_nhwc_kernel(const {{dtype}}* bottom_data_raw,
+                                      const {{dtype}}* bottom_rois,
+                                      {{dtype}}* top_data_raw,
+                                      const int64_t N,
+                                      const int64_t height,
+                                      const int64_t width,
+                                      const int64_t channels,
+                                      const int64_t pooled_height,
+                                      const int64_t pooled_width,
+                                      const int sampling_ratio,
+                                      const float spatial_scale,
+                                      const bool position_sensitive,
+                                      const bool continuous_coordinate) {
+  const {{vec_dtype}}* bottom_data = reinterpret_cast<const {{vec_dtype}}*>(bottom_data_raw);
+  {{vec_dtype}}* top_data = reinterpret_cast<{{vec_dtype}}*>(top_data_raw);
 
   const int64_t nthreads = num_rois * channels * pooled_width * pooled_height;
 
@@ -139,21 +154,36 @@ __global__ void roi_align_f16_nhwc_kernel(const half2* bottom_data,
     const int n = idx / pooled_height;
 
 
-    const half* offset_bottom_rois = bottom_rois + n * 5;
+    const {{dtype}}* offset_bottom_rois = bottom_rois + n * 5;
+  {% if dtype == "half" %}
     int roi_batch_ind = static_cast<int>(__half2float(offset_bottom_rois[0]));
+  {% elif dtype == "float" %}
+    int roi_batch_ind = static_cast<int>(offset_bottom_rois[0]);
+  {% endif %}
 
     float2 output_val = {0.f, 0.f};
     if (roi_batch_ind < 0) {
+  {% if dtype == "half" %}
       top_data[index] = __float22half2_rn(output_val);
+  {% elif dtype == "float" %}
+      top_data[index] = output_val;
+  {% endif %}
       continue;
     }
 
     // Do not using rounding; this implementation detail is critical
     T roi_offset  = continuous_coordinate ? static_cast<T>(0.5) : static_cast<T>(0);
+  {% if dtype == "half" %}
     T roi_start_w = __half2float(offset_bottom_rois[1]) * spatial_scale - roi_offset;
     T roi_start_h = __half2float(offset_bottom_rois[2]) * spatial_scale - roi_offset;
     T roi_end_w   = __half2float(offset_bottom_rois[3]) * spatial_scale - roi_offset;
     T roi_end_h   = __half2float(offset_bottom_rois[4]) * spatial_scale - roi_offset;
+  {% elif dtype == "float" %}
+    T roi_start_w = offset_bottom_rois[1] * spatial_scale - roi_offset;
+    T roi_start_h = offset_bottom_rois[2] * spatial_scale - roi_offset;
+    T roi_end_w   = offset_bottom_rois[3] * spatial_scale - roi_offset;
+    T roi_end_h   = offset_bottom_rois[4] * spatial_scale - roi_offset;
+  {% endif %}
 
     T roi_width  = roi_end_w - roi_start_w;
     T roi_height = roi_end_h - roi_start_h;
@@ -172,7 +202,7 @@ __global__ void roi_align_f16_nhwc_kernel(const half2* bottom_data,
       channels_unpooled = channels * pooled_height * pooled_width;
     }
 
-    const half2* offset_bottom_data =
+    const {{vec_dtype}}* offset_bottom_data =
            bottom_data + (roi_batch_ind * height * width * channels_unpooled + c_unpooled);
 
     // We use roi_bin_grid to sample the grid and mimic integral
@@ -200,7 +230,11 @@ __global__ void roi_align_f16_nhwc_kernel(const half2* bottom_data,
     output_val.x /= count;
     output_val.y /= count;
 
+  {% if dtype == "half" %}
     top_data[index] = __float22half2_rn(output_val);
+  {% elif dtype == "float" %}
+    top_data[index] = output_val;
+  {% endif %}
   }
 
 }
@@ -212,10 +246,10 @@ constexpr __host__ __device__ inline integer ceil_div(integer n, integer m) {
 }
 
 
-template <typename LibraryT, typename T, int64_t num_rois, int pool_size>
-void roi_align_launcher(const LibraryT* input,
-                        const LibraryT* rois,
-                        LibraryT* output,
+template <typename ElemT, typename T, int64_t num_rois, int pool_size>
+void roi_align_launcher(const ElemT* input,
+                        const ElemT* rois,
+                        ElemT* output,
                       const {{index_type}} N,
                       const {{index_type}} H,
                       const {{index_type}} W,
@@ -235,8 +269,8 @@ void roi_align_launcher(const LibraryT* input,
       static_cast<int64_t>(4096)));
   dim3 block(512);
 
-  roi_align_f16_nhwc_kernel<T, num_rois, pool_size><<<grid, block, 0, stream>>>(
-    (const half2*)input, (const half*)rois, (half2*)output, N, H, W, C / 2, HO, WO,
+  roi_align_nhwc_kernel<T, num_rois, pool_size><<<grid, block, 0, stream>>>(
+    input, rois, output, N, H, W, C / 2, HO, WO,
     sampling_ratio, spatial_scale, position_sensitive, continuous_coordinate);
 
 }

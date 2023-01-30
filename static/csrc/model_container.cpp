@@ -21,8 +21,6 @@ namespace ait {
 
 ModelContainer::ModelContainer(
     size_t num_models,
-    size_t blob_size,
-    size_t workspace_size,
     size_t num_inputs,
     size_t num_outputs,
     size_t num_unbound_constants,
@@ -40,19 +38,21 @@ ModelContainer::ModelContainer(
   if (num_models == 0) {
     throw std::runtime_error("Number of models must be positive");
   }
+  dmlc::InitLogging("aitemplate"); // TODO(xxx): render network name
+  int runtime_version;
+  int driver_version;
+  DEVICE_CHECK(GetDriverVersion(&driver_version));
+  DEVICE_CHECK(GetRuntimeVersion(&runtime_version));
+  LOG(INFO) << "Device Runtime Version: " << runtime_version
+            << "; Driver Version: " << driver_version;
+  LOG(INFO) << "Init AITemplate Runtime with " << num_models << " concurrency";
   models_.reserve(num_models);
   available_models_.reserve(num_models);
 
   for (size_t i = 0; i < num_models; ++i) {
-    models_.emplace_back(
-        blob_size,
-        workspace_size,
-        num_inputs,
-        num_outputs,
-        num_unbound_constants,
-        static_cast<uint8_t*>(constants_.get()),
-        allocator);
-    available_models_.push_back(&models_.back());
+    models_.push_back(
+        Model::Create(allocator, static_cast<uint8_t*>(constants_.get())));
+    available_models_.push_back(models_.back().get());
   }
 }
 
@@ -90,6 +90,34 @@ void ModelContainer::Run(
   if (sync) {
     StreamSynchronize(stream);
   }
+}
+
+void ModelContainer::Profile(
+    const AITData* inputs,
+    size_t num_inputs,
+    AITData* outputs,
+    size_t num_outputs,
+    StreamType stream,
+    size_t num_iters,
+    const char* filename) {
+  auto* model = GetAvailableModel();
+  if (filename == nullptr) {
+    throw;
+  }
+  try {
+    PrepareForRun(model, inputs, num_inputs, outputs, num_outputs);
+    model->Profile(stream, num_iters, filename);
+  } catch (...) {
+    std::lock_guard lk(models_mutex_);
+    available_models_.push_back(model);
+    throw;
+  }
+
+  {
+    std::lock_guard lk(models_mutex_);
+    pending_models_.push_back(model);
+  }
+  pending_models_available_.notify_one();
 }
 
 void ModelContainer::RunWithOutputsOnHost(
@@ -279,7 +307,7 @@ void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
   if (expected_num_bytes != actual_num_bytes) {
     throw std::runtime_error(
         std::string(
-            "SetConstant did not recieve correct number of bytes for constant ") +
+            "SetConstant did not receive correct number of bytes for constant ") +
         name + ": expected " + std::to_string(expected_num_bytes) +
         " but got " + std::to_string(actual_num_bytes) +
         ". Check that the provided tensor's shape is correct.");
@@ -287,7 +315,7 @@ void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
 
   auto* src = tensor.ptr;
   for (auto& model : models_) {
-    model.SetConstant(name, src);
+    model->SetConstant(name, src);
   }
 }
 

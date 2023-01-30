@@ -23,6 +23,7 @@ and model driver source code files.
 from __future__ import annotations
 
 import io
+import logging
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -32,13 +33,16 @@ from aitemplate.compiler.dtype import dtype_to_enumerator, get_dtype_size
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from aitemplate.compiler.transform.memory_planning import Workspace
-from aitemplate.utils import logger
+from aitemplate.utils.debug_settings import AITDebugSettings
 
 from ..compiler.base import IntImm, IntVar, IntVarTensor, Tensor
 from . import registry
 from .target import Target
 
 # pylint: disable=C0103,W0613,C0301
+
+
+_LOGGER = logging.getLogger(__name__)
 
 DTYPE_TO_POINTERTYPE: Dict[str, str] = {
     "float32": "float*",
@@ -105,7 +109,7 @@ def gen_function_src(
                 with open(src_path, "w") as fo:
                     fo.write(func.gen_function())
                 exist_func.add(fname)
-    logger.info(__name__, f"generated {len(file_pairs)} function srcs")
+    _LOGGER.info(f"generated {len(file_pairs)} function srcs")
     return file_pairs
 
 
@@ -261,8 +265,7 @@ class ModelContainerGenerator:
         num_outputs: int,
         constants_data_file: io.BytesIO,
         output_name_to_idx: Dict[str, int],
-        check_all_nan_and_inf: bool = False,
-        check_all_outputs: bool = False,
+        debug_settings: AITDebugSettings,
     ):
         self.target = Target.current()
         self.f_var_decl = registry.get(self.target.name() + ".lib.var_decl")
@@ -275,6 +278,7 @@ class ModelContainerGenerator:
         self.tensor_slice = []
         self.tensor_map_set = []
         self.set_inputs = []
+        self.func_name_seq = []
         self.func_seq = []
         self.tensor_decl = []
         self.dim_decl = []
@@ -313,8 +317,7 @@ class ModelContainerGenerator:
             num_outputs,
         )
 
-        self.check_all_nan_and_inf = check_all_nan_and_inf
-        self.check_all_outputs = check_all_outputs
+        self.debug_settings = debug_settings
 
         # This records whether or not we should debug header.
         self.debug_header = False
@@ -543,7 +546,11 @@ class ModelContainerGenerator:
             # We use original_name here because it's unique.
             if func._attrs["original_name"] not in self.visited_func:
                 self.visited_func.add(func._attrs["original_name"])
-                self.func_seq.append(f_func_call(func._attrs, indent="    "))
+                seq = f_func_call(func._attrs, indent="    ")
+                if self.debug_settings.gen_profiler_annotation:
+                    seq = f'  {{\n  RAII_ProfilerRange _raiiOpProfilerRange("{func._attrs["outputs"][0]._attrs["name"]}");\n{seq}\n  }}'
+                self.func_name_seq.append(func._attrs["original_name"])
+                self.func_seq.append(seq)
             if "int_state_flag" in func._attrs:
                 if func._attrs["name"] not in self.state_record:
                     self.function_state.append(
@@ -552,15 +559,20 @@ class ModelContainerGenerator:
                     self.state_record.add(func._attrs["name"])
             self._process_dims_for_op(func)
 
-        if self.check_all_nan_and_inf or node._attrs.get("check_nan_and_inf", False):
+        if self.debug_settings.check_all_nan_and_inf or node._attrs.get(
+            "check_nan_and_inf", False
+        ):
             self._append_check_nan_and_inf(node)
-        if self.check_all_outputs or node._attrs.get("check_outputs", False):
+        if self.debug_settings.check_all_outputs or node._attrs.get(
+            "check_outputs", False
+        ):
             self._append_check_outputs(node)
 
     def _append_check_nan_and_inf(self, node: Tensor):
         self.debug_header = True
         tensor_name = node._attrs["name"]
         elem_cnt = "*".join([shape.pseudo_code() for shape in node.shape()])
+        self.func_name_seq.append("nan_and_inf_check")
         self.func_seq.append(
             f'    InvokeInfAndNanChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
         )
@@ -569,6 +581,7 @@ class ModelContainerGenerator:
         self.debug_header = True
         tensor_name = node._attrs["name"]
         elem_cnt = "*".join([shape.pseudo_code() for shape in node.shape()])
+        self.func_name_seq.append("output_check")
         self.func_seq.append(
             f'    InvokeOutputsChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
         )
@@ -579,7 +592,13 @@ class ModelContainerGenerator:
         name = node._attrs["name"]
         dtype = node._attrs["dtype"]
         if isinstance(node, IntVarTensor):
-            self.tensor_decl.append(self.f_var_decl(name=name))
+            int_var = node._attrs["int_var"]
+            if isinstance(int_var, IntImm):
+                self.tensor_decl.append(
+                    self.f_var_decl(name=name, value=int_var._attrs["values"][0])
+                )
+            else:
+                self.tensor_decl.append(self.f_var_decl(name=name))
         else:
             self.tensor_decl.append(self.f_ptr_decl(name=name, dtype=dtype))
 
@@ -632,6 +651,7 @@ class ModelContainerGenerator:
         # are not supported
         target_has_graph_mode = "true" if self.target.name() == "cuda" else "false"
 
+        func_pair_seq = zip(self.func_name_seq, self.func_seq)
         model_def = MODEL_TEMPLATE.render(
             function_decl="\n".join(self.func_decl),
             device_functions_header=device_functions_header_name,
@@ -642,20 +662,26 @@ class ModelContainerGenerator:
             device_to_device_copies="\n".join(self.device_to_device_copies),
             set_up_param_dynamic_shapes="\n".join(self.set_up_param_dynamic_shapes),
             function_seq=self.func_seq,
+            function_pair_seq=func_pair_seq,
             tensor_decl="\n".join(self.tensor_decl),
             dim_decl="\n".join(self.dim_decl),
             function_state="\n".join(self.function_state),
             target_has_graph_mode=target_has_graph_mode,
             unique_workspace_size=self.workspace.unique_size,
             debug_header=self.debug_header,
+            blob_size=self.max_blob_size,
+            workspace_size=self.workspace.total_size(),
+            num_inputs=self.num_inputs,
+            num_outputs=self.num_outputs,
+            param_size=self.max_constant_blob_size,
+            num_unbound_constants=self.unbound_constant_idx,
+            profiler_annotation=self.debug_settings.gen_profiler_annotation,
         )
 
         result["model-generated.h"] = model_def
 
         model_container_src_fname = f"model_container_base{self.target.src_extension()}"
         model_container_base_src = MODEL_CONTAINER_TEMPLATE.render(
-            blob_size=self.max_blob_size,
-            workspace_size=self.workspace.total_size(),
             num_inputs=self.num_inputs,
             num_outputs=self.num_outputs,
             param_size=self.max_constant_blob_size,
@@ -697,6 +723,9 @@ def _construct_output_name_to_index_map(
     return result
 
 
+_DEBUG_SETTINGS = AITDebugSettings()
+
+
 def gen_library_src(  # noqa: C901
     sorted_graph: list[Tensor],
     max_blob_size: int,
@@ -705,8 +734,7 @@ def gen_library_src(  # noqa: C901
     workdir: str,
     output_tensors: List[Tensor],
     model_name: str = "",
-    check_all_nan_and_inf: bool = False,
-    check_all_outputs: bool = False,
+    debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
 ) -> list[Tuple[str, str]]:
     """Generate model driver source code files for the given graph
 
@@ -723,6 +751,8 @@ def gen_library_src(  # noqa: C901
         Target directory for generated C++ source code files
     model_name : str, optional
         Sub working directory in the workdir for the given model, by default ""
+    debug_settings : AITDebugSettings
+        specify debug settings such as where to dump AITemplate model Python file, etc.
 
     Returns
     -------
@@ -751,8 +781,7 @@ def gen_library_src(  # noqa: C901
         num_outputs,
         constants_data_file,
         output_name_to_index,
-        check_all_nan_and_inf,
-        check_all_outputs,
+        debug_settings,
     )
     for node in sorted_graph:
         model_container_generator.append_tensor(node)
@@ -772,5 +801,5 @@ def gen_library_src(  # noqa: C901
     for fname in sources:
         to_build.append((fname, to_obj_name(fname)))
 
-    logger.info(__name__, f"generated {len(to_build)} library srcs")
+    _LOGGER.info(f"generated {len(to_build)} library srcs")
     return to_build

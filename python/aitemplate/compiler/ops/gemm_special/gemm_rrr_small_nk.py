@@ -103,7 +103,7 @@ class gemm_rrr_small_nk(common.gemm):
         self._attrs["inputs"] = [a, b]
         self._set_depth()
         output_shape = self._infer_shapes(a, b)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=a.dtype())
         self._attrs["outputs"] = [output]
         # self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output

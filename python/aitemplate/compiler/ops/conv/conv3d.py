@@ -16,6 +16,7 @@
 Base class for conv3d.
 """
 import itertools
+import logging
 import os
 import re
 from collections import OrderedDict
@@ -27,12 +28,19 @@ import jinja2
 from .... import backend
 from ....backend import registry
 from ....backend.target import Target
-from ....utils import logger, shape_utils
+from ....utils import alignment, shape_utils
 from ...base import DynamicProfileStrategy, IntImm, IntVar, Operator, Tensor
 from .cache_entry import Conv3dQueryEntry, Conv3dRecordEntry
+from .conv_common import (
+    filter_op_instances,
+    generate_profiler_sources,
+    get_profiler_filename,
+)
 
 # pylint: disable=C0103,W0221,R1732,W0102,W1202,C0301,R1716
 
+
+_LOGGER = logging.getLogger(__name__)
 
 SHAPE_FUNC_TEMPLATE = jinja2.Template(
     """
@@ -211,9 +219,14 @@ class conv3d(Operator):
             x_dim4=shape[4],
         ).replace("\n", "")
 
-    def _gen_dyn_exec_key(self, dim0_lb, dim0_ub, dim1, dim2, dim3):
+    def _gen_dyn_exec_key(self, dim0_lb, dim0_ub, dim1, dim2, dim3, dim4):
         return self.exec_dyn_key_template.render(
-            x_dim0_lb=dim0_lb, x_dim0_ub=dim0_ub, x_dim1=dim1, x_dim2=dim2, x_dim3=dim3
+            x_dim0_lb=dim0_lb,
+            x_dim0_ub=dim0_ub,
+            x_dim1=dim1,
+            x_dim2=dim2,
+            x_dim3=dim3,
+            x_dim4=dim4,
         ).replace("\n", "")
 
     def _extract_exec_path(self, x: Tensor):
@@ -243,13 +256,10 @@ class conv3d(Operator):
         epilogue_dim = output_shape[-1]
         if not isinstance(epilogue_dim, IntImm):
             raise RuntimeError("Conv output last dimension must be static!")
-        shape = epilogue_dim._attrs["values"][0]
-        if shape % 8 == 0:
-            self._attrs["epilogue_alignment"] = 8
-        elif shape % 4 == 0:
-            self._attrs["epilogue_alignment"] = 4
-        elif shape % 2 == 0:
-            self._attrs["epilogue_alignment"] = 2
+        self._attrs["epilogue_alignment"] = alignment.find_max_alignment(
+            number=epilogue_dim._attrs["values"][0],
+            dtype=self._attrs["inputs"][0]._attrs["dtype"],
+        )
 
     def __call__(self, x: Tensor, w: Tensor) -> List[Tensor]:
         """Call conv3d with tensors x, w
@@ -271,7 +281,7 @@ class conv3d(Operator):
         output_shape = self._infer_shapes(x, w)
         self._extract_exec_path(x)
         self._extract_epilogue_alignment(output_shape)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=x._attrs["dtype"])
         self._attrs["outputs"] = [output]
         return output
 
@@ -284,6 +294,73 @@ class conv3d(Operator):
                 attr[target_attr] = self._attrs[target_attr]
 
         return attr
+
+    def _should_build_profiler(self) -> bool:
+        """
+        Check if we should build profilers. If we have a cached
+        entry for this gemm instance, we update this gemm op's
+        relevant attributes with the cached result and return False.
+        """
+        if self._has_dynamic_input_dims():
+            # If there are dynamic dims, we'll have to generate and build the
+            # profilers, as the binaries will be needed for dynamic profiling.
+            return True
+
+        target = backend.target.Target.current()
+        workloads = list(self._attrs["exec_path"].keys())
+
+        build_profiler = True
+        # Now, let's query if all of our workloads have cache entries. If that
+        # is the case, it is safely to skip generating and building profilers.
+        if not target.use_dummy_profiling_results():
+            tmp_key = next(iter(self._attrs["op_instance"].keys()))
+            tmp_op = self._attrs["op_instance"][tmp_key]
+            build_profiler = False
+            for wkl in workloads:
+                exec_entry_sha1 = sha1(wkl.encode("utf-8")).hexdigest()
+                split_k = (
+                    1 if self._attrs["split_k"] is None else self._attrs["split_k"]
+                )
+                query = Conv3dQueryEntry(
+                    dtype_a=tmp_op.A.element.value,
+                    dtype_b=tmp_op.B.element.value,
+                    dtype_c=tmp_op.C.element.value,
+                    dtype_acc=tmp_op.tile_description.math_instruction.element_accumulator.value,
+                    major_a=tmp_op.A.layout.value,
+                    major_b=tmp_op.B.layout.value,
+                    major_c=tmp_op.C.layout.value,
+                    kd=self._attrs["KD"],
+                    kh=self._attrs["KH"],
+                    kw=self._attrs["KW"],
+                    co=self._attrs["CO"],
+                    stride_d=self._attrs["stride"][0],
+                    stride_h=self._attrs["stride"][1],
+                    stride_w=self._attrs["stride"][2],
+                    pad_d=self._attrs["pad"][0],
+                    pad_h=self._attrs["pad"][1],
+                    pad_w=self._attrs["pad"][2],
+                    dilate_d=self._attrs["dilate"][0],
+                    dilate_h=self._attrs["dilate"][1],
+                    dilate_w=self._attrs["dilate"][2],
+                    op_type=self._attrs["op"],
+                    device=target._arch,
+                    epilogue=tmp_op.epilogue_functor.value,
+                    split_k=split_k,
+                    exec_entry_sha1=exec_entry_sha1,
+                )
+                cache_value = target.query_profile_cache("conv3d", query.__dict__)
+                if cache_value is not None and not target.force_profile():
+                    _LOGGER.info(
+                        f'Load profiling result for {self._attrs["name"]} '
+                        f"from cache: {cache_value}",
+                    )
+                    best_algo, workspace = cache_value
+                    self._attrs["exec_path"][wkl] = best_algo
+                    self._attrs["workspace"] = max(self._attrs["workspace"], workspace)
+                else:
+                    # cache miss - we will have to generate and build profilers
+                    build_profiler = True
+        return build_profiler
 
     def gen_profiler(
         self,
@@ -305,12 +382,22 @@ class conv3d(Operator):
             target=target.name(), op=self._attrs["op"]
         )
         func = registry.get(func_key)
-        func(self._attrs)
-        func_key = "{target}.{op}.gen_profiler".format(
-            target=target.name(), op=self._attrs["op"]
-        )
-        func = registry.get(func_key)
-        return func(self._attrs, workdir, self.shape_eval_template)
+        func(self._attrs, dtype=self._attrs["inputs"][0]._attrs["dtype"])
+
+        if self._should_build_profiler():
+            x_shapes = [
+                self._invert_exec_key(exec_key) for exec_key in self._attrs["exec_path"]
+            ]
+            self._attrs["op_instance"] = filter_op_instances(
+                func_attrs=self._attrs,
+                x_shapes=x_shapes,
+            )
+            return generate_profiler_sources(
+                func_attrs=self._attrs,
+                op_class="conv3d",
+                workdir=workdir,
+                shape_template=self.shape_eval_template,
+            )
 
     def _gen_profile_cmd(self, profiler_prefix, cfg, x_shape):
         exe_path = os.path.join(profiler_prefix, cfg)
@@ -341,12 +428,6 @@ class conv3d(Operator):
 
     def _profile_single_workload(self, profiler_prefix, exec_key, devices):
         target = backend.target.Target.current()
-        # if in CI just choose minimal configs
-        # workspace is a hack just provides 102400 Byte
-        if target.use_dummy_profiling_results():
-            algo = target.select_minimal_algo(list(self._attrs["op_instance"].keys()))
-            logger.info(__name__, f"Select minimal algo {algo} for CI")
-            return (algo, 102400)
         # query cache
         tmp_key = next(iter(self._attrs["op_instance"].keys()))
         tmp_op = self._attrs["op_instance"][tmp_key]
@@ -381,7 +462,7 @@ class conv3d(Operator):
         )
         cache_value = target.query_profile_cache("conv3d", query.__dict__)
         if cache_value is not None and not target.force_profile():
-            logger.info(__name__, "Load profiling result from cache.")
+            _LOGGER.info("Load profiling result from cache.")
             return cache_value
         if target.use_dummy_profiling_results():
             op_type = self._attrs["op"]
@@ -391,19 +472,22 @@ class conv3d(Operator):
                 f"{op_type} {exec_entry_sha1}.\n",
                 "To bypass, you need to make it available in the db table.",
             )
-
-        func_key = "{target}.{op}.filter".format(
-            target=target.name(), op=self._attrs["op"]
-        )
-        func = registry.get(func_key)
-        content = list(self._attrs["op_instance"].keys())
-        runner = backend.profiler_runner.Runner(devices, self._attrs["name"])
-        x_shape = self._invert_exec_key(exec_key)
-        for cfg in content:
-            if not func(cfg, self._attrs, x_shape):
-                continue
-            command = self._gen_profile_cmd(profiler_prefix, cfg, x_shape)
-            runner.push(cfg, command)
+        if target.name() == "rocm":
+            op_type = self._attrs["op"]
+            all_op_names = list(self._attrs["op_instance"].keys())
+            for op_name in all_op_names:
+                runner = backend.profiler_runner.Runner(
+                    devices, self._attrs["name"], timeout=180
+                )
+                x_shape = self._invert_exec_key(exec_key)
+                command = self._gen_profile_cmd(profiler_prefix, op_name, x_shape)
+                runner.push(op_name, command)
+        else:
+            profiler_filename = get_profiler_filename(self._attrs, "conv3d")
+            runner = backend.profiler_runner.Runner(devices, self._attrs["name"])
+            x_shape = self._invert_exec_key(exec_key)
+            command = self._gen_profile_cmd(profiler_prefix, profiler_filename, x_shape)
+            runner.push(profiler_filename, command)
 
         runner.join()
         result = runner.pull()
@@ -448,6 +532,13 @@ class conv3d(Operator):
         Target.current().insert_profile_cache("conv3d", cache_record.__dict__)
         return (best_algo, workspace)
 
+    def _has_dynamic_input_dims(self):
+        for input_tensor in self._attrs["inputs"]:
+            for dim in input_tensor._attrs["shape"]:
+                if not isinstance(dim, IntImm):
+                    return True
+        return False
+
     def profile(
         self,
         workdir="./",
@@ -458,13 +549,7 @@ class conv3d(Operator):
             devices = [0]
         self._profile_static(workdir, devices)
 
-        has_dynamic = False
-        for input_tensor in self._attrs["inputs"]:
-            for dim in input_tensor._attrs["shape"]:
-                if not isinstance(dim, IntImm):
-                    has_dynamic = True
-                    break
-        if has_dynamic:
+        if self._has_dynamic_input_dims():
             if dynamic_profiling_strategy != DynamicProfileStrategy.HINTS:
                 raise NotImplementedError(
                     "conv3d only supports HINTS dynamic profiling strategy for now! Current strategy: {}".format(
@@ -485,18 +570,28 @@ class conv3d(Operator):
                 target=target.name(), op=self._attrs["op"]
             )
             func = registry.get(func_key)
-            func(self._attrs)
+            func(self._attrs, dtype=self._attrs["inputs"][0]._attrs["dtype"])
 
         for wkl in workloads:
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
-            best_algo, workspace = self._profile_single_workload(
-                profiler_prefix, wkl, devices
-            )
-            self._attrs["exec_path"][wkl] = best_algo
-            self._attrs["workspace"] = max(self._attrs["workspace"], workspace)
+            target = backend.target.Target.current()
+            # if in CI just choose minimal configs
+            # workspace is a hack just provides 102400 Byte
+            if target.use_dummy_profiling_results():
+                algo = target.select_minimal_algo(
+                    list(self._attrs["op_instance"].keys())
+                )
+                _LOGGER.info(f"Select minimal algo {algo} for CI")
+                self._attrs["exec_path"][wkl] = algo
+                self._attrs["workspace"] = 102400
+            elif self._attrs["exec_path"][wkl] == "":
+                best_algo, workspace = self._profile_single_workload(
+                    profiler_prefix, wkl, devices
+                )
+                self._attrs["exec_path"][wkl] = best_algo
+                self._attrs["workspace"] = max(self._attrs["workspace"], workspace)
 
     def _profile_dynamic_dim(self, workdir):
         """Profiles with dynamic shapes."""
@@ -506,10 +601,13 @@ class conv3d(Operator):
         # extract dynamic dim from exec_path
         if len(self._attrs["exec_path"]) <= 1:
             return
+        if len(set(self._attrs["exec_path"].values())) <= 1:
+            # all exec paths point to the same algo
+            return
 
         def _extract_dynamic_dim(exec_keys):
-            logger.info(__name__, "ONLY SUPPORT DYNAMIC BATCH (dim0)!")
-            var_dims = [[], [], [], []]
+            _LOGGER.info("ONLY SUPPORT DYNAMIC BATCH (dim0)!")
+            var_dims = [[], [], [], [], []]
             for key in exec_keys:
                 dims = self._invert_exec_key(key)
                 for i, v in enumerate(dims):
@@ -520,6 +618,7 @@ class conv3d(Operator):
         dim1 = dims[1][0]
         dim2 = dims[2][0]
         dim3 = dims[3][0]
+        dim4 = dims[4][0]
         algos = list(self._attrs["exec_path"].values())
         # generate region
         regions = []  # lb, ub, lb_algos, ub_algos
@@ -537,34 +636,38 @@ class conv3d(Operator):
             last_mid = mid
             while mid > lb and mid < ub:
                 mid = (lb + ub) // 2
-                mid_shape = [mid, dim1, dim2, dim3]
-                logger.info(
-                    __name__,
+                mid_shape = [mid, dim1, dim2, dim3, dim4]
+                _LOGGER.info(
                     "current: lb_algo: {lb_algo}, LB:{lb} MID:{mid} UB:{ub}".format(
                         lb_algo=lb_algo, lb=lb, mid=mid, ub=ub
                     ),
                 )
 
-                mid_lb_algo_cmd = self._gen_profile_cmd(
-                    profiler_prefix, str(lb_algo), mid_shape
+                # run the profiler binary with all ops on the mid_shape
+                # and fetch the results only for the lb_algo and ub_algo
+                profiler_filename = get_profiler_filename(self._attrs, "conv3d")
+                profiler_cmd = self._gen_profile_cmd(
+                    profiler_prefix, profiler_filename, mid_shape
                 )
-                mid_ub_algo_cmd = self._gen_profile_cmd(
-                    profiler_prefix, str(ub_algo), mid_shape
+                runner.push(
+                    idx=profiler_filename,
+                    cmd=profiler_cmd,
+                    return_ops=[str(lb_algo), str(ub_algo)],
                 )
-                runner.push(0, mid_lb_algo_cmd)
-                runner.push(1, mid_ub_algo_cmd)
                 runner.join()
                 result = runner.pull()
-                assert len(result) >= 1
+                result_dict = {res.op_config: res for res in result[0][1]}
+
+                assert len(result_dict) >= 1
                 # if there is only one result, assume ub algo failed.
-                if len(result) == 1:
-                    assert result[0][0] == 0
+                if len(result_dict) == 1:
+                    assert str(ub_algo) not in result_dict
                     # last_lb = lb
                     lb = mid + 1
                 # if there are two result, compare to decide new lb/ub
                 else:
-                    lb_time = result[0][1]
-                    ub_time = result[1][1]
+                    lb_time = result_dict[str(lb_algo)].duration
+                    ub_time = result_dict[str(ub_algo)].duration
                     if lb_time < ub_time:
                         # lb algo can work with larger batch
                         # last_lb = lb
@@ -576,10 +679,10 @@ class conv3d(Operator):
                 last_mid = mid
                 mid = (lb + ub) // 2
             lo_region_key = self._gen_dyn_exec_key(
-                origin_lb, last_mid, dim1, dim2, dim3
+                origin_lb, last_mid, dim1, dim2, dim3, dim4
             )
             up_region_key = self._gen_dyn_exec_key(
-                last_mid, origin_ub, dim1, dim2, dim3
+                last_mid, origin_ub, dim1, dim2, dim3, dim4
             )
             new_exec_paths[lo_region_key] = lb_algo
             new_exec_paths[up_region_key] = ub_algo
@@ -588,21 +691,21 @@ class conv3d(Operator):
             # So far I find binary search works well.
             # def _find_special_case(lb, ub, algo):
             #     for i in range(lb + 1, ub + 1):
-            #         x_shape = [i, dim1, dim2, dim3]
+            #         x_shape = [i, dim1, dim2, dim3, dim4]
             #         cmd = self._gen_profile_cmd(profiler_prefix, str(algo), x_shape)
             #         runner.push(0, cmd)
             #         runner.join()
             #         out = runner.pull()
             #         if len(out) == 0:
-            #             logger.info(self._attrs["name"], "Find specail case: batch=%d" % i)
+            #             _LOGGER.info(Find specail case: batch=%d" % i)
             #             algo = self._profile_single_workload(profiler_prefix, x_shape, [0])
             #             special_cases[self._gen_exec_key(x_shape)] = algo
 
-            # logger.info(self._attrs["name"],
+            # _LOGGER.info(
             #     "Searching for specail cases between [{lb}, {ub}]".format(lb=origin_lb,
             #         ub=last_mid))
             # _find_special_case(origin_lb, last_mid, lb_algo)
-            # logger.info(self._attrs["name"],
+            # _LOGGER.info(
             #     "Searching for specail cases between [{lb}, {ub}]".format(lb=last_mid + 1,
             #         ub=origin_ub))
             # _find_special_case(last_mid, origin_ub, ub_algo)

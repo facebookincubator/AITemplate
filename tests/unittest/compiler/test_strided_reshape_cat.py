@@ -21,7 +21,13 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class StridedReshapeCatTestCase(unittest.TestCase):
@@ -29,10 +35,10 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         super(StridedReshapeCatTestCase, self).__init__(*args, **kwargs)
         self.test_count = 1
 
-    def _test_strided_reshape_cat(self, num_cat_ops=1):
+    def _test_strided_reshape_cat(self, num_cat_ops=1, dtype="float16"):
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
 
         M1 = 128
@@ -54,21 +60,21 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         dim = 1
 
         X1 = Tensor(
-            shape=[IntImm(M1), IntImm(K1)], dtype="float16", name="x1", is_input=True
+            shape=[IntImm(M1), IntImm(K1)], dtype=dtype, name="x1", is_input=True
         )
-        W1 = Tensor(shape=[N1, K1], dtype="float16", name="w1", is_input=True)
+        W1 = Tensor(shape=[N1, K1], dtype=dtype, name="w1", is_input=True)
         X2 = Tensor(
-            shape=[IntImm(M2), IntImm(K2)], dtype="float16", name="x2", is_input=True
+            shape=[IntImm(M2), IntImm(K2)], dtype=dtype, name="x2", is_input=True
         )
-        W2 = Tensor(shape=[N2, K2], dtype="float16", name="w2", is_input=True)
+        W2 = Tensor(shape=[N2, K2], dtype=dtype, name="w2", is_input=True)
 
         X3 = Tensor(
-            shape=[IntImm(M3), IntImm(K3)], dtype="float16", name="x3", is_input=True
+            shape=[IntImm(M3), IntImm(K3)], dtype=dtype, name="x3", is_input=True
         )
-        W3 = Tensor(shape=[N3, K3], dtype="float16", name="w3", is_input=True)
+        W3 = Tensor(shape=[N3, K3], dtype=dtype, name="w3", is_input=True)
 
         Input = Tensor(
-            shape=[BS, Input_M, Input_N], dtype="float16", name="input", is_input=True
+            shape=[BS, Input_M, Input_N], dtype=dtype, name="input", is_input=True
         )
 
         group_gemm_op = ops.group_gemm_rcr()
@@ -115,13 +121,13 @@ class StridedReshapeCatTestCase(unittest.TestCase):
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]
         )
 
-        X1_pt = torch.randn(M1, K1).cuda().half()
-        W1_pt = torch.randn(N1, K1).cuda().half()
-        X2_pt = torch.randn(M2, K2).cuda().half()
-        W2_pt = torch.randn(N2, K2).cuda().half()
-        X3_pt = torch.randn(M3, K3).cuda().half()
-        W3_pt = torch.randn(N3, K3).cuda().half()
-        Input_pt = torch.randn(BS, Input_M, Input_N).cuda().half()
+        X1_pt = get_random_torch_tensor([M1, K1], dtype)
+        W1_pt = get_random_torch_tensor([N1, K1], dtype)
+        X2_pt = get_random_torch_tensor([M2, K2], dtype)
+        W2_pt = get_random_torch_tensor([N2, K2], dtype)
+        X3_pt = get_random_torch_tensor([M3, K3], dtype)
+        W3_pt = get_random_torch_tensor([N3, K3], dtype)
+        Input_pt = get_random_torch_tensor([BS, Input_M, Input_N], dtype)
         Y1_orig_pt = torch.nn.functional.linear(X1_pt, W1_pt)
         Y2_orig_pt = torch.nn.functional.linear(X2_pt, W2_pt)
         Y3_orig_pt = torch.nn.functional.linear(X3_pt, W3_pt)
@@ -131,7 +137,7 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         Y_pt = torch.cat([Y1_pt, Y2_pt, Input_pt, Y3_pt], dim=dim)
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logging.info("AITemplate y_shape: {}".format(y_shape))
+        _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
         np.testing.assert_equal(y_shape, Y_pt.size())
 
         inputs = {
@@ -144,19 +150,15 @@ class StridedReshapeCatTestCase(unittest.TestCase):
             "input": Input_pt,
         }
 
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
         self.test_count += 1
 
-    def test_strided_reshape_cat(self, num_cat_ops=1):
-        self._test_strided_reshape_cat(1)
-        self._test_strided_reshape_cat(2)
-
-    def test_strided_reshape_cat_bias(self):
+    def _test_strided_reshape_cat_bias(self, dtype="float16"):
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
 
         M1 = 128
@@ -174,18 +176,18 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         dim = 1
 
         X1 = Tensor(
-            shape=[IntImm(M1), IntImm(K1)], dtype="float16", name="x1", is_input=True
+            shape=[IntImm(M1), IntImm(K1)], dtype=dtype, name="x1", is_input=True
         )
-        W1 = Tensor(shape=[N1, K1], dtype="float16", name="w1", is_input=True)
-        B1 = Tensor(shape=[N1], dtype="float16", name="b1", is_input=True)
+        W1 = Tensor(shape=[N1, K1], dtype=dtype, name="w1", is_input=True)
+        B1 = Tensor(shape=[N1], dtype=dtype, name="b1", is_input=True)
         X2 = Tensor(
-            shape=[IntImm(M2), IntImm(K2)], dtype="float16", name="x2", is_input=True
+            shape=[IntImm(M2), IntImm(K2)], dtype=dtype, name="x2", is_input=True
         )
-        W2 = Tensor(shape=[N2, K2], dtype="float16", name="w2", is_input=True)
-        B2 = Tensor(shape=[N2], dtype="float16", name="b2", is_input=True)
+        W2 = Tensor(shape=[N2, K2], dtype=dtype, name="w2", is_input=True)
+        B2 = Tensor(shape=[N2], dtype=dtype, name="b2", is_input=True)
 
         Input = Tensor(
-            shape=[BS, Input_M, Input_N], dtype="float16", name="input", is_input=True
+            shape=[BS, Input_M, Input_N], dtype=dtype, name="input", is_input=True
         )
 
         group_gemm_op = ops.group_gemm_rcr_bias()
@@ -211,13 +213,13 @@ class StridedReshapeCatTestCase(unittest.TestCase):
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]
         )
 
-        X1_pt = torch.randn(M1, K1).cuda().half()
-        W1_pt = torch.randn(N1, K1).cuda().half()
-        B1_pt = torch.randn(N1).cuda().half()
-        X2_pt = torch.randn(M2, K2).cuda().half()
-        W2_pt = torch.randn(N2, K2).cuda().half()
-        B2_pt = torch.randn(N2).cuda().half()
-        Input_pt = torch.randn(BS, Input_M, Input_N).cuda().half()
+        X1_pt = get_random_torch_tensor([M1, K1], dtype)
+        W1_pt = get_random_torch_tensor([N1, K1], dtype)
+        B1_pt = get_random_torch_tensor([N1], dtype)
+        X2_pt = get_random_torch_tensor([M2, K2], dtype)
+        W2_pt = get_random_torch_tensor([N2, K2], dtype)
+        B2_pt = get_random_torch_tensor([N2], dtype)
+        Input_pt = get_random_torch_tensor([BS, Input_M, Input_N], dtype)
         Y1_orig_pt = torch.nn.functional.linear(X1_pt, W1_pt, bias=B1_pt)
         Y2_orig_pt = torch.nn.functional.linear(X2_pt, W2_pt, bias=B2_pt)
         Y1_pt = torch.reshape(Y1_orig_pt, [BS, -1, Input_N])
@@ -225,7 +227,7 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         Y_pt = torch.cat([Y1_pt, Y2_pt, Input_pt], dim=dim)
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logging.info("AITemplate y_shape: {}".format(y_shape))
+        _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
         np.testing.assert_equal(y_shape, Y_pt.size())
 
         inputs = {
@@ -237,10 +239,24 @@ class StridedReshapeCatTestCase(unittest.TestCase):
             "b2": B2_pt,
             "input": Input_pt,
         }
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
         self.test_count += 1
+
+    def test_strided_reshape_cat(self):
+        self._test_strided_reshape_cat()
+        self._test_strided_reshape_cat(num_cat_ops=2)
+        self._test_strided_reshape_cat_bias()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_strided_reshape_cat_float(self):
+        self._test_strided_reshape_cat(num_cat_ops=2, dtype="float")
+        self._test_strided_reshape_cat_bias(dtype="float")
 
 
 if __name__ == "__main__":

@@ -16,10 +16,11 @@
 Horizontal fusion pass to group ops together.
 """
 import collections
+import logging
 import os
 from typing import Callable, List, OrderedDict, Set
 
-from ...utils import graph_utils, logger
+from ...utils import graph_utils
 from ...utils.shape_utils import all_static_dimensions
 from .. import ops
 from ..base import Operator, Tensor
@@ -27,6 +28,9 @@ from ..ops.gemm_universal.gemm_common import default_align_ab
 from . import transform_utils
 from .fuse_split import _can_fuse_split_op
 from .toposort import toposort
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # used by debugging only
@@ -41,7 +45,7 @@ def _dump_dependency_graph(graph, op_type, postfix, workdir):
 
     with open(file_path, "w") as f:
         f.write("\n\n".join(graph_str))
-        logger.info(__file__, f"Dumped dependency graph to {file_path}")
+        _LOGGER.info(f"Dumped dependency graph to {file_path}")
 
 
 def _dump_groups(groups, op_type, workdir):
@@ -53,7 +57,7 @@ def _dump_groups(groups, op_type, workdir):
             f.write(f"[{single_group_str}]\n\n")
             f.write(graph_utils.sorted_op_pseudo_code(group))
             f.write("\n")
-        logger.info(__file__, f"Dumped groups to {file_path}")
+        _LOGGER.info(f"Dumped groups to {file_path}")
 
 
 def _dump_single_group(group):
@@ -75,7 +79,7 @@ def _check_op_num_outputs(op: Operator, num_outputs: int) -> bool:
 def _get_ab_alignment(op: Operator) -> int:
     if op._attrs["op"].startswith("gemm_rcr"):
         k = op._attrs["inputs"][0]._size(1).value()
-        return default_align_ab(k, k)
+        return default_align_ab(k, k, op._attrs["inputs"][0].dtype())
     raise NotImplementedError(
         f"Need to add alignment check support for op {op._attrs['op']}"
     )
@@ -222,8 +226,24 @@ _group_gemm_op_mapping = {
 }
 
 
+def _has_cycle(grouped_op: Operator, group: List[Operator]):
+    """
+    Assuming that grouped_op is in the group, determine if grouped_op
+    can reach any other op in the group. Return True if it can.
+    """
+    assert (
+        grouped_op in group
+    ), f'grouped_op {grouped_op._attrs["name"]} is not from the group'
+    for op in group:
+        if op is grouped_op:
+            continue
+        if transform_utils.is_ancestor(op, grouped_op):
+            return True
+    return False
+
+
 def _group_split_outputs_together(
-    sorted_ops: List[Operator], op_type: str
+    sorted_graph: List[Tensor], sorted_ops: List[Operator], op_type: str
 ) -> List[List[Operator]]:
     """As long as alignment allows, we group all output gemm ops from split op
     together to eliminate the cost of split. Here we don't exclude large gemms
@@ -255,7 +275,10 @@ def _group_split_outputs_together(
                     gemm_group.append(gemm_op)
                 else:
                     break
-        if len(gemm_group) == len(op._attrs["outputs"]):
+        if len(gemm_group) == len(op._attrs["outputs"]) and all(
+            not _has_cycle(grouped_op, gemm_group) for grouped_op in gemm_group
+        ):
+            _fuse_gemm_ops(gemm_group, sorted_graph)
             groups.append(gemm_group)
     return groups
 
@@ -390,16 +413,16 @@ def _break_layernorm_groups(group: List[Operator]) -> List[List[Operator]]:
 
 def _group_ops_by_type(
     sorted_graph: List[Tensor], op_type: str, workdir: str = None
-) -> List[List[Operator]]:
-    """Find all groups of ops that can be fused together. Each group is replaced
-    with 1 group op.
+) -> bool:
+    """Find and fuse all groups of ops that can be fused together.
+    Each group is replaced with 1 group op.
 
     Args:
         sorted_graph (List[Tensor]): Topologically sorted input graph
         op_type (str): The type of op to be grouped
 
     Returns:
-        List[List[Operator]]: All groups of ops that can be grouped together.
+        True if we fused any group.
 
     The algorithm can be described as:
     0) Let groups = []
@@ -440,13 +463,15 @@ def _group_ops_by_type(
 
     # There is no op with op_type in the graph
     if len(dependency_graph) == 0:
-        return []
+        return False
 
     if workdir:
         _dump_dependency_graph(dependency_graph, op_type, "filtered", workdir)
 
     f_filter_op = _get_op_filter(op_type)
     f_check_ops_are_compatible = _get_op_checker(op_type)
+    is_layernorm = op_type.startswith("layernorm")
+    f_fuse_ops = _fuse_layernorm_ops if is_layernorm else _fuse_gemm_ops
 
     sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
 
@@ -458,7 +483,7 @@ def _group_ops_by_type(
     groups = []
 
     # applies to group gemms only
-    split_groups = _group_split_outputs_together(sorted_ops, op_type)
+    split_groups = _group_split_outputs_together(sorted_graph, sorted_ops, op_type)
     for group in split_groups:
         groups.append(group)
         for op in group:
@@ -503,15 +528,45 @@ def _group_ops_by_type(
 
                 # must merge descendants together
                 descendants.update(dependency_graph[candidate])
+        # remove any op that may introduce a cycle because of grouping ops
+        group_op_idx = 0
+        while group_op_idx < len(group):
+            grouped_op = group[group_op_idx]
+            if _has_cycle(grouped_op, group):
+                del group[group_op_idx]
+            else:
+                group_op_idx += 1
 
+        # We fuse each group right after we form it. Otherwise, _has_cycle may
+        # miss cycles within groups. For example, see the graph below:
+        #
+        #        A --> C ---
+        #                  |
+        #    --> B --> D   |
+        #    |             |
+        #    --- X --> M   |
+        #                  |
+        #        Y --> N <--
+        #
+        # If we fuse (A, B) and (X, Y) at the same time, we would end up with a
+        # cycle between the fused op (A, B) and (X, Y). On the other hand, if we
+        # fuse (A, B) first, and then check _has_cycle before fusing (X, Y), we
+        # will be able to detect the cycle.
         if len(group) > _MAX_LAYERNORM_GROUP and op_type.startswith("layernorm"):
-            groups.extend(_break_layernorm_groups(group))
+            new_groups = _break_layernorm_groups(group)
+            for new_group in new_groups:
+                f_fuse_ops(new_group, sorted_graph)
+            groups.extend(new_groups)
         elif len(group) >= 2:
+            f_fuse_ops(group, sorted_graph)
             groups.append(group)
 
         grouped[op] = True
 
-    return groups
+    if workdir:
+        _dump_groups(groups, op_type, workdir)
+
+    return len(groups) > 0
 
 
 def _fuse_layernorm_ops(
@@ -650,18 +705,9 @@ def _fuse_group_ops_by_type(
     2) fuse them together
     Details of step 1 can be found in _group_ops_by_type
     """
-    groups = _group_ops_by_type(sorted_graph, op_type, workdir)
-
-    if len(groups) == 0:
+    # if we didn't fuse any grouped ops, we simply return original sorted_graph
+    if not _group_ops_by_type(sorted_graph, op_type, workdir):
         return sorted_graph
-
-    if workdir:
-        _dump_groups(groups, op_type, workdir)
-
-    is_layernorm = op_type.startswith("layernorm")
-    f_fuse_ops = _fuse_layernorm_ops if is_layernorm else _fuse_gemm_ops
-    for op_group in groups:
-        f_fuse_ops(op_group, sorted_graph)
 
     sorted_graph = toposort(sorted_graph)
     sorted_graph = transform_utils.sanitize_sorted_graph(sorted_graph)

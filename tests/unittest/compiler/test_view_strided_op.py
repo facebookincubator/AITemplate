@@ -22,6 +22,10 @@ from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target, test_utils
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils
 
 from parameterized import param, parameterized
@@ -31,30 +35,60 @@ def _gen_fusible_view_ops_before_strided_op(
     name: str, batch_dim: Optional[IntVar], n1: int, n2: int
 ) -> List[Tensor]:
     assert n2 % 2 == 0, f"n2 must be even! n2: {n2}"
+    target = detect_target()
+    support_float = target.name() == "cuda" and int(target._arch) >= 80
     if batch_dim is not None:
-        return [
+        test_ops = [
             ops.reshape()(
-                test_utils.gen_input_tensor([batch_dim, n1 * n2], name),
+                test_utils.gen_input_tensor(
+                    [batch_dim, n1 * n2], name=name, dtype="float16"
+                ),
                 [-1, n1, n2],
             ),
             ops.flatten(start_dim=2, end_dim=-1)(
-                test_utils.gen_input_tensor([batch_dim, n1, int(n2 / 2), 2], name)
+                test_utils.gen_input_tensor(
+                    [batch_dim, n1, int(n2 / 2), 2], name=name, dtype="float16"
+                )
             ),
             ops.squeeze(dim=1)(
-                test_utils.gen_input_tensor([batch_dim, 1, n1, n2], name)
+                test_utils.gen_input_tensor(
+                    [batch_dim, 1, n1, n2], name=name, dtype="float16"
+                )
             ),
         ]
+        if support_float:
+            test_ops.append(
+                ops.reshape()(
+                    test_utils.gen_input_tensor(
+                        [batch_dim, n1 * n2], name=name, dtype="float"
+                    ),
+                    [-1, n1, n2],
+                )
+            )
     else:
-        return [
+        test_ops = [
             ops.reshape()(
-                test_utils.gen_input_tensor([n1 * n2], name),
+                test_utils.gen_input_tensor([n1 * n2], name=name, dtype="float16"),
                 [n1, n2],
             ),
             ops.flatten(start_dim=1, end_dim=-1)(
-                test_utils.gen_input_tensor([n1, int(n2 / 2), 2], name)
+                test_utils.gen_input_tensor(
+                    [n1, int(n2 / 2), 2], name=name, dtype="float16"
+                )
             ),
-            ops.squeeze(dim=0)(test_utils.gen_input_tensor([1, n1, n2], name)),
+            ops.squeeze(dim=0)(
+                test_utils.gen_input_tensor([1, n1, n2], name=name, dtype="float16")
+            ),
         ]
+        if support_float:
+            test_ops.append(
+                ops.flatten(start_dim=1, end_dim=-1)(
+                    test_utils.gen_input_tensor(
+                        [n1, int(n2 / 2), 2], name=name, dtype="float"
+                    )
+                ),
+            )
+    return test_ops
 
 
 def _gen_non_fusible_view_ops_before_strided_op(
@@ -64,34 +98,65 @@ def _gen_non_fusible_view_ops_before_strided_op(
         name=batch_dim._attrs["name"],
         values=[int(value / 2) for value in batch_dim._attrs["values"]],
     )
-    return [
+    test_ops = [
         ops.reshape()(
-            test_utils.gen_input_tensor([new_batch_dim, n1, n2 * 2], name),
+            test_utils.gen_input_tensor(
+                [new_batch_dim, n1, n2 * 2], name=name, dtype="float16"
+            ),
             [-1, n1, n2],
         ),
         ops.flatten(start_dim=0, end_dim=1)(
-            test_utils.gen_input_tensor([new_batch_dim, 2, n1, n2], name)
+            test_utils.gen_input_tensor(
+                [new_batch_dim, 2, n1, n2], name=name, dtype="float16"
+            )
         ),
     ]
+    target = detect_target()
+    if target.name() == "cuda" and int(target._arch) >= 80:
+        test_ops.append(
+            ops.reshape()(
+                test_utils.gen_input_tensor(
+                    [new_batch_dim, n1, n2 * 2], name=name, dtype="float"
+                ),
+                [-1, n1, n2],
+            )
+        )
+    return test_ops
 
 
 def _gen_multiple_fusible_view_ops_before_strided_op(
     name: str, batch_dim: IntVar, n1: int, n2: int
 ) -> List[Tensor]:
-    return [
+    test_ops = [
         ops.reshape()(
             ops.reshape()(
-                test_utils.gen_input_tensor([batch_dim, n1, n2], name),
+                test_utils.gen_input_tensor(
+                    [batch_dim, n1, n2], name=name, dtype="float16"
+                ),
                 [-1, n1 * n2],
             ),
             [-1, n1, n2],
         ),
         ops.squeeze(dim=1)(
             ops.unsqueeze(dim=1)(
-                test_utils.gen_input_tensor([batch_dim, n1, n2], name)
+                test_utils.gen_input_tensor(
+                    [batch_dim, n1, n2], name=name, dtype="float16"
+                )
             ),
         ),
     ]
+    target = detect_target()
+    if target.name() == "cuda" and int(target._arch) >= 80:
+        test_ops.append(
+            ops.squeeze(dim=1)(
+                ops.unsqueeze(dim=1)(
+                    test_utils.gen_input_tensor(
+                        [batch_dim, n1, n2], name=name, dtype="float16"
+                    )
+                )
+            )
+        )
+    return test_ops
 
 
 def custom_name_func(testcase_func, param_num, param):
@@ -104,6 +169,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
         input0: Tensor,
         input1: Tensor,
         test_name: str,
+        dtype: str,
         expected_num_tensors: int,
         expected_num_ops: int,
         num_bmms: int = 1,
@@ -117,7 +183,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Ys, target, "./tmp", test_name)
+        module = compile_model(Ys, target, "./tmp", f"{test_name}_{dtype}")
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -157,6 +223,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
                 f"{test_utils.get_src_op_name(tensor0)}_bmm_fusion",
                 tensor0,
                 tensor1,
+                tensor0._attrs["dtype"],
             )
             for tensor0, tensor1 in zip(
                 _gen_fusible_view_ops_before_strided_op(
@@ -173,30 +240,26 @@ class ViewStridedOpTestCase(unittest.TestCase):
         name_func=custom_name_func,
     )
     def test_single_view_and_bmm_fusible(
-        self, test_name: str, input0: Tensor, input1: Tensor
+        self, test_name: str, input0: Tensor, input1: Tensor, dtype: str
     ):
         orig_a_shape = test_utils.get_src_input(input0)._attrs["shape"]
         orig_b_shape = test_utils.get_src_input(input1)._attrs["shape"]
 
         # Gen module.
         module = self._gen_view_bmm_module(
-            input0, input1, test_name, expected_num_tensors=3, expected_num_ops=1
+            input0, input1, test_name, dtype, expected_num_tensors=3, expected_num_ops=1
         )
 
         # Prepae PyTorch tensors.
         a_shape = input0._attrs["shape"]
         b_shape = input1._attrs["shape"]
         for batch_size in a_shape[0]._attrs["values"]:
-            x0_pt = (
-                torch.randn(batch_size, a_shape[1].value(), a_shape[2].value())
-                .cuda()
-                .half()
+            x0_pt = get_random_torch_tensor(
+                [batch_size, a_shape[1].value(), a_shape[2].value()], dtype
             )
-            x1_pt = torch.randn([dim.value() for dim in b_shape]).cuda().half()
-            y = (
-                torch.empty([batch_size, a_shape[1].value(), b_shape[1].value()])
-                .cuda()
-                .half()
+            x1_pt = get_random_torch_tensor([dim.value() for dim in b_shape], dtype)
+            y = get_torch_empty_tensor(
+                [batch_size, a_shape[1].value(), b_shape[1].value()], dtype
             )
             dim_to_value_dict = {"batch_size": batch_size}
             self._test_view_and_bmm(
@@ -215,6 +278,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
                 f"{test_utils.get_src_op_name(tensor0)}_multi_bmm_fusion",
                 tensor0,
                 tensor1,
+                tensor0._attrs["dtype"],
             )
             for tensor0, tensor1 in zip(
                 _gen_fusible_view_ops_before_strided_op(
@@ -231,7 +295,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
         name_func=custom_name_func,
     )
     def test_single_view_and_multi_bmm_fusible(
-        self, test_name: str, input0: Tensor, input1: Tensor
+        self, test_name: str, input0: Tensor, input1: Tensor, dtype: str
     ):
         orig_a_shape = test_utils.get_src_input(input0)._attrs["shape"]
         orig_b_shape = test_utils.get_src_input(input1)._attrs["shape"]
@@ -241,6 +305,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
             input0,
             input1,
             test_name,
+            dtype,
             expected_num_tensors=4,
             expected_num_ops=2,
             num_bmms=2,
@@ -250,16 +315,12 @@ class ViewStridedOpTestCase(unittest.TestCase):
         a_shape = input0._attrs["shape"]
         b_shape = input1._attrs["shape"]
         for batch_size in a_shape[0]._attrs["values"]:
-            x0_pt = (
-                torch.randn(batch_size, a_shape[1].value(), a_shape[2].value())
-                .cuda()
-                .half()
+            x0_pt = get_random_torch_tensor(
+                [batch_size, a_shape[1].value(), a_shape[2].value()], dtype
             )
-            x1_pt = torch.randn([dim.value() for dim in b_shape]).cuda().half()
-            y0 = (
-                torch.empty([batch_size, a_shape[1].value(), b_shape[1].value()])
-                .cuda()
-                .half()
+            x1_pt = get_random_torch_tensor([dim.value() for dim in b_shape], dtype)
+            y0 = get_torch_empty_tensor(
+                [batch_size, a_shape[1].value(), b_shape[1].value()], dtype
             )
             y1 = y0.clone()
             dim_to_value_dict = {"batch_size": batch_size}
@@ -272,13 +333,15 @@ class ViewStridedOpTestCase(unittest.TestCase):
                 test_utils.get_shape(orig_b_shape, dim_to_value_dict),
             )
 
-    def test_multi_view_and_multi_bmm_fusible(self):
+    def _test_multi_view_and_multi_bmm_fusible(self, dtype="float16"):
         batch_dim = IntVar([1, 128, 256], "batch_size")
         N0 = 13
         N1 = 46
         N2 = 5
-        X0 = test_utils.gen_input_tensor([batch_dim, N0 * N1], "input0")
-        X1 = test_utils.gen_input_tensor([1, N2 * N1], "input1")
+        X0 = test_utils.gen_input_tensor(
+            [batch_dim, N0 * N1], name="input0", dtype=dtype
+        )
+        X1 = test_utils.gen_input_tensor([1, N2 * N1], name="input1", dtype=dtype)
         X2 = ops.reshape()(X0, [-1, N0, N1])
         X3 = ops.reshape()(X0, [-1, N0, N1])
         X4 = ops.reshape()(X1, [-1, N2, N1])
@@ -297,7 +360,9 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Ys, target, "./tmp", "multi_view_multi_bmm_fusion")
+        module = compile_model(
+            Ys, target, "./tmp", f"multi_view_multi_bmm_fusion_{dtype}"
+        )
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -309,16 +374,12 @@ class ViewStridedOpTestCase(unittest.TestCase):
         a_shape = X2._attrs["shape"]
         b_shape = X4._attrs["shape"]
         for batch_size in a_shape[0]._attrs["values"]:
-            x0_pt = (
-                torch.randn(batch_size, a_shape[1].value(), a_shape[2].value())
-                .cuda()
-                .half()
+            x0_pt = get_random_torch_tensor(
+                [batch_size, a_shape[1].value(), a_shape[2].value()], dtype
             )
-            x1_pt = torch.randn([dim.value() for dim in b_shape]).cuda().half()
-            y0 = (
-                torch.empty([batch_size, a_shape[1].value(), b_shape[1].value()])
-                .cuda()
-                .half()
+            x1_pt = get_random_torch_tensor([dim.value() for dim in b_shape], dtype)
+            y0 = get_torch_empty_tensor(
+                [batch_size, a_shape[1].value(), b_shape[1].value()], dtype
             )
             y1 = y0.clone()
             dim_to_value_dict = {"batch_size": batch_size}
@@ -331,6 +392,17 @@ class ViewStridedOpTestCase(unittest.TestCase):
                 test_utils.get_shape(orig_b_shape, dim_to_value_dict),
             )
 
+    def test_multi_view_and_multi_bmm_fusible(self):
+        self._test_multi_view_and_multi_bmm_fusible()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_multi_view_and_multi_bmm_fusible_float(self):
+        self._test_multi_view_and_multi_bmm_fusible(dtype="float")
+
     @parameterized.expand(
         [
             param(
@@ -338,6 +410,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
                 f"{test_utils.get_src_op_name(tensor0)}_bmm_fusion",
                 tensor0,
                 tensor1,
+                tensor0._attrs["dtype"],
             )
             for tensor0, tensor1 in zip(
                 _gen_multiple_fusible_view_ops_before_strided_op(
@@ -354,7 +427,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
         name_func=custom_name_func,
     )
     def test_multiple_view_and_bmm_fusible(
-        self, test_name: str, input0: Tensor, input1: Tensor
+        self, test_name: str, input0: Tensor, input1: Tensor, dtype: str
     ):
         orig_a_shape = test_utils.get_src_input(
             test_utils.get_src_input(input0)
@@ -365,23 +438,19 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         module = self._gen_view_bmm_module(
-            input0, input1, test_name, expected_num_tensors=3, expected_num_ops=1
+            input0, input1, test_name, dtype, expected_num_tensors=3, expected_num_ops=1
         )
 
         # Prepae PyTorch tensors.
         a_shape = input0._attrs["shape"]
         b_shape = input1._attrs["shape"]
         for batch_size in a_shape[0]._attrs["values"]:
-            x0_pt = (
-                torch.randn(batch_size, a_shape[1].value(), a_shape[2].value())
-                .cuda()
-                .half()
+            x0_pt = get_random_torch_tensor(
+                [batch_size, a_shape[1].value(), a_shape[2].value()], dtype
             )
-            x1_pt = torch.randn([dim.value() for dim in b_shape]).cuda().half()
-            y = (
-                torch.empty([batch_size, a_shape[1].value(), b_shape[1].value()])
-                .cuda()
-                .half()
+            x1_pt = get_random_torch_tensor([dim.value() for dim in b_shape], dtype)
+            y = get_torch_empty_tensor(
+                [batch_size, a_shape[1].value(), b_shape[1].value()], dtype
             )
             dim_to_value_dict = {"batch_size": batch_size}
             self._test_view_and_bmm(
@@ -396,9 +465,11 @@ class ViewStridedOpTestCase(unittest.TestCase):
     @parameterized.expand(
         [
             param(
-                f"non_fusible_{test_utils.get_src_op_name(tensor0)}_{test_utils.get_src_op_name(tensor0)}_bmm_fusion",
+                f"non_fusible_{test_utils.get_src_op_name(tensor0)}_"
+                f"{test_utils.get_src_op_name(tensor0)}_bmm_fusion",
                 tensor0,
                 tensor1,
+                tensor0._attrs["dtype"],
             )
             for tensor0, tensor1 in zip(
                 _gen_non_fusible_view_ops_before_strided_op(
@@ -418,34 +489,28 @@ class ViewStridedOpTestCase(unittest.TestCase):
         name_func=custom_name_func,
     )
     def test_non_fusible_view_and_bmm(
-        self, test_name: str, input0: Tensor, input1: Tensor
+        self, test_name: str, input0: Tensor, input1: Tensor, dtype: str
     ):
         orig_a_shape = test_utils.get_src_input(input0)._attrs["shape"]
         orig_b_shape = test_utils.get_src_input(input1)._attrs["shape"]
 
         # Gen module.
         module = self._gen_view_bmm_module(
-            input0, input1, test_name, expected_num_tensors=5, expected_num_ops=3
+            input0, input1, test_name, dtype, expected_num_tensors=5, expected_num_ops=3
         )
 
         # Prepae PyTorch tensors.
         a_shape = input0._attrs["shape"]
         b_shape = input1._attrs["shape"]
         for batch_size in a_shape[0]._attrs["values"]:
-            x0_pt = (
-                torch.randn(batch_size, a_shape[1].value(), a_shape[2].value())
-                .cuda()
-                .half()
+            x0_pt = get_random_torch_tensor(
+                [batch_size, a_shape[1].value(), a_shape[2].value()], dtype
             )
-            x1_pt = (
-                torch.randn(batch_size, b_shape[1].value(), b_shape[2].value())
-                .cuda()
-                .half()
+            x1_pt = get_random_torch_tensor(
+                [batch_size, b_shape[1].value(), b_shape[2].value()], dtype
             )
-            y = (
-                torch.empty([batch_size, a_shape[1].value(), b_shape[1].value()])
-                .cuda()
-                .half()
+            y = get_torch_empty_tensor(
+                [batch_size, a_shape[1].value(), b_shape[1].value()], dtype
             )
             dim_to_value_dict = {"batch_size": int(batch_size / 2)}
             self._test_view_and_bmm(
@@ -457,14 +522,16 @@ class ViewStridedOpTestCase(unittest.TestCase):
                 test_utils.get_shape(orig_b_shape, dim_to_value_dict),
             )
 
-    def test_single_view_and_gemm_fusible(self):
+    def _test_single_view_and_gemm_fusible(self, dtype="float16"):
         batch_dim = IntVar([1, 128, 256], "batch_size")
         N0 = 13
         N1 = 46
         N2 = 6
-        X0 = test_utils.gen_input_tensor([batch_dim, N0 * N1], "input0")
-        X1 = test_utils.gen_input_tensor([1, N2 * N1], "input1")
-        X2 = test_utils.gen_input_tensor([N2], "input2")
+        X0 = test_utils.gen_input_tensor(
+            [batch_dim, N0 * N1], name="input0", dtype=dtype
+        )
+        X1 = test_utils.gen_input_tensor([1, N2 * N1], name="input1", dtype=dtype)
+        X2 = test_utils.gen_input_tensor([N2], name="input2", dtype=dtype)
         X3 = ops.reshape()(X0, [-1, N0, N1])
         X4 = ops.reshape()(X1, [N2, N1])
         X5 = ops.reshape()(X1, [N1, N2])
@@ -480,7 +547,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Ys, target, "./tmp", "single_view_gemm_fusion")
+        module = compile_model(Ys, target, "./tmp", f"single_view_gemm_fusion_{dtype}")
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -490,9 +557,9 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Prepae PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
-            x0_pt = torch.randn(batch_size, N0 * N1).cuda().half()
-            x1_pt = torch.randn(1, N2 * N1).cuda().half()
-            x2_pt = torch.randn(N2).cuda().half()
+            x0_pt = get_random_torch_tensor([batch_size, N0 * N1], dtype)
+            x1_pt = get_random_torch_tensor([1, N2 * N1], dtype)
+            x2_pt = get_random_torch_tensor([N2], dtype)
             x3_pt = torch.reshape(x0_pt, [-1, N0, N1])
             x4_pt = torch.reshape(x1_pt, [N2, N1])
             x5_pt = torch.reshape(x1_pt, [N1, N2])
@@ -501,9 +568,9 @@ class ViewStridedOpTestCase(unittest.TestCase):
             y2_pt = torch.nn.functional.linear(x3_pt, x5_pt.transpose(0, 1))
             y_pts = [y0_pt, y1_pt, y2_pt]
             ys = [
-                torch.empty(batch_size, N0, N2).cuda().half(),
-                torch.empty(batch_size, N0, N2).cuda().half(),
-                torch.empty(batch_size, N0, N2).cuda().half(),
+                get_torch_empty_tensor([batch_size, N0, N2], dtype),
+                get_torch_empty_tensor([batch_size, N0, N2], dtype),
+                get_torch_empty_tensor([batch_size, N0, N2], dtype),
             ]
 
             # Run AITemplate module.
@@ -513,6 +580,17 @@ class ViewStridedOpTestCase(unittest.TestCase):
             # Do comparisons.
             for y, y_pt in zip(ys, y_pts):
                 self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+
+    def test_single_view_and_gemm_fusible(self):
+        self._test_single_view_and_gemm_fusible()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_single_view_and_gemm_fusible_float(self):
+        self._test_single_view_and_gemm_fusible(dtype="float")
 
 
 if __name__ == "__main__":

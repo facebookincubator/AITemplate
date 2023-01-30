@@ -35,6 +35,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <random>
 #include <vector>
 #include <iostream>
+#include <cuda_bf16.h>
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/device/gemm_universal.h"
 #include "cutlass/util/host_tensor.h"
@@ -42,6 +43,8 @@ SRC_TEMPLATE = jinja2.Template(
 #include "cutlass/epilogue/thread/linear_combination_silu.h"
 #include "cutlass/util/reference/device/tensor_fill.h"
 #include "cutlass/util/device_memory.h"
+
+using bfloat16 = nv_bfloat16;
 
 {{extra_code}}
 

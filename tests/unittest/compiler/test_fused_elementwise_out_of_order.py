@@ -23,11 +23,18 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
+
+from parameterized import parameterized
 from torch import nn
 
 
 class FusedElementwiseOutOfOrderTestCase(unittest.TestCase):
-    def test_fused_elementwise_out_of_order(self):
+    @parameterized.expand([("float16"), ("float")])
+    def test_fused_elementwise_out_of_order(self, dtype):
         r"""
            X0   X1
             \   /
@@ -48,37 +55,40 @@ class FusedElementwiseOutOfOrderTestCase(unittest.TestCase):
         New order:
         [X2, X4, R2, X0, X1, R0, X3, R1, R3, R4, R5]
         """
+        target = detect_target()
+        if dtype == "float" and (int(target._arch) < 80 or target.name == "rocm"):
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         M = 10
         K = 4
         N = 4
         X0 = Tensor(
             shape=[M, K],
-            dtype="float16",
+            dtype=dtype,
             name="X0",
             is_input=True,
         )
         X1 = Tensor(
             shape=[],
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             value=3.0,
         )
         X2 = Tensor(
             shape=[M, K],
-            dtype="float16",
+            dtype=dtype,
             name="X2",
             is_input=True,
         )
         X3 = Tensor(
             shape=[K, N],
-            dtype="float16",
+            dtype=dtype,
             name="X3",
             is_input=True,
         )
         X4 = Tensor(
             shape=[K, N],
-            dtype="float16",
+            dtype=dtype,
             name="X4",
             is_input=True,
         )
@@ -92,18 +102,17 @@ class FusedElementwiseOutOfOrderTestCase(unittest.TestCase):
         R5._attrs["name"] = "R5"
         R5._attrs["is_output"] = True
 
-        target = detect_target()
         module = compile_model(
             R5,
             target,
             "./tmp",
-            "fused_elementwise_out_of_order",
+            f"fused_elementwise_out_of_order_{dtype}",
         )
 
-        x0_pt = torch.rand(M, K).cuda().half()
-        x2_pt = torch.rand(M, K).cuda().half()
-        x3_pt = torch.rand(K, N).cuda().half()
-        x4_pt = torch.rand(K, N).cuda().half()
+        x0_pt = get_random_torch_tensor([M, K], dtype)
+        x2_pt = get_random_torch_tensor([M, K], dtype)
+        x3_pt = get_random_torch_tensor([K, N], dtype)
+        x4_pt = get_random_torch_tensor([K, N], dtype)
 
         r0_pt = x0_pt + 3
         r1_pt = nn.functional.linear(r0_pt, x3_pt)
@@ -112,7 +121,7 @@ class FusedElementwiseOutOfOrderTestCase(unittest.TestCase):
         r4_pt = nn.functional.linear(r3_pt, x4_pt)
         r5_pt = r1_pt - r4_pt
 
-        r5 = torch.empty([M, N]).cuda().half()
+        r5 = get_torch_empty_tensor([M, N], dtype)
 
         input_name_to_idx_mapping = module.get_input_name_to_index_map()
         inputs = [None] * len(input_name_to_idx_mapping)

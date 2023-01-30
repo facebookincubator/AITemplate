@@ -25,6 +25,7 @@ _DTYPE2BYTE = {
     "int": 4,
     "int32": 4,
     "int64": 8,
+    "bfloat16": 2,
 }
 
 
@@ -41,6 +42,7 @@ _DTYPE_TO_ENUM = {
     "int32": 3,
     "int64": 4,
     "bool": 5,
+    "bfloat16": 6,
 }
 
 
@@ -130,7 +132,27 @@ def dtype_to_enumerator(dtype: str) -> str:
             return "kLong"
         elif dtype == "bool":
             return "kBool"
+        elif dtype == "bfloat16":
+            return "kBFloat16"
         else:
             raise AssertionError(f"unknown dtype {dtype}")
 
     return f"AITemplateDtype::{_impl(dtype)}"
+
+
+def is_same_dtype(dtype1: str, dtype2: str) -> bool:
+    """Returns True if dtype1 and dtype2 are the same dtype and False otherwise.
+
+    Parameters
+    ----------
+    dtype1: str
+        A data type string.
+    dtype2: str
+        A data type string.
+
+    Returns
+    ----------
+    bool
+        whether dtype1 and dtype2 are the same dtype
+    """
+    return normalize_dtype(dtype1) == normalize_dtype(dtype2)

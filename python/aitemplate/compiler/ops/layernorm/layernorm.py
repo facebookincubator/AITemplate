@@ -15,6 +15,7 @@
 """
 Operator definition for layernorm.
 """
+import logging
 import os
 import re
 from collections import OrderedDict
@@ -29,13 +30,14 @@ from aitemplate.utils import shape_utils
 from .... import backend
 from ....backend import registry
 from ....backend.target import Target
-from ....utils import logger
 from ...base import DynamicProfileStrategy, ExecItem, IntImm, IntVar, Operator, Tensor
 from ...tensor_accessor import TensorAccessor
 from ..softmax.cache_entry import NormQueryEntry, NormRecordEntry
 
 # pylint: disable=C0103,W0221,W0102,W0223
 
+
+_LOGGER = logging.getLogger(__name__)
 
 EXEC_COND_TEMPLATE = jinja2.Template(
     """
@@ -123,6 +125,13 @@ class layernorm(Operator):
             )
         (x_shape, gamma_shape, beta_shape) = layernorm.get_input_shapes(x, gamma, beta)
 
+        expected_dtype = x.dtype()
+        for (param, name) in ((gamma, "gamma"), (beta, "beta")):
+            if param is not None and param.dtype() != expected_dtype:
+                raise NotImplementedError(
+                    f"Layernorm doesn't support type promotions; expected {expected_dtype} but got {name} with dtype {param.dtype()}"
+                )
+
         layernorm.check_shapes(x_shape, gamma_shape, beta_shape, normalized_shape)
 
     def _infer_shapes(self, x: Tensor):
@@ -163,7 +172,7 @@ class layernorm(Operator):
         self._sanity_check(x, gamma, beta)
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=x.dtype())
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output
@@ -315,7 +324,7 @@ class layernorm(Operator):
         )
         cache_value = target.query_profile_cache("normalization", query.__dict__)
         if cache_value is not None and not target.force_profile():
-            logger.info(__name__, "Load profiling result from cache.")
+            _LOGGER.info("Load profiling result from cache.")
             return cache_value
 
         content = list(self._attrs["op_instance"].keys())
@@ -388,8 +397,7 @@ class layernorm(Operator):
             func(self._attrs)
 
         for wkl in workloads:
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
             best_algo, workspace = self._profile_single_workload(

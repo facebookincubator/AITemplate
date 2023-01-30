@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import unittest
 
 from typing import Sequence
@@ -24,28 +25,36 @@ from aitemplate.compiler.transform.fuse_parallel_gemms import fuse_parallel_gemm
 from aitemplate.compiler.transform.toposort import toposort
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import count_ops, has_op
-from aitemplate.utils import graph_utils, logger
+from aitemplate.testing.test_utils import (
+    count_ops,
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+    has_op,
+)
+from aitemplate.utils import graph_utils
 
 
-def _prepare_input_tensors(m, nk_groups, start=0, has_bias=True):
+_LOGGER = logging.getLogger(__name__)
+
+
+def _prepare_input_tensors(m, nk_groups, dtype, start=0, has_bias=True):
     inputs = []
     batch_dim = IntImm(m)
     for i, (n, k) in enumerate(nk_groups):
         X = Tensor(
             shape=[batch_dim, IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="x_{}".format(i + start),
             is_input=True,
         )
         W = Tensor(
             shape=[IntImm(n), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="w_{}".format(i + start),
         )
         B = Tensor(
             shape=[IntImm(n)],
-            dtype="float16",
+            dtype=dtype,
             name="b_{}".format(i + start),
         )
         if has_bias:
@@ -55,14 +64,14 @@ def _prepare_input_tensors(m, nk_groups, start=0, has_bias=True):
     return inputs
 
 
-def _prepare_inputs_and_constants(m, nk_groups, start=0, has_bias=True):
+def _prepare_inputs_and_constants(m, nk_groups, dtype, start=0, has_bias=True):
     inputs = []
     constants = {}
 
     for i, (n, k) in enumerate(nk_groups):
-        x_pt = torch.randn(m, k).half().cuda()
-        w_pt = torch.randn(n, k).half().cuda()
-        b_pt = torch.randn(n).half().cuda()
+        x_pt = get_random_torch_tensor([m, k], dtype)
+        w_pt = get_random_torch_tensor([n, k], dtype)
+        b_pt = get_random_torch_tensor([n], dtype)
 
         inputs.append(x_pt)
         constants[f"w_{i}"] = w_pt
@@ -72,7 +81,7 @@ def _prepare_inputs_and_constants(m, nk_groups, start=0, has_bias=True):
     return inputs, constants
 
 
-def _prepare_outputs(output_tensors):
+def _prepare_outputs(output_tensors, dtype):
     def _to_int_list(shape):
         result = []
         for d in shape:
@@ -81,12 +90,12 @@ def _prepare_outputs(output_tensors):
         return result
 
     output_shapes = [_to_int_list(output._attrs["shape"]) for output in output_tensors]
-    outputs = [torch.empty(shape).half().cuda() for shape in output_shapes]
+    outputs = [get_torch_empty_tensor(shape, dtype) for shape in output_shapes]
     return outputs
 
 
-def _prepare_ait_module(m, nk_groups, constants, test_idx=0, has_bias=True):
-    group_input_tensors = _prepare_input_tensors(m, nk_groups, has_bias=has_bias)
+def _prepare_ait_module(m, nk_groups, constants, dtype, test_idx=0, has_bias=True):
+    group_input_tensors = _prepare_input_tensors(m, nk_groups, dtype, has_bias=has_bias)
     output_tensors = []
     for group in group_input_tensors:
         group[0] = ops.elementwise(FuncEnum.TANH)(group[0])
@@ -102,10 +111,11 @@ def _prepare_ait_module(m, nk_groups, constants, test_idx=0, has_bias=True):
         Y,
         target,
         "./tmp",
-        f"test_multi_parallel_gemm_cat_groups_{test_idx}",
+        f"test_multi_parallel_gemm_cat_groups_{dtype}",
+        dll_name=f"test_{test_idx}.so",
         constants=constants,
     )
-    outputs = _prepare_outputs([Y])
+    outputs = _prepare_outputs([Y], dtype)
     return outputs, module
 
 
@@ -116,21 +126,20 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         self._test_id = 0
 
     def _fuse_2_split_parallel_gemm_cat(
-        self, b: int, ms: Sequence[int], n: int, k: int
+        self, b: int, ms: Sequence[int], n: int, k: int, dtype: str = "float16"
     ):
-        logger.info(
-            __file__,
+        _LOGGER.info(
             f"_fuse_2_split_parallel_gemm_cat, b: {b}, ms: {ms}, n: {n}, k: {k}",
         )
         X1 = Tensor(
             shape=[IntVar(ms, "input_batch"), IntImm(b * k)],
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             is_input=True,
         )
         X2 = Tensor(
             shape=[IntVar(ms, "input_batch"), IntImm(b * k)],
-            dtype="float16",
+            dtype=dtype,
             name="X2",
             is_input=True,
         )
@@ -139,14 +148,14 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         for i in range(2 * b):
             W = Tensor(
                 shape=[IntImm(n), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name=f"W{i}",
                 is_input=True,
             )
             Ws.append(W)
             B = Tensor(
                 shape=[IntImm(n)],
-                dtype="float16",
+                dtype=dtype,
                 name=f"B{i}",
                 is_input=True,
             )
@@ -184,13 +193,12 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         perm102_bmm_op: str,
         has_tanh: bool = True,
         reshape_weight: bool = False,
+        dtype: str = "float16",
     ):
-        logger.info(
-            __file__, f"_fuse_parallel_gemm_cat, b: {b}, ms: {ms}, n: {n}, k: {k}"
-        )
+        _LOGGER.info(f"_fuse_parallel_gemm_cat, b: {b}, ms: {ms}, n: {n}, k: {k}")
         X = Tensor(
             shape=[IntVar(ms, "input_batch"), IntImm(b * k)],
-            dtype="float16",
+            dtype=dtype,
             name="X",
             is_input=True,
         )
@@ -199,7 +207,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         for i in range(b):
             W = Tensor(
                 shape=[IntImm(n), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name=f"W{i}",
             )
             if reshape_weight:
@@ -207,7 +215,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             Ws.append(W)
             B = Tensor(
                 shape=[IntImm(n)],
-                dtype="float16",
+                dtype=dtype,
                 name=f"B{i}",
             )
             Bs.append(B)
@@ -225,8 +233,8 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
         constants = {}
         for i in range(b):
-            constants[f"W{i}"] = torch.randn(n, k).cuda().half()
-            constants[f"B{i}"] = torch.randn(n).cuda().half()
+            constants[f"W{i}"] = get_random_torch_tensor([n, k], dtype)
+            constants[f"B{i}"] = get_random_torch_tensor([n], dtype)
 
         # Gen module.
         target = detect_target()
@@ -234,7 +242,8 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             [cat_output],
             target,
             "./tmp",
-            f"_fuse_parallel_gemm_cat_{self._test_id}",
+            f"fuse_parallel_gemm_cat_{dtype}",
+            dll_name=f"test_{self._test_id}.so",
             constants=constants,
         ) as module:
             self._test_id += 1
@@ -243,14 +252,14 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
             assert has_op(
                 sorted_ops, perm102_bmm_op
-            ), "the final graph does not have op perm102_bmm_rrr_bias"
+            ), f"the final graph does not have op {perm102_bmm_op}"
             if not has_tanh:
                 assert not has_op(
                     sorted_ops, "split"
                 ), "the final graph has split op, but it should not"
 
             for m in ms:
-                x_pt = torch.randn(m, b * k).cuda().half()
+                x_pt = get_random_torch_tensor([m, b * k], dtype)
                 x1_pt = torch.split(x_pt, k, dim=-1)
 
                 cat_inputs_pt = []
@@ -264,7 +273,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
                 # Run AITemplate module.
 
-                out = torch.empty([m, b * n]).cuda().half()
+                out = get_torch_empty_tensor([m, b * n], dtype)
                 module.run_with_tensors([x_pt], [out])
                 # module.benchmark_with_tensors([x_pt], [out])
 
@@ -273,7 +282,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
                     torch.allclose(out, cat_output_pt, atol=1e-2, rtol=1e-2)
                 )
 
-    def test_fuse_parallel_gemm_cat(self):
+    def test_fuse_parallel_gemm_cat_fp16(self):
         # test n x gemms + cat
         self._fuse_parallel_gemm_cat(
             b=4, ms=[256, 512], n=128, k=64, perm102_bmm_op="perm102_bmm_rrr_bias"
@@ -333,6 +342,64 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         # test multiple split + n x gemms + cat
         self._fuse_2_split_parallel_gemm_cat(b=4, ms=[256, 512], n=128, k=64)
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_fuse_parallel_gemm_cat_fp32(self):
+        # test n x gemms + cat
+        self._fuse_parallel_gemm_cat(
+            b=4,
+            ms=[256, 512],
+            n=128,
+            k=64,
+            perm102_bmm_op="perm102_bmm_rrr_bias",
+            dtype="float32",
+        )
+        self._fuse_parallel_gemm_cat(
+            b=4,
+            ms=[128, 256],
+            n=10,
+            k=32,
+            perm102_bmm_op="perm102_bmm_rcr_bias",
+            dtype="float32",
+        )
+        self._fuse_parallel_gemm_cat(
+            b=4,
+            ms=[128, 256],
+            n=10,
+            k=32,
+            perm102_bmm_op="perm102_bmm_rcr_bias",
+            reshape_weight=True,
+            dtype="float32",
+        )
+
+        # test split + n x gemms + cat
+        self._fuse_parallel_gemm_cat(
+            b=4,
+            ms=[256, 512],
+            n=32,
+            k=64,
+            perm102_bmm_op="perm102_bmm_rrr_bias",
+            has_tanh=False,
+            dtype="float32",
+        )
+        self._fuse_parallel_gemm_cat(
+            b=4,
+            ms=[128, 256],
+            n=10,
+            k=32,
+            perm102_bmm_op="perm102_bmm_rcr_bias",
+            has_tanh=False,
+            dtype="float32",
+        )
+
+        # test multiple split + n x gemms + cat
+        self._fuse_2_split_parallel_gemm_cat(
+            b=4, ms=[256, 512], n=128, k=64, dtype="float32"
+        )
+
     def _test_fuse_parallel_gemm_cat_partial(
         self,
         b1: int,
@@ -341,22 +408,22 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         n: int,
         k: int,
         has_tanh: bool = True,
+        dtype: str = "float16",
     ):
-        logger.info(
-            __file__,
+        _LOGGER.info(
             f"_fuse_parallel_gemm_cat_partial, b1: {b1}, b2: {b2}, ms: {ms}, n: {n}, k: {k}",
         )
         batch_dim = IntVar(ms, "input_batch")
         b = b1 + b2
         X1 = Tensor(
             shape=[batch_dim, IntImm(b1 * k)],
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             is_input=True,
         )
         X2 = Tensor(
             shape=[batch_dim, IntImm(b2 * k)],
-            dtype="float16",
+            dtype=dtype,
             name="X2",
             is_input=True,
         )
@@ -365,13 +432,13 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         for i in range(b):
             W = Tensor(
                 shape=[IntImm(n), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name=f"W{i}",
             )
             Ws.append(W)
             B = Tensor(
                 shape=[IntImm(n)],
-                dtype="float16",
+                dtype=dtype,
                 name=f"B{i}",
             )
             Bs.append(B)
@@ -387,12 +454,12 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         X7 = ops.reshape()(X1, [-1, b1, k])
         W = Tensor(
             shape=[IntImm(b1), IntImm(n), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="W",
         )
         B = Tensor(
             shape=[IntImm(b1), IntImm(n)],
-            dtype="float16",
+            dtype=dtype,
             name="B",
         )
         WT = ops.permute021()(W)
@@ -426,11 +493,11 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
         constants = {}
         for i in range(b):
-            constants[f"W{i}"] = torch.randn(n, k).cuda().half()
-            constants[f"B{i}"] = torch.randn(n).cuda().half()
+            constants[f"W{i}"] = get_random_torch_tensor([n, k], dtype)
+            constants[f"B{i}"] = get_random_torch_tensor([n], dtype)
 
-        constants["W"] = torch.randn(b1, n, k).cuda().half()
-        constants["B"] = torch.randn(b1, n).cuda().half()
+        constants["W"] = get_random_torch_tensor([b1, n, k], dtype)
+        constants["B"] = get_random_torch_tensor([b1, n], dtype)
 
         # Gen module.
         target = detect_target()
@@ -438,7 +505,8 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             [cat_output],
             target,
             "./tmp",
-            f"_fuse_parallel_gemm_cat_{self._test_id}",
+            f"fuse_parallel_gemm_cat_{dtype}",
+            dll_name=f"test_{self._test_id}.so",
             constants=constants,
         ) as module:
             self._test_id += 1
@@ -454,7 +522,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
                 ), "the final graph has split op, but it should not"
 
             for m in ms:
-                x_pt = torch.randn(m, b1 * k).cuda().half()
+                x_pt = get_random_torch_tensor([m, b1 * k], dtype)
                 x1_pt = torch.split(x_pt, k, dim=-1)
 
                 cat_inputs_pt = []
@@ -477,7 +545,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
                 cat_inputs_pt.append(x8_pt)
                 cat_inputs_pt.append(x9_pt)
 
-                xx_pt = torch.randn(m, b2 * k).cuda().half()
+                xx_pt = get_random_torch_tensor([m, b2 * k], dtype)
                 x2_pt = torch.split(xx_pt, k, dim=-1)
                 for i in range(b2):
                     x3_pt = x2_pt[i].tanh() if has_tanh else x2_pt[i]
@@ -490,7 +558,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
                 # Run AITemplate module.
 
-                out = torch.empty(cat_output_pt.size()).cuda().half()
+                out = get_torch_empty_tensor(cat_output_pt.size(), dtype)
                 module.run_with_tensors({"X1": x_pt, "X2": xx_pt}, {"output0": out})
 
                 # Do comparisons.
@@ -498,16 +566,31 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
                     torch.allclose(out, cat_output_pt, atol=1e-2, rtol=1e-2)
                 )
 
-    def test_fuse_parallel_gemm_cat_partial(self):
+    def test_fuse_parallel_gemm_cat_partial_fp16(self):
         self._test_fuse_parallel_gemm_cat_partial(4, 4, [128, 256], 32, 64, True)
         self._test_fuse_parallel_gemm_cat_partial(4, 4, [128, 256], 32, 64, False)
         self._test_fuse_parallel_gemm_cat_partial(3, 3, [128, 256], 30, 66, True)
         self._test_fuse_parallel_gemm_cat_partial(2, 2, [128, 256], 33, 55, True)
 
-    def _test_multi_parallel_gemm_cat_groups(self, m, nk_groups, num_unfused_ops=0):
-        inputs, constants = _prepare_inputs_and_constants(m, nk_groups)
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_fuse_parallel_gemm_cat_partial_fp32(self):
+        self._test_fuse_parallel_gemm_cat_partial(
+            4, 4, [128, 256], 32, 64, True, dtype="float32"
+        )
+        self._test_fuse_parallel_gemm_cat_partial(
+            4, 4, [128, 256], 32, 64, False, dtype="float32"
+        )
+
+    def _test_multi_parallel_gemm_cat_groups(
+        self, m, nk_groups, num_unfused_ops=0, dtype="float16"
+    ):
+        inputs, constants = _prepare_inputs_and_constants(m, nk_groups, dtype)
         outputs, module = _prepare_ait_module(
-            m, nk_groups, constants, test_idx=self._test_id
+            m, nk_groups, constants, dtype, test_idx=self._test_id
         )
         self._test_id += 1
         with module:
@@ -528,7 +611,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, outputs)
             self.assertTrue(torch.allclose(pt_y, outputs[0], atol=1e-2, rtol=1e-2))
 
-    def test_multi_parallel_gemm_cat_groups(self):
+    def test_multi_parallel_gemm_cat_groups_fp16(self):
         self._test_multi_parallel_gemm_cat_groups(
             256,
             [[128, 64]] * 2 + [[128, 120]] * 4 + [[128, 72]] * 2 + [[128, 64]] * 2,
@@ -537,6 +620,19 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             256, [[128, 64]] * 2 + [[128, 120]] + [[128, 72]] * 2 + [[128, 64]], 2
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_multi_parallel_gemm_cat_groups_fp32(self):
+        self._test_multi_parallel_gemm_cat_groups(
+            256,
+            [[128, 64]] * 2 + [[128, 120]] * 4 + [[128, 72]] * 2 + [[128, 64]] * 2,
+            dtype="float32",
+        )
+
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

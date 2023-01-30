@@ -60,7 +60,7 @@ class bmm_softmax_bmm(bmm):
         self._attrs["scale"] = scale
 
         def cal_align_ab(m, n, k):
-            return common.default_align_ab(k, k)
+            return common.default_align_ab(k, k, self._attrs["inputs"][0].dtype())
 
         self._attrs["f_ab_alignment"] = cal_align_ab
 
@@ -153,7 +153,7 @@ class bmm_softmax_bmm(bmm):
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b, b1)
         self._extract_epilogue_alignment(output_shape)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=a.dtype())
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output

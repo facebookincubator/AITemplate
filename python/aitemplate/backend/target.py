@@ -15,6 +15,7 @@
 """
 Target object for AITemplate.
 """
+import logging
 import os
 import pathlib
 import shutil
@@ -22,9 +23,11 @@ import tempfile
 from enum import IntEnum
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ..utils import logger
 from . import registry
 from .profiler_cache import ProfileCacheDB
+
+
+_LOGGER = logging.getLogger(__name__)
 
 _MYPATH = os.path.dirname(os.path.realpath(__file__))
 _3RDPARTY_PATH = os.path.normpath(os.path.join(_MYPATH, "..", "..", "..", "3rdparty"))
@@ -294,9 +297,7 @@ class Target(object):
     def _prepare_profile_cache_path(self) -> Optional[str]:
         """Prepare local profile cache for this target."""
         if self.use_dummy_profiling_results():
-            logger.info(
-                __name__, "Escape loading profile cache when using dummy profiling"
-            )
+            _LOGGER.info("Escape loading profile cache when using dummy profiling")
             return None
 
         prefix = None
@@ -309,10 +310,10 @@ class Target(object):
         try:
             os.makedirs(prefix, exist_ok=True)
         except OSError as error:
-            logger.info(__name__, f"Cannot mkdir at {prefix} due to issue {error}")
+            _LOGGER.info(f"Cannot mkdir at {prefix} due to issue {error}")
             prefix = os.path.join(tempfile.mkdtemp(prefix="aitemplate_"), ".aitemplate")
             os.makedirs(prefix, exist_ok=True)
-            logger.info(__name__, f"mkdir at {prefix} instead")
+            _LOGGER.info(f"mkdir at {prefix} instead")
 
         cache_path = os.path.join(prefix, cache_file)
         flush_flag = os.environ.get("FLUSH_PROFILE_CACHE", "0")
@@ -326,7 +327,7 @@ class Target(object):
         if self._cache_path is None:
             return
 
-        logger.info(__name__, f"Loading profile cache from: {self._cache_path}")
+        _LOGGER.info(f"Loading profile cache from: {self._cache_path}")
         self._profile_cache = ProfileCacheDB(
             TargetType(self._target_type).name, path=self._cache_path
         )
@@ -355,7 +356,11 @@ class Target(object):
         """
         # TODO: support conv and normalization
         if op_class == "gemm":
-            return self._profile_cache.get_profile_gemm_cache_version()
+            return self._profile_cache.gemm_cache_version
+        elif op_class == "conv":
+            return self._profile_cache.conv_cache_version
+        elif op_class == "conv3d":
+            return self._profile_cache.conv3d_cache_version
         raise NotImplementedError
 
     def query_profile_cache(self, op_class: str, args: str) -> Tuple[str]:

@@ -29,6 +29,10 @@ FUNC_TEMPLATE = jinja2.Template(
 #include <iostream>
 #include <cuda_fp16.h>
 #include "cutlass/cutlass.h"
+// TODO: this include should be removed. There's a bug in CUTLASS, the
+// header containing cutlass::gemm::warp::WarpSize is not being included.
+// Until the fix is upstreamed, just inject it here instead.
+#include "cutlass/gemm/warp/mma.h"
 #include "kernel_forward.h"
 
 {{func_signature}}

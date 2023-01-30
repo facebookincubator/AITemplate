@@ -20,9 +20,15 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
-def get_ait_inputs(batch_size=1, seq_len=512, dtype="int64"):
+def get_ait_inputs(
+    batch_size=1,
+    seq_len=512,
+    dtype="int64",
+):
     input_ids = Tensor(
         shape=[batch_size, seq_len],
         name="input_ids",
@@ -45,7 +51,11 @@ def get_ait_inputs(batch_size=1, seq_len=512, dtype="int64"):
 
 
 def get_ait_params(
-    hidden_size, vocab_size, max_position_embeddings, type_vocab_size, dtype="float16"
+    hidden_size,
+    vocab_size,
+    max_position_embeddings,
+    type_vocab_size,
+    dtype="float16",
 ):
     word_embeddings = Tensor(
         shape=[vocab_size, hidden_size],
@@ -93,14 +103,21 @@ class bertEmbeddingsTestCase(unittest.TestCase):
         vocab_size,
         max_position_embeddings,
         type_vocab_size,
+        test_name="bert_embeddings",
         indices_type="int64",
+        input_type="float16",
     ):
-        inputs = get_ait_inputs(batch_size, seq_len, indices_type)
+        inputs = get_ait_inputs(
+            batch_size,
+            seq_len,
+            dtype=indices_type,
+        )
         params = get_ait_params(
             hidden_size,
             vocab_size,
             max_position_embeddings,
             type_vocab_size,
+            dtype=input_type,
         )
         y = ops.bert_embeddings()(*(inputs + params), 1e-5)
         y._attrs["is_output"] = True
@@ -108,17 +125,27 @@ class bertEmbeddingsTestCase(unittest.TestCase):
 
         target = detect_target()
         with compile_model(
-            y, target, "./tmp", f"test_bert_embeddings_{self._test_id}"
+            y,
+            target,
+            "./tmp",
+            f"{test_name}_{self._test_id}",
         ) as module:
-            dtype = torch.long
+            self._test_id += 1
+            torch_indices_type = string_to_torch_dtype(indices_type)
             input_ids = torch.randint(
-                0, vocab_size, (batch_size, seq_len), dtype=dtype
+                0,
+                vocab_size,
+                (batch_size, seq_len),
+                dtype=torch_indices_type,
             ).cuda()
             token_type_ids = torch.randint(
-                0, type_vocab_size, input_ids.size(), dtype=dtype
+                0,
+                type_vocab_size,
+                input_ids.size(),
+                dtype=torch_indices_type,
             ).cuda()
             position_ids = (
-                torch.arange(seq_len, dtype=dtype)
+                torch.arange(seq_len, dtype=torch_indices_type)
                 .reshape((1, -1))
                 .expand(batch_size, -1)
                 .contiguous()
@@ -132,7 +159,7 @@ class bertEmbeddingsTestCase(unittest.TestCase):
             for param in params:
                 name = param._attrs["name"]
                 shape = [shape.value() for shape in param.shape()]
-                w = torch.randn(shape).cuda().half()
+                w = get_random_torch_tensor(shape, dtype=input_type)
                 inputs[name] = w
 
             word_embedding = torch.nn.functional.embedding(
@@ -150,18 +177,79 @@ class bertEmbeddingsTestCase(unittest.TestCase):
                 pt_embedding, [hidden_size], inputs["gamma"], inputs["beta"], eps=1e-5
             )
 
-            embedding = torch.empty(pt_embedding.shape).cuda().half()
+            embedding = torch.empty_like(pt_embedding)
             module.run_with_tensors(inputs, [embedding])
             self.assertTrue(
                 torch.allclose(embedding, pt_embedding, atol=1e-2, rtol=1e-2)
             )
 
-    def test_bert_embeddings(self):
+    def test_bert_embeddings_fp16(self):
         if detect_target().name() != "rocm":
-            self._test_bert_embeddings(15, 17, 264, 10000, 512, 2)
-            self._test_bert_embeddings(1, 13, 264, 10000, 512, 2)
-        self._test_bert_embeddings(8, 512, 512, 10000, 512, 2)
+            self._test_bert_embeddings(
+                batch_size=15,
+                seq_len=17,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp16",
+                input_type="float16",
+            )
+            self._test_bert_embeddings(
+                batch_size=1,
+                seq_len=13,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp16",
+                input_type="float16",
+            )
+        self._test_bert_embeddings(
+            batch_size=8,
+            seq_len=512,
+            hidden_size=512,
+            vocab_size=10000,
+            max_position_embeddings=512,
+            type_vocab_size=2,
+            test_name="bert_embeddings_fp16",
+            input_type="float16",
+        )
+
+    def test_bert_embeddings_fp32(self):
+        if detect_target().name() != "rocm":
+            self._test_bert_embeddings(
+                batch_size=15,
+                seq_len=17,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp32",
+                input_type="float32",
+            )
+            self._test_bert_embeddings(
+                batch_size=1,
+                seq_len=13,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp32",
+                input_type="float32",
+            )
+        self._test_bert_embeddings(
+            batch_size=8,
+            seq_len=512,
+            hidden_size=512,
+            vocab_size=10000,
+            max_position_embeddings=512,
+            type_vocab_size=2,
+            test_name="bert_embeddings_fp32",
+            input_type="float32",
+        )
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

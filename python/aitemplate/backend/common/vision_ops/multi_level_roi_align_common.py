@@ -142,10 +142,18 @@ __global__ void roiAlign_kernel(
 
   const Trois* roi = rois + 5 * (batch * roiCount + roiIdx);
   float hw;
+
+{% if elem_input_type == "half" %}
   float x1 = __half2float(roi[1]);
   float y1 = __half2float(roi[2]);
   float x2 = __half2float(roi[3]);
   float y2 = __half2float(roi[4]);
+{% elif elem_input_type == "float" %}
+  float x1 = roi[1];
+  float y1 = roi[2];
+  float x2 = roi[3];
+  float y2 = roi[4];
+{% endif %}
 
   y1 = max(0.f, min((float)imageSize.y, y1)) / imageSize.y;
   x1 = max(0.f, min((float)imageSize.x, x1)) / imageSize.x;
@@ -225,7 +233,11 @@ __global__ void roiAlign_kernel(
             interpolateBilinear(src, srcDims, ySample, xSample, featureCount);
       }
     }
+{% if elem_output_type == "half" %}
     *out = result / __float2half_rn(samplingCount);
+{% elif elem_output_type == "float" %}
+    *out = result / samplingCount;
+{% endif %}
   }
 }
 
@@ -262,16 +274,16 @@ void FPNRoiAlign(
       roiCount,
       firstThreshold,
       samplingRatio,
-      (const half*)rois,
-      (const half*)P2,
+      reinterpret_cast<const {{elem_input_type}}*>(rois),
+      reinterpret_cast<const {{elem_input_type}}*>(P2),
       P2dims,
-      (const half*)P3,
+      reinterpret_cast<const {{elem_input_type}}*>(P3),
       P3dims,
-      (const half*)P4,
+      reinterpret_cast<const {{elem_input_type}}*>(P4),
       P4dims,
-      (const half*)P5,
+      reinterpret_cast<const {{elem_input_type}}*>(P5),
       P5dims,
-      (half*)output,
+      output,
       {pool_size, pool_size});
 }
 
@@ -388,8 +400,8 @@ def gen_function_decl(func_attrs, backend_spec):
     """
     x = func_attrs["inputs"][0]
     y = func_attrs["outputs"][0]
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
+    input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
+    output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
     return FUNC_DECL_TEMPLATE.render(
         index_type=backend_spec.index_type,
         prefix=backend_spec.prefix,
@@ -423,8 +435,8 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
     y = func_attrs["outputs"][0]
     yshape = y._attrs["shape"]
 
-    input_type = backend_spec.dtype_to_lib_type(p2._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
+    input_type = backend_spec.dtype_to_backend_type(p2._attrs["dtype"])
+    output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
 
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],

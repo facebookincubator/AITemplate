@@ -22,7 +22,7 @@ from . import common
 
 
 @registry.reg("rocm.conv2d_bias_add_identity.config")
-def conv2d_config(func_attrs, dtype="float16"):
+def conv2d_config(func_attrs):
     import ck_lib
 
     op_kind = ck_lib.library.Conv2dKind.GroupConv2dBiasRelu

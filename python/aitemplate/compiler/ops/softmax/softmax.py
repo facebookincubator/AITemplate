@@ -15,6 +15,7 @@
 """
 Softmax op implementation
 """
+import logging
 import os
 import re
 from collections import OrderedDict
@@ -29,10 +30,12 @@ from .... import backend
 from ....backend import registry
 from ....backend.target import Target
 
-from ....utils import logger
 from ....utils.tensor_utils import wrap_dim
 from ...base import DynamicProfileStrategy, ExecItem, IntVar, Operator, Tensor
 from .cache_entry import NormQueryEntry, NormRecordEntry
+
+
+_LOGGER = logging.getLogger(__name__)
 
 EXEC_COND_TEMPLATE = jinja2.Template(
     """
@@ -202,7 +205,7 @@ class softmax(Operator):
         self._attrs["dim"] = dim
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=x.dtype())
         self._attrs["outputs"] = [output]
         return output
 
@@ -257,7 +260,7 @@ class softmax(Operator):
         )
         cache_value = target.query_profile_cache("normalization", query.__dict__)
         if cache_value is not None and not target.force_profile():
-            logger.info(__name__, "Load profiling result from cache.")
+            _LOGGER.info("Load profiling result from cache.")
             return cache_value
 
         content = list(self._attrs["op_instance"].keys())
@@ -330,8 +333,7 @@ class softmax(Operator):
             func(self._attrs)
 
         for wkl in workloads:
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
             best_algo, workspace = self._profile_single_workload(

@@ -28,8 +28,10 @@ from typing import Any, Dict, List, Tuple
 import jinja2
 from aitemplate.backend.profiler_cache import GEMM_INSERT_TEMPLATE, GEMM_QUERY_TEMPLATE
 
+
 logging.basicConfig(format="%(name)s: %(message)s", level=logging.INFO)
-logger = logging.getLogger("update-cache")
+
+_LOGGER = logging.getLogger("update-cache")
 
 DEFAULT_QUERY_TEMPLATE = jinja2.Template(
     """
@@ -127,7 +129,7 @@ def del_entry(
     Returns
     ----------
     """
-    logger.info("query entry for deletion - id: %s, op_type: %s", entry_id, op_type)
+    _LOGGER.info("query entry for deletion - id: %s, op_type: %s", entry_id, op_type)
     db_conn_cur = db_conn.cursor()
     entries = query_cache(
         db_conn_cur=db_conn_cur,
@@ -140,7 +142,7 @@ def del_entry(
         entry_id=entry_id,
     )
     if len(entries) == 0:
-        logger.info("Could not find valid entries, skip")
+        _LOGGER.info("Could not find valid entries, skip")
         return
 
     assert len(entries) == 1
@@ -148,14 +150,14 @@ def del_entry(
         raise RuntimeError(
             f"cannot delete the entry, unmatched op_type: {op_type}, {entries[0][1]}"
         )
-    logger.info("deleting entry - id: %s, op_type: %s", entry_id, op_type)
+    _LOGGER.info("deleting entry - id: %s, op_type: %s", entry_id, op_type)
     del_query = DEL_ID_TEMPLATE.render(
         table=table,
         id=entry_id,
     )
     db_conn_cur.execute(del_query)
     db_conn.commit()
-    logger.info("entry deleted successfully")
+    _LOGGER.info("entry deleted successfully")
 
 
 def insert_sm75_entry(
@@ -200,7 +202,7 @@ def insert_sm75_entry(
     args["device"] = "75"
 
     new_args_str = "\n".join(["{}: {}".format(n, v) for n, v in args.items()])
-    logger.info("new_args:\n%s", new_args_str)
+    _LOGGER.info("new_args:\n%s", new_args_str)
     query_sql = GEMM_QUERY_TEMPLATE.render(
         dev="cuda",
         dtype_a=args["dtype_a"],
@@ -238,7 +240,7 @@ def insert_sm75_entry(
     insertion_sql = GEMM_INSERT_TEMPLATE.render(dev="cuda", **args)
     db_conn_cur.execute(insertion_sql)
     db_conn.commit()
-    logger.info(
+    _LOGGER.info(
         "successfully insert an sm75 entry for: '%s', '%s'",
         args["op_type"],
         args["exec_entry"],
@@ -389,10 +391,10 @@ def query_cache(
 
     if exec_key is not None:
         if not suppress_print:
-            logger.info("exec_key: '%s'", exec_key)
+            _LOGGER.info("exec_key: '%s'", exec_key)
         exec_entry_sha1 = hashlib.sha1(exec_key.encode("utf-8")).hexdigest()
         if not suppress_print:
-            logger.info("exec_sha1: '%s'", exec_entry_sha1)
+            _LOGGER.info("exec_sha1: '%s'", exec_entry_sha1)
 
     query_args = {
         "table": table,
@@ -430,7 +432,7 @@ def query_cache(
     db_conn_cur.execute(query)
     entries = db_conn_cur.fetchall()
     if not suppress_print:
-        logger.info("entries: id, op_type, algo, device, exec_entry")
+        _LOGGER.info("entries: id, op_type, algo, device, exec_entry")
     for entry in entries:
         if not suppress_print:
             print("entry: {}".format(entry))
@@ -459,7 +461,7 @@ def process_missing_75_entries_from_80(
     Returns
     ----------
     """
-    logger.info("query all missing sm75 entries - op_type: %s", op_type)
+    _LOGGER.info("query all missing sm75 entries - op_type: %s", op_type)
     db_conn_cur = db_conn.cursor()
     if op_type == "all":
         op_type = None
@@ -500,7 +502,7 @@ def process_missing_75_entries_from_80(
         if len(sm75_entries) == 0:
             print("missing sm75 entry for this sm80 entry: '{}'".format(sm80_entry))
             if gen_sm75_entry:
-                logger.info("gen sm75 entry for: '%s'", sm80_entry)
+                _LOGGER.info("gen sm75 entry for: '%s'", sm80_entry)
                 column_names = get_column_names(db_conn_cur, table)
                 insert_sm75_entry(db_conn, table, sm80_entry, column_names, None)
 
@@ -586,7 +588,7 @@ def make_75_algo_from_80(old_algo: str):
     else:
         raise RuntimeError("Invalid old_algo format: '{}'".format(old_algo))
 
-    logger.info("new_algo: '%s'", new_algo)
+    _LOGGER.info("new_algo: '%s'", new_algo)
     return new_algo
 
 
@@ -594,7 +596,7 @@ def get_column_names(db_conn_cur: sqlite3.Cursor, table: str):
     column_names_query = QUERY_COLUMN_NAMES_TEMPLATE.render(table=table)
     columns = db_conn_cur.execute(column_names_query)
     column_names = [col[0] for col in columns.description]
-    logger.info("colum_names:%s", column_names)
+    _LOGGER.info("colum_names:%s", column_names)
     return column_names
 
 
@@ -638,7 +640,7 @@ def gen_one_75_entry_from_80(
         device="80",
     )
     if len(entries) == 0:
-        logger.info("Could not find valid entries, skip")
+        _LOGGER.info("Could not find valid entries, skip")
         return
 
     column_names = get_column_names(db_conn_cur, table)

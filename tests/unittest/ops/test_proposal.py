@@ -23,6 +23,7 @@ from aitemplate.compiler import compile_model
 
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 DEBUG = False
 
@@ -409,7 +410,11 @@ def mark_output(y):
 
 
 class ProposalTestCase(unittest.TestCase):
-    def test_fp16_single_op(self, test_name="proposal"):
+    def _test_single_op(
+        self,
+        test_name="proposal",
+        dtype="float16",
+    ):
         target = detect_target()
         feat_stride = 16
         scales = [128, 256, 512]
@@ -447,20 +452,27 @@ class ProposalTestCase(unittest.TestCase):
         scores = np.repeat(scores, repeats=batch_size, axis=0)
 
         bbox_deltas_ait = np.transpose(
-            bbox_deltas.astype("float16"), (0, 2, 3, 1)
+            bbox_deltas.astype(dtype),
+            (0, 2, 3, 1),
         ).copy()
-        scores_ait = np.transpose(scores.astype("float16"), (0, 2, 3, 1)).copy()
+        scores_ait = np.transpose(
+            scores.astype(dtype),
+            (0, 2, 3, 1),
+        ).copy()
 
         X_bbox_deltas = Tensor(
             shape=bbox_deltas_ait.shape,
             name="X_bbox_deltas",
-            dtype="float16",
+            dtype=dtype,
+            is_input=True,
+        )
+        X_scores = Tensor(
+            shape=scores_ait.shape,
+            name="X_scores",
+            dtype=dtype,
             is_input=True,
         )
 
-        X_scores = Tensor(
-            shape=scores_ait.shape, name="X_scores", dtype="float16", is_input=True
-        )
         OP = nn.Proposal(
             im_shape=im_info[:2],
             scales=scales,
@@ -472,6 +484,7 @@ class ProposalTestCase(unittest.TestCase):
             iou_threshold=threshold,
             rpn_min_size=rpn_min_size,
             batch_size=batch_size,
+            dtype=dtype,
         )
 
         y = OP(X_bbox_deltas, X_scores)
@@ -482,18 +495,33 @@ class ProposalTestCase(unittest.TestCase):
         batch_inds = torch.from_numpy(OP._batch_inds.copy()).cuda()
         module.set_constant_with_tensor("anchors", anchors)
         module.set_constant_with_tensor("batch_inds", batch_inds)
+        torch_dtype = string_to_torch_dtype(dtype)
         inputs_pt = [
-            torch.from_numpy(bbox_deltas_ait).cuda().half(),
-            torch.from_numpy(scores_ait).cuda().half(),
+            torch.from_numpy(bbox_deltas_ait).cuda().to(torch_dtype),
+            torch.from_numpy(scores_ait).cuda().to(torch_dtype),
         ]
         out0_shape = module.get_output_maximum_shape(0)
-        out0 = torch.empty(out0_shape).cuda().half()
+        out0 = torch.empty(out0_shape, dtype=torch_dtype, device="cuda")
         y_ait_shape = module.get_output_maximum_shape(1)
-        y_ait = torch.empty(y_ait_shape).cuda().half()
+        y_ait = torch.empty(y_ait_shape, dtype=torch_dtype, device="cuda")
         module.run_with_tensors(inputs_pt, [out0, y_ait])
         y_ait = y_ait.reshape(2, -1, 4)
         self.assertTrue(torch.allclose(y_ait[0, :], y_ait[1, :], atol=1e-2, rtol=1e-2))
 
+    def test_proposal_fp16(self):
+        self._test_single_op(
+            test_name="proposal_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_proposal_fp32(self):
+        self._test_single_op(
+            test_name="proposal_fp32",
+            dtype="float32",
+        )
+
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

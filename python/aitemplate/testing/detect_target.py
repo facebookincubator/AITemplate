@@ -15,13 +15,16 @@
 """
 Automatic detect target for testing
 """
+import logging
 import os
 from subprocess import PIPE, Popen
 
 from ..backend.target import CUDA, ROCM
-from ..utils import logger
 
 # pylint: disable=W0702, W0612,R1732
+
+
+_LOGGER = logging.getLogger(__name__)
 
 IS_CUDA = None
 FLAG = ""
@@ -36,6 +39,8 @@ def _detect_cuda():
         )
         stdout, stderr = proc.communicate()
         stdout = stdout.decode("utf-8")
+        if "H100" in stdout:
+            return "90"
         if "A100" in stdout or "RTX 30" in stdout or "A30" in stdout:
             return "80"
         if "V100" in stdout:
@@ -84,13 +89,13 @@ def detect_target(**kwargs):
         IS_CUDA = True
         FLAG = flag
 
-        logger.info(__name__, "Set target to CUDA")
+        _LOGGER.info("Set target to CUDA")
         return CUDA(arch=flag, **kwargs)
     flag = _detect_rocm()
     if flag is not None:
         IS_CUDA = False
         FLAG = flag
 
-        logger.info(__name__, "Set target to ROCM")
+        _LOGGER.info("Set target to ROCM")
         return ROCM(arch=flag, **kwargs)
     raise RuntimeError("Unsupported platform")

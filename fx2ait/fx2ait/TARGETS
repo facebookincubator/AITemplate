@@ -1,0 +1,41 @@
+# @noautodeps
+load("@fbcode_macros//build_defs:python_library.bzl", "python_library")
+load("@fbsource//tools/build_defs:glob_defs.bzl", "glob")
+
+oncall("aitemplate")
+
+# Note that we exclude common acc_tracer python files here and will reuse
+# those in torch_tensorrt/fx/tracer/acc_tracer/
+python_library(
+    name = "fx2ait",
+    srcs = glob(
+        [
+            "converters/*.py",
+            "*.py",
+            "passes/*.py",
+            "tools/*.py",
+        ] + [
+            "acc_tracer/ait_acc_normalizer.py",
+            "acc_tracer/ait_acc_ops_registry.py",
+            "acc_tracer/ait_acc_ops.py",
+        ],
+        exclude = [
+            "cache.py",
+        ],
+    ),
+    base_module = "fx2ait",
+    deps = [
+        "fbsource//third-party/pypi/graphviz:graphviz",
+        "fbsource//third-party/pypi/numpy:numpy",
+        "fbsource//third-party/pypi/pydot:pydot",
+        "//aitemplate/AITemplate/fx2ait/fx2ait/fb:acc_import_helper",
+        "//aitemplate/AITemplate/fx2ait/fx2ait/fb/lower:ait_lowering_setting",
+        "//aitemplate/AITemplate/python/aitemplate:aitemplate",
+        "//caffe2:torch",
+        "//deeplearning/ait:AITModel",
+        "//executorch/exir:graph_module",
+        "//executorch/exir:lib",
+        "//executorch/exir:tracer",
+        "//pytorch/vision:torchvision",
+    ],
+)

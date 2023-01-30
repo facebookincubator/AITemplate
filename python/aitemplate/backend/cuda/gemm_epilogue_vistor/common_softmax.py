@@ -224,6 +224,7 @@ PROFILER_TEMPLATE = jinja2.Template(
     """
 size_t GLOBAL_WORKSPACE_SIZE = 0;
 
+#include <sstream>
 {{op_func}}
 
 struct ProfilerMemoryPool {
@@ -314,13 +315,21 @@ int main(int argc, char** argv) {
   cudaError_t result = cudaGetDevice(&device_idx);
   auto memory_pool = std::make_unique<ProfilerMemoryPool>();
   if (result != cudaSuccess) {
-    throw std::runtime_error("cudaGetDevice() API call failed.");
+    std::ostringstream errorStream;
+    errorStream << "cudaGetDevice() call failed! "
+                << "Error code: " << cudaGetErrorName(result)
+                << " Error message: " << cudaGetErrorString(result);
+    throw std::runtime_error(errorStream.str());
   }
 
   result = cudaGetDeviceProperties(&device_properties, device_idx);
 
   if (result != cudaSuccess) {
-    throw std::runtime_error("cudaGetDeviceProperties() failed");
+    std::ostringstream errorStream;
+    errorStream << "cudaGetDeviceProperties() call failed! "
+                << "Error code: " << cudaGetErrorName(result)
+                << " Error message: " << cudaGetErrorString(result);
+    throw std::runtime_error(errorStream.str());
   }
 
 

@@ -16,7 +16,6 @@
 Perform transformations on ops which support strided inputs / outputs.
 """
 import functools
-import logging
 
 from typing import List
 
@@ -32,8 +31,6 @@ from .transform_strided_op_and_view_op import _fuse_strided_op_and_view_op
 from .transform_strided_slice import _fuse_slice_and_strided_op
 
 # pylint: disable=W0612
-
-logger = logging.getLogger(__name__)
 
 
 def _fuse_slices_concat(sorted_graph: List[Tensor]) -> List[Tensor]:
@@ -132,7 +129,7 @@ def _group_gemm_cat_checker(
 
 def _is_bmm(op_type: str) -> bool:
     # TODO: support cutlass bmm ops
-    return op_type.startswith("bmm_rcr")
+    return op_type.startswith(("bmm_rcr", "bmm_crr"))
 
 
 def _bmm_checker(bmm_op: Operator, cat_op: Operator) -> bool:
@@ -170,10 +167,6 @@ def _perm102_bmm_checker(bmm_op: Operator, cat_op: Operator) -> bool:
 
 def _is_layernorm(op_type: str) -> bool:
     return op_type.startswith("layernorm") or op_type.startswith("group_layernorm")
-
-
-def _layernorm_cat_checker(cat_op: Operator) -> bool:
-    return cat_op._attrs["concat_dim"] in [0, 1]
 
 
 def _is_reduce_op(op_type: str) -> bool:
@@ -215,8 +208,6 @@ def _is_valid_for_fusion(strided_op: Operator, cat_op: Operator, out_idx: int):
         return _gemm_cat_checker(strided_op, cat_op)
     if _is_strided_group_gemm(strided_op):
         return _group_gemm_cat_checker(strided_op, cat_op, out_idx)
-    if _is_layernorm(op_type):
-        return _layernorm_cat_checker(cat_op)
     if _is_bmm(op_type):
         return _bmm_checker(strided_op, cat_op)
     if _is_perm102_bmm(op_type):
@@ -272,6 +263,8 @@ def _fuse_strided_op_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noq
             src_ops = list(cat_input.src_ops())
             if len(src_ops) != 1 or len(cat_input.dst_ops()) != 1:
                 continue
+            if cat_input._attrs["is_output"]:
+                continue
             strided_op = src_ops[0]
             if not _is_supported_op(strided_op):
                 continue
@@ -292,12 +285,15 @@ def _fuse_strided_op_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noq
 
             offset = 0
 
+            # cat's inputs may have been updated for cases like view_op + cat.
+            # So, we need to retrieve original shapes from its input accessors.
+            cat_input_accessors = cat_op._attrs["input_accessors"]
             # This pass must run before any other pass that remove cat inputs, like
             # _fuse_strided_op_reshape_cat
             for orig_i in range(idx):
-                input_tensor = cat_inputs[orig_i]
+                input_accessor = cat_input_accessors[orig_i]
                 # TODO: Add dynamic shape support.
-                offset += input_tensor._attrs["shape"][cat_dim].value()
+                offset += input_accessor.original_shapes[cat_dim].value()
 
             cat_inputs_to_remove.append(idx)
 

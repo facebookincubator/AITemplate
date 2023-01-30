@@ -120,6 +120,24 @@ __inline__ __device__ T blockReduceMax(T* val) {
   return (T)0.0f;
 }
 
+namespace detail {
+template <typename T>
+struct numeric_limits_helper {
+  __device__ __host__ static constexpr T lowest() {
+    return platform::numeric_limits<T>::lowest();
+  }
+};
+
+// Cutlass doesn't have `lowest` in their specialization for float,
+// so we define our own helper struct here.
+template <>
+struct numeric_limits_helper<float> {
+  __device__ __host__ static constexpr float lowest() {
+    return std::numeric_limits<float>::lowest();
+  }
+};
+} // namespace detail
+
 // input size: [M, K]
 // Currently the softmax kernel only supports 2D input with dim=1.
 // For input with more dimensions, reshape first.
@@ -167,7 +185,7 @@ __global__ void softmax_small_k(Arguments<T> args, size_t M) {
 
     CUTLASS_PRAGMA_UNROLL
     for (size_t i = 0; i < m; i++) {
-      T max = platform::numeric_limits<T>::lowest();
+      T max = detail::numeric_limits_helper<T>::lowest();
       // find max
       CUTLASS_PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
@@ -214,7 +232,7 @@ __global__ void softmax_small_k(Arguments<T> args, size_t M) {
         input_tile[j] = input[i * K + j];
       }
 
-      T max = platform::numeric_limits<T>::lowest();
+      T max = detail::numeric_limits_helper<T>::lowest();
       // find max
       CUTLASS_PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {

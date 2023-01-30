@@ -15,15 +15,19 @@
 """
 Applies paddings to gemms based on alignment requirements.
 """
+import logging
 from typing import Callable, Dict, List
 
 from aitemplate.compiler.base import _create_host_zero_tensor
 
-from ...utils import logger
+from ...utils import alignment
 from .. import ops
 from ..base import IntImm, Operator, Tensor
 from ..ops.gemm_universal.gemm_common import DimInfo, gemm, Source
 from . import transform_utils
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _extract_mnk_name(
@@ -36,8 +40,8 @@ def _extract_mnk_name(
     return None
 
 
-def _get_padding_length(original_length: int) -> int:
-    if original_length % 2 == 0:
+def get_padding_length(original_length: int, dtype: str) -> int:
+    if alignment.valid_alignment(original_length, dtype):
         return 0
 
     # TODO(yingz): Tune padding strategy.
@@ -83,8 +87,7 @@ def _pad_input_tensor(
         tensor_list.append(padding_tensor)
         tensor_list.append(padded_tensor)
 
-        logger.debug(
-            __name__,
+        _LOGGER.debug(
             "**** Apply padding ****, replace input tensor \n {} \n with \n {} \n".format(
                 original_tensor_debug_str, padded_tensor
             ),
@@ -142,6 +145,7 @@ def apply_padding(sorted_graph: List[Tensor], workdir: str = None) -> List[Tenso
                 or isinstance(op, ops.gemm_rrr_small_nk)
                 or isinstance(op, ops.bmm_rcr_n1)
                 or isinstance(op, ops.bmm_rrr_k1_tanh)
+                or "permute" in op._attrs["op"]
             ):
                 continue
 
@@ -168,15 +172,16 @@ def apply_padding(sorted_graph: List[Tensor], workdir: str = None) -> List[Tenso
                         "Gemm does not support dynamic alignment dimensions "
                         "(i.e. alignment==1)! Gemm: {}".format(op)
                     )
-                padding_length = _get_padding_length(alignment_dim.value())
+                padding_length = get_padding_length(
+                    alignment_dim.value(), tensor.dtype()
+                )
                 if padding_length > 0:
                     alignment_var_to_padding_length[alignment_var] = padding_length
             if len(alignment_var_to_padding_length) == 0:
                 # No padding is necessary.
                 continue
 
-            logger.debug(
-                __name__,
+            _LOGGER.debug(
                 "**** Apply padding ****, alignment_var_to_padding_length: \n {} \n".format(
                     alignment_var_to_padding_length
                 ),
@@ -215,7 +220,7 @@ def apply_padding(sorted_graph: List[Tensor], workdir: str = None) -> List[Tenso
             # Replaces the old op with the new op.
             for tensor_input in op._attrs["inputs"]:
                 tensor_input._attrs["dst_ops"].discard(op)
-            new_op = type(op)()
+            new_op = type(op)(**op._get_op_attributes())
             new_op._attrs["split_k"] = op._attrs["split_k"]
             if "alpha" in op._attrs:
                 new_op._attrs["alpha"] = op._attrs["alpha"]
@@ -231,8 +236,7 @@ def apply_padding(sorted_graph: List[Tensor], workdir: str = None) -> List[Tenso
             transform_utils.replace_tensor(original_output, new_output)
             transform_utils.remove_tensor_from_sorted_graph(original_output)
 
-            logger.debug(
-                __name__,
+            _LOGGER.debug(
                 "**** Apply padding ****, replace op \n {} \n with \n {} \n".format(
                     original_op_debug_str, new_op
                 ),

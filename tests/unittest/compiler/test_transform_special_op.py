@@ -22,14 +22,20 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import shape_utils
 from aitemplate.utils.graph_utils import get_sorted_ops
 
+from parameterized import parameterized
+
 
 class GemmRrrSmallNkTestCase(unittest.TestCase):
-    def _create_gemm_rrr_graph(self, M, K, N):
-        X = Tensor(shape=[M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[K, N], dtype="float16", name="input_1", is_input=True)
+    def _create_gemm_rrr_graph(self, M, K, N, dtype):
+        X = Tensor(shape=[M, K], dtype=dtype, name="input_0", is_input=True)
+        W = Tensor(shape=[K, N], dtype=dtype, name="input_1", is_input=True)
         OP = ops.gemm_rrr()
         Y = OP(X, W)
         Y._attrs["name"] = "gemm_rrr_tensor"
@@ -37,15 +43,15 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
 
         return X, W, Y
 
-    def _test_small_nk(self, Ms, N, K, testname=None):
+    def _test_small_nk(self, Ms, N, K, testname=None, dtype="float16"):
         if testname is None:
-            testname = "gemm_rrr_small_nk_{}_{}_{}".format(Ms, N, K)
+            testname = f"gemm_rrr_small_nk_{Ms}_{N}_{K}_{dtype}"
             testname = testname.replace(" ", "")
             testname = testname.replace("[", "")
             testname = testname.replace("]", "")
 
         X, W, gemm_tensor = self._create_gemm_rrr_graph(
-            shape_utils.gen_int_var_min_max(Ms), K, N
+            shape_utils.gen_int_var_min_max(Ms), K, N, dtype
         )
 
         output = ops.elementwise(FuncEnum.COS)(gemm_tensor)
@@ -77,12 +83,12 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
         )
 
         for m in Ms:
-            X_pt = torch.randn(m, K).cuda().half()
-            W_pt = torch.randn(K, N).cuda().half()
+            X_pt = get_random_torch_tensor([m, K], dtype)
+            W_pt = get_random_torch_tensor([K, N], dtype)
             mm_pt = torch.matmul(X_pt, W_pt)
             Y_pt = torch.cos(mm_pt)
-            y = torch.empty([m, N]).cuda().half()
-            gemm_tensor_pt = torch.empty([m, N]).cuda().half()
+            y = get_torch_empty_tensor([m, N], dtype)
+            gemm_tensor_pt = get_torch_empty_tensor([m, N], dtype)
             module.run_with_tensors(
                 {"input_0": X_pt, "input_1": W_pt},
                 {"output_0": y, "gemm_rrr_tensor": gemm_tensor_pt},
@@ -104,13 +110,27 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
         self._test_small_nk([100, 200], 6, 3)
         self._test_small_nk([105], 7, 1)
 
-    def test_small_nk_no_transform(self):
-        M, K, N = 8, 8, 16
-        _, _, output = self._create_gemm_rrr_graph(M, K, N)
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_small_nk_fp32(self):
+        self._test_small_nk([10], 8, 4, "test_small_nk_fp32", dtype="float32")
+        self._test_small_nk(
+            [10, 30, 50], 6, 4, "test_small_kn_dynamic1_fp32", dtype="float32"
+        )
+        self._test_small_nk(
+            [100, 200], 6, 3, "test_small_nk_alignment_fp32", dtype="float32"
+        )
 
+    @parameterized.expand([("float16"), ("float32")])
+    def test_small_nk_no_transform(self, dtype):
         target = detect_target()
+        if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
+
+        M, K, N = 8, 8, 16
+        _, _, output = self._create_gemm_rrr_graph(M, K, N, dtype)
+
         module = compile_model(
-            output, target, "./tmp", "test_small_nk_fail_{}_{}_{}".format(M, K, N)
+            output, target, "./tmp", f"test_small_nk_fail_{M}_{K}_{N}_{dtype}"
         )
 
         for tensor in module.debug_sorted_graph:
@@ -130,36 +150,38 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
         src_op = list(output_tensor._attrs["src_ops"])[0]
         self.assertEqual(src_op._attrs["op"], "gemm_rrr", "output op type incorrect")
 
-        X_pt = torch.randn(M, K).cuda().half()
-        W_pt = torch.randn(K, N).cuda().half()
+        X_pt = get_random_torch_tensor([M, K], dtype)
+        W_pt = get_random_torch_tensor([K, N], dtype)
         Y_pt = torch.matmul(X_pt, W_pt)
 
-        y = torch.empty([M, N]).cuda().half()
+        y = get_torch_empty_tensor([M, N], dtype)
         module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
 
 class BmmRcrN1TestCase(unittest.TestCase):
-    def _create_bmm_rcr_graph(self, B, M, N, K):
-        X = Tensor(shape=[B, M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[B, N, K], dtype="float16", name="input_1", is_input=True)
+    def _create_bmm_rcr_graph(self, B, M, N, K, dtype):
+        X = Tensor(shape=[B, M, K], dtype=dtype, name="input_0", is_input=True)
+        W = Tensor(shape=[B, N, K], dtype=dtype, name="input_1", is_input=True)
         OP = ops.bmm_rcr()
         Y = OP(X, W)
         Y._attrs["name"] = "bmm_rcr_tensor"
 
         return X, W, Y
 
-    def _test_n1_k8(self, B, M, N, K, testname=None):
+    def _test_n1_k8(self, B, M, N, K, testname=None, dtype="float16"):
         if testname is None:
-            testname = "bmm_rcr_n1_{}_{}_{}_{}".format(B, M, N, K)
+            testname = f"bmm_rcr_n1_{B}_{M}_{N}_{K}_{dtype}"
             testname = testname.replace(" ", "")
             testname = testname.replace("[", "")
             testname = testname.replace("]", "")
 
         X, W, bmm_tensor = self._create_bmm_rcr_graph(
-            B, shape_utils.gen_int_var_min_max(M), N, K
+            B, shape_utils.gen_int_var_min_max(M), N, K, dtype
         )
-        mul = ops.elementwise(FuncEnum.MUL)(bmm_tensor, Tensor(shape=[], value=1.0))
+        mul = ops.elementwise(FuncEnum.MUL)(
+            bmm_tensor, Tensor(shape=[], dtype=dtype, value=1.0)
+        )
         output = ops.elementwise(FuncEnum.COS)(mul)
         output._attrs["name"] = "output_0"
         output._attrs["is_output"] = True
@@ -180,8 +202,8 @@ class BmmRcrN1TestCase(unittest.TestCase):
         assert src_op._attrs["op"] == "bmm_rcr_n1"
 
         for m in M:
-            X_pt = torch.randn(B, m, K).cuda().half()
-            W_pt = torch.randn(B, N, K).cuda().half()
+            X_pt = get_random_torch_tensor([B, m, K], dtype)
+            W_pt = get_random_torch_tensor([B, N, K], dtype)
 
             def pt_bmm(X_pt, W_pt):
                 WT = torch.transpose(W_pt, 2, 1)
@@ -190,7 +212,7 @@ class BmmRcrN1TestCase(unittest.TestCase):
 
             Y_pt = torch.cos(pt_bmm(X_pt, W_pt))
 
-            y = torch.empty([B, m, N]).cuda().half()
+            y = get_torch_empty_tensor([B, m, N], dtype)
             module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
@@ -201,13 +223,22 @@ class BmmRcrN1TestCase(unittest.TestCase):
     def test_n1_k8_dynamic(self):
         self._test_n1_k8(10, [8, 16], 1, 8)
 
-    def test_n_non1_fail(self):
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_n1_k8_fp32(self):
+        self._test_n1_k8(10, [8], 1, 8, dtype="float32")
+        self._test_n1_k8(10, [8, 16], 1, 8, dtype="float32")
+
+    @parameterized.expand([("float16"), ("float32")])
+    def test_n_non1_fail(self, dtype):
+        target = detect_target()
+        if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
+
         B, M, K, N = 8, 8, 8, 8
-        _, _, output = self._create_bmm_rcr_graph(B, M, K, N)
+        _, _, output = self._create_bmm_rcr_graph(B, M, K, N, dtype)
         output._attrs["is_output"] = True
 
-        target = detect_target()
-        module = compile_model(output, target, "./tmp", "bmm_rcr_n_non1")
+        module = compile_model(output, target, "./tmp", f"bmm_rcr_n_non1_{dtype}")
 
         output_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -238,18 +269,20 @@ class OneByOneConvTestCase(unittest.TestCase):
         raise AssertionError("Did not find gemm_rcr in graph")
 
     def _test_simple_1x1_conv(
-        self, batch, CO, HH, WW, CI, activation=None, with_bias=False
+        self, batch, CO, HH, WW, CI, activation=None, with_bias=False, dtype="float16"
     ):
         if isinstance(batch, int):
             batch = (batch,)
         batch_var = shape_utils.gen_int_var_min_max(batch, name="batch_size")
         X = Tensor(
             shape=[batch_var, HH, WW, CI],
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
         W = Tensor(
             shape=[CO, 1, 1, CI],
+            dtype=dtype,
             name="input_1",
             is_input=True,
         )
@@ -257,6 +290,7 @@ class OneByOneConvTestCase(unittest.TestCase):
         if with_bias:
             bias = Tensor(
                 shape=[CO],
+                dtype=dtype,
                 name="bias",
                 is_input=True,
             )
@@ -293,11 +327,11 @@ class OneByOneConvTestCase(unittest.TestCase):
             self._assert_has_gemm(module.debug_sorted_graph)
 
             for batch_pt in batch:
-                X_pt = torch.randn(batch_pt, CI, HH, WW).half().cuda()
-                W_pt = torch.randn(CO, CI, 1, 1).half().cuda()
+                X_pt = get_random_torch_tensor([batch_pt, CI, HH, WW], dtype)
+                W_pt = get_random_torch_tensor([CO, CI, 1, 1], dtype)
 
                 if with_bias:
-                    B_pt = torch.randn(CO).half().cuda()
+                    B_pt = get_random_torch_tensor([CO], dtype)
                 else:
                     B_pt = None
 
@@ -314,7 +348,7 @@ class OneByOneConvTestCase(unittest.TestCase):
                 elif activation is not None:
                     raise NotImplementedError(f"Unsupported activation {activation}")
 
-                Y_ait = torch.empty(batch_pt, HH, WW, CO).half().cuda()
+                Y_ait = get_torch_empty_tensor(batch_pt, HH, WW, CO, dtype)
                 inputs = {
                     "input_0": X_pt.permute(0, 2, 3, 1).contiguous(),
                     "input_1": W_pt.permute(0, 2, 3, 1).contiguous(),

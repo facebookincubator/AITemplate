@@ -223,6 +223,18 @@ __device__ __host__ inline float IoU(const Bbox<T>& a, const Bbox<T>& b) {
   return interS / (Sa + Sb - interS);
 }
 
+__device__ __host__ inline float IoU(const Bbox<float>& a, const Bbox<float>& b) {
+  float left = fmaxf(a.xmin, b.xmin), right = fminf(a.xmax, b.xmax);
+  float top = fmaxf(a.ymin, b.ymin), bottom = fminf(a.ymax, b.ymax);
+  float width = fmaxf(right - left + 1.0f, 0.0f);
+  float height = fmaxf(bottom - top + 1.0f, 0.0f);
+  float interS = width * height;
+  float Sa = (a.xmax - a.xmin + 1.0f) * (a.ymax - a.ymin + 1.0f);
+  float Sb = (b.xmax - b.xmin + 1.0f) * (b.ymax - b.ymin + 1.0f);
+
+  return interS / (Sa + Sb - interS);
+}
+
 // NMS KERNEL FOR SMALL BATCH SIZE
 template <typename T_PROPOSALS, typename T_ROIS, int DIM, int TSIZE>
 __global__ __launch_bounds__(DIM) void nmsKernel1(
@@ -419,7 +431,7 @@ __global__ void setOffset(int stride, int size, int* output) {
   }
 }
 
-// BBFilter KERNEL
+// BBFilter KERNEL half
 __global__ void bboxFilter_kernel(
     int N,
     const float minSize,
@@ -440,6 +452,27 @@ __global__ void bboxFilter_kernel(
         __hsub(proposals[tid * 4 + 3], proposals[tid * 4 + 1]) <
             half(minSize)) {
       scores[tid] = half(ninf);
+    }
+  }
+}
+
+// BBFilter KERNEL float
+__global__ void bboxFilter_kernel(
+    int N,
+    const float minSize,
+    const float* proposals,
+    float* scores) {
+  if (minSize == 0)
+    return;
+  int tid = threadIdx.x + blockIdx.x * blockDim.x;
+
+  if (tid < N) {
+    int ininf = 0xff800000;
+    float ninf = *(float*)&ininf;
+
+    if (proposals[tid * 4 + 2] - proposals[tid * 4 + 0] < minSize ||
+        proposals[tid * 4 + 3] - proposals[tid * 4 + 1] < minSize) {
+      scores[tid] = ninf;
     }
   }
 }
@@ -525,7 +558,7 @@ pluginStatus_t nmsGpu(
   vworkspace = alignPtr(vworkspace, ALIGNMENT);
 
   std::size_t tempStorageBytes =
-      InferTempStorageForSortPairsDescending<half, int64_t>(N, R);
+      InferTempStorageForSortPairsDescending<T_ROIS, Bbox<T_ROIS>>(N, R);
 
   CSC({{prefix}}GetLastError(), STATUS_FAILURE);
 

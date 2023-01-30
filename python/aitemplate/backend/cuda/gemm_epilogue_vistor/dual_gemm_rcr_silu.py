@@ -15,7 +15,7 @@
 """
 GEMM Specialization for
 C = SILU(GEMM_RCR(A, B)) * GEMM_RCR(A, B1)
-where A[RowMajor][M, K], B[ColMajor][N, K], B1[RowMajor][N, K]
+where A[RowMajor][M, K], B[ColMajor][N, K], B1[ColMajor][N, K]
 """
 import jinja2
 
@@ -31,19 +31,24 @@ from . import common_dual_gemm
 # used for real execution
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-    cutlass::gemm::GemmCoord{M, N, K},
-    {({{elem_input_type}}*)a_ptr, LayoutA(K)},
-    {({{elem_input_type}}*)b_ptr, LayoutB(K)},
-    ref_B0,
-    nullptr_ref, // D0
-    {({{elem_input_type}}*)bias_ptr, LayoutB(K)}, // B1
-    ref_B1,
-    nullptr_ref, // D1
-    {({{elem_output_type}}*)c_ptr, LayoutC(N)}, // D2
-    {ElementCompute(1), ElementCompute(0)},
-    {ElementCompute(1), ElementCompute(0)},
-    {},
-    1 // kSplitKSerial
+    cutlass::gemm::DualGemmMode::kGemm,            // DualGemmMode mode
+    cutlass::gemm::GemmCoord{M, N, K},             // GemmCoord problem_size_
+    {({{elem_input_type}}*)a_ptr, LayoutA(K)},     // TensorRef<ElementA const, LayoutA> ref_A0_
+    {({{elem_input_type}}*)b_ptr, LayoutB(K)},     // TensorRef<ElementB const, LayoutB0> ref_B0_
+    ref_B0,                                        // TensorRef<ElementC const, LayoutC> ref_C0_
+    nullptr_ref,                                   // TensorRef<ElementC, LayoutC> ref_D0_
+{% if broadcast_b1 %}
+    {({{elem_input_type}}*)bias_ptr, 0},           // TensorRef<ElementB const, LayoutB1> ref_B1_
+{% else %}
+    {({{elem_input_type}}*)bias_ptr, LayoutB(K)},  // TensorRef<ElementB const, LayoutB1> ref_B1_
+{% endif %}
+    ref_B1,                                        // TensorRef<ElementC const, LayoutC> ref_C1_
+    nullptr_ref,                                   // TensorRef<ElementC, LayoutC> ref_D1_
+    {({{elem_output_type}}*)c_ptr, LayoutC(N)},    // TensorRef<ElementC, LayoutC> ref_D2_
+    {ElementCompute(1), ElementCompute(0)},        // typename EpilogueOutputOp0::Params epilogue0_
+    {ElementCompute(1), ElementCompute(0)},        // typename EpilogueOutputOp1::Params epilogue1_
+    {},                                            // typename EpilogueOutputOp2::Params epilogue2_
+    1,                                             // int split_k_slices_
 """
 )
 
@@ -67,26 +72,52 @@ ARGS_PARSER_TEMPLATE = jinja2.Template(
 # for profiler, no need to include TensorAccessor
 PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-    cutlass::gemm::GemmCoord{M, N, K},
-    {({{elem_input_type}}*)a_ptr, LayoutA(K)},
-    {({{elem_input_type}}*)b_ptr, LayoutB(K)},
-    ref_B0,
-    nullptr_ref, // D0
-    {({{elem_input_type}}*)bias_ptr, LayoutB(K)}, // B1
-    ref_B1,
-    nullptr_ref, // D1
-    {({{elem_output_type}}*)c_ptr, LayoutC(N)}, // D2
-    {ElementCompute(1), ElementCompute(0)},
-    {ElementCompute(1), ElementCompute(0)},
-    {},
-    1 // kSplitKSerial
+    cutlass::gemm::DualGemmMode::kGemm,            // DualGemmMode mode
+    cutlass::gemm::GemmCoord{M, N, K},             // GemmCoord problem_size_
+    {({{elem_input_type}}*)a_ptr, LayoutA(K)},     // TensorRef<ElementA const, LayoutA> ref_A0_
+    {({{elem_input_type}}*)b_ptr, LayoutB(K)},     // TensorRef<ElementB const, LayoutB0> ref_B0_
+    ref_B0,                                        // TensorRef<ElementC const, LayoutC> ref_C0_
+    nullptr_ref,                                   // TensorRef<ElementC, LayoutC> ref_D0_
+{% if broadcast_b1 %}
+    {({{elem_input_type}}*)bias_ptr, 0},           // TensorRef<ElementB const, LayoutB1> ref_B1_
+{% else %}
+    {({{elem_input_type}}*)bias_ptr, LayoutB(K)},  // TensorRef<ElementB const, LayoutB1> ref_B1_
+{% endif %}
+    ref_B1,                                        // TensorRef<ElementC const, LayoutC> ref_C1_
+    nullptr_ref,                                   // TensorRef<ElementC, LayoutC> ref_D1_
+    {({{elem_output_type}}*)c_ptr, LayoutC(N)},    // TensorRef<ElementC, LayoutC> ref_D2_
+    {ElementCompute(1), ElementCompute(0)},        // typename EpilogueOutputOp0::Params epilogue0_
+    {ElementCompute(1), ElementCompute(0)},        // typename EpilogueOutputOp1::Params epilogue1_
+    {},                                            // typename EpilogueOutputOp2::Params epilogue2_
+    1,                                             // int split_k_slices_
+"""
+)
+
+
+EXTRA_CODE = jinja2.Template(
+    """
+#include "device/dual_gemm.h"
+#include "thread/left_silu_and_mul.h"
+#include "dual_gemm_common.h"
+
+typename cutlass::TensorRef<{{dtype}}, cutlass::layout::RowMajor> nullptr_ref{};
+decltype(nullptr_ref) ref_B0, ref_B1;
+
+using LayoutA = cutlass::layout::RowMajor;
+using LayoutB = cutlass::layout::ColumnMajor;
+using LayoutC = cutlass::layout::RowMajor;
+
 """
 )
 
 
 @registry.reg("cuda.dual_gemm_rcr_silu.config")
 def gemm_rcr_config(func_attrs, dtype="float16"):
-    common_dual_gemm.make_fproc_f16(func_attrs, RCR)
+    common_dual_gemm.make_fproc(
+        func_attrs,
+        RCR,
+        dtype=dtype,
+    )
 
 
 def common_gen_profiler(
@@ -98,6 +129,7 @@ def common_gen_profiler(
     problem_args_template,
     bias_ptr_arg=None,
     extra_code="",
+    broadcast_b1=False,
 ):
     output_addr_calculator = common.DEFAULT_OUTPUT_ADDR_CALCULATOR.render(
         stride_dim="*b_dim0"
@@ -115,11 +147,19 @@ def common_gen_profiler(
         output_addr_calculator=output_addr_calculator,
         bias_ptr_arg=bias_ptr_arg,
         extra_code=extra_code,
+        broadcast_b1=broadcast_b1,
+        broadcasted_bdim_id=0,
+        ndims=2,
     )
 
 
 @registry.reg("cuda.dual_gemm_rcr_silu.gen_profiler")
 def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+
     return common_gen_profiler(
         func_attrs,
         workdir,
@@ -128,7 +168,10 @@ def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
         common_bias.SRC_TEMPLATE,
         PROFILER_PROBLEM_ARGS_TEMPLATE,
         bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
-        extra_code=common_dual_gemm.EXTRA_CODE.render(),
+        extra_code=EXTRA_CODE.render(
+            dtype=elem_input_type,
+        ),
+        broadcast_b1=func_attrs.get("broadcast_b1", False),
     )
 
 
@@ -147,15 +190,18 @@ def gen_function(
         func_attrs["outputs"][0]._attrs["dtype"]
     )
 
+    broadcast_b1 = func_attrs.get("broadcast_b1", False)
     if problem_args_template is None:
         problem_args = PROBLEM_ARGS_TEMPLATE.render(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
+            broadcast_b1=broadcast_b1,
         )
     else:
         problem_args = problem_args_template.render(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
+            broadcast_b1=broadcast_b1,
         )
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
@@ -174,7 +220,10 @@ def gen_function(
         output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
             stride_dim="N", output_accessor=func_attrs["output_accessors"][0]
         ),
-        extra_code=common_dual_gemm.EXTRA_CODE.render(),
+        extra_code=EXTRA_CODE.render(
+            dtype=elem_input_type,
+        ),
+        broadcast_b1=broadcast_b1,
     )
 
 

@@ -19,26 +19,31 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMRrrK1TanhTestCase(unittest.TestCase):
-    def _test_rrr(self, B, M, K, N, test_name):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_count = 0
+
+    def _test_rrr(self, B, M, K, N, test_name, dtype="float16"):
         target = detect_target()
-        X = Tensor(shape=[B, M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[B, K, N], dtype="float16", name="input_1", is_input=True)
+        X = Tensor(shape=[B, M, K], dtype=dtype, name="input_0", is_input=True)
+        W = Tensor(shape=[B, K, N], dtype=dtype, name="input_1", is_input=True)
         OP = ops.bmm_rrr_k1_tanh()
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
-        X_pt = torch.randn(B, M, K).cuda().half()
-        W_pt = torch.randn(B, K, N).cuda().half()
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self.test_count}")
+        X_pt = get_random_torch_tensor([B, M, K], dtype)
+        W_pt = get_random_torch_tensor([B, K, N], dtype)
 
         Y_pt = torch.bmm(X_pt, W_pt)
         Y_pt = torch.tanh(Y_pt)
 
-        y = torch.empty([B, M, N]).cuda().half()
+        y = torch.empty_like(Y_pt)
         module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
         if X_pt.nelement() == 0 or W_pt.nelement() == 0:
             pass
@@ -49,6 +54,9 @@ class BMMRrrK1TanhTestCase(unittest.TestCase):
         self._test_rrr(B=1024, M=32, K=1, N=32, test_name="bmm_rrr_k1")
         self._test_rrr(B=1024, M=0, K=1, N=32, test_name="bmm_rrr_k1_zero_m")
         self._test_rrr(B=1024, M=32, K=0, N=32, test_name="bmm_rrr_k1_zero_k")
+
+    def test_float32(self):
+        self._test_rrr(B=1024, M=32, K=1, N=32, test_name="bmm_rrr_k1", dtype="float32")
 
 
 if __name__ == "__main__":

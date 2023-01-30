@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import unittest
 
 import torch
@@ -19,12 +20,24 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger
+from aitemplate.testing.test_utils import get_random_torch_tensor
+from parameterized import param, parameterized
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class GroupGEMMRcrBiasActTestCase(unittest.TestCase):
-    def test_rcr_relu(self):
+    @parameterized.expand(
+        [
+            param("group_gemm_rcr_bias_relu_fp16", "float16", "relu"),
+            param("group_gemm_rcr_bias_relu_fp32", "float32", "relu"),
+            param("group_gemm_rcr_bias_sigmoid_fp16", "float16", "sigmoid"),
+            param("group_gemm_rcr_bias_sigmoid_fp32", "float32", "sigmoid"),
+        ]
+    )
+    def test_rcr_activation(self, test_name, dtype, activation):
         M = 256
         K1 = 128
         N1 = 60
@@ -32,31 +45,36 @@ class GroupGEMMRcrBiasActTestCase(unittest.TestCase):
         N2 = 64
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
-        X1 = Tensor(shape=[M, K1], dtype="float16", name="x1", is_input=True)
-        X2 = Tensor(shape=[M, K2], dtype="float16", name="x2", is_input=True)
-        W1 = Tensor(shape=[N1, K1], dtype="float16", name="w1", is_input=True)
-        W2 = Tensor(shape=[N2, K2], dtype="float16", name="w2", is_input=True)
-        B1 = Tensor(shape=[N1], dtype="float16", name="b1", is_input=True)
-        B2 = Tensor(shape=[N2], dtype="float16", name="b2", is_input=True)
-        OP = ops.group_gemm_rcr_bias_relu()
+        X1 = Tensor(shape=[M, K1], dtype=dtype, name="x1", is_input=True)
+        X2 = Tensor(shape=[M, K2], dtype=dtype, name="x2", is_input=True)
+        W1 = Tensor(shape=[N1, K1], dtype=dtype, name="w1", is_input=True)
+        W2 = Tensor(shape=[N2, K2], dtype=dtype, name="w2", is_input=True)
+        B1 = Tensor(shape=[N1], dtype=dtype, name="b1", is_input=True)
+        B2 = Tensor(shape=[N2], dtype=dtype, name="b2", is_input=True)
+        OP = (
+            ops.group_gemm_rcr_bias_relu()
+            if activation == "relu"
+            else ops.group_gemm_rcr_bias_sigmoid()
+        )
+        act_pt = torch.relu if activation == "relu" else torch.sigmoid
         Y1, Y2 = OP(operand_groups=[[X1, W1, B1], [X2, W2, B2]])
         Y1._attrs["name"] = "y1"
         Y1._attrs["is_output"] = True
         Y2._attrs["name"] = "y2"
         Y2._attrs["is_output"] = True
-        module = compile_model([Y1, Y2], target, "./tmp", "group_gemm_rcr_bias_relu")
-        X1_pt = torch.randn(M, K1).cuda().half()
-        X2_pt = torch.randn(M, K2).cuda().half()
-        W1_pt = torch.randn(N1, K1).cuda().half()
-        W2_pt = torch.randn(N2, K2).cuda().half()
-        B1_pt = torch.randn(N1).cuda().half()
-        B2_pt = torch.randn(N2).cuda().half()
+        module = compile_model([Y1, Y2], target, "./tmp", test_name)
+        X1_pt = get_random_torch_tensor(shape=(M, K1), dtype=dtype)
+        X2_pt = get_random_torch_tensor(shape=(M, K2), dtype=dtype)
+        W1_pt = get_random_torch_tensor(shape=(N1, K1), dtype=dtype)
+        W2_pt = get_random_torch_tensor(shape=(N2, K2), dtype=dtype)
+        B1_pt = get_random_torch_tensor(shape=(N1,), dtype=dtype)
+        B2_pt = get_random_torch_tensor(shape=(N2,), dtype=dtype)
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt, bias=B1_pt)
-        Y1_pt = torch.relu(Y1_pt)
+        Y1_pt = act_pt(Y1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt, bias=B2_pt)
-        Y2_pt = torch.relu(Y2_pt)
+        Y2_pt = act_pt(Y2_pt)
 
         inputs = {
             "x1": X1_pt,
@@ -66,11 +84,11 @@ class GroupGEMMRcrBiasActTestCase(unittest.TestCase):
             "w2": W2_pt,
             "b2": B2_pt,
         }
-        y1 = torch.empty([M, N1]).cuda().half()
-        y2 = torch.empty([M, N2]).cuda().half()
+        y1 = torch.empty_like(Y1_pt)
+        y2 = torch.empty_like(Y2_pt)
         module.run_with_tensors(inputs, {"y1": y1, "y2": y2})
-        self.assertTrue(torch.allclose(Y1_pt, y1, atol=1e-1, rtol=1e-1))
-        self.assertTrue(torch.allclose(Y2_pt, y2, atol=1e-1, rtol=1e-1))
+        torch.testing.assert_close(Y1_pt, y1, atol=1e-1, rtol=1e-1)
+        torch.testing.assert_close(Y2_pt, y2, atol=1e-1, rtol=1e-1)
 
 
 if __name__ == "__main__":

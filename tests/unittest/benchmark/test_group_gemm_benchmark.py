@@ -21,7 +21,8 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 
-logger = logging.getLogger(__name__)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _prepare_input_tensors(m, nk_groups, start=0, has_bias=True):
@@ -209,7 +210,7 @@ def _benchmark(count, inputs_repeats, warmup, inputs, outputs, module, test_name
         module.run_with_tensors(inputs[i % inputs_repeats], outputs, sync=False)
     end_event.record()
     torch.cuda.synchronize()
-    logger.warning(
+    _LOGGER.warning(
         f"{test_name} benchmark, duration: {start_event.elapsed_time(end_event) / count}ms",
     )
 
@@ -224,7 +225,7 @@ class GroupGemmBenchTestCase(unittest.TestCase):
         N2 = 64
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning("Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
         X1 = Tensor(shape=[M, K1], dtype="float16", name="x1", is_input=True)
         X2 = Tensor(shape=[M, K2], dtype="float16", name="x2", is_input=True)
@@ -271,7 +272,7 @@ class GroupGemmBenchTestCase(unittest.TestCase):
         test_name="",
         benchmark_non_group=False,
     ):
-        logger.warning(
+        _LOGGER.warning(
             f"{test_name} benchmark, m: {m}, nk groups: {nk_groups_1}, {nk_groups_2}",
         )
         WARMUP = 10000
@@ -315,7 +316,7 @@ class GroupGemmBenchTestCase(unittest.TestCase):
             )
 
     def _benchmark_batch_rcr(self, b, m, n, k, test_name=""):
-        logger.warning(
+        _LOGGER.warning(
             f"{test_name} benchmark, b: {b}, m: {m}, n: {n}, k: {k}",
         )
         WARMUP = 10000

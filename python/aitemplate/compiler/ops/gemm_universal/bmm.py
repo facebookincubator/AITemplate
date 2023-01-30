@@ -20,7 +20,51 @@ Base class for Batch GEMM.
 
 from aitemplate.compiler.base import Tensor
 
+from ...base import IntImm
+from ...dtype import is_same_dtype
 from .gemm_common import gemm
+
+
+def is_valid_inputs(output_shapes, c_shapes):
+    """
+    Used by bmm_xxx_add ops to check whether elementwise ops
+    can be fused to the bmm op via epilogue fusion. So far,
+    only add ops are supported.
+    """
+    msg = ""
+    if output_shapes == c_shapes:
+        return True, msg
+
+    def _squeeze_leading_1s(shapes):
+        out = []
+        if len(shapes) == 0:
+            return out
+        i = 0
+        for shape in shapes:
+            if not isinstance(shape, IntImm):
+                break
+            if shape.value() != 1:
+                break
+            i = i + 1
+
+        out = shapes[i:]
+        if len(out) == 0:
+            out.append(shapes[-1])
+        return out
+
+    msg = (
+        f"C can't be broadcast to the bmm output."
+        f"Output shapes: {output_shapes}, C shapes: {c_shapes}"
+    )
+    bias_shapes = _squeeze_leading_1s(c_shapes)
+    if len(bias_shapes) >= len(output_shapes):
+        return False, msg
+
+    for o_shape, c_shape in zip(reversed(output_shapes), reversed(bias_shapes)):
+        if o_shape != c_shape:
+            return False, msg
+
+    return True, ""
 
 
 class bmm(gemm):
@@ -64,4 +108,10 @@ class bmm(gemm):
         if len(a_shapes) == 2 and len(b_shapes) == 2:
             raise RuntimeError(
                 "bmm operand A and B both have 2 dimensions! Use gemm instead."
+            )
+        if not is_same_dtype(a.dtype(), b.dtype()):
+            raise RuntimeError(
+                "gemm operand A and B should have the same data type! Current A: {atype}, B: {btype}.".format(
+                    atype=a.dtype(), btype=b.dtype()
+                )
             )

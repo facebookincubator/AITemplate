@@ -22,7 +22,13 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils, shape_utils
+
+from parameterized import parameterized
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -39,9 +45,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         slice_start_indices,
         slice_end_indices,
         test_name,
+        dtype="float16",
     ):
-        dtype = "float16"
-
         tensor_B = Tensor(
             shape=[N, K],
             dtype=dtype,
@@ -82,9 +87,9 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         self.assertEqual(len(sorted_ops), 1)
 
         # Run PyTorch
-        b_pt = torch.randn(N, K).cuda().half()
-        input_pt = torch.randn(*slice_input_shape).cuda().half()
-        bias_pt = torch.randn(N).cuda().half()
+        b_pt = get_random_torch_tensor([N, K], dtype)
+        input_pt = get_random_torch_tensor(slice_input_shape, dtype)
+        bias_pt = get_random_torch_tensor([N], dtype)
 
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -93,7 +98,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         y_pt = torch.nn.functional.linear(a_pt, b_pt, bias=bias_pt)
 
         # Run AITemplate module.
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors([input_pt, b_pt, bias_pt], [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
         self.test_count += 1
@@ -146,7 +151,10 @@ class SliceGemmFusionTestCase(unittest.TestCase):
 
     # This is a test for testing cases where we correctly update a/b_alignment
     # based on input_accessors
-    def test_slice_gemm_rcr_fusion_align(self):
+    @parameterized.expand([("float16"), ("float")])
+    def test_slice_gemm_rcr_fusion_align(self, dtype):
+        if dtype == "float" and int(detect_target()._arch) < 80:
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
         # [slice_end_indices[0] - slice_start_indices[0]] = M
         # [slice_end_indices[1] - slice_start_indices[1]] = K
         # a = [M, K]
@@ -166,6 +174,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 2),
             slice_end_indices=(None, 18),
             test_name="slice_gemm_rcr_fusion_a",
+            dtype=dtype,
         )
         # Next, make another one with a larger alignment.
         # If we don't update a/b_alignment accordingly, we would end up with
@@ -177,6 +186,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 8),
             slice_end_indices=(None, 24),
             test_name="slice_gemm_rcr_fusion_a",
+            dtype=dtype,
         )
 
         # another set of tests for a/b alignments
@@ -187,6 +197,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 6),
             slice_end_indices=(None, 10),
             test_name="slice_gemm_rcr_fusion_b",
+            dtype=dtype,
         )
         self._test_slice_gemm_rcr_fusion_b(
             M=21,
@@ -195,6 +206,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 8),
             slice_end_indices=(None, 12),
             test_name="slice_gemm_rcr_fusion_b",
+            dtype=dtype,
         )
         self._test_slice_gemm_rcr_fusion_b(
             M=21,
@@ -203,6 +215,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 10),
             slice_end_indices=(None, 14),
             test_name="slice_gemm_rcr_fusion_b",
+            dtype=dtype,
         )
 
         # another set of tests for a/b alignments
@@ -214,6 +227,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 10),
             slice_end_indices=(None, 12),
             test_name="slice_gemm_rcr_bias_add",
+            dtype=dtype,
         )
         self._test_slice_gemm_rcr_bias_add(
             M=5,
@@ -223,6 +237,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 16),
             slice_end_indices=(None, 18),
             test_name="slice_gemm_rcr_bias_add",
+            dtype=dtype,
         )
 
         # restore old env
@@ -240,9 +255,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         slice_start_indices,
         slice_end_indices,
         test_name,
+        dtype="float16",
     ):
-        dtype = "float16"
-
         tensor_A = Tensor(
             shape=[M, K],
             dtype=dtype,
@@ -277,8 +291,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         self.assertEqual(len(sorted_ops), 1)
 
         # Run PyTorch
-        a_pt = torch.randn(M, K).cuda().half()
-        input_pt = torch.randn(*slice_input_shape).cuda().half()
+        a_pt = get_random_torch_tensor([M, K], dtype)
+        input_pt = get_random_torch_tensor(slice_input_shape, dtype)
 
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -287,7 +301,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         y_pt = torch.nn.functional.linear(a_pt, b_pt)
 
         # Run AITemplate module.
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors([input_pt, a_pt], [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
         self.test_count += 1
@@ -322,8 +336,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         slice_end_indices,
         test_name,
         no_fusion=False,
+        dtype="float16",
     ):
-        dtype = "float16"
 
         X = Tensor(
             shape=slice_input_shape,
@@ -373,8 +387,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             self.assertEqual(len(sorted_ops), 1)
 
         # Run PyTorch
-        input_pt = torch.randn(*slice_input_shape).cuda().half()
-        bias_pt = torch.randn(M).cuda().half()
+        input_pt = get_random_torch_tensor(slice_input_shape, dtype)
+        bias_pt = get_random_torch_tensor([M], dtype)
 
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -383,7 +397,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         y_pt = torch.nn.functional.linear(a_pt, a_pt, bias=bias_pt)
 
         # Run AITemplate module.
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors([input_pt, bias_pt], [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
         dll_name = "test_{}.so".format(self.test_count)
@@ -419,9 +433,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         slice_start_indices,
         slice_end_indices,
         test_name,
+        dtype="float16",
     ):
-        dtype = "float16"
-
         tensor_B = Tensor(
             shape=[N, K],
             dtype=dtype,
@@ -470,10 +483,10 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         self.assertEqual(len(sorted_ops), 1)
 
         # Run PyTorch
-        b_pt = torch.randn(N, K).cuda().half()
-        input_pt = torch.randn(*slice_input_shape).cuda().half()
-        bias_pt = torch.randn(N).cuda().half()
-        d_pt = torch.randn(M, N).cuda().half()
+        b_pt = get_random_torch_tensor([N, K], dtype)
+        input_pt = get_random_torch_tensor(slice_input_shape, dtype)
+        bias_pt = get_random_torch_tensor([N], dtype)
+        d_pt = get_random_torch_tensor([M, N], dtype)
 
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -483,7 +496,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         y_pt = y2_pt + d_pt
 
         # Run AITemplate module.
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors([input_pt, b_pt, bias_pt, d_pt], [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
         self.test_count += 1
@@ -552,9 +565,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         slice_start_indices,
         slice_end_indices,
         test_name,
+        dtype="float16",
     ):
-        dtype = "float16"
-
         tensor_B = Tensor(
             shape=[N, K],
             dtype=dtype,
@@ -606,12 +618,12 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         assert Ms is not None, "expected to have at least one dynamic dim"
         for idx in range(len(Ms)):
             # Run PyTorch
-            b_pt = torch.randn(N, K).cuda().half()
+            b_pt = get_random_torch_tensor([N, K], dtype)
             input_shape_pt = [
                 d[idx] if isinstance(d, list) else d for d in slice_input_shape
             ]
-            input_pt = torch.randn(*input_shape_pt).cuda().half()
-            bias_pt = torch.randn(N).cuda().half()
+            input_pt = get_random_torch_tensor(input_shape_pt, dtype)
+            bias_pt = get_random_torch_tensor([N], dtype)
 
             slice_indices = [
                 slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -620,7 +632,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             y_pt = torch.nn.functional.linear(a_pt, b_pt, bias=bias_pt)
 
             # Run AITemplate module.
-            y = torch.empty(y_pt.size()).cuda().half()
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
             module.run_with_tensors([input_pt, b_pt, bias_pt], [y])
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
             self.test_count += 1
@@ -663,9 +675,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         slice_start_indices,
         slice_end_indices,
         test_name,
+        dtype="float16",
     ):
-        dtype = "float16"
-
         tensor_B1 = Tensor(
             shape=[N, K],
             dtype=dtype,
@@ -714,10 +725,10 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         self.assertEqual(len(sorted_ops), 2)
 
         # Run PyTorch
-        b1_pt = torch.randn(N, K).cuda().half()
-        b2_pt = torch.randn(N, K).cuda().half()
-        input_pt = torch.randn(*slice_input_shape).cuda().half()
-        bias_pt = torch.randn(N).cuda().half()
+        b1_pt = get_random_torch_tensor([N, K], dtype)
+        b2_pt = get_random_torch_tensor([N, K], dtype)
+        input_pt = get_random_torch_tensor(slice_input_shape, dtype)
+        bias_pt = get_random_torch_tensor([N], dtype)
 
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -728,7 +739,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         y_pt = y1_pt + y2_pt
 
         # Run AITemplate module.
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors(
             {
                 "input_x": input_pt,
@@ -761,6 +772,93 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 12),
             slice_end_indices=(None, 18),
             test_name="slice_multiple_gemm_rcr_fusion_a",
+        )
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_slice_gemm_fusion_float(self):
+        self._test_slice_gemm_rcr_fusion_a(
+            N=4,
+            K=8,
+            slice_input_shape=(2, 8),
+            slice_start_indices=(0, 0),
+            slice_end_indices=(None, None),
+            test_name="slice_gemm_rcr_fusion_a_float",
+            dtype="float",
+        )
+        self._test_slice_gemm_rcr_fusion_a(
+            N=32,
+            K=16,
+            slice_input_shape=(24, 16),
+            slice_start_indices=(3, 0),
+            slice_end_indices=(15, None),
+            test_name="slice_gemm_rcr_fusion_a_float",
+            dtype="float",
+        )
+        self._test_slice_gemm_rcr_fusion_b(
+            M=24,
+            K=16,
+            slice_input_shape=(32, 32),
+            slice_start_indices=(0, 16),
+            slice_end_indices=(None, 32),
+            test_name="slice_gemm_rcr_fusion_b_float",
+            dtype="float",
+        )
+        self._test_slice_gemm_rcr_fusion_a_2(
+            M=8,
+            slice_input_shape=(8, 24),
+            slice_start_indices=(0, 8),
+            slice_end_indices=(None, 16),
+            test_name="slice_gemm_rcr_fusion_a_2_float",
+            dtype="float",
+        )
+        self._test_slice_gemm_rcr_fusion_a_2(
+            M=8,
+            slice_input_shape=(8, 23),
+            slice_start_indices=(0, 8),
+            slice_end_indices=(None, 16),
+            test_name="slice_gemm_rcr_fusion_a_2_float",
+            no_fusion=True,
+            dtype="float",
+        )
+        self._test_slice_gemm_rcr_bias_add(
+            M=4,
+            N=2,
+            K=8,
+            slice_input_shape=(4, 32),
+            slice_start_indices=(0, 8),
+            slice_end_indices=(None, 16),
+            test_name="slice_gemm_rcr_bias_add_float",
+            dtype="float",
+        )
+        self._test_slice_gemm_rcr_fusion_a(
+            N=5,
+            K=4,
+            slice_input_shape=(13, 2, 32),
+            slice_start_indices=(0, 0, 10),
+            slice_end_indices=(None, None, 14),
+            test_name="slice_nd_gemm_rcr_fusion_a_float",
+            dtype="float",
+        )
+        self._test_slice_gemm_rcr_fusion_dynamic(
+            N=4,
+            K=8,
+            slice_input_shape=([4, 9], 32),
+            slice_start_indices=(0, 8),
+            slice_end_indices=(None, 16),
+            test_name="slice_gemm_rcr_fusion_dynamic_float",
+            dtype="float",
+        )
+        self._test_slice_multiple_gemm_rcr_fusion_a(
+            N=4,
+            K=16,
+            slice_input_shape=(30, 32),
+            slice_start_indices=(0, 8),
+            slice_end_indices=(None, 24),
+            test_name="slice_multiple_gemm_rcr_fusion_a_float",
+            dtype="float",
         )
 
 

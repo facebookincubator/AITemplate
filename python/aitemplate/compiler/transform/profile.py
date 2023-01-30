@@ -15,6 +15,7 @@
 """
 Graph pass to invoke profiling.
 """
+import logging
 import os
 from copy import deepcopy
 from datetime import datetime
@@ -28,12 +29,13 @@ from aitemplate.compiler.ops.gemm_universal.gemm_common import (
     GemmProfilerPostprocessingDelegate,
 )
 
-from aitemplate.utils import logger
-
 from ...backend import builder, codegen
 from ..base import DynamicProfileStrategy, Tensor
 
 # pylint: disable=C0103,W0613,W0102
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def elapsed_dt_sec(start_t_sec):
@@ -80,14 +82,13 @@ def profile(
         codegen.gen_profiler(sorted_graph, profiler_dir, dynamic_profiling_strategy)
     )
     generated_profilers = [p for p in generated_profilers if p is not None]
-    logger.info(
-        __name__,
+    _LOGGER.info(
         f"generated {len(generated_profilers)} profilers elapsed time: {elapsed_dt_sec(start_t)}",
     )
     start_t = datetime.now()
     compile_engine = builder.Builder()
     compile_engine.make_profilers(generated_profilers, profiler_dir)
-    logger.info(__name__, f"compiled profilers elapsed time: {elapsed_dt_sec(start_t)}")
+    _LOGGER.info(f"compiled profilers elapsed time: {elapsed_dt_sec(start_t)}")
     funcs_to_profile = OrderedDict(
         {
             func._attrs["name"]: func
@@ -104,9 +105,8 @@ def profile(
         f.profile(
             workdir=profiler_dir,
             devices=devices,
-            dynamic_profiling_strategy=dynamic_profiling_strategy,
         )
-    timeout = 360 if Target.current().name() == "rocm" else 180
+    timeout = 360 if Target.current().name() == "rocm" else 240
     profiler_runner = ProfilerRunner(
         devices,
         timeout=timeout,
@@ -118,8 +118,7 @@ def profile(
             profiler_runner=profiler_runner,
         )
     profiler_runner.join()
-    logger.info(
-        __name__,
+    _LOGGER.info(
         f"ran {len(funcs_to_profile)} profilers elapsed time: {elapsed_dt_sec(start_t)}",
     )
     for node in sorted_graph:

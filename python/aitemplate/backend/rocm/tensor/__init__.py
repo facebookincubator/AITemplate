@@ -22,6 +22,7 @@ from . import (  # noqa
     concatenate_tanh,
     dynamic_slice,
     permute021,
+    permute0213,
     permute102,
     permute210,
     slice_reshape_scatter,

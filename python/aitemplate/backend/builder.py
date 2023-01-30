@@ -18,27 +18,118 @@ Builder is a module to compile generated source code files into binary objects.
 
 from __future__ import annotations
 
+import logging
 import multiprocessing
 
 import os
-import pathlib
 import re
 import shlex
 import subprocess
 import typing
+from hashlib import sha1
+from pathlib import Path
 from typing import Optional
 
 import jinja2
 
-from ..utils import logger
+from ..utils.misc import is_debug
 from .target import Target
 from .task_runner import BaseRunner, Task
 
 # pylint: disable=W0221,C0103
 
 
-def _run_make_cmds(cmds, timeout):
-    logger.debug(__name__, f"make {cmds=}")
+_LOGGER = logging.getLogger(__name__)
+
+
+def _augment_for_trace(cmd):
+    return (
+        'date +"{{\\"name\\": \\"$@\\", \\"ph\\": \\"B\\", \\"pid\\": \\"$$$$\\", \\"ts\\": \\"%s%6N\\"}},";'
+        " {}; "
+        'date +"{{\\"name\\": \\"$@\\", \\"ph\\": \\"E\\", \\"pid\\": \\"$$$$\\", \\"ts\\": \\"%s%6N\\"}},";'
+    ).format(cmd)
+
+
+def _log_error_context(
+    stderr,
+    build_dir,
+    context_radius=10,
+    max_errors_per_file=5,
+    padding=5,
+):
+    path_to_error_lines = {}
+    for line in [L for L in stderr.split("\n") if ": error:" in L]:
+        match = re.search(r"(.+)\((\d+)\): error:.*", line)
+        if match:
+            path = match[1]
+            error_line = match[2]
+            if path not in path_to_error_lines:
+                path_to_error_lines[path] = set()
+            # nvcc line numbers are 1-based
+            error_line = int(error_line) - 1
+            path_to_error_lines[path].add(error_line)
+
+    # keep only the first N error lines per file
+    path_to_error_lines = {
+        path: sorted(error_lines)[:max_errors_per_file]
+        for path, error_lines in path_to_error_lines.items()
+    }
+
+    path_to_visible_lines = {}
+    for path, error_lines in path_to_error_lines.items():
+        path_to_visible_lines[path] = set()
+        for error_line in error_lines:
+            # collect the context lines around each error line
+            context = range(
+                error_line - context_radius,
+                error_line + context_radius + 1,
+            )
+            path_to_visible_lines[path].update(list(context))
+
+    for path, visible_lines in path_to_visible_lines.items():
+        full_path = os.path.join(build_dir, path)
+        if os.path.exists(full_path):
+            # read the lines from the file
+            with open(full_path, "r") as f:
+                # each line ends with '\n'
+                file_lines = f.readlines()
+            # except maybe the last line
+            if file_lines and not file_lines[-1].endswith("\n"):
+                file_lines[-1] = f"{file_lines[-1]}\n"
+            num_file_lines = len(file_lines)
+
+            error_lines = path_to_error_lines[path]
+            visible_lines = sorted(visible_lines)
+
+            lines_to_show = []
+            last_printed_i = -1
+            for i in visible_lines:
+                if i < 0 or i >= num_file_lines:
+                    # skip the line number as extraneous
+                    continue
+                if i - last_printed_i > 1:
+                    # preceding ellipsis
+                    lines_to_show.append("...\n")
+                line = file_lines[i]
+                lines_to_show.append(f"{i+1:<{padding}} {line}")
+                if i in error_lines:
+                    # mark the line as an error line: underscore
+                    spaces = line[: len(line) - len(line.lstrip())]
+                    underscore = spaces + "^" * (len(line) - len(spaces) - 1)
+                    lines_to_show.append(f"{' ' * padding} {underscore}\n")
+                last_printed_i = i
+            if visible_lines[-1] < num_file_lines - 1:
+                # closing ellipsis
+                lines_to_show.append("...\n")
+
+            if lines_to_show:
+                # all lines_to_show end with '\n'
+                summary = "".join(lines_to_show)
+                _LOGGER.info(f"{path}:\n\n{summary}")
+
+
+def _run_make_cmds(cmds, timeout, build_dir):
+    _LOGGER.debug(f"make {cmds=}")
     proc = subprocess.Popen(
         [" && ".join(cmds)],
         shell=True,
@@ -53,12 +144,18 @@ def _run_make_cmds(cmds, timeout):
         out, err = proc.communicate()
         raise e
     finally:
+        stdout = out.decode()
+        stderr = err.decode()
         if proc.returncode != 0:
-            # Let's always print out more info upon any failures.
-            logger_f = logger.info
+            _LOGGER.info(f"make stdout:\n\n{stdout}")
+            _LOGGER.info(f"make stderr:\n\n{stderr}")
+
+            _log_error_context(stderr, build_dir)
+
+            raise RuntimeError("Build has failed.")
         else:
-            logger_f = logger.debug
-        logger_f(__name__, f"make stdout: {out.decode()}\nmake stderr: {err.decode()}")
+            _LOGGER.debug(f"make stdout:\n\n{stdout}")
+            _LOGGER.debug(f"make stderr:\n\n{stderr}")
 
 
 def process_task(task: Task) -> None:
@@ -75,16 +172,14 @@ def process_task(task: Task) -> None:
     stderr = task._stderr
     if task._proc.returncode != 0:
         task._failed = True
-        logger.info(
-            __name__,
+        _LOGGER.info(
             "Failed: [{name}]\ncmd:\n{cmd}\nstderr:\n{stderr}\nstdout:{stdout}".format(
                 name=task._name, cmd=task._cmd, stderr=stderr, stdout=stdout
             ),
         )
         task._ret = -1
     else:
-        logger.debug(
-            __name__,
+        _LOGGER.debug(
             "Successful: [{name}]\ncmd:\n{cmd}\nstderr:\n{stderr}\nstdout:{stdout}".format(
                 name=task._name, cmd=task._cmd, stderr=stderr, stdout=stdout
             ),
@@ -126,8 +221,7 @@ class Runner(BaseRunner):
             Compiling timeout, by default 10 (seconds)
         """
         super().__init__(devs, "builder", timeout)
-        logger.info(
-            __name__,
+        _LOGGER.info(
             "Using {n} CPU for building".format(n=devs),
         )
         self._ftask_proc = process_task
@@ -184,6 +278,7 @@ class Builder(object):
         self._runner = Runner(n_jobs, timeout)
         self._n_jobs = n_jobs
         self._timeout = timeout
+        self._do_trace = os.environ.get("AIT_TRACE_MAKE", False)
 
     def build_objs(
         self,
@@ -206,15 +301,15 @@ class Builder(object):
         """
         for idx, fpair in enumerate(files):
             src, target = fpair
-            logger.info(__name__, "Building " + target)
+            _LOGGER.info("Building " + target)
             if src.endswith(".bin"):
                 if binary_cc_cmd is None:
                     raise ValueError(
                         "Cannot compile .bin file without specifying binary_cc_cmd!"
                     )
 
-                src_path = pathlib.Path(src)
-                target_path = pathlib.Path(target)
+                src_path = Path(src)
+                target_path = Path(target)
                 compile_cmd = binary_cc_cmd.format(
                     target=target_path.name, src=src_path.name
                 )
@@ -222,7 +317,7 @@ class Builder(object):
                 # Have to cd into the containing dir so ld doesn't include
                 # the path in the symbol names; unfortunately, there's no other
                 # way to control this.
-                if logger.is_debug():
+                if is_debug():
                     cmd = f"cd {containing_dir} && {compile_cmd} && cd -"
                 else:
                     # If not in debug mode, remove the original .bin file which can potentially be quite large.
@@ -230,7 +325,7 @@ class Builder(object):
             else:
                 cmd = cc_cmd.format(target=target, src=src)
 
-            logger.debug(__name__, f"The cmd for building {target} is : {cmd}")
+            _LOGGER.debug(f"The cmd for building {target} is : {cmd}")
             self._runner.push(idx, cmd, target)
         self._runner.join()
         self._runner.pull()
@@ -245,7 +340,7 @@ class Builder(object):
         objs : list[str]
             List of all object file paths for building the dynamic library.
         """
-        logger.info(__name__, "Building " + target)
+        _LOGGER.info("Building " + target)
         cc = Target.current().cc()
         compile_options = Target.current().compile_options()
         fpic = "-fPIC"
@@ -258,7 +353,7 @@ class Builder(object):
             + compile_options
             + " -o {target} {objs}".format(target=target, objs=" ".join(objs))
         )
-        logger.debug(__name__, f"The cmd for building {target} is {cmd}")
+        _LOGGER.debug(f"The cmd for building {target} is {cmd}")
         self._runner.push(0, cmd, target)
         self._runner.join()
         self._runner.pull()
@@ -282,7 +377,7 @@ obj_files = {{obj_files}}
 all: {{target}}
 
 {{target}}: $(obj_files)
-    $(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)
+    {{build_so_cmd}}
 
 clean:
     rm -f *.obj {{target}} test.so
@@ -291,7 +386,7 @@ clean_constants:
     rm -f constants.bin
 """
         )
-
+        build_so_cmd = "$(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)"
         obj_files = [pair[1].split("/")[-1] for pair in file_pairs]
         obj_files = " ".join(obj_files)
 
@@ -304,10 +399,16 @@ clean_constants:
 
         cfile_cmd = Target.current().compile_cmd(False).format(target="$@", src="$<")
         bfile_cmd = Target.current().binary_compile_cmd()
+
         if not bfile_cmd:
             bfile_cmd = ""
         else:
             bfile_cmd = bfile_cmd.format(target="$@", src="$<")
+
+        if self._do_trace:
+            cfile_cmd = _augment_for_trace(cfile_cmd)
+            bfile_cmd = _augment_for_trace(bfile_cmd)
+            build_so_cmd = _augment_for_trace(build_so_cmd)
 
         makefile_str = makefile_template.render(
             cc=cc,
@@ -318,6 +419,7 @@ clean_constants:
             target=dll_name,
             cfile_cmd=cfile_cmd,
             bfile_cmd=bfile_cmd,
+            build_so_cmd=build_so_cmd,
         )
 
         dumpfile = os.path.join(workdir, test_name, "Makefile")
@@ -325,40 +427,285 @@ clean_constants:
             # fix the makefile indentation
             f.write(re.sub("^    ", "\t", makefile_str, flags=re.M))
 
+    @staticmethod
+    def _combine_profiler_multi_sources():
+        """Whether to combine multiple profiler sources per target."""
+        return bool(int(os.environ.get("COMBINE_PROFILER_MULTI_SOURCES", 1)))
+
+    @staticmethod
+    def _force_one_profiler_source_per_target():
+        """Whether to combine multiple profiler sources per target into one."""
+        return bool(int(os.environ.get("FORCE_ONE_PROFILER_SOURCE_PER_TARGET", 0)))
+
+    def _combine_sources(self, sources):
+        """
+        Combine multiple source files (given by path) into one
+        source file and return the path of the combined file.
+
+        Parameters
+        ----------
+        sources : Iterable[str]
+            The list of paths to the source files to combine.
+
+        Returns
+        -------
+        path : str
+            The path to the combined source file.
+        """
+        assert len(sources) > 0, "Must have at least one source"
+        if len(sources) == 1:
+            # no need to combine a single source
+            return next(iter(sources))
+
+        file_lines = []
+        for source in sources:
+            with open(source, "r") as f:
+                lines = f.readlines()
+            for line in lines:
+                if line.strip():
+                    # collect the original non-empty lines
+                    file_lines.append(line)
+            # the last line might not end with "\n"
+            file_lines.append("\n")
+
+        # generate a new file name conditioned on the list of the source file names
+        file_name = sha1((";".join(sorted(sources))).encode("utf-8")).hexdigest()
+        file_dir = Path(next(iter(sources))).parents[0]  # fetch the directory
+        file_path = file_dir / Path(f"temp_{file_name}.cu")
+        with open(file_path, "w") as f:
+            # file_lines end with "\n" already
+            f.write("".join(file_lines))
+
+        # return the path starting with "./"
+        return os.path.join(".", str(file_path))
+
+    def _combine_profiler_sources(self, target_to_sources, num_builders):
+        """
+        Combine multiple profiler sources generated for different targets
+        to optimize the overall compilation time, given the available number
+        of builders (CPUs). The total number of sources (across all targets)
+        is set equal to the `num_builders`. Single-source targets are kept
+        as is; multi-source targetss' sources are possibly combined.
+
+        Simplifying assumptions:
+
+            - Individual split (multiple) sources per target take
+              approximately equal time to compile across different
+              targets (this is, in particular, not true for the main
+              profiler source file vs kernel-specific source files:
+              the former is typically larger than the latter);
+            - Compilation time grows linearly in the number of
+              separate sources combined into a single file.
+
+        Parameters
+        ----------
+        target_to_soruces : dict[str, Iterable[str]]
+            The mapping from each target name to the list of sources
+            required to compile this target. There can be one or more
+            sources for each target.
+        num_builders : int
+            The number of available builders (CPUs).
+
+        Returns
+        ----------
+        target_to_combined_sources : dict[str, Iterable[str]]
+            Like `target_to_sources`, but with some of the source paths
+            in the values replaced by the paths to the respective combined
+            source files. Whether and which of the sources are combined
+            depends on the arguments.
+        """
+        num_total_sources = num_builders
+
+        if (
+            len(target_to_sources) >= num_total_sources
+            or self._force_one_profiler_source_per_target()
+        ):
+            # there are at least as many targets as the total
+            # number of sources required (or single source per
+            # target is forced): combine everything
+            return {
+                target: [self._combine_sources(sources)]
+                for target, sources in target_to_sources.items()
+            }
+
+        combine_candidates = {}  # multi-source targets
+        num_multi_sources, num_single_sources = 0, 0
+        for target, sources in target_to_sources.items():
+            if len(sources) > 1:
+                combine_candidates[target] = sources
+                num_multi_sources += len(sources)
+            else:
+                num_single_sources += 1
+
+        if num_multi_sources == 0:
+            # all targets are single-source: nothing to combine
+            return target_to_sources
+        if num_multi_sources + num_single_sources <= num_total_sources:
+            # there are fewer source files than the total
+            # number of sources required: no need to combine
+            return target_to_sources
+
+        # number of sources we need for the multi-file targets
+        num_combined_sources = num_total_sources - num_single_sources
+        num_sources_per_target = {
+            # the number of combined sources per multi-source target as a
+            # fraction of num_combined_sources is proportional to the number of
+            # multiple sources of the target (rounded down); ultimately, there
+            # should be at least one source target (hence max(..., 1))
+            target: max(int(len(sources) / num_multi_sources * num_combined_sources), 1)
+            for target, sources in combine_candidates.items()
+        }
+
+        # do any sources remain after the above per-target distribution?
+        remaining_sources = num_combined_sources - sum(num_sources_per_target.values())
+        if remaining_sources > 0:
+            # reverse-sort the targets by the remainder after rounding down:
+            # prefer adding sources to the targets with a higher remainder
+            # (i.e. the ones closest to getting another source)
+            targets = sorted(
+                num_sources_per_target.keys(),
+                key=lambda target: (
+                    (
+                        len(target_to_sources[target])
+                        / num_multi_sources
+                        * num_combined_sources
+                    )
+                    - int(
+                        len(target_to_sources[target])
+                        / num_multi_sources
+                        * num_combined_sources
+                    )
+                ),
+                reverse=True,
+            )
+            target_id = 0
+            while remaining_sources > 0:
+                # increment the number of sources for the target
+                num_sources_per_target[targets[target_id]] += 1
+                target_id = (target_id + 1) % len(targets)
+                remaining_sources -= 1
+
+        result = {}
+        for target in target_to_sources:
+            if target in combine_candidates:
+                # collect the sources of the target
+                # in N batches by round robin
+                num_sources = num_sources_per_target[target]
+                # TODO: form the source batches by the total number
+                # of lines instead of the number of sources for more
+                # even distribution of the compilation time per batch
+                batch_id = 0
+                batches = [[] for _ in range(num_sources)]
+                for source in target_to_sources[target]:
+                    batches[batch_id].append(source)
+                    batch_id = (batch_id + 1) % num_sources
+                # conbine the sources in each batch
+                result[target] = [self._combine_sources(b) for b in batches]
+            else:
+                # use the single-source profiler target as is
+                result[target] = target_to_sources[target]
+        return result
+
     def _gen_makefile_for_profilers(self, file_pairs, profiler_dir):
         makefile_template = jinja2.Template(
             """
-programs = {{programs}}
-all: $(programs)
+all: {{targets}}
 .PHONY: all clean
 
-$(programs): %: %.{{cpp}}
-    {{cc_cmd}}
+{{commands}}
 
 clean:
-    rm -f $(programs)
+\trm -f {{targets}}
 """
         )
-        program_relative_paths = sorted(
-            {f[1].split(os.path.join(profiler_dir, ""))[-1] for f in file_pairs}
-        )
-        logger.info(__name__, f"compiling {len(program_relative_paths)} profiler srcs")
-        programs = " ".join(program_relative_paths)
-        cc = Target.current().cc()
-        cpp = "cpp"
-        if "nvcc" in cc:
-            cpp = "cu"
-        cc_cmd = Target.current().compile_cmd(True).format(target="$@", src="$<")
+        # normalize the profiler dir: add / at the end
+        profiler_dir = os.path.join(profiler_dir, "")
+
+        # deduplicate targets from different ops
+        target_to_sources = {}
+        for source, target in file_pairs:
+            if target not in target_to_sources:
+                target_to_sources[target] = set()
+            if isinstance(source, str):
+                target_to_sources[target].add(source)
+            else:
+                target_to_sources[target].update(source)
+
+        # stabilize the order of sources per target
+        target_to_sources = {
+            target: sorted(sources) for target, sources in target_to_sources.items()
+        }
+
+        if self._combine_profiler_multi_sources():
+            num_sources_before = sum(len(s) for s in target_to_sources.values())
+            target_to_sources = self._combine_profiler_sources(
+                target_to_sources=target_to_sources,
+                num_builders=self._n_jobs,
+            )
+            num_sources_after = sum(len(s) for s in target_to_sources.values())
+
+            _LOGGER.info(
+                f"combined {num_sources_before} profiler sources into {num_sources_after}",
+            )
+
+        targets = []
+        dependencies = {}
+        for target, sources in target_to_sources.items():
+            target = target.split(profiler_dir)[-1]
+            if len(sources) == 1:
+                # single-source profiler executable
+                source = next(iter(sources))
+                source = source.split(profiler_dir)[-1]
+                dependencies[target] = [source]
+            else:
+                # multi-source profiler executable
+                objects = []
+                for source in sources:
+                    # first compile the objects
+                    source = source.split(profiler_dir)[-1]
+                    obj = source.replace(".cu", ".obj")
+                    if not os.path.exists(os.path.join(profiler_dir, obj)):
+                        # compile the object only if it is absent
+                        dependencies[obj] = [source]
+                    objects.append(obj)
+                # then link the objects into an executable
+                dependencies[target] = objects
+            targets.append(target)
+
+        commands = []
+        num_compiled_sources = 0
+        num_linked_executables = 0
+        for target, srcs in dependencies.items():
+            # for each "target: srcs" pair,
+            # generate two lines for the Makefile
+            src_list = " ".join(srcs)
+            dep_line = f"{target}: {src_list}"
+            cmd_line = (
+                Target.current()
+                .compile_cmd(executable=(not target.endswith(".obj")))
+                .format(target=target, src=src_list)
+            )
+            if self._do_trace:
+                cmd_line = _augment_for_trace(cmd_line)
+
+            command = f"{dep_line}\n\t{cmd_line}\n"
+            commands.append(command)
+
+            # increment compilation statistics
+            num_compiled_sources += sum(1 for s in srcs if s.endswith(".cu"))
+            num_linked_executables += 0 if target.endswith(".obj") else 1
+
+        _LOGGER.info(f"compiling {num_compiled_sources} profiler sources")
+        _LOGGER.info(f"linking {num_linked_executables} profiler executables")
+
         makefile_str = makefile_template.render(
-            cpp=cpp,
-            programs=programs,
-            cc_cmd=cc_cmd,
+            targets=" ".join(set(targets)),
+            commands="\n".join(commands),
         )
 
         dumpfile = os.path.join(profiler_dir, "Makefile")
         with open(dumpfile, "w+") as f:
-            # fix the makefile indentation
-            f.write(re.sub("^    ", "\t", makefile_str, flags=re.M))
+            f.write(makefile_str)
 
     def make_profilers(self, generated_profilers, workdir):
         file_pairs = [f for gp in generated_profilers for f in gp]
@@ -376,7 +723,7 @@ clean:
         make_clean_cmd = f" {make_path} {make_flags} clean "
         make_all_cmd = f" {make_path} {make_flags} -j{self._n_jobs} all "
         cmds = [make_clean_cmd, make_all_cmd]
-        _run_make_cmds(cmds, self._timeout)
+        _run_make_cmds(cmds, self._timeout, build_dir)
 
     def make(self, file_pairs, dll_name, workdir, test_name):
         self.gen_makefile(file_pairs, dll_name, workdir, test_name)
@@ -392,6 +739,6 @@ clean:
         make_all_cmd = f" {make_path} {make_flags} -j{self._n_jobs} all "
         make_clean_constants_cmd = f" {make_path} {make_flags} clean_constants "
         cmds = [make_clean_cmd, make_all_cmd]
-        if not logger.is_debug():
+        if not is_debug():
             cmds.append(make_clean_constants_cmd)
-        _run_make_cmds(cmds, self._timeout)
+        _run_make_cmds(cmds, self._timeout, build_dir)

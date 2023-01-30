@@ -17,43 +17,22 @@ permute(0, 2, 1) op
 """
 from typing import List
 
-import jinja2
-
 from .... import backend
 from ....backend import registry
 from ...base import IntVar, Operator, Tensor
 
 # pylint: disable=C0103,W0221
 
-SHAPE_FUNC_TEMPLATE = jinja2.Template(
-    """
-{{indent}}{{dtype}}X_DIM0 = {{x_dim0}};
-{{indent}}{{dtype}}X_DIM1 = {{x_dim1}};
-{{indent}}{{dtype}}X_DIM2 = {{x_dim2}};
-{{indent}}{{dtype}}Y_DIM0 = X_DIM0;
-{{indent}}{{dtype}}Y_DIM1 = X_DIM2;
-{{indent}}{{dtype}}Y_DIM2 = X_DIM1;
-"""
-)
-
-SHAPE_ASSIGNMENT_TEMPLATE = jinja2.Template(
-    """
-{{indent}}{{y_dim0}} = Y_DIM0;
-{{indent}}{{y_dim1}} = Y_DIM1;
-{{indent}}{{y_dim2}} = Y_DIM2;
-"""
-)
-
 
 class permute021(Operator):
     """
-    Permutes the input tensor from (B, N, M) to (B, M, N).
+    Permutes the input tensor from (B1, B2, ..., Bn, N, M) to (B1, B2, ..., Bn, M, N).
 
     Args:
-        input (Tensor[B, N, M]): the source tensor with 3 dimensions
+        input (Tensor[B1, B2, ..., Bn, N, M]): the source tensor with 3 dimensions
 
     Returns:
-        output (Tensor[B, M, N]): the destination tensor
+        output (Tensor[B1, B2, ..., Bn, M, N]): the destination tensor
 
     Example:
 
@@ -72,20 +51,20 @@ class permute021(Operator):
     def __init__(self):
         super().__init__()
         self._attrs["op"] = "permute021"
-        self.shape_eval_template = SHAPE_FUNC_TEMPLATE
-        self.shape_save_template = SHAPE_ASSIGNMENT_TEMPLATE
 
     def _infer_shapes(self, x: Tensor) -> List[IntVar]:
         """Infers shapes for permute021."""
-
         x_shape = x._attrs["shape"]
-        return [x_shape[0], x_shape[2], x_shape[1]]
+        return x_shape[:-2] + [x_shape[-1], x_shape[-2]]
 
     def __call__(self, x: Tensor) -> Tensor:
+        assert len(x.shape()) > 2, "The input tensor must have at least 3 dimensions"
+
         self._attrs["inputs"] = [x]
         self._set_depth()
         output_shape = self._infer_shapes(x)
         output = Tensor(output_shape, src_ops={self})
+        output._attrs["dtype"] = x.dtype()
         self._attrs["outputs"] = [output]
         return output
 
@@ -99,6 +78,4 @@ class permute021(Operator):
         return func(
             self._attrs,
             template_path,
-            self.shape_eval_template,
-            self.shape_save_template,
         )

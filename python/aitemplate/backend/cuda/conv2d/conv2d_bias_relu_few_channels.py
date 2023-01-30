@@ -17,14 +17,20 @@ specialize conv2d op with few channels(< 8)
 """
 
 from ... import registry
-from . import common, common_conv2d_bias_activation as cba
-from .common_conv2d_few_channels import extract_config
+from . import (
+    common,
+    common_conv2d_bias_activation as cba,
+    common_conv2d_few_channels as cfc,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301
 
 
 @registry.reg("cuda.conv2d_bias_relu_few_channels.config")
-def conv2d_config(func_attrs, dtype="float16"):
+def conv2d_bias_relu_few_channels_config(
+    func_attrs,
+    dtype="float16",
+):
     """extract configurations for profiling
 
     Parameters
@@ -38,17 +44,30 @@ def conv2d_config(func_attrs, dtype="float16"):
     -------
     None
     """
-    func_attrs["op_instance"] = extract_config(func_attrs)
+    func_attrs["op_instance"] = cfc.extract_config(
+        func_attrs=func_attrs,
+        dtype=dtype,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_relu_few_channels.gen_profiler")
-def gen_profiler(func_attrs, workdir, shape_template):
+def conv2d_bias_relu_few_channels_gen_profiler(
+    func_attrs,
+    workdir,
+    profiler_filename,
+    shape_template,
+):
     """generate code for profiling"""
-    return cba.gen_profiler(func_attrs, workdir, shape_template)
+    return cba.gen_profiler(
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        shape_template=shape_template,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_relu_few_channels.gen_function")
-def gen_function(
+def conv2d_bias_relu_few_channels_gen_function(
     func_attrs,
     exec_cond_remplate,
     shape_eval_template,
@@ -72,30 +91,40 @@ def gen_function(
     [type]
         [description]
     """
-    return common.gen_function(
-        func_attrs,
-        cba.INSTANCE_TEMPLATE,
-        cba.EXEC_TEMPLATE,
-        cba.SRC_TEMPLATE,
-        exec_cond_remplate,
-        shape_eval_template,
-        shape_save_template,
+    return cba.gen_function(
+        func_attrs=func_attrs,
+        exec_cond_remplate=exec_cond_remplate,
+        shape_eval_template=shape_eval_template,
+        shape_save_template=shape_save_template,
     )
 
 
 @registry.reg("cuda.conv2d_bias_relu_few_channels.func_decl")
-def conv2d_gen_function_decl(func_attrs):
-    func_name = func_attrs["name"]
-    return cba.FUNC_DECL_TEMPLATE.render(func_name=func_name)
+def conv2d_bias_relu_few_channels_func_decl(
+    func_attrs,
+):
+    return cba.gen_function_decl(
+        func_attrs=func_attrs,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_relu_few_channels.func_call")
-def conv2d_gen_function_call(func_attrs, indent="  "):
-    return cba.gen_function_call(func_attrs, indent)
+def conv2d_bias_relu_few_channels_func_call(
+    func_attrs,
+    indent="  ",
+):
+    return cba.gen_function_call(
+        func_attrs=func_attrs,
+        indent=indent,
+    )
 
 
 @registry.reg("cuda.conv2d_bias_relu_few_channels.filter")
-def conv2d_function_filter(cfg, func_attrs, x_shape):
+def conv2d_bias_relu_few_channels_filter(
+    cfg,
+    func_attrs,
+    x_shape,
+):
     """Generates function filter.
 
     Parameters
@@ -112,4 +141,8 @@ def conv2d_function_filter(cfg, func_attrs, x_shape):
     bool
         If input cfg should be filtered.
     """
-    return common.function_filter(cfg, func_attrs, x_shape)
+    return common.function_filter(
+        cfg=cfg,
+        func_attrs=func_attrs,
+        x_shape=x_shape,
+    )

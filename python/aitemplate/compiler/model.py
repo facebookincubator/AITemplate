@@ -159,32 +159,13 @@ class Model(object):
         def __init__(
             self,
             lib_path: str,
-            num_runtimes: int,
-            allocator_kind: Optional[AITemplateAllocatorKind],
         ):
             self.lib_path = lib_path
             self.DLL = ctypes.cdll.LoadLibrary(lib_path)
-
-            self.handle = ctypes.c_void_p()
-            self.allocator_handle = ctypes.c_void_p()
-            if allocator_kind is not None:
-                self.DLL.AITemplateAllocatorCreate(
-                    ctypes.byref(self.allocator_handle),
-                    ctypes.c_int(allocator_kind.value),
-                )
-
-            self.DLL.AITemplateModelContainerCreate(
-                ctypes.pointer(self.handle),
-                ctypes.c_size_t(num_runtimes),
-                self.allocator_handle,
-            )
             self.is_open = True
 
         def close(self):
             if self.is_open:
-                self.DLL.AITemplateModelContainerDelete(self.handle)
-                if self.allocator_handle:
-                    self.DLL.AITemplateAllocatorDelete(self.allocator_handle)
                 _dlclose(self.DLL)
                 self.is_open = False
 
@@ -221,12 +202,29 @@ class Model(object):
         allocator_kind : AITemplateAllocatorKind, optional
             What type of allocator to use when allocating GPU memory.
         """
+        # Set of pointers allocated with numpy_to_ait_data.
+        # If the user forgets to free their data, we use this to
+        # avoid leaking memory.
+        self._allocated_ait_data = set()
+
         if num_runtimes <= 0:
             raise ValueError(f"num_runtimes must be positive, but got {num_runtimes}")
 
-        self.DLL = self._DLLWrapper(lib_path, num_runtimes, allocator_kind)
-        self.handle = self.DLL.handle
-        self.lib_path = self.DLL.lib_path
+        self.DLL = self._DLLWrapper(lib_path)
+        self.lib_path = lib_path
+        self.handle = ctypes.c_void_p()
+        self.allocator_handle = ctypes.c_void_p()
+        if allocator_kind is not None:
+            self.DLL.AITemplateAllocatorCreate(
+                ctypes.byref(self.allocator_handle),
+                ctypes.c_int(allocator_kind.value),
+            )
+
+        self.DLL.AITemplateModelContainerCreate(
+            ctypes.pointer(self.handle),
+            ctypes.c_size_t(num_runtimes),
+            self.allocator_handle,
+        )
 
         # We use this list to add reference counts of Torch tensors
         # to avoid lifetime issues caused by user misuse.
@@ -242,11 +240,6 @@ class Model(object):
             for i in range(len(self._output_name_to_index))
         ]
 
-        # Set of pointers allocated with numpy_to_ait_data.
-        # If the user forgets to free their data, we use this to
-        # avoid leaking memory.
-        self._allocated_ait_data = set()
-
     def __enter__(self):
         return self
 
@@ -260,7 +253,19 @@ class Model(object):
         # Copy to avoid set size changed during iteration
         for ptr in list(self._allocated_ait_data):
             self.free_gpu_memory(ptr, sync=True)
-        self.DLL.close()
+
+        # Check that it exists since we may have thrown
+        # an exception before initializing it.
+        if hasattr(self, "DLL"):
+            if self.handle:
+                self.DLL.AITemplateModelContainerDelete(self.handle)
+                self.handle = ctypes.c_void_p()
+
+            if self.allocator_handle:
+                self.DLL.AITemplateAllocatorDelete(self.allocator_handle)
+                self.allocator_handle = ctypes.c_void_p()
+
+            self.DLL.close()
 
     def __getstate__(self):
         return {"lib_path": self.DLL.lib_path}
@@ -432,6 +437,58 @@ class Model(object):
         """
         return self._run_impl(
             inputs, outputs, stream_ptr, sync, graph_mode, outputs_on_host=False
+        )
+
+    def profile(
+        self,
+        inputs: Union[Dict[str, AITData], List[AITData]],
+        outputs: Union[Dict[str, AITData], List[AITData]],
+        num_iters: int,
+        filename: str,
+        stream_ptr: Optional[int] = None,
+    ) -> None:
+        if isinstance(inputs, dict):
+            inputs = self._dict_to_ordered_list(inputs, is_inputs=True)
+        if isinstance(outputs, dict):
+            outputs = self._dict_to_ordered_list(outputs, is_inputs=False)
+        (c_inputs, c_outputs, c_stream, c_output_shapes_out,) = self._prepare_run(
+            inputs,
+            outputs,
+            stream_ptr,
+        )
+        self.DLL.AITemplateModelContainerProfile(
+            self.handle,
+            c_inputs,
+            ctypes.c_size_t(len(inputs)),
+            c_outputs,
+            ctypes.c_size_t(len(outputs)),
+            c_stream,
+            ctypes.c_size_t(num_iters),
+            ctypes.c_char_p(filename.encode("utf-8")),
+        )
+
+    def profile_with_tensors(
+        self,
+        inputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
+        outputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
+        num_iters: int,
+        filename: str,
+        stream_ptr: Optional[int] = None,
+    ) -> None:
+        _check_tensors_contiguous_and_on_gpu(
+            inputs,
+            name="inputs",
+        )
+        _check_tensors_contiguous_and_on_gpu(
+            outputs,
+            name="outputs",
+        )
+        self.profile(
+            _convert_tensor_args(inputs),
+            _convert_tensor_args(outputs),
+            num_iters,
+            filename,
+            stream_ptr,
         )
 
     def _interpret_tensors_as_shapes(

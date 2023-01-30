@@ -13,6 +13,7 @@
 #  limitations under the License.
 #
 
+import logging
 import unittest
 
 import torch
@@ -21,28 +22,42 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import graph_utils, logger
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
+from aitemplate.utils import graph_utils
+
+from parameterized import parameterized
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class RefineGraphTestCase(unittest.TestCase):
-    def test_elementwise_ops(self):
+    @parameterized.expand([("float16"), ("float32")])
+    def test_elementwise_ops(self, dtype):
+        target = detect_target()
+        if dtype == "float32" and target.name == "rocm":
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
+
         M = 10
         N = 4
         X0 = Tensor(
             shape=[M, N],
-            dtype="float16",
+            dtype=dtype,
             name="X0",
             is_input=True,
         )
         X1 = Tensor(
             shape=[M, N],
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             is_input=True,
         )
         X2 = Tensor(
             shape=[M, N],
-            dtype="float16",
+            dtype=dtype,
             name="X2",
             is_input=True,
         )
@@ -53,12 +68,11 @@ class RefineGraphTestCase(unittest.TestCase):
         Y0._attrs["is_output"] = True
         Y1._attrs["name"] = "Y1"
         Y1._attrs["is_output"] = True
-        target = detect_target()
         module = compile_model(
             [Y0, Y1],
             target,
             "./tmp",
-            "test_refine_graph_elementwise",
+            f"test_refine_graph_elementwise_{dtype}",
         )
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
@@ -67,17 +81,18 @@ class RefineGraphTestCase(unittest.TestCase):
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
     def test_elementwise_ops_single_input_no_refine(self):
+        dtype = "float16"
         M = 10
         N = 4
         X0 = Tensor(
             shape=[M, N],
-            dtype="float16",
+            dtype=dtype,
             name="X0",
             is_input=True,
         )
         X1 = Tensor(
             shape=[M, N],
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             is_input=True,
         )
@@ -102,17 +117,18 @@ class RefineGraphTestCase(unittest.TestCase):
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
     def test_elementwise_ops_single_input(self):
+        dtype = "float16"
         M = 10
         N = 4
         X0 = Tensor(
             shape=[M, N],
-            dtype="float16",
+            dtype=dtype,
             name="X0",
             is_input=True,
         )
         X1 = Tensor(
             shape=[M, N],
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             is_input=True,
         )
@@ -138,10 +154,10 @@ class RefineGraphTestCase(unittest.TestCase):
 
         inputs = {}
         outputs = {}
-        inputs["X0"] = torch.randn([M, N]).cuda().half()
-        inputs["X1"] = torch.randn([M, N]).cuda().half()
-        outputs["Y0"] = torch.empty([M, N]).cuda().half()
-        outputs["Y1"] = torch.empty([M, N]).cuda().half()
+        inputs["X0"] = get_random_torch_tensor([M, N], dtype)
+        inputs["X1"] = get_random_torch_tensor([M, N], dtype)
+        outputs["Y0"] = get_torch_empty_tensor([M, N], dtype)
+        outputs["Y1"] = get_torch_empty_tensor([M, N], dtype)
 
         module.run_with_tensors(inputs, outputs)
         y0 = torch.nn.functional.silu(inputs["X0"])
@@ -150,19 +166,19 @@ class RefineGraphTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(y0, outputs["Y0"], 1e-2, 1e-2))
         self.assertTrue(torch.allclose(y1, outputs["Y1"], 1e-2, 1e-2))
 
-    def _build_gemm_rcr_bias(self, M, N, K, start_idx=0):
+    def _build_gemm_rcr_bias(self, M, N, K, dtype, start_idx=0):
         X_shape = [M, K]
         W_shape = [N, K]
         B_shape = [N]
 
         input_0 = Tensor(
-            shape=X_shape, dtype="float16", name=f"input_{start_idx}", is_input=True
+            shape=X_shape, dtype=dtype, name=f"input_{start_idx}", is_input=True
         )
         input_1 = Tensor(
-            shape=W_shape, dtype="float16", name=f"input_{start_idx + 1}", is_input=True
+            shape=W_shape, dtype=dtype, name=f"input_{start_idx + 1}", is_input=True
         )
         input_2 = Tensor(
-            shape=B_shape, dtype="float16", name=f"input_{start_idx + 2}", is_input=True
+            shape=B_shape, dtype=dtype, name=f"input_{start_idx + 2}", is_input=True
         )
 
         gemm_tensor = ops.gemm_universal.gemm_rcr()(input_0, input_1)
@@ -170,35 +186,39 @@ class RefineGraphTestCase(unittest.TestCase):
 
         return bias_tensor
 
-    def _build_gemm_rcr_bias_mul(self, M, N, K, start_idx=0):
+    def _build_gemm_rcr_bias_mul(self, M, N, K, dtype, start_idx=0):
         D_shape = [M, N]
         input_3 = Tensor(
-            shape=D_shape, dtype="float16", name=f"input_{start_idx + 3}", is_input=True
+            shape=D_shape, dtype=dtype, name=f"input_{start_idx + 3}", is_input=True
         )
 
-        bias_tensor = self._build_gemm_rcr_bias(M, N, K, start_idx)
+        bias_tensor = self._build_gemm_rcr_bias(M, N, K, dtype, start_idx)
         mul_tensor = ops.elementwise(FuncEnum.MUL)(bias_tensor, input_3)
 
         return mul_tensor
 
-    def test_gemm_ops(self):
+    @parameterized.expand([("float16"), ("float32")])
+    def test_gemm_ops(self, dtype):
+        target = detect_target()
+        if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
+
         M = 128
         N = 64
         K = 256
 
-        Y1 = self._build_gemm_rcr_bias_mul(M, N, K, 0)
-        Y2 = self._build_gemm_rcr_bias_mul(M, N, K, 4)
+        Y1 = self._build_gemm_rcr_bias_mul(M, N, K, dtype, 0)
+        Y2 = self._build_gemm_rcr_bias_mul(M, N, K, dtype, 4)
         Y1._attrs["name"] = "Y0"
         Y1._attrs["is_output"] = True
         Y2._attrs["name"] = "Y1"
         Y2._attrs["is_output"] = True
 
-        target = detect_target()
         module = compile_model(
             [Y1, Y2],
             target,
             "./tmp",
-            "test_refine_graph_gemm",
+            f"test_refine_graph_gemm_{dtype}",
         )
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
@@ -206,8 +226,12 @@ class RefineGraphTestCase(unittest.TestCase):
         assert len(sorted_ops) == 2
         assert sorted_ops[0]._attrs["name"] == sorted_ops[1]._attrs["name"]
 
-    def test_bmm_ops_accessor(self):
-        dtype = "float16"
+    @parameterized.expand([("float16"), ("float32")])
+    def test_bmm_ops_accessor(self, dtype):
+        target = detect_target()
+        if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
+
         B = 16
         M = 128
         K = 64
@@ -239,12 +263,11 @@ class RefineGraphTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        target = detect_target()
         module = compile_model(
             Y,
             target,
             "./tmp",
-            "test_refine_graph_bmm",
+            f"test_refine_graph_bmm_{dtype}",
         )
 
         debug_sorted_graph = module.debug_sorted_graph
@@ -253,20 +276,24 @@ class RefineGraphTestCase(unittest.TestCase):
         assert len(sorted_ops) == 2
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
-    def test_refine_graph_group_gemms(self):
+    @parameterized.expand([("float16"), ("float32")])
+    def test_refine_graph_group_gemms(self, dtype):
+        target = detect_target()
+        if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
+            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
+
         M = 256
         K1 = 128
         N1 = 60
         K2 = 192
         N2 = 64
-        target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
-        X1 = Tensor(shape=[M, K1], dtype="float16", name="x1", is_input=True)
-        X2 = Tensor(shape=[M, K2], dtype="float16", name="x2", is_input=True)
-        W1 = Tensor(shape=[N1, K1], dtype="float16", name="w1", is_input=True)
-        W2 = Tensor(shape=[N2, K2], dtype="float16", name="w2", is_input=True)
+        X1 = Tensor(shape=[M, K1], dtype=dtype, name="x1", is_input=True)
+        X2 = Tensor(shape=[M, K2], dtype=dtype, name="x2", is_input=True)
+        W1 = Tensor(shape=[N1, K1], dtype=dtype, name="w1", is_input=True)
+        W2 = Tensor(shape=[N2, K2], dtype=dtype, name="w2", is_input=True)
         Y1, Y2 = ops.group_gemm_rcr()(operand_groups=[[X1, W1], [X2, W2]])
         Y3, Y4 = ops.group_gemm_rcr()(operand_groups=[[X1, W1], [X2, W2]])
         Y1._attrs["name"] = "y1"
@@ -281,7 +308,7 @@ class RefineGraphTestCase(unittest.TestCase):
         graph_outputs = [Y1, Y2, Y3, Y4]
 
         module = compile_model(
-            graph_outputs, target, "./tmp", "test_refine_graph_group_gemms"
+            graph_outputs, target, "./tmp", f"test_refine_graph_group_gemms_{dtype}"
         )
 
         debug_sorted_graph = module.debug_sorted_graph
@@ -289,10 +316,10 @@ class RefineGraphTestCase(unittest.TestCase):
         assert len(sorted_ops) == 2
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
-        X1_pt = torch.randn(M, K1).cuda().half()
-        X2_pt = torch.randn(M, K2).cuda().half()
-        W1_pt = torch.randn(N1, K1).cuda().half()
-        W2_pt = torch.randn(N2, K2).cuda().half()
+        X1_pt = get_random_torch_tensor([M, K1], dtype)
+        X2_pt = get_random_torch_tensor([M, K2], dtype)
+        W1_pt = get_random_torch_tensor([N1, K1], dtype)
+        W2_pt = get_random_torch_tensor([N2, K2], dtype)
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt)
 
@@ -302,10 +329,10 @@ class RefineGraphTestCase(unittest.TestCase):
             "x2": X2_pt,
             "w2": W2_pt,
         }
-        y1 = torch.empty([M, N1]).cuda().half()
-        y2 = torch.empty([M, N2]).cuda().half()
-        y3 = torch.empty([M, N1]).cuda().half()
-        y4 = torch.empty([M, N2]).cuda().half()
+        y1 = get_torch_empty_tensor([M, N1], dtype)
+        y2 = get_torch_empty_tensor([M, N2], dtype)
+        y3 = get_torch_empty_tensor([M, N1], dtype)
+        y4 = get_torch_empty_tensor([M, N2], dtype)
         outputs = {"y1": y1, "y2": y2, "y3": y3, "y4": y4}
 
         module.run_with_tensors(inputs, outputs)

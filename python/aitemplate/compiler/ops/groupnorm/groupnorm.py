@@ -15,6 +15,7 @@
 """
 Operator definition for groupnorm.
 """
+import logging
 import os
 import re
 from collections import OrderedDict
@@ -28,12 +29,13 @@ from aitemplate.testing import detect_target
 from .... import backend
 from ....backend import registry
 from ....backend.target import Target
-from ....utils import logger
 from ...base import DynamicProfileStrategy, ExecItem, IntImm, IntVar, Operator, Tensor
 from ..softmax.cache_entry import NormQueryEntry, NormRecordEntry
 
 # pylint: disable=C0103,W0221,W0102,W0223
 
+
+_LOGGER = logging.getLogger(__name__)
 
 EXEC_COND_TEMPLATE = jinja2.Template(
     """
@@ -129,7 +131,7 @@ class group_norm(Operator):
         self._sanity_check(x, gamma, beta)
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=x.dtype())
 
         batch_size = output_shape[0]._attrs["values"][-1]
         self._attrs["workspace"] = 8 * batch_size * self._attrs["num_groups"]
@@ -240,7 +242,7 @@ class group_norm(Operator):
         )
         cache_value = target.query_profile_cache("normalization", query.__dict__)
         if cache_value is not None and not target.force_profile():
-            logger.info(__name__, "Load profiling result from cache.")
+            _LOGGER.info("Load profiling result from cache.")
             return cache_value
 
         content = list(self._attrs["op_instance"].keys())
@@ -313,8 +315,7 @@ class group_norm(Operator):
             func(self._attrs)
 
         for wkl in workloads:
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
             best_algo, workspace = self._profile_single_workload(

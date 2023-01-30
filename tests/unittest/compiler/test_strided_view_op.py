@@ -15,7 +15,7 @@
 import unittest
 from functools import partial
 
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, List, Tuple
 
 import torch
 
@@ -24,6 +24,10 @@ from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target, test_utils
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils
 
 from parameterized import param, parameterized
@@ -31,33 +35,61 @@ from parameterized import param, parameterized
 
 def _gen_simple_strided_ops(
     batch_dim: IntVar, n1: int, n2: int
-) -> List[Tuple[Tensor, Callable[[torch.Tensor], torch.Tensor]]]:
-    return [
+) -> List[Tuple[str, Tensor, str, Callable[[torch.Tensor], torch.Tensor]]]:
+    test_cases = [
         (
             "tanh",
             ops.elementwise(FuncEnum.TANH)(
-                test_utils.gen_input_tensor([batch_dim, n1, n2])
+                test_utils.gen_input_tensor([batch_dim, n1, n2], dtype="float16")
             ),
+            "float16",
             torch.tanh,
         ),
         (
             "layernorm",
             ops.layernorm(normalized_shape=[IntImm(n2)])(
-                test_utils.gen_input_tensor([batch_dim, n1, n2])
+                test_utils.gen_input_tensor([batch_dim, n1, n2], dtype="float16")
             ),
+            "float16",
             partial(torch.nn.functional.layer_norm, normalized_shape=[n2]),
         ),
         (
             "sum",
             ops.reduce_sum(2, keepdim=True)(
-                test_utils.gen_input_tensor([batch_dim, n1, n2])
+                test_utils.gen_input_tensor([batch_dim, n1, n2], dtype="float16")
             ),
+            "float16",
             partial(torch.sum, dim=2, keepdim=True),
         ),
     ]
+    target = detect_target()
+    if target.name() == "cuda":
+        test_cases.append(
+            (
+                "tanh",
+                ops.elementwise(FuncEnum.TANH)(
+                    test_utils.gen_input_tensor([batch_dim, n1, n2], dtype="float")
+                ),
+                "float",
+                torch.tanh,
+            )
+        )
+        test_cases.append(
+            (
+                "sum",
+                ops.reduce_sum(2, keepdim=True)(
+                    test_utils.gen_input_tensor([batch_dim, n1, n2], dtype="float")
+                ),
+                "float",
+                partial(torch.sum, dim=2, keepdim=True),
+            )
+        )
+    return test_cases
 
 
-def _gen_fusible_view_ops_after_strided_op() -> Dict[str, Callable[[Tensor], Tensor]]:
+def _gen_fusible_view_ops_after_strided_op() -> List[
+    Tuple[str, Callable[[Tensor], Tensor], str]
+]:
     def reshape_op(input_tensor: Tensor):
         shape = input_tensor._attrs["shape"]
         return ops.reshape()(
@@ -68,11 +100,18 @@ def _gen_fusible_view_ops_after_strided_op() -> Dict[str, Callable[[Tensor], Ten
     def flatten_op(input_tensor: Tensor):
         return ops.flatten(start_dim=1, end_dim=-1)(input_tensor)
 
-    return {"reshape": reshape_op, "flatten": flatten_op}
+    test_cases = [
+        ("reshape", reshape_op, "float16"),
+        ("flatten", flatten_op, "float16"),
+    ]
+    target = detect_target()
+    if target.name() == "cuda" and int(target._arch) >= 80:
+        test_cases.append(("reshape", reshape_op, "float"))
+    return test_cases
 
 
-def _gen_non_fusible_view_ops_after_strided_op() -> Dict[
-    str, Callable[[Tensor], Tensor]
+def _gen_non_fusible_view_ops_after_strided_op() -> List[
+    Tuple[str, Callable[[Tensor], Tensor], str]
 ]:
     def reshape_op(input_tensor: Tensor):
         n2 = input_tensor._attrs["shape"][2].value()
@@ -81,11 +120,18 @@ def _gen_non_fusible_view_ops_after_strided_op() -> Dict[
     def flatten_op(input_tensor: Tensor):
         return ops.flatten(start_dim=0, end_dim=1)(input_tensor)
 
-    return {"reshape": reshape_op, "flatten": flatten_op}
+    test_cases = [
+        ("reshape", reshape_op, "float16"),
+        ("flatten", flatten_op, "float16"),
+    ]
+    target = detect_target()
+    if target.name() == "cuda":
+        test_cases.append(("flatten", flatten_op, "float"))
+    return test_cases
 
 
-def _gen_multiple_fusible_view_ops_after_strided_op() -> Dict[
-    str, Callable[[Tensor], Tensor]
+def _gen_multiple_fusible_view_ops_after_strided_op() -> List[
+    Tuple[str, Callable[[Tensor], Tensor], str]
 ]:
     def _get_shape(input_tensor: Tensor):
         return (
@@ -107,31 +153,39 @@ def _gen_multiple_fusible_view_ops_after_strided_op() -> Dict[
         n1, n2 = _get_shape(input_tensor)
         return ops.squeeze(dim=1)(ops.unsqueeze(dim=1)(input_tensor))
 
-    return {
-        "multi_reshape": multi_reshape,
-        "squeeze_unsqueeze": squeeze_unsqueeze,
-    }
+    test_cases = [
+        ("multi_reshape", multi_reshape, "float16"),
+        ("squeeze_unsqueeze", squeeze_unsqueeze, "float16"),
+    ]
+    target = detect_target()
+    if target.name() == "cuda" and int(target._arch) >= 80:
+        test_cases.append(("multi_reshape", multi_reshape, "float"))
+    return test_cases
 
 
 def custom_name_func(testcase_func, param_num, param):
-    return f"{testcase_func.__name__}_{param_num}_{param.args[0]}"
+    return f"{testcase_func.__name__}_{param_num}_{param.args[0]}_{param.args[2]}"
 
 
 class StridedViewOpTestCase(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(StridedViewOpTestCase, self).__init__(*args, **kwargs)
+        self._test_id = 0
+
     @parameterized.expand(
         [
-            param(f"single_gemm_{name}_fusion", func)
-            for (name, func) in _gen_fusible_view_ops_after_strided_op().items()
+            param(f"single_gemm_{name}_fusion_{dtype}", func, dtype)
+            for (name, func, dtype) in _gen_fusible_view_ops_after_strided_op()
         ],
         name_func=custom_name_func,
     )
-    def test_single_gemm_and_view_fusible(self, test_name, func):
+    def test_single_gemm_and_view_fusible(self, test_name, func, dtype):
         batch_dim = IntVar([1, 128, 256], "batch_size")
         N1 = 8
         N2 = 6
         K = 10
-        input0 = test_utils.gen_input_tensor([batch_dim, N1, K])
-        input1 = test_utils.gen_input_tensor([N2, K])
+        input0 = test_utils.gen_input_tensor([batch_dim, N1, K], dtype=dtype)
+        input1 = test_utils.gen_input_tensor([N2, K], dtype=dtype)
         X0 = ops.gemm_rcr()(input0, input1)
         Y = ops.elementwise(FuncEnum.TANH)(func(X0))
         Y._attrs["name"] = "output0"
@@ -139,7 +193,8 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        dll_name = f"test_{self._test_id}.so"
+        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -149,8 +204,8 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Prepae PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
-            input0_pt = torch.randn(batch_size, N1, K).cuda().half()
-            input1_pt = torch.randn(N2, K).cuda().half()
+            input0_pt = get_random_torch_tensor([batch_size, N1, K], dtype)
+            input1_pt = get_random_torch_tensor([N2, K], dtype)
 
             # Run PyTorch baseline.
             x0_pt = torch.matmul(input0_pt, input1_pt.transpose(0, 1))
@@ -160,31 +215,33 @@ class StridedViewOpTestCase(unittest.TestCase):
                     x0_pt, test_utils.get_shape(Y._attrs["shape"], dim_to_value_dict)
                 )
             )
-            y = torch.empty(y_pt.shape).cuda().half()
+            y = get_torch_empty_tensor(y_pt.shape, dtype)
 
             # Run AITemplate module.
             module.run_with_tensors([input0_pt, input1_pt], [y])
 
             # Do comparisons.
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+            self._test_id += 1
 
     @parameterized.expand(
         [
-            param(f"single_bmm_{name}_fusion", func)
+            param(f"single_bmm_{name}_fusion_{dtype}", func, dtype)
             for (
                 name,
                 func,
-            ) in _gen_multiple_fusible_view_ops_after_strided_op().items()
+                dtype,
+            ) in _gen_multiple_fusible_view_ops_after_strided_op()
         ],
         name_func=custom_name_func,
     )
-    def test_single_bmm_and_multi_view_fusible(self, test_name, func):
+    def test_single_bmm_and_multi_view_fusible(self, test_name, func, dtype):
         batch_dim = IntVar([1, 128, 256], "batch_size")
         N1 = 8
         N2 = 6
         K = 10
-        input0 = test_utils.gen_input_tensor([batch_dim, N1, K])
-        input1 = test_utils.gen_input_tensor([batch_dim, K, N2])
+        input0 = test_utils.gen_input_tensor([batch_dim, N1, K], dtype)
+        input1 = test_utils.gen_input_tensor([batch_dim, K, N2], dtype)
         X0 = ops.bmm_rrr()(input0, input1)
         Y = ops.elementwise(FuncEnum.COS)(func(X0))
         Y._attrs["name"] = "output0"
@@ -192,7 +249,8 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        dll_name = f"test_{self._test_id}.so"
+        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -202,8 +260,8 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Prepae PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
-            input0_pt = torch.randn(batch_size, N1, K).cuda().half()
-            input1_pt = torch.randn(batch_size, K, N2).cuda().half()
+            input0_pt = get_random_torch_tensor([batch_size, N1, K], dtype)
+            input1_pt = get_random_torch_tensor([batch_size, K, N2], dtype)
 
             # Run PyTorch baseline.
             x0_pt = torch.matmul(input0_pt, input1_pt)
@@ -213,24 +271,32 @@ class StridedViewOpTestCase(unittest.TestCase):
                     x0_pt, test_utils.get_shape(Y._attrs["shape"], dim_to_value_dict)
                 )
             )
-            y = torch.empty(y_pt.shape).cuda().half()
+            y = get_torch_empty_tensor(y_pt.shape, dtype)
 
             # Run AITemplate module.
             module.run_with_tensors([input0_pt, input1_pt], [y])
 
             # Do comparisons.
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+            self._test_id += 1
 
     @parameterized.expand(
         [
-            param(f"single_{op_name}_reshape_fusion", input_tensor, torch_func)
-            for (op_name, input_tensor, torch_func) in _gen_simple_strided_ops(
+            param(
+                f"single_{op_name}_reshape_fusion_{dtype}",
+                input_tensor,
+                dtype,
+                torch_func,
+            )
+            for (op_name, input_tensor, dtype, torch_func) in _gen_simple_strided_ops(
                 IntVar([1, 128, 256], "batch_size"), n1=10, n2=8
             )
         ],
         name_func=custom_name_func,
     )
-    def test_single_op_and_view_fusible(self, test_name, input_tensor, torch_func):
+    def test_single_op_and_view_fusible(
+        self, test_name, input_tensor, dtype, torch_func
+    ):
         src_input = test_utils.get_src_input(input_tensor)
         batch_dim = src_input._attrs["shape"][0]
         n1 = src_input._attrs["shape"][1].value()
@@ -241,7 +307,8 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        dll_name = f"test_{self._test_id}.so"
+        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -251,30 +318,31 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Prepae PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
-            input_pt = torch.randn(batch_size, n1, n2).cuda().half()
+            input_pt = get_random_torch_tensor([batch_size, n1, n2], dtype)
 
             # Run PyTorch baseline.
             y_pt = torch.tanh(torch.reshape(torch_func(input_pt), [batch_size, -1]))
-            y = torch.empty(y_pt.shape).cuda().half()
+            y = get_torch_empty_tensor(y_pt.shape, dtype)
 
             # Run AITemplate module.
             module.run_with_tensors([input_pt], [y])
 
             # Do comparisons.
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+            self._test_id += 1
 
     @parameterized.expand(
         [
-            param(f"single_op_{name}_non_fusion", func)
-            for (name, func) in _gen_non_fusible_view_ops_after_strided_op().items()
+            param(f"single_op_{name}_non_fusion_{dtype}", func, dtype)
+            for (name, func, dtype) in _gen_non_fusible_view_ops_after_strided_op()
         ],
         name_func=custom_name_func,
     )
-    def test_single_op_and_view_non_fusible(self, test_name, func):
+    def test_single_op_and_view_non_fusible(self, test_name, func, dtype):
         batch_dim = IntVar([1, 128, 256], "batch_size")
         N1 = 8
         N2 = 6
-        X0 = test_utils.gen_input_tensor([batch_dim, N1, N2])
+        X0 = test_utils.gen_input_tensor([batch_dim, N1, N2], dtype=dtype)
         X1 = ops.elementwise(FuncEnum.TANH)(X0)
         Y = ops.elementwise(FuncEnum.TANH)(func(X1))
         Y._attrs["name"] = "output"
@@ -282,7 +350,8 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        dll_name = f"test_{self._test_id}.so"
+        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -292,23 +361,24 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Prepae PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
-            x0_pt = torch.randn(batch_size, N1, N2).cuda().half()
+            x0_pt = get_random_torch_tensor([batch_size, N1, N2], dtype)
 
             # Run PyTorch baseline.
             y_pt = torch.tanh(torch.reshape(torch.tanh(x0_pt), [-1, N2]))
-            y = torch.empty(y_pt.shape).cuda().half()
+            y = get_torch_empty_tensor(y_pt.shape, dtype)
 
             # Run AITemplate module.
             module.run_with_tensors([x0_pt], [y])
 
             # Do comparisons.
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+            self._test_id += 1
 
-    def test_two_serial_view_outputs(self):
+    def _test_two_serial_view_outputs(self, dtype="float16"):
         batch_dim = IntVar([1, 128, 256], "batch_size")
         N1 = 8
         N2 = 6
-        X0 = test_utils.gen_input_tensor([batch_dim, N1, N2])
+        X0 = test_utils.gen_input_tensor([batch_dim, N1, N2], dtype)
         X1 = ops.elementwise(FuncEnum.TANH)(X0)
         Y1 = ops.reshape()(X1, [-1, N1 * N2])
         Y2 = ops.reshape()(Y1, [-1, N1, N2])
@@ -319,7 +389,7 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y1, Y2], target, "./tmp", "two_view_outputs")
+        module = compile_model([Y1, Y2], target, "./tmp", f"two_view_outputs_{dtype}")
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -329,13 +399,13 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Prepae PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
-            input_pt = torch.randn(batch_size, N1, N2).cuda().half()
+            input_pt = get_random_torch_tensor([batch_size, N1, N2], dtype)
 
             # Run PyTorch baseline.
             y1_pt = torch.reshape(torch.tanh(input_pt), [batch_size, N1 * N2])
             y2_pt = torch.reshape(y1_pt, [batch_size, N1, N2])
-            y1 = torch.empty(y1_pt.shape).cuda().half()
-            y2 = torch.empty(y2_pt.shape).cuda().half()
+            y1 = get_torch_empty_tensor(y1_pt.shape, dtype)
+            y2 = get_torch_empty_tensor(y2_pt.shape, dtype)
 
             # Run AITemplate module.
             module.run_with_tensors([input_pt], [y1, y2])
@@ -344,11 +414,11 @@ class StridedViewOpTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y1, y1_pt, atol=1e-2, rtol=1e-2))
             self.assertTrue(torch.allclose(y2, y2_pt, atol=1e-2, rtol=1e-2))
 
-    def test_two_parallel_views(self):
+    def _test_two_parallel_views(self, dtype="float16"):
         batch_dim = IntVar([1, 128, 256], "batch_size")
         N1 = 8
         N2 = 6
-        X0 = test_utils.gen_input_tensor([batch_dim, N1, N2])
+        X0 = test_utils.gen_input_tensor([batch_dim, N1, N2], dtype)
         X1 = ops.elementwise(FuncEnum.TANH)(X0)
         Y1 = ops.elementwise(FuncEnum.TANH)(ops.reshape()(X1, [-1, N1 * N2]))
         Y2 = ops.elementwise(FuncEnum.TANH)(ops.reshape()(X1, [-1, N1, N2]))
@@ -359,7 +429,9 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y1, Y2], target, "./tmp", "two_parallel_view_outputs")
+        module = compile_model(
+            [Y1, Y2], target, "./tmp", f"two_parallel_view_outputs_{dtype}"
+        )
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -369,14 +441,14 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Prepae PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
-            input_pt = torch.randn(batch_size, N1, N2).cuda().half()
+            input_pt = get_random_torch_tensor([batch_size, N1, N2], dtype)
             x1_pt = torch.tanh(input_pt)
 
             # Run PyTorch baseline.
             y1_pt = torch.tanh(torch.reshape(x1_pt, [batch_size, N1 * N2]))
             y2_pt = torch.tanh(torch.reshape(x1_pt, [batch_size, N1, N2]))
-            y1 = torch.empty(y1_pt.shape).cuda().half()
-            y2 = torch.empty(y2_pt.shape).cuda().half()
+            y1 = get_torch_empty_tensor(y1_pt.shape, dtype)
+            y2 = get_torch_empty_tensor(y2_pt.shape, dtype)
 
             # Run AITemplate module.
             module.run_with_tensors([input_pt], [y1, y2])
@@ -384,6 +456,15 @@ class StridedViewOpTestCase(unittest.TestCase):
             # Do comparisons.
             self.assertTrue(torch.allclose(y1, y1_pt, atol=1e-2, rtol=1e-2))
             self.assertTrue(torch.allclose(y2, y2_pt, atol=1e-2, rtol=1e-2))
+
+    def test_two_views(self):
+        self._test_two_parallel_views()
+        self._test_two_serial_view_outputs()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_two_views_float(self):
+        self._test_two_parallel_views(dtype="float")
+        self._test_two_serial_view_outputs(dtype="float")
 
 
 if __name__ == "__main__":

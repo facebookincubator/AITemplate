@@ -26,13 +26,14 @@ class EpilogueFunctor(enum.Enum):
   LinearCombinationSigmoid = enum_auto()
   LinearCombinationTanh = enum_auto()
   LinearCombinationResidualBlock = enum_auto()
-  LinearCombinationResidualBlockV2 = enum_auto()
   LinearCombinationHardSwish = enum_auto()
   LinearCombinationGELU = enum_auto()
   LinearCombinationFastGELU = enum_auto()
   LinearCombinationSilu = enum_auto()
+  LinearCombinationELUp1 = enum_auto()
   LeftSiLUAndMul = enum_auto()
   LeftFastGeluAndMul = enum_auto()
+  Div = enum_auto()
 
 EpilogueFunctorTag = {
   EpilogueFunctor.LinearCombination:
@@ -47,8 +48,6 @@ EpilogueFunctorTag = {
     'cutlass::epilogue::thread::LinearCombinationTanh',
   EpilogueFunctor.LinearCombinationResidualBlock:
     'cutlass::epilogue::thread::LinearCombinationResidualBlock',
-  EpilogueFunctor.LinearCombinationResidualBlockV2:
-    'cutlass::epilogue::thread::LinearCombinationResidualBlockV2',
   EpilogueFunctor.LinearCombinationHardSwish:
     'cutlass::epilogue::thread::LinearCombinationHardSwish',
   EpilogueFunctor.LinearCombinationGELU:
@@ -57,10 +56,14 @@ EpilogueFunctorTag = {
     'cutlass::epilogue::thread::LinearCombinationFastGELU',
   EpilogueFunctor.LinearCombinationSilu:
     'cutlass::epilogue::thread::LinearCombinationSilu',
+  EpilogueFunctor.LinearCombinationELUp1:
+    'cutlass::epilogue::thread::LinearCombinationELUp1',
   EpilogueFunctor.LeftSiLUAndMul:
     'cutlass::epilogue::thread::LeftSiLUAndMul',
   EpilogueFunctor.LeftFastGeluAndMul:
     'cutlass::epilogue::thread::LeftFastGeluAndMul',
+  EpilogueFunctor.Div:
+    'cutlass::epilogue::thread::Div',
 }
 
 EpilogueFunctorName = {
@@ -70,13 +73,14 @@ EpilogueFunctorName = {
   "LinearCombinationSigmoid": EpilogueFunctor.LinearCombinationSigmoid,
   "LinearCombinationTanh": EpilogueFunctor.LinearCombinationTanh,
   "LinearCombinationResidualBlock": EpilogueFunctor.LinearCombinationResidualBlock,
-  "LinearCombinationResidualBlockV2": EpilogueFunctor.LinearCombinationResidualBlockV2,
   "LinearCombinationHardSwish": EpilogueFunctor.LinearCombinationHardSwish,
   "LinearCombinationGELU": EpilogueFunctor.LinearCombinationGELU,
   "LinearCombinationFastGELU": EpilogueFunctor.LinearCombinationFastGELU,
   "LinearCombinationSilu": EpilogueFunctor.LinearCombinationSilu,
+  "LinearCombinationELUp1": EpilogueFunctor.LinearCombinationELUp1,
   "LeftSiLUAndMul": EpilogueFunctor.LeftSiLUAndMul,
   "LeftFastGeluAndMul": EpilogueFunctor.LeftFastGeluAndMul,
+  "Div": EpilogueFunctor.Div,
 }
 
 class EpilogueMath(enum.Enum):
@@ -89,6 +93,7 @@ class EpilogueMath(enum.Enum):
   Gelu = enum_auto()
   FastGelu = enum_auto()
   Silu = enum_auto()
+  ELUp1 = enum_auto()
 
 
 EpilogueMathTag = {
@@ -100,7 +105,8 @@ EpilogueMathTag = {
   EpilogueMath.Plus: 'cutlass::plus',
   EpilogueMath.Gelu: 'GELU',
   EpilogueMath.FastGelu: 'GELU_taylor',
-  EpilogueMath.FastGelu: 'cutlass::epilogue::thread::Silu'
+  EpilogueMath.Silu: 'cutlass::epilogue::thread::Silu',
+  EpilogueMath.ELUp1: 'cutlass::epilogue::thread::ELUp1',
 }
 
 EpilogueMathName = {
@@ -113,7 +119,8 @@ EpilogueMathName = {
   "Add": EpilogueMath.Plus,
   "Gelu": EpilogueMath.Gelu,
   "FastGelu": EpilogueMath.FastGelu,
-  "Silu": EpilogueMath.Silu
+  "Silu": EpilogueMath.Silu,
+  "ELUp1": EpilogueMath.ELUp1
 }
 
 class EpiloguePermuteLayout(enum.Enum):
