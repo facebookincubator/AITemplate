@@ -79,7 +79,11 @@ def gen_cutlass_list():
         "aitemplate/3rdparty/cutlass/examples",
         "aitemplate/3rdparty/cutlass/tools/util/include",
     ]
-    f_cond = lambda x: True if x.endswith(".h") or x.endswith(".cuh") else False
+    f_cond = (
+        lambda x: True
+        if x.endswith(".h") or x.endswith(".cuh") or x.endswith(".hpp")
+        else False
+    )
     return gen_file_list(srcs, f_cond)
 
 
@@ -128,7 +132,7 @@ def gen_utils_file_list():
 
 
 def gen_backend_common_file_list():
-    srcs = ["aitemplate/backend/common"]
+    srcs = ["aitemplate/backend"]
     f_cond = lambda x: True if x.endswith(".py") or x.endswith(".cuh") else False
     return gen_file_list(srcs, f_cond)
 

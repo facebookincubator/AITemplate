@@ -19,8 +19,12 @@ import click
 import torch
 
 from aitemplate.testing import detect_target
+from aitemplate.utils.import_path import import_parent
 
 from diffusers import StableDiffusionPipeline
+
+if __name__ == "__main__":
+    import_parent(filepath=__file__, level=1)
 
 from src.compile_lib.compile_clip import compile_clip
 from src.compile_lib.compile_unet import compile_unet

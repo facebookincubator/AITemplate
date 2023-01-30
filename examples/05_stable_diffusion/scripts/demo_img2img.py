@@ -19,7 +19,12 @@ import requests
 import torch
 
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
+from aitemplate.utils.import_path import import_parent
 from PIL import Image
+
+if __name__ == "__main__":
+    import_parent(filepath=__file__, level=1)
+
 from src.pipeline_stable_diffusion_img2img_ait import StableDiffusionImg2ImgAITPipeline
 
 
