@@ -17,6 +17,8 @@ Common implementations for all backends for permute021.
 
 For three dimension input, shift the second and the third dimension.
 i.e. Output[d0, d2, d1] = Input[d0, d1, d2]
+For higher-rank input, treat the first n-2 dims as a single flat dim.
+i.e. Output[d0, ..., dn-3, dn-1, dn-2] = Input[d0, ..., dn-3, dn-2, dn-1]
 
 """
 from typing import Any, Dict
@@ -28,14 +30,10 @@ import jinja2
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  const void* /*input*/,
+  const void* /* input */,
   void* /* output */,
-  int64_t* /* x_dim0 */,
-  int64_t* /* x_dim1 */,
-  int64_t* /* x_dim2 */,
-  int64_t* /* y_dim0 */,
-  int64_t* /* y_dim1 */,
-  int64_t* /* y_dim2 */,
+  int64_t /* rank */,
+  const int64_t* /* x_dims */,
   {{prefix}}Stream_t /* stream */
 );
 """
@@ -43,17 +41,16 @@ void {{func_name}}(
 
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
-{{indent}}{{func_name}}(
-{{indent}}    {{in_ptr}},
-{{indent}}    {{out_ptr}},
-{{indent}}    {{x_dim0}},
-{{indent}}    {{x_dim1}},
-{{indent}}    {{x_dim2}},
-{{indent}}    {{y_dim0}},
-{{indent}}    {{y_dim1}},
-{{indent}}    {{y_dim2}},
-{{indent}}    stream
-{{indent}});
+{{indent}}{
+{{indent}}  const int64_t x_dims[] = {{x_dims}};
+{{indent}}  {{func_name}}(
+{{indent}}      {{in_ptr}},
+{{indent}}      {{out_ptr}},
+{{indent}}      {{rank}},
+{{indent}}      x_dims,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}}
 """
 )
 
@@ -63,9 +60,8 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}permute021_launcher(
 {{indent}}    in_ptr,
 {{indent}}    out_ptr,
-{{indent}}    *x_dim0,
-{{indent}}    *x_dim1,
-{{indent}}    *x_dim2,
+{{indent}}    rank,
+{{indent}}    x_dims,
 {{indent}}    stream
 {{indent}});
 {{indent}}return;
@@ -76,43 +72,50 @@ SRC_TEMPLATE = jinja2.Template(
     """
 {{header_files}}
 
+#include <limits>
+
+#define TILE_SIZE 32
+#define CH_K 4
+
 namespace {
 template <typename T>
-__global__ void nhwc_to_nchw_kernel(T *output,
-                                    const T *input,
-                                    const int n,
-                                    const int h,
-                                    const int w,
-                                    const int c) {
+__global__ void permute021_kernel(T *output,
+                                  const T *input,
+                                  const int64_t n,
+                                  const int32_t h,
+                                  const int32_t w,
+                                  const int32_t c) {
 
-  const int hw = h*w;
-  const int hwc = hw*c;
-  __shared__ T shbuf[32 * (32 + 1)];
-  const int32_t tid  = threadIdx.y*blockDim.x + threadIdx.x;
-  const int32_t wid  = tid / 32;
-  const int32_t lid  = tid % 32;
+  const int32_t hw = h * w;
+  const int32_t hwc = hw * c;
+
+  __shared__ T shbuf[TILE_SIZE * (TILE_SIZE + 1)];
+
+  const int32_t tid  = threadIdx.y * blockDim.x + threadIdx.x;
+  const int32_t wid  = tid / TILE_SIZE;
+  const int32_t lid  = tid % TILE_SIZE;
   const int32_t ni   = blockIdx.z;
-  const int32_t hwi0  = blockIdx.y * 32;
-  const int32_t ci0 = blockIdx.x * 32;
+  const int32_t hwi0 = blockIdx.y * TILE_SIZE;
+  const int32_t ci0  = blockIdx.x * TILE_SIZE;
 
   const size_t input_idx = ni * hwc + (hwi0 + wid) * c + ci0;
   const T *A = input + input_idx;
   if (ci0 + lid < c) {
-    const int lid_x_33 = lid * 33;
-    if ((hwi0 + 32) <= hw) {
+    const int lid_x_33 = lid * (TILE_SIZE + 1);
+    if ((hwi0 + TILE_SIZE) <= hw) {
       int hwi = wid;  // between 0 and 7
       #pragma unroll
-      for (int cLoopIdx = 0; cLoopIdx < 4; cLoopIdx++) {
+      for (int cLoopIdx = 0; cLoopIdx < CH_K; cLoopIdx++) {
         shbuf[lid_x_33 + hwi] = A[lid];
-        A                     = &A[8 * c];
-        hwi += 8;
+        A                     = &A[TILE_SIZE / CH_K * c];
+        hwi += TILE_SIZE / CH_K;
       }
     } else {
-      for (int hwi = wid; hwi < 32; hwi += 8) {
-        if ((hwi + hwi0) < hw) {
+      for (int hwi = wid; hwi < TILE_SIZE; hwi += TILE_SIZE / CH_K) {
+        if (hwi + hwi0 < hw) {
           shbuf[lid_x_33 + hwi] = A[lid];
         }
-        A = &A[8 * c];
+        A = &A[TILE_SIZE / CH_K * c];
       }
     }
   }
@@ -121,17 +124,17 @@ __global__ void nhwc_to_nchw_kernel(T *output,
   const int32_t hwiOut = hwi0 + lid;
   output = &output[ni * hwc + hwiOut];
   if (hwiOut < hw) {
-    if (ci0 + 32 < c) {
+    if (ci0 + TILE_SIZE < c) {
       int cI = wid;
       #pragma unroll
-      for (int hwLoopIdx = 0; hwLoopIdx < 4; ++hwLoopIdx) {
-        output[(ci0 + cI) * hw] = shbuf[(cI)*33 + lid];
-        cI += 8;
+      for (int hwLoopIdx = 0; hwLoopIdx < CH_K; ++hwLoopIdx) {
+        output[(ci0 + cI) * hw] = shbuf[cI * (TILE_SIZE + 1) + lid];
+        cI += TILE_SIZE / CH_K;
       }
     } else {
-      for (int cI = wid; cI < 32; cI += 8) {
+      for (int cI = wid; cI < TILE_SIZE; cI += TILE_SIZE / CH_K) {
         if (ci0 + cI < c) {
-          output[(ci0 + cI) * hw] = shbuf[(cI)*33 + lid];
+          output[(ci0 + cI) * hw] = shbuf[cI * (TILE_SIZE + 1) + lid];
         }
       }
     }
@@ -140,17 +143,32 @@ __global__ void nhwc_to_nchw_kernel(T *output,
 
 void permute021_launcher(const void* in_ptr,
                          void* out_ptr,
-                         int x_dim0,
-                         int x_dim1,
-                         int x_dim2,
+                         int64_t rank,
+                         const int64_t* x_dims,
                          {{prefix}}Stream_t stream) {
-  const int n = x_dim0;
-  const int h = 1;
-  const int w = x_dim1;
-  const int c = x_dim2;
-  dim3 grid((c + 31)/32, (h*w + 31)/32, n);
-  dim3 block(32, 8);
-  nhwc_to_nchw_kernel<{{lib_dtype}}><<<grid, block, 0, stream>>>(
+  int64_t x_dim0 = 1;
+  for (int i = 0; i < rank - 2; i++) {
+    x_dim0 *= x_dims[i];
+  }
+
+  if (x_dims[rank-2] > std::numeric_limits<int32_t>::max()) {
+    throw std::runtime_error("The second last dim does not fit into int32_t.");
+  }
+  if (x_dims[rank-1] > std::numeric_limits<int32_t>::max()) {
+    throw std::runtime_error("The last dim does not fit into int32_t.");
+  }
+
+  // given the above checks, we know it's safe
+  const int32_t x_dim1 = x_dims[rank-2];
+  const int32_t x_dim2 = x_dims[rank-1];
+
+  const int64_t n = x_dim0;
+  const int32_t h = 1;
+  const int32_t w = x_dim1;
+  const int32_t c = x_dim2;
+  dim3 grid((c + TILE_SIZE - 1) / TILE_SIZE, (h * w + TILE_SIZE - 1) / TILE_SIZE, n);
+  dim3 block(TILE_SIZE, TILE_SIZE / CH_K);
+  permute021_kernel<{{lib_dtype}}><<<grid, block, 0, stream>>>(
     static_cast<{{lib_dtype}}*>(out_ptr),
     static_cast<const {{lib_dtype}}*>(in_ptr),
     n,
@@ -164,24 +182,18 @@ void permute021_launcher(const void* in_ptr,
 void {{function_name}} (
     const void* in_ptr,
     void* out_ptr,
-    int64_t* x_dim0,
-    int64_t* x_dim1,
-    int64_t* x_dim2,
-    int64_t* y_dim0,
-    int64_t* y_dim1,
-    int64_t* y_dim2,
+    int64_t rank,
+    const int64_t* x_dims,
     {{prefix}}Stream_t stream
 ) {
   if (!in_ptr) {
     throw std::runtime_error("in_ptr is NULL!");
   }
   if (!out_ptr) {
-    throw std::runtime_error("in_ptr is NULL!");
+    throw std::runtime_error("out_ptr is NULL!");
   }
-  {{shape_function}}
   {{exec_paths}}
 }
-
 """
 )
 
@@ -189,8 +201,6 @@ void {{function_name}} (
 def gen_function(
     func_attrs: Dict[str, Any],
     template_path: str,
-    shape_eval_template,
-    shape_save_template,
     header_files: str,
     backend_spec,
 ) -> str:
@@ -201,8 +211,6 @@ def gen_function(
         Attributes from Operator
     template_path : str
         path to library used
-    shape_eval_template : jinja template
-    shape_save_template : jinja template
     header_files : str
         header files included in the function
     backend_spec : class
@@ -213,36 +221,23 @@ def gen_function(
     str
         Source code for function generated.
     """
-
     func_name = func_attrs["name"]
     x = func_attrs["inputs"][0]
     xdtype = x._attrs["dtype"]
-    shape_eval_func = shape_eval_template.render(
-        indent="  ",
-        dtype="int64_t ",
-        x_dim0="*x_dim0",
-        x_dim1="*x_dim1",
-        x_dim2="*x_dim2",
-    )
-    shape_save_func = shape_save_template.render(
-        indent="  ",
-        y_dim0="*y_dim0",
-        y_dim1="*y_dim1",
-        y_dim2="*y_dim2",
-    )
-    shape_func = shape_eval_func + shape_save_func
     exec_paths = EXEC_TEMPLATE.render()
     return SRC_TEMPLATE.render(
         function_name=func_name,
-        header_files=header_files,
-        shape_function=shape_func,
         exec_paths=exec_paths,
+        header_files=header_files,
         lib_dtype=backend_spec.dtype_to_lib_type(xdtype),
         prefix=backend_spec.prefix,
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function_decl(
+    func_attrs: Dict[str, Any],
+    backend_spec,
+) -> str:
     """
     Parameters
     ----------
@@ -256,7 +251,6 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
     str
         Function declaration
     """
-
     func_name = func_attrs["name"]
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_name,
@@ -264,7 +258,11 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
     )
 
 
-def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> str:
+def gen_function_call(
+    func_attrs: Dict[str, Any],
+    backend_spec,
+    indent="  ",
+) -> str:
     """
     Parameters
     ----------
@@ -280,20 +278,17 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> 
     str
         Driver code for invoking call
     """
-
     x = func_attrs["inputs"][0]
-    xshape = x._attrs["shape"]
     y = func_attrs["outputs"][0]
-    yshape = y._attrs["shape"]
+
+    xshape = x._attrs["shape"]
+    x_dims = [dim._attrs["name"] for dim in xshape]
+
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         in_ptr=x._attrs["name"],
         out_ptr=y._attrs["name"],
-        x_dim0="&" + xshape[0]._attrs["name"],
-        x_dim1="&" + xshape[1]._attrs["name"],
-        x_dim2="&" + xshape[2]._attrs["name"],
-        y_dim0="&" + yshape[0]._attrs["name"],
-        y_dim1="&" + yshape[1]._attrs["name"],
-        y_dim2="&" + yshape[2]._attrs["name"],
+        x_dims=("{" + ", ".join(x_dims) + "}"),
+        rank=len(xshape),
         indent=indent,
     )

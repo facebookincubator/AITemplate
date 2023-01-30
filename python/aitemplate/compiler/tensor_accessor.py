@@ -28,7 +28,8 @@ from aitemplate.compiler.base import IntVar
 
 from .base import IntImm, Tensor
 
-logger = logging.getLogger(__name__)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class TensorAccessor(object):
@@ -45,6 +46,8 @@ class TensorAccessor(object):
         # Tensor offset in terms of number of elements compared to the base tensor.
         self.offset = 0
         self.original_shapes = original_tensor._attrs["shape"]
+        # We need dtype for computing alignment requirement
+        self.tensor_dtype = original_tensor.dtype()
         # This strictly means that the tensor's memory itself is contiguous
         self.is_contiguous = True
 
@@ -204,7 +207,7 @@ class TensorAccessor(object):
             or original_idx != len(original_shapes)
             or actual_idx != len(actual_shapes)
         ):
-            logger.debug(f"tail processing failed, dim_mapping: {dim_mapping}")
+            _LOGGER.debug(f"tail processing failed, dim_mapping: {dim_mapping}")
             return
 
         # Remove the last dummy group.
@@ -212,7 +215,7 @@ class TensorAccessor(object):
 
         # Assign new dim_mapping to self._dim_mapping.
         self._dim_mapping = dim_mapping
-        logger.debug(f"generate dim_mapping: {dim_mapping}")
+        _LOGGER.debug(f"generate dim_mapping: {dim_mapping}")
 
     def try_get_stride_strs(
         self, dim: int, dim_names: List[str] = None
@@ -255,7 +258,7 @@ class TensorAccessor(object):
         if self._dim_mapping is None:
             # self._dim_mapping cannot be generated successfully.
             # Return None to represent an error.
-            logger.debug("Failed to get dim mapping.")
+            _LOGGER.debug("Failed to get dim mapping.")
             return None
 
         # Loop through self._dim_mapping to generate stride_strs.
@@ -273,7 +276,7 @@ class TensorAccessor(object):
                         # need to make sure that dim is the last dim
                         # inside the original group.
                         # Otherwise, we cannot compute strides.
-                        logger.debug(
+                        _LOGGER.debug(
                             "Multiple dims in stride_dim group. "
                             f"dim_mapping: {self._dim_mapping}, "
                             f"dim: {dim}, stride_dim: {self.stride_dim}, self: {self}"
@@ -287,7 +290,7 @@ class TensorAccessor(object):
             else:
                 if self.stride_dim in actual_group:
                     if actual_group.index(self.stride_dim) != 0:
-                        logger.debug(
+                        _LOGGER.debug(
                             f"Stride dim {self.stride_dim} is not the first dim "
                             f"of the underlying group {actual_group}."
                         )
@@ -298,7 +301,7 @@ class TensorAccessor(object):
                         _get_value_or_names(self.original_shapes, original_group)
                     )
 
-        logger.debug(
+        _LOGGER.debug(
             f"dim: {dim}, stride_dim: {self.stride_dim}, "
             f"mapping: {self._dim_mapping}, stride_strs: {res}, "
             f"original: {self.original_shapes}, actual: {self.actual_shapes}"

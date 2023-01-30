@@ -42,7 +42,7 @@ namespace {
 {{func_signature}}
 {
 
-    argmax_launcher<half>(stream, elem_cnt, instance_size, instance_num, input, workspace, output);
+    argmax_launcher<{{dtype}}>(stream, elem_cnt, instance_size, instance_num, input, workspace, output);
 }
     """
 )
@@ -247,8 +247,8 @@ int main(int argc, char** argv) {
   int instance_num = std::stoi(argv[2]);
 
   float runtime_ms = 0;
-  int32_t key_value_out_bytes = GetAlignedSize(instance_num * sizeof({{cub}}::KeyValuePair<int32_t, half>));
-  size_t temp_storage_bytes = InferTempStorageForArgMax<half>(instance_num, instance_size);
+  int32_t key_value_out_bytes = GetAlignedSize(instance_num * sizeof({{cub}}::KeyValuePair<int32_t, {{dtype}}>));
+  size_t temp_storage_bytes = InferTempStorageForArgMax<{{dtype}}>(instance_num, instance_size);
   GLOBAL_WORKSPACE_SIZE  =  GetAlignedSize(key_value_out_bytes + temp_storage_bytes);
 
   std::cout << "TIME:" << runtime_ms << std::endl;
@@ -260,7 +260,7 @@ int main(int argc, char** argv) {
 FUNC_SIGNATURE = jinja2.Template(
     """
 void {{func_name}}(int64_t* output,
-                   const half* input,
+                   const {{dtype}}* input,
                    const {{index_type}} elem_cnt,
                    const {{index_type}} instance_size,
                    const {{index_type}} instance_num,
@@ -308,14 +308,21 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     index_type = backend_spec.index_type
     prefix = backend_spec.prefix
     cub = backend_spec.cub
+
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
+
     return FUNC_TEMPLATE.render(
         header_files=header_files,
         func_signature=FUNC_SIGNATURE.render(
-            func_name=func_attrs["name"], index_type=index_type, prefix=prefix
+            func_name=func_attrs["name"],
+            index_type=index_type,
+            prefix=prefix,
+            dtype=dtype,
         ),
         kernel=KERNEL_TEMPLATE.render(
             cub=cub, index_type=index_type, prefix=prefix, is_hipcub=(cub == "hipcub")
         ),
+        dtype=dtype,
     )
 
 
@@ -334,11 +341,14 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
     str
         Rendered function decl.
     """
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
+
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"],
             index_type=backend_spec.index_type,
             prefix=backend_spec.prefix,
+            dtype=dtype,
         ),
     ).strip()
 
@@ -364,11 +374,14 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> 
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 1
 
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
+
     output_name = FUNC_CALL_INT64_PARAM_TEMPLATE.render(
         name=func_attrs["outputs"][0]._attrs["name"]
     )
-    input_name = backend_spec.cast_to_half_ptr_template.render(
-        name=func_attrs["inputs"][0]._attrs["name"]
+    input_name = backend_spec.cast_to_ptr_template.render(
+        name=func_attrs["inputs"][0]._attrs["name"],
+        dtype=dtype,
     )
 
     x = func_attrs["inputs"][0]
@@ -435,15 +448,22 @@ def gen_profiler(
     index_type = backend_spec.index_type
     prefix = backend_spec.prefix
     cub = backend_spec.cub
+
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
+
     code = PROFILER_TEMPLATE.render(
         header_files=header_files,
         func_signature=FUNC_SIGNATURE.render(
-            func_name=func_attrs["name"], index_type=index_type, prefix=prefix
+            func_name=func_attrs["name"],
+            index_type=index_type,
+            prefix=prefix,
+            dtype=dtype,
         ),
         kernel=KERNEL_TEMPLATE.render(
             cub=cub, index_type=index_type, prefix=prefix, is_hipcub=(cub == "hipcub")
         ),
         cub=cub,
+        dtype=dtype,
     )
     op_name = func_attrs["op"]
     add_profiler(file_pairs, workdir, op_type, op_name, code)

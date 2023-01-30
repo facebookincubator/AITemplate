@@ -19,7 +19,13 @@ import torch
 from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils
+
+from parameterized import parameterized
 
 
 class MemoryOpTransformationTestCase(unittest.TestCase):
@@ -28,8 +34,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
     N = 128
     USE_DYNAMIC_BATCH = False
 
-    def _prepare_cat_elimination_graph(self):
-        dtype = "float16"
+    def _prepare_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
                 IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
@@ -58,20 +63,22 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         graph = transform.transform_memory_ops(graph)
         self.assertEqual(len(graph), 2)
 
-    def test_cat_elimination_e2e(self):
-        OUTPUT = self._prepare_cat_elimination_graph()
+    @parameterized.expand([("float16"), ("float")])
+    def test_cat_elimination_e2e(self, dtype):
         target = detect_target()
-        module = compile_model(OUTPUT, target, "./tmp", "cat_elimination")
+        if dtype == "float" and target.name == "rocm":
+            self.skipTest("float tensors not supported by ROCM")
+        OUTPUT = self._prepare_cat_elimination_graph(dtype)
+        module = compile_model(OUTPUT, target, "./tmp", f"cat_elimination_{dtype}")
 
-        x0_pt = torch.randn([self.BATCH_SIZE, self.M, self.N]).cuda().half()
+        x0_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N], dtype)
         out_pt = torch.cat([x0_pt, x0_pt], dim=1)
 
-        out = torch.empty(out_pt.size()).cuda().half()
+        out = get_torch_empty_tensor(out_pt.size(), dtype)
         module.run_with_tensors([x0_pt], [out])
         self.assertTrue(torch.allclose(out_pt, out, atol=1e-1, rtol=1e-2))
 
-    def _prepare_split_cat_elimination_graph(self):
-        dtype = "float16"
+    def _prepare_split_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
                 IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
@@ -131,20 +138,25 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         graph = transform.transform_memory_ops(graph)
         self.assertEqual(len(graph), 7)
 
-    def test_split_cat_elimination_e2e(self):
-        OUTPUT = self._prepare_split_cat_elimination_graph()
+    @parameterized.expand([("float16"), ("float")])
+    def test_split_cat_elimination_e2e(self, dtype):
         target = detect_target()
-        module = compile_model(OUTPUT, target, "./tmp", "split_cat_elimination")
+        if dtype == "float" and target.name == "rocm":
+            self.skipTest("float tensors not supported by ROCM")
+        OUTPUT = self._prepare_split_cat_elimination_graph(dtype)
+        module = compile_model(
+            OUTPUT, target, "./tmp", f"split_cat_elimination_{dtype}"
+        )
 
-        x0_pt = torch.randn([self.BATCH_SIZE, self.M, self.N]).cuda().half()
+        x0_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N], dtype)
         x4_pt, x5_pt = torch.split(x0_pt, int(self.N / 2), dim=2)
         out_pt0 = torch.cat([x4_pt, x5_pt], dim=1)
-        y0_pt = torch.randn([self.BATCH_SIZE, self.M, self.N]).cuda().half()
-        y1_pt = torch.randn([self.BATCH_SIZE, self.M, self.N]).cuda().half()
+        y0_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N], dtype)
+        y1_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N], dtype)
         out_pt1 = torch.cat([y1_pt, y0_pt, y0_pt], dim=1)
 
-        out0 = torch.empty(out_pt0.size()).cuda().half()
-        out1 = torch.empty(out_pt1.size()).cuda().half()
+        out0 = get_torch_empty_tensor(out_pt0.size(), dtype)
+        out1 = get_torch_empty_tensor(out_pt1.size(), dtype)
         module.run_with_tensors(
             {"input0": x0_pt, "input1": y0_pt, "input2": y1_pt},
             {"output0": out0, "output1": out1},
@@ -152,8 +164,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(out_pt0, out0, atol=1e-1, rtol=1e-2))
         self.assertTrue(torch.allclose(out_pt1, out1, atol=1e-1, rtol=1e-2))
 
-    def _prepare_cat_cat_elimination_graph(self):
-        dtype = "float16"
+    def _prepare_cat_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
                 IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
@@ -223,19 +234,26 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         self.assertEqual(len(graph), 6)
         self.assertEqual(len(graph_utils.get_sorted_ops(graph)), 2)
 
-    def test_cat_cat_elimination_e2e(self):
-        OUTPUT = self._prepare_cat_cat_elimination_graph()
+    @parameterized.expand([("float16"), ("float")])
+    def test_cat_cat_elimination_e2e(self, dtype):
         target = detect_target()
-        module = compile_model(OUTPUT, target, "./tmp", "cat_cat_elimination")
+        if dtype == "float" and target.name == "rocm":
+            self.skipTest("float tensors not supported by ROCM")
+        OUTPUT = self._prepare_cat_cat_elimination_graph(dtype)
+        module = compile_model(OUTPUT, target, "./tmp", f"cat_cat_elimination_{dtype}")
 
-        x0_pt = torch.randn([self.BATCH_SIZE, int(self.M / 2), self.N]).cuda().half()
-        x1_pt = torch.randn([self.BATCH_SIZE, int(self.M / 2), self.N]).cuda().half()
-        x2_pt = torch.randn([self.BATCH_SIZE, self.M, self.N + 4]).cuda().half()
-        x3_pt = torch.randn([self.BATCH_SIZE, self.M, self.N * 2]).cuda().half()
+        x0_pt = get_random_torch_tensor(
+            [self.BATCH_SIZE, int(self.M / 2), self.N], dtype
+        )
+        x1_pt = get_random_torch_tensor(
+            [self.BATCH_SIZE, int(self.M / 2), self.N], dtype
+        )
+        x2_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N + 4], dtype)
+        x3_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N * 2], dtype)
         x5_pt = torch.cat([x0_pt, x1_pt], dim=1)
         out_pt0 = torch.cat([x3_pt, x5_pt, x2_pt, x2_pt], dim=2)
 
-        out0 = torch.empty(out_pt0.size()).cuda().half()
+        out0 = get_torch_empty_tensor(out_pt0.size(), dtype)
         module.run_with_tensors(
             {"input0": x0_pt, "input1": x1_pt, "input2": x2_pt, "input3": x3_pt},
             [out0],

@@ -22,8 +22,8 @@ from . import common, group_common_bias, group_gemm_rcr
 
 
 @registry.reg("cuda.group_gemm_rcr_bias_relu.config")
-def group_rcr_config(func_attrs, dtype="float16"):
-    group_gemm_rcr.group_rcr_config(func_attrs, dtype)
+def group_rcr_config(func_attrs):
+    group_gemm_rcr.group_rcr_config(func_attrs)
 
 
 @registry.reg("cuda.group_gemm_rcr_bias_relu.gen_profiler")

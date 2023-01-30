@@ -15,6 +15,7 @@
 """
 Unittests for special activation Operator.
 """
+import logging
 import unittest
 
 import torch
@@ -24,12 +25,14 @@ from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger
 from aitemplate.utils.serialization.serdes_code import (
     dump_program,
     get_inputs_from_graph,
     get_program,
 )
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class SerDesTestCase(unittest.TestCase):
@@ -209,7 +212,7 @@ class SerDesSpecialOpTestCase(unittest.TestCase):
     def test_group_gemm_rcr(self):
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
 
         M = 256
@@ -288,3 +291,8 @@ class SerDesSpecialOpTestCase(unittest.TestCase):
             y = torch.empty(y_pt.shape).cuda().half()
             module.run_with_tensors([X_pt], [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
+
+
+if __name__ == "__main__":
+    torch.manual_seed(0)
+    unittest.main()

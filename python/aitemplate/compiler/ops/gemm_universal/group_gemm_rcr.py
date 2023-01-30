@@ -15,6 +15,7 @@
 """
 Grouped GEMM Specialization for A[RowMajor], B[ColMajor], C[RowMajor]
 """
+import logging
 import re
 from collections import OrderedDict
 from typing import List
@@ -25,7 +26,6 @@ from aitemplate.compiler.stable_set import StableSet
 
 from ....backend import registry
 from ....backend.target import Target
-from ....utils import logger
 from ...base import ExecItem, Tensor
 from ...tensor_accessor import TensorAccessor
 from ..tensor import concatenate
@@ -33,6 +33,9 @@ from . import gemm_common as common
 from .gemm_rcr import gemm_rcr
 
 # pylint: disable=C0103,W0223,W0221,W0613
+
+
+_LOGGER = logging.getLogger(__name__)
 
 SHAPE_EVAL_TEMPLATE = jinja2.Template(
     """
@@ -101,7 +104,7 @@ class group_gemm_rcr(common.gemm):
         self._attrs["int_state_flag"] = 0
 
         def cal_align_ab(m, n, k):
-            return common.default_align_ab(k, k)
+            return common.default_align_ab(k, k, self._attrs["inputs"][0].dtype())
 
         self._attrs["f_ab_alignment"] = cal_align_ab
 
@@ -281,14 +284,12 @@ class group_gemm_rcr(common.gemm):
                 if filter_func(k, self._attrs, ab_alignments[0])
             }
         )
-        logger.debug(
-            __name__,
+        _LOGGER.debug(
             f"Filtered profiler kernels for {self._attrs['op']}: reduced the "
             f"number of generated kernels from {len(self._attrs['op_instance'])} "
             f"to {len(new_op_instance)}",
         )
-        logger.debug(
-            __name__,
+        _LOGGER.debug(
             f"Group_gemm profiler valid configs: {sorted(new_op_instance.keys())}",
         )
         self._attrs["op_instance"] = new_op_instance
@@ -299,7 +300,7 @@ class group_gemm_rcr(common.gemm):
             )
             func = registry.get(func_key)
             profiler_filename = self._get_profiler_filename()
-            logger.info(__name__, f"generating {profiler_filename=}")
+            _LOGGER.info(f"generating {profiler_filename=}")
             return func(
                 self._attrs, workdir, profiler_filename, self.shape_eval_template
             )

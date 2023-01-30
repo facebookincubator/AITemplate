@@ -33,6 +33,7 @@ from .refine_graph import refine_graph
 from .remove_no_ops import remove_no_ops
 from .remove_unused_ops import remove_unused_ops
 from .split_large_concat_ops import split_large_concat_ops
+from .split_large_split_ops import split_large_split_ops
 from .toposort import toposort
 from .transform_memory_ops import transform_memory_ops
 from .transform_odd_alignment import transform_odd_alignment

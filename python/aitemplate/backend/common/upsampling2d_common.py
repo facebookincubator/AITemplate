@@ -50,21 +50,27 @@ namespace {
   for (int64_t i = blockIdx.x * blockDim.x + threadIdx.x; i < (n); i += blockDim.x * gridDim.x)
 
 {% if mode == "bilinear"%}
-__global__ void bilinear_upsampling_f16_nhwc_kernel(const half2* input,
+__global__ void bilinear_upsampling_nhwc_kernel(const {{dtype}}* input_raw,
                                                     {% if bias_add %}
-                                                      const half2* input_res,
+                                                      const {{dtype}}* input_res_raw,
                                                     {% endif %}
-                                                    half2* output,
+                                                    {{dtype}}* output_raw,
                                                     const {{index_type}} batch,
                                                     const {{index_type}} in_height,
                                                     const {{index_type}} in_width,
                                                     const {{index_type}} channels,
                                                     const {{index_type}} out_height,
                                                     const {{index_type}} out_width) {
+{% set vec_dtype = {"half": "half2", "float": "float2"}[dtype] %}
+  const {{vec_dtype}}* input = (const {{vec_dtype}}*)input_raw;
+{% if bias_add %}
+  const {{vec_dtype}}* input_res = (const {{vec_dtype}}*)input_res_raw;
+{% endif %}
+  {{vec_dtype}}* output = ({{vec_dtype}}*)output_raw;
 
-    const float height_scale = in_height / static_cast<float>(out_height);
-    const float width_scale = in_width / static_cast<float>(out_width);
-    const int64_t num_threads = out_height * out_width * channels * batch;
+  const float height_scale = in_height / static_cast<float>(out_height);
+  const float width_scale = in_width / static_cast<float>(out_width);
+  const int64_t num_threads = out_height * out_width * channels * batch;
 
 GPU_1D_KERNEL_LOOP(out_idx, num_threads) {
     int64_t idx = out_idx;
@@ -87,46 +93,61 @@ GPU_1D_KERNEL_LOOP(out_idx, num_threads) {
         (in_x < in_width - 1) ? ceilf(in_x) : in_width - 1;
     const float x_lerp = in_x - floorf(in_x);
 
-    const half2 top_left = __ldg(
+    const {{vec_dtype}} top_left = __ldg(
         input + ((b * in_height + top_y_index) * in_width + left_x_index) *
                    channels +
                c);
 
-    const half2 top_right = __ldg(
+    const {{vec_dtype}} top_right = __ldg(
         input + ((b * in_height + top_y_index) * in_width + right_x_index) *
                    channels +
                c);
-    const half2 bottom_left = __ldg(
+    const {{vec_dtype}} bottom_left = __ldg(
         input + ((b * in_height + bottom_y_index) * in_width + left_x_index) *
                    channels +
                c);
-    const half2 bottom_right = __ldg(
+    const {{vec_dtype}} bottom_right = __ldg(
         input + ((b * in_height + bottom_y_index) * in_width + right_x_index) *
                    channels +
                c);
 
+{% if dtype == "half" %}
     float top_x = __half2float(top_left{{half2_data_ref}}.x) + (__half2float(top_right{{half2_data_ref}}.x) - __half2float(top_left{{half2_data_ref}}.x)) * x_lerp;
     float top_y = __half2float(top_left{{half2_data_ref}}.y) + (__half2float(top_right{{half2_data_ref}}.y) - __half2float(top_left{{half2_data_ref}}.y)) * x_lerp;
-
     float bottom_x = __half2float(bottom_left{{half2_data_ref}}.x) + (__half2float(bottom_right{{half2_data_ref}}.x) - __half2float(bottom_left{{half2_data_ref}}.x)) * x_lerp;;
     float bottom_y = __half2float(bottom_left{{half2_data_ref}}.y) + (__half2float(bottom_right{{half2_data_ref}}.y) - __half2float(bottom_left{{half2_data_ref}}.y)) * x_lerp;;
+{% elif dtype == "float" %}
+    float top_x = top_left{{half2_data_ref}}.x + (top_right{{half2_data_ref}}.x - top_left{{half2_data_ref}}.x) * x_lerp;
+    float top_y = top_left{{half2_data_ref}}.y + (top_right{{half2_data_ref}}.y - top_left{{half2_data_ref}}.y) * x_lerp;
+    float bottom_x = bottom_left{{half2_data_ref}}.x + (bottom_right{{half2_data_ref}}.x - bottom_left{{half2_data_ref}}.x) * x_lerp;;
+    float bottom_y = bottom_left{{half2_data_ref}}.y + (bottom_right{{half2_data_ref}}.y - bottom_left{{half2_data_ref}}.y) * x_lerp;;
+{% endif %}
 
     float2 out = {0.f, 0.f};
     out.x = top_x + (bottom_x - top_x) * y_lerp;
     out.y = top_y + (bottom_y - top_y) * y_lerp;
 
+{% if dtype == "half" %}
     {% if bias_add %}
       output[out_idx] = __hadd2(__float22half2_rn(out), __ldg(input_res + out_idx));
     {% else %}
       output[out_idx] = __float22half2_rn(out);
     {% endif %}
+{% elif dtype == "float" %}
+    {% if bias_add %}
+      const auto tmp = __ldg(input_res + out_idx);
+      out.x += tmp.x;
+      out.y += tmp.y;
+    {% endif %}
+    output[out_idx] = out;
+{% endif %}
   }
 
 }
 
 {% else %}
 template <typename T, typename Telement, int element_in_Tio>
-__global__ void nearest_upsampling_f16_nhwc_kernel(const T* input,
+__global__ void nearest_upsampling_nhwc_kernel(const T* input,
                                                     {% if bias_add %}
                                                       const T* input_res,
                                                     {% endif %}
@@ -138,9 +159,9 @@ __global__ void nearest_upsampling_f16_nhwc_kernel(const T* input,
                                                     const {{index_type}} out_height,
                                                     const {{index_type}} out_width) {
 
-    const float height_scale = in_height / static_cast<float>(out_height);
-    const float width_scale = in_width / static_cast<float>(out_width);
-    const int64_t nthreads = out_height * out_width * channels * batch;
+  const float height_scale = in_height / static_cast<float>(out_height);
+  const float width_scale = in_width / static_cast<float>(out_width);
+  const int64_t nthreads = out_height * out_width * channels * batch;
 
 GPU_1D_KERNEL_LOOP(index, nthreads) {
     int n = index;
@@ -171,7 +192,7 @@ GPU_1D_KERNEL_LOOP(index, nthreads) {
     {% if tsize == 1 %}
     output[index] = input_val + input_res_val;
 
-    {% elif tsize == 8 %}
+    {% elif tsize == 8 and dtype == "half" %}
     T output_val;
     Telement* pack_y = reinterpret_cast<Telement*>(&output_val);
     Telement* pack_x = reinterpret_cast<Telement*>(&input_val);
@@ -220,16 +241,35 @@ void bilinear_upsampling_launcher(const ELEM_T* input,
     dim3 block(512);
 
 {% if mode == "bilinear" %}
-    bilinear_upsampling_f16_nhwc_kernel<<<grid, block, 0, stream>>>(
-      (const half2 *)input,
+    bilinear_upsampling_nhwc_kernel<<<grid, block, 0, stream>>>(
+      input,
       {% if bias_add %}
-        (const half2 *)input_res,
+        input_res,
       {% endif %}
-      (half2 *)output,
+      output,
       N, H, W, C/2, HO, WO);
 {% else %}
+  {% if dtype == "float" %}
     {% if tsize == 1 %}
-    nearest_upsampling_f16_nhwc_kernel<half, half, 1><<<grid, block, 0, stream>>>(
+    nearest_upsampling_nhwc_kernel<float, float, 1><<<grid, block, 0, stream>>>(
+      (const float*)input,
+      {% if bias_add %}
+        (const float*)input_res,
+      {% endif %}
+      (float*)output,
+      N, H, W, C, HO, WO);
+    {% else %}
+    nearest_upsampling_nhwc_kernel<float2, float, 2><<<grid, block, 0, stream>>>(
+      (const float2*)input,
+      {% if bias_add %}
+        (const float2*)input_res,
+      {% endif %}
+      (float2*)output,
+      N, H, W, C / 2, HO, WO);
+    {% endif %}
+  {% else %}
+    {% if tsize == 1 %}
+    nearest_upsampling_nhwc_kernel<half, half, 1><<<grid, block, 0, stream>>>(
       (const half *)input,
       {% if bias_add %}
         (const half *)input_res,
@@ -237,7 +277,7 @@ void bilinear_upsampling_launcher(const ELEM_T* input,
       (half *)output,
       N, H, W, C, HO, WO);
     {% elif tsize == 8 %}
-    nearest_upsampling_f16_nhwc_kernel<float4, half, 8><<<grid, block, 0, stream>>>(
+    nearest_upsampling_nhwc_kernel<float4, half, 8><<<grid, block, 0, stream>>>(
       (const float4 *)input,
       {% if bias_add %}
         (const float4 *)input_res,
@@ -245,7 +285,7 @@ void bilinear_upsampling_launcher(const ELEM_T* input,
       (float4 *)output,
       N, H, W, C/8, HO, WO);
     {% else %}
-    nearest_upsampling_f16_nhwc_kernel<half2, half, 2><<<grid, block, 0, stream>>>(
+    nearest_upsampling_nhwc_kernel<half2, half, 2><<<grid, block, 0, stream>>>(
       (const half2 *)input,
       {% if bias_add %}
         (const half2 *)input_res,
@@ -253,6 +293,7 @@ void bilinear_upsampling_launcher(const ELEM_T* input,
       (half2 *)output,
       N, H, W, C/2, HO, WO);
     {% endif %}
+  {% endif %}
 {% endif %}
 }
 } // namespace

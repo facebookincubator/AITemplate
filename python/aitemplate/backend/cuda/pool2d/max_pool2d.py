@@ -15,6 +15,7 @@
 """
 Codegen functions for max_pool2d.
 """
+
 import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
@@ -27,7 +28,7 @@ from . import pool2d
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}max_pooling_launcher<{{kernel_size}}, {{stride}}, {{padding}}>(
+{{indent}}max_pooling_launcher<{{dtype}}, {{kernel_size}}, {{stride}}, {{padding}}>(
 {{indent}}    static_cast<const {{dtype}}*>(in_ptr),
 {{indent}}    static_cast<{{dtype}}*>(out_ptr),
 {{indent}}    NI,
@@ -57,15 +58,19 @@ template <int kernel_size,
           int block_ch,
           int block_h,
           int block_w>
-__global__ void max_pool_f16_nhwc_kernel(const half2* input,
-                                         half2* output,
-                                         const int N,
-                                         const int H,
-                                         const int W,
-                                         const int C,
-                                         const int HO,
-                                         const int WO) {
-  half2* shm = (half2*)shared_mem;
+__global__ void max_pool_nhwc_kernel(const {{dtype}}* input_raw,
+                                     {{dtype}}* output_raw,
+                                     const int N,
+                                     const int H,
+                                     const int W,
+                                     const int C,
+                                     const int HO,
+                                     const int WO) {
+{% set vec_dtype = {"half": "half2", "float": "float2"}[dtype] %}
+  const {{vec_dtype}}* input = (const {{vec_dtype}}*)input_raw;
+  {{vec_dtype}}* output = ({{vec_dtype}}*)output_raw;
+  {{vec_dtype}}* shm = ({{vec_dtype}}*)shared_mem;
+
   const int ldg_h = (block_h - 1) * stride + kernel_size;
   const int ldg_w = (block_w - 1) * stride + kernel_size;
   const int ldg_hw_num = ldg_h * ldg_w;
@@ -83,8 +88,13 @@ __global__ void max_pool_f16_nhwc_kernel(const half2* input,
   const int hw_start_idx_of_thread = threadIdx.y;
   const int ch_thread_idx = threadIdx.x;
 
+{% if dtype == "half" %}
   const half2 min = {static_cast<half>(-65503.0f),
                      static_cast<half>(-65503.0f)};
+{% elif dtype == "float" %}
+  const float2 min = {-(std::numeric_limits<float>::max() - 1),
+                      -(std::numeric_limits<float>::max() - 1)};
+{% endif %}
 
   for (int i = hw_start_idx_of_thread; i < ldg_hw_num; i += block_ch) {
     const int shm_h_idx = i / ldg_w;
@@ -110,7 +120,7 @@ __global__ void max_pool_f16_nhwc_kernel(const half2* input,
     const int out_w_idx = out_w_start_idx + out_w_offset;
     if (out_h_idx >= 0 && out_h_idx < HO && out_w_idx >= 0 &&
         out_w_idx < WO) {
-      half2 max = min;
+      auto max = min;
 
       const int shm_h_start_idx = out_h_offset * stride;
       const int shm_h_end_idx = shm_h_start_idx + kernel_size;
@@ -124,7 +134,7 @@ __global__ void max_pool_f16_nhwc_kernel(const half2* input,
              shm_w_idx++) {
           const int shm_idx =
               (shm_h_idx * ldg_w + shm_w_idx) * C + ch_thread_idx;
-          const half2 tmp = shm[shm_idx];
+          const auto tmp = shm[shm_idx];
           max.x = (tmp.x > max.x) ? tmp.x : max.x;
           max.y = (tmp.y > max.y) ? tmp.y : max.y;
         }
@@ -135,9 +145,9 @@ __global__ void max_pool_f16_nhwc_kernel(const half2* input,
   }
 }
 
-template<int kernel_size, int stride, int pad>
-void max_pooling_launcher(const cutlass::half_t* input,
-                          cutlass::half_t* output,
+template <typename ElemT, int kernel_size, int stride, int pad>
+void max_pooling_launcher(const ElemT* input,
+                          ElemT* output,
                           int NI,
                           int HI,
                           int WI,
@@ -151,13 +161,13 @@ void max_pooling_launcher(const cutlass::half_t* input,
   const int block_h = 4;
   const size_t shm_size = ((block_h - 1) * stride + kernel_size) *
                           ((block_w - 1) * stride + kernel_size) * CI *
-                          sizeof(half);
+                          sizeof(ElemT);
   dim3 grid(NI, (HO + block_h - 1) / block_h,
             (WO + block_w - 1) / block_w);
   dim3 block(CI / 2, block_ch);
-  max_pool_f16_nhwc_kernel<kernel_size, stride, pad, 4, 4, 4>
-      <<<grid, block, shm_size, stream>>>((const half2*)input, (half2*)output, NI, HI,
-                                  WI, CI / 2, HO, WO);
+  max_pool_nhwc_kernel<kernel_size, stride, pad, 4, 4, 4>
+      <<<grid, block, shm_size, stream>>>(input, output, NI, HI,
+                                          WI, CI / 2, HO, WO);
 }
 } // namespace
 
@@ -193,7 +203,7 @@ def gen_function(
     func_name = func_attrs["name"]
     exec_path = func_attrs["exec_path"]
     backend_spec = CUDASpec()
-    dtype = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
+    dtype = backend_spec.dtype_to_backend_type(func_attrs["inputs"][0]._attrs["dtype"])
     shape_eval_func = shape_eval_template.render(
         indent="  ",
         dtype="int64_t ",
@@ -226,7 +236,10 @@ def gen_function(
         exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return SRC_TEMPLATE.render(
-        function_name=func_name, shape_function=shape_func, exec_paths=exec_paths
+        function_name=func_name,
+        shape_function=shape_func,
+        exec_paths=exec_paths,
+        dtype=dtype,
     )
 
 

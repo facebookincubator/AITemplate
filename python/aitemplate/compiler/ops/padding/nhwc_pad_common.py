@@ -90,7 +90,7 @@ class nhwc_pad_common(Operator):
         self._attrs["inputs"] = [x]
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=x.dtype())
         self._attrs["outputs"] = [output]
         return output
 

@@ -45,6 +45,7 @@ from .gemm_rcr_bias_swish import gemm_rcr_bias_swish
 from .gemm_rcr_bias_tanh import gemm_rcr_bias_tanh
 from .gemm_rcr_fast_gelu import gemm_rcr_fast_gelu
 from .gemm_rcr_permute import gemm_rcr_permute
+from .gemm_rcr_permute_elup1 import gemm_rcr_permute_elup1
 from .gemm_rrr import gemm_rrr
 from .gemm_rrr_bias import gemm_rrr_bias
 from .gemm_rrr_bias_permute import gemm_rrr_bias_permute

@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Tuple
 import jinja2
 
 from ....compiler.base import IntImm
+from ....utils import alignment
 
 from ...backend_spec import CUDASpec
 
@@ -138,6 +139,8 @@ SRC_TEMPLATE = jinja2.Template(
 #include "cutlass/util/reference/host/tensor_fill.h"
 #include "cutlass/util/reference/device/tensor_fill.h"
 #include "cutlass/util/device_memory.h"
+
+using bfloat16 = nv_bfloat16;
 
 {{extra_code}}
 
@@ -371,6 +374,7 @@ PROFILER_TEMPLATE = jinja2.Template(
     """
 size_t GLOBAL_WORKSPACE_SIZE = 0;
 
+#include <sstream>
 {{op_func}}
 
 template <typename GemmInstance>
@@ -530,13 +534,21 @@ int main(int argc, char** argv) {
   cudaError_t result = cudaGetDevice(&device_idx);
   auto memory_pool = std::make_unique<ProfilerMemoryPool<{{elem_type}}>>();
   if (result != cudaSuccess) {
-    throw std::runtime_error("cudaGetDevice() API call failed.");
+    std::ostringstream errorStream;
+    errorStream << "cudaGetDevice() call failed! "
+                << "Error code: " << cudaGetErrorName(result)
+                << " Error message: " << cudaGetErrorString(result);
+    throw std::runtime_error(errorStream.str());
   }
 
   result = cudaGetDeviceProperties(&device_properties, device_idx);
 
   if (result != cudaSuccess) {
-    throw std::runtime_error("cudaGetDeviceProperties() failed");
+    std::ostringstream errorStream;
+    errorStream << "cudaGetDeviceProperties() call failed! "
+                << "Error code: " << cudaGetErrorName(result)
+                << " Error message: " << cudaGetErrorString(result);
+    throw std::runtime_error(errorStream.str());
   }
 
   {{args_parse}}
@@ -841,13 +853,29 @@ def add_profiler(file_pairs, workdir, op_type, output_name, code):
     prefix = os.path.join(workdir, "profiler", op_type)
     if not os.path.exists(prefix):
         os.makedirs(prefix)
-    src_path = os.path.join(prefix, output_name + ".cu")
+
     obj_path = os.path.join(prefix, output_name)
     if os.path.exists(obj_path):
         return
-    with open(src_path, "w") as f:
-        f.write(code)
-    file_pairs.append((src_path, obj_path))
+
+    if isinstance(code, dict):
+        # multi-source profiler
+        src_paths = []
+        for src_name, src_code in code.items():
+            # create each source file separately
+            src_path = os.path.join(prefix, src_name + ".cu")
+            with open(src_path, "w") as f:
+                f.write(src_code)
+            src_paths.append(src_path)
+        # add multiple src paths to file_pairs
+        file_pairs.append((src_paths, obj_path))
+    else:
+        # single-source profiler
+        src_path = os.path.join(prefix, output_name + ".cu")
+        with open(src_path, "w") as f:
+            f.write(code)
+        # add single src path to file_pairs
+        file_pairs.append((src_path, obj_path))
 
 
 def gen_profiler(
@@ -1050,14 +1078,30 @@ def gen_function_call(func_attrs, indent="  ", bias_ptr_arg=None):
 
 
 def default_fproc(
-    *, op, a_layout, b_layout, c_layout, elem_type, epiligue_name, permute_layout=None
+    *, op, a_layout, b_layout, c_layout, dtype, epiligue_name, permute_layout=None
 ):
     import copy
 
     import cutlass_lib
 
+    backend_spec = CUDASpec()
+
     ret = []
-    data_type = elem_type
+    # skip simt kernels
+    if (
+        op.tile_description.math_instruction.opcode_class
+        == cutlass_lib.library.OpcodeClass.Simt
+    ):
+        return ret
+    data_type = backend_spec.dtype_to_lib_type(dtype)
+    if data_type == "float":
+        if (
+            op.tile_description.math_instruction.element_a
+            != cutlass_lib.library.DataType.f32
+            and op.tile_description.math_instruction.element_a
+            != cutlass_lib.library.DataType.tf32
+        ):
+            return ret
     acc_type = cutlass_lib.library.DataType.f32
     # check target use fp16 acc
     if "use_fp16_acc" in Target.current()._kwargs and data_type == "cutlass::half_t":
@@ -1082,7 +1126,8 @@ def default_fproc(
                 permute_layout
             ]
         # set C alignment
-        for i in [8, 4, 2, 1]:
+        alignments = alignment.get_alignments(dtype)
+        for i in alignments:
             op = copy.deepcopy(op)
             op.C.alignment = i
             ret.append(op)
@@ -1095,9 +1140,6 @@ def make_fproc(func_attrs, layout):
     associated with func_attrs.
     """
 
-    backend_spec = CUDASpec()
-    elem_type = backend_spec.dtype_to_lib_type(func_attrs["inputs"][0]._attrs["dtype"])
-
     def fproc(op):
         a_layout, b_layout, c_layout = layout.cutlass_lib_layouts()
         return default_fproc(
@@ -1105,7 +1147,7 @@ def make_fproc(func_attrs, layout):
             a_layout=a_layout,
             b_layout=b_layout,
             c_layout=c_layout,
-            elem_type=elem_type,
+            dtype=func_attrs["inputs"][0].dtype(),
             epiligue_name=func_attrs["epilogue"],
         )
 

@@ -50,7 +50,7 @@ class perm021fc_crc(bmm):
         self._attrs["op"] = "perm021fc_crc"
 
         def cal_align_ab(m, n, k):
-            return common.default_align_ab(m, n)
+            return common.default_align_ab(m, n, self._attrs["inputs"][0].dtype())
 
         self._attrs["f_ab_alignment"] = cal_align_ab
 

@@ -19,7 +19,8 @@ import functools
 from typing import Any, List
 
 from ....utils import shape_utils
-from ...base import IntVar, Operator, Tensor
+from ...base import IntVar, IntVarTensor, Operator, Tensor
+from ...dtype import normalize_dtype
 from ...op_registry import OP_REGISTRY
 from .epilogue import FuncEnum
 
@@ -62,7 +63,7 @@ class elementwise(Operator):
             shape = tensor._attrs["shape"]
             if max_shape is None:
                 max_shape = list(shape)
-            broadcastable, max_shape = shape_utils.get_broadcast_max_shape(
+            broadcastable, new_max_shape = shape_utils.get_broadcast_max_shape(
                 max_shape, shape
             )
             if not broadcastable:
@@ -71,30 +72,51 @@ class elementwise(Operator):
                         max_shape, shape
                     )
                 )
+            max_shape = new_max_shape
         return max_shape
 
     def __call__(self, *args: Tensor) -> Tensor:
         converted_args = []
+        common_dtype = None
+        assert len(args) > 0, "Elementwise ops must take at least one argument."
         for arg in args:
             if isinstance(arg, int) or isinstance(arg, float):
                 converted_args.append(Tensor(shape=[], value=arg))
+            elif isinstance(arg, IntVarTensor) and self._attrs["func"] == FuncEnum.SQRT:
+                assert len(arg._attrs["int_var"]._attrs["values"]) == 1
+                converted_args.append(
+                    Tensor(shape=[], value=arg._attrs["int_var"]._attrs["values"][0])
+                )
             elif isinstance(arg, Tensor):
                 converted_args.append(arg)
+                if common_dtype is None:
+                    common_dtype = normalize_dtype(arg.dtype())
+                elif normalize_dtype(arg.dtype()) != common_dtype:
+                    raise NotImplementedError(
+                        f"Type promotions are not supported; got dtype {arg.dtype()}, but expected {common_dtype}"
+                    )
+
             else:
                 raise RuntimeError(
                     f"Unsupported data type {arg} in elementwise {self}!"
                 )
+
+        if common_dtype is None:
+            # All inputs were constants. Just use fp16
+            common_dtype = "float16"
+        else:
+            # Infer dtype for constant nums
+            for arg in converted_args:
+                if arg.is_a_const_num():
+                    arg._attrs["dtype"] = common_dtype
 
         self._attrs["args"] = list(converted_args)
         self._attrs["inputs"] = [
             arg for arg in converted_args if not arg.is_a_const_num()
         ]
         self._set_depth()
-        # for some reason aten converters fail if uncommented
-        # we will need this for fp32 support
-        # dtype = self._attrs["args"][0]._attrs["dtype"]
         output_shape = self._infer_shapes(*converted_args)
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=common_dtype)
         self._attrs["outputs"] = [output]
         return output
 
@@ -129,10 +151,6 @@ class clamp(Operator):
     def __call__(
         self, x: Tensor, min_value: Any = None, max_value: Any = None
     ) -> Tensor:
-        if isinstance(min_value, (int, float)):
-            min_value = Tensor(value=min_value, shape=[])
-        if isinstance(max_value, (int, float)):
-            max_value = Tensor(value=max_value, shape=[])
         if min_value is None and max_value is not None:
             return elementwise(FuncEnum.MIN)(
                 x,

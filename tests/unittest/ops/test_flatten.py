@@ -16,22 +16,28 @@ import itertools
 import unittest
 
 import torch
+
 from aitemplate.compiler import compile_model
 from aitemplate.compiler.base import IntImm, IntVar
-
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class FlattenTestCase(unittest.TestCase):
-    def _test_fp16_single_op(
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._test_id = 0
+
+    def _test_single_op(
         self,
         X_shape,
         start_dim=0,
         end_dim=-1,
         test_name="flatten",
         check_name_retention=False,
+        dtype="float16",
     ):
         target = detect_target()
         dynamic_dim_names = [
@@ -41,7 +47,7 @@ class FlattenTestCase(unittest.TestCase):
         X_shape = [dim if isinstance(dim, IntVar) else IntImm(dim) for dim in X_shape]
         X = Tensor(
             shape=X_shape,
-            dtype="float16",
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
@@ -52,13 +58,14 @@ class FlattenTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         x_shape_values = [var._attrs["values"] for var in X_shape]
         x_shapes = itertools.product(*x_shape_values)
 
         for x_shape in x_shapes:
-            X_pt = torch.randn(x_shape).cuda().half()
+            X_pt = get_random_torch_tensor(x_shape, dtype=dtype)
             Y_pt = torch.flatten(X_pt, start_dim, end_dim)
             y = torch.empty_like(Y_pt)
             in_x = X_pt.clone()
@@ -73,63 +80,102 @@ class FlattenTestCase(unittest.TestCase):
                     )
                 )
 
-    def test_flatten(self):
-        self._test_fp16_single_op(
-            X_shape=(IntVar(values=[1, 3]), 16, 32, 64), test_name="flatten0"
+    def test_flatten_fp16(self):
+        self._test_single_op(
+            X_shape=(IntVar(values=[1, 3]), 16, 32, 64),
+            test_name="flatten_fp16",
+            dtype="float16",
         )
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(IntVar(values=[2, 5]), 16, 32, 64),
             start_dim=0,
             end_dim=1,
-            test_name="flatten1",
+            test_name="flatten_fp16",
+            dtype="float16",
         )
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(IntVar(values=[2, 5]), 16, 32, 64),
             start_dim=0,
             end_dim=0,
-            test_name="flatten2",
+            test_name="flatten_fp16",
+            dtype="float16",
         )
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(IntVar(values=[3, 4]), 16, 32, 64),
             start_dim=1,
             end_dim=-2,
-            test_name="flatten3",
+            test_name="flatten_fp16",
+            dtype="float16",
         )
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(IntVar(values=[3, 4], name="input_batch"), 16, 32, 2, 64),
             start_dim=1,
             end_dim=-2,
-            test_name="flatten_name",
+            test_name="flatten_fp16_name",
             check_name_retention=True,
+            dtype="float16",
         )
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(16, 32, IntVar(values=[3, 4], name="input_batch"), 2, 64),
             start_dim=1,
             end_dim=-1,
-            test_name="flatten_dynamic_nonbatch",
+            test_name="flatten_fp16_dynamic_nonbatch",
+            dtype="float16",
         )
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(32, 16, 4, IntVar(values=[3, 4], name="input_batch"), 16),
             start_dim=0,
             end_dim=2,
-            test_name="flatten_dynamic_nonbatch_name",
+            test_name="flatten_fp16_dynamic_nonbatch_name",
             check_name_retention=True,
+            dtype="float16",
         )
-
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(32, 16, 4, 3, 16),
             start_dim=0,
             end_dim=2,
-            test_name="flatten_static_1",
+            test_name="flatten_fp16_static",
+            dtype="float16",
         )
-
-        self._test_fp16_single_op(
+        self._test_single_op(
             X_shape=(32, 3, 16, 4, 16),
             start_dim=0,
             end_dim=-1,
-            test_name="flatten_static_2",
+            test_name="flatten_fp16_static",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_flatten_fp32(self):
+        self._test_single_op(
+            X_shape=(IntVar(values=[1, 3]), 16, 32, 64),
+            test_name="flatten_fp32",
+            dtype="float32",
+        )
+        self._test_single_op(
+            X_shape=(IntVar(values=[3, 4], name="input_batch"), 16, 32, 2, 64),
+            start_dim=1,
+            end_dim=-2,
+            test_name="flatten_fp32_name",
+            check_name_retention=True,
+            dtype="float32",
+        )
+        self._test_single_op(
+            X_shape=(16, 32, IntVar(values=[3, 4], name="input_batch"), 2, 64),
+            start_dim=1,
+            end_dim=-1,
+            test_name="flatten_fp32_dynamic_nonbatch",
+            dtype="float32",
+        )
+        self._test_single_op(
+            X_shape=(32, 16, 4, 3, 16),
+            start_dim=0,
+            end_dim=2,
+            test_name="flatten_fp32_static",
+            dtype="float32",
         )
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

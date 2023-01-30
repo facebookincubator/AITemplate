@@ -16,7 +16,7 @@
 Split.
 """
 import itertools
-from typing import List
+from typing import List, Sequence, Union
 
 from .... import backend
 from ....backend import registry
@@ -146,6 +146,9 @@ class split(Operator):
             for output_shape in output_shapes
         ]
         self._attrs["outputs"] = outputs
+        self._attrs["original_outputs"] = list(outputs)
+        # True means the corresponding output tensor will be materialized by backend.
+        self._attrs["output_masks"] = [True] * len(outputs)
         # torch returns a tuple, so do we
         return tuple(outputs)
 
@@ -157,6 +160,64 @@ class split(Operator):
     def gen_function(self) -> str:
         func = self._get_func("{target}.{op}.gen_function")
         return func(self._attrs)
+
+    def remove_output_at(self, indices: Union[int, Sequence[int]]) -> None:
+        """
+        This function removes the outputs in indices from the "outputs" attribute
+        and sets output_masks[indices] to be False. Note that the indices are based
+        on the current "outputs".
+
+        Parameters
+        ----------
+        indices : Union[int, Sequence[int]]
+            the index of an output or indices of multiple outputs based on the current "outputs"
+
+        Returns
+        -------
+        None
+        """
+        if isinstance(indices, int):
+            indices = [indices]
+        else:
+            indices = list(indices)
+
+        curr_outputs = self._attrs["outputs"]
+        num_curr_outputs = len(curr_outputs)
+
+        assert (
+            len(indices) <= num_curr_outputs
+        ), f"Expected len(indices) <= num_curr_outputs, but got {len(indices)} and {num_curr_outputs}"
+
+        num_original_outputs = len(self._attrs["original_outputs"])
+        num_output_masks = len(self._attrs["output_masks"])
+        assert num_original_outputs == num_output_masks, (
+            f"original_outputs and output_masks must have the same length, "
+            f"but got {num_original_outputs} and {num_output_masks}"
+        )
+
+        curr_idx = 0  # index into curr_outputs
+        idx = 0  # index into indices
+        new_outputs = []
+        # we need to skip those indices where output_masks have been modified.
+        for orig_idx in range(num_original_outputs):
+            if not self._attrs["output_masks"][orig_idx]:
+                continue
+            if idx < len(indices) and curr_idx == indices[idx]:
+                if not self._attrs["output_masks"][orig_idx]:
+                    raise RuntimeError(
+                        f'Expected input_masks at {idx} to be True for {self._attrs["name"]}'
+                    )
+                self._attrs["output_masks"][orig_idx] = False
+                idx += 1
+            else:
+                new_outputs.append(curr_outputs[curr_idx])
+            curr_idx += 1
+        num_new_outputs = len(new_outputs)
+        assert num_new_outputs + len(indices) == num_curr_outputs, (
+            f"Expected num_new_outputs + len(indices) == num_curr_outputs, "
+            f"but got {num_new_outputs + len(indices)} and {num_curr_outputs}"
+        )
+        self._attrs["outputs"] = new_outputs
 
     def _inputs_for_pseudo_code(self):
         return self._attrs["inputs"] + [

@@ -85,7 +85,7 @@ namespace {
 {{func_signature}}
 {
 
-    return invokeGroupNorm_{{elem_input_type}}<{{FuseSwish}}, {{H}}, {{W}}, {{C}}, {{G}}>(
+    return invokeGroupNorm<{{elem_input_type}}, {{FuseSwish}}, {{H}}, {{W}}, {{C}}, {{G}}>(
             static_cast<{{elem_input_type}}*>(output),
             static_cast<{{elem_input_type}}*>(input),
             static_cast<{{elem_input_type}}*>(gamma),

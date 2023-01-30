@@ -26,6 +26,7 @@ from .expand import expand
 from .gather import gather
 from .permute import permute
 from .permute021 import permute021
+from .permute0213 import permute0213
 from .permute102 import permute102
 from .permute210 import permute210
 from .size import size
@@ -33,3 +34,4 @@ from .slice_reshape_scatter import slice_reshape_scatter
 from .slice_scatter import slice_scatter
 from .split import split
 from .topk import topk
+from .transpose import transpose

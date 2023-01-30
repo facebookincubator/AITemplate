@@ -15,6 +15,7 @@
 """
 Perform memory operator related transformations.
 """
+import copy
 from typing import List
 
 from aitemplate.compiler.tensor_accessor import TensorAccessor
@@ -65,7 +66,10 @@ def _try_merge_split_cat(first_op: Operator, cat: Operator) -> bool:
     first_op_inputs = first_op._attrs["inputs"]
     first_op_outputs = first_op._attrs["outputs"]
     cat_inputs = cat._attrs["inputs"]
+    cat_original_inputs = cat._attrs["original_inputs"]
     new_cat_inputs = []
+    new_cat_original_inputs = []
+    new_cat_input_accessors = []
     i = 0
     while i < len(cat_inputs):
         matched = True
@@ -77,9 +81,25 @@ def _try_merge_split_cat(first_op: Operator, cat: Operator) -> bool:
                 break
         if matched:
             new_cat_inputs.extend(first_op._attrs["inputs"])
+            # we may not have original_inputs/input_accessors, e.g. if first_op is split
+            if "original_inputs" in first_op._attrs:
+                original_inputs = first_op._attrs["original_inputs"]
+            else:
+                original_inputs = first_op._attrs["inputs"]
+            new_cat_original_inputs.extend(original_inputs)
+            if "input_accessors" in first_op._attrs:
+                new_cat_input_accessors.extend(
+                    copy.deepcopy(first_op._attrs["input_accessors"])
+                )
+            else:
+                new_cat_input_accessors.extend(
+                    [TensorAccessor(t) for t in original_inputs]
+                )
             i += len(first_op_outputs)
         else:
             new_cat_inputs.append(cat_inputs[i])
+            new_cat_original_inputs.append(cat_original_inputs[i])
+            new_cat_input_accessors.append(cat._attrs["input_accessors"][i])
             i += 1
 
     for tensor in new_cat_inputs:
@@ -91,8 +111,8 @@ def _try_merge_split_cat(first_op: Operator, cat: Operator) -> bool:
     # change this part later when we have TensorAccessors, depending on
     # the order of the transformations.
     assert all(cat._attrs["input_masks"])
-    cat._attrs["input_accessors"] = [TensorAccessor(t) for t in cat._attrs["inputs"]]
-    cat._attrs["original_inputs"] = list(new_cat_inputs)
+    cat._attrs["input_accessors"] = new_cat_input_accessors
+    cat._attrs["original_inputs"] = list(new_cat_original_inputs)
     cat._attrs["input_masks"] = [True] * len(new_cat_inputs)
     for tensor in first_op_inputs:
         tensor._attrs["dst_ops"].remove(first_op)

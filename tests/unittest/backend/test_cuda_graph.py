@@ -24,13 +24,14 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
-logger = logging.getLogger(__name__)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class CUDAGraphTestCase(unittest.TestCase):
     def test_cuda_graph_multiple_runs(self):
-        logger.info("testing cuda graph with multiple runs")
+        _LOGGER.info("testing cuda graph with multiple runs")
         X0_batch_dim = IntVar([1, 65], name="batch_size")
         X0_non_batch_shape = [1, 772]
         X0_non_batch_dims = [IntImm(d) for d in X0_non_batch_shape]
@@ -54,7 +55,7 @@ class CUDAGraphTestCase(unittest.TestCase):
         run = 2
         repeat = 1
         for b_size in [1, 65]:
-            logger.info(f"batch size = {b_size}")
+            _LOGGER.info(f"batch size = {b_size}")
             X0_shape = [b_size] + X0_non_batch_shape
             x0_pt = torch.randn(*X0_shape).cuda().half()
             x1_pt = torch.randn(*X1_shape).cuda().half()

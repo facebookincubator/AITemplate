@@ -22,30 +22,50 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class GatherTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(GatherTestCase, self).__init__(*args, **kwargs)
+        self._test_id = 0
 
-    def _run_gather_test(self, *, input_shape, gather_dim, dim_size, index_shape=None):
-        logging.info(
-            "Test with input_shape {}, gather_dim {}".format(input_shape, gather_dim)
-        )
+    def _run_gather_test(
+        self,
+        *,
+        input_shape,
+        gather_dim,
+        dim_size,
+        index_shape=None,
+        test_name="gather",
+        input_type="float16",
+        index_type="int64",
+    ):
+        logging.info(f"Test with input_shape {input_shape}, gather_dim {gather_dim}")
 
-        input_type = "float16"
-        index_type = "int64"
         if index_shape is None:
             index_shape = [
                 random.randint(0, d - 1) if i != gather_dim else dim_size
                 for (i, d) in enumerate(input_shape)
             ]
-        logging.info("index_shape {}".format(index_shape))
+        logging.info(f"index_shape {index_shape}")
 
-        X = Tensor(shape=input_shape, dtype=input_type, name="X", is_input=True)
-        Index = Tensor(shape=index_shape, dtype=index_type, name="Index", is_input=True)
+        X = Tensor(
+            shape=input_shape,
+            dtype=input_type,
+            name="X",
+            is_input=True,
+        )
+        Index = Tensor(
+            shape=index_shape,
+            dtype=index_type,
+            name="Index",
+            is_input=True,
+        )
         gather_op = ops.gather()
         Y = gather_op(X, gather_dim, Index)
         Y._attrs["name"] = "output"
@@ -54,34 +74,131 @@ class GatherTestCase(unittest.TestCase):
         np.testing.assert_equal(y_shape, index_shape)
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "gather")
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         X_pt = get_random_torch_tensor(input_shape, input_type)
         Index_pt = torch.randint(
-            input_shape[gather_dim], size=index_shape, dtype=torch.int64
-        ).cuda()
+            input_shape[gather_dim],
+            size=index_shape,
+            dtype=torch.int64,
+            device="cuda",
+        )
         Y_pt = torch.gather(X_pt, gather_dim, Index_pt)
         Y_np = Y_pt.cpu().numpy()
         np.testing.assert_equal(y_shape, Y_np.shape)
 
         Index_pt = Index_pt.to(torch.int64)
         inputs = {"X": X_pt, "Index": Index_pt}
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype=input_type)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_gather(self):
-        self._run_gather_test(input_shape=[2], gather_dim=0, dim_size=1)
-        self._run_gather_test(input_shape=[2], gather_dim=0, dim_size=2)
-        self._run_gather_test(input_shape=[2], gather_dim=0, dim_size=3)
-
-        self._run_gather_test(input_shape=[3, 4, 5], gather_dim=2, dim_size=7)
-        self._run_gather_test(input_shape=[3, 4, 5], gather_dim=1, dim_size=4)
+    def test_gather_fp16(self):
         self._run_gather_test(
-            input_shape=[3, 4, 5], gather_dim=0, dim_size=2, index_shape=[7, 1, 4]
+            input_shape=[2],
+            gather_dim=0,
+            dim_size=1,
+            test_name="gather_fp16",
+            input_type="float16",
         )
         self._run_gather_test(
-            input_shape=[3, 4, 5], gather_dim=2, dim_size=7, index_shape=[0, 1, 2]
+            input_shape=[2],
+            gather_dim=0,
+            dim_size=2,
+            test_name="gather_fp16",
+            input_type="float16",
+        )
+        self._run_gather_test(
+            input_shape=[2],
+            gather_dim=0,
+            dim_size=3,
+            test_name="gather_fp16",
+            input_type="float16",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=2,
+            dim_size=7,
+            test_name="gather_fp16",
+            input_type="float16",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=1,
+            dim_size=4,
+            test_name="gather_fp16",
+            input_type="float16",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=0,
+            dim_size=2,
+            index_shape=[7, 1, 4],
+            test_name="gather_fp16",
+            input_type="float16",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=2,
+            dim_size=7,
+            index_shape=[0, 1, 2],
+            test_name="gather_fp16",
+            input_type="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_gather_fp32(self):
+        self._run_gather_test(
+            input_shape=[2],
+            gather_dim=0,
+            dim_size=1,
+            test_name="gather_fp32",
+            input_type="float32",
+        )
+        self._run_gather_test(
+            input_shape=[2],
+            gather_dim=0,
+            dim_size=2,
+            test_name="gather_fp32",
+            input_type="float32",
+        )
+        self._run_gather_test(
+            input_shape=[2],
+            gather_dim=0,
+            dim_size=3,
+            test_name="gather_fp32",
+            input_type="float32",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=2,
+            dim_size=7,
+            test_name="gather_fp32",
+            input_type="float32",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=1,
+            dim_size=4,
+            test_name="gather_fp32",
+            input_type="float32",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=0,
+            dim_size=2,
+            index_shape=[7, 1, 4],
+            test_name="gather_fp32",
+            input_type="float32",
+        )
+        self._run_gather_test(
+            input_shape=[3, 4, 5],
+            gather_dim=2,
+            dim_size=7,
+            index_shape=[0, 1, 2],
+            test_name="gather_fp32",
+            input_type="float32",
         )
 
 

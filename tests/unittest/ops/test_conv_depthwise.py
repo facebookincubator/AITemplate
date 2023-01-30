@@ -50,9 +50,9 @@ class ConvDepthwiseTestCase(unittest.TestCase):
         self.assertFalse(y_transpose.isnan().any())
         self.assertFalse(y_transpose.isinf().any())
         if target.name() == "cuda":
-            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
+            torch.testing.assert_close(Y_pt, y_transpose, atol=1e-2, rtol=1e-2)
         else:
-            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+            torch.testing.assert_close(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1)
 
 
 if __name__ == "__main__":

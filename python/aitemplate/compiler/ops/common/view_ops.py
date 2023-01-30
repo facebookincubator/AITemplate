@@ -115,6 +115,25 @@ class _reshape_base(_view):
         super().__init__()
         self._attrs["unknown_idx"] = -1
 
+    def make_output_shape_from_int_vars(
+        self,
+        shape: List[Any],
+    ) -> List[IntVar]:
+        output_shape = []
+        for dim in shape:
+            int_var = dim._attrs["int_var"]
+            assert (
+                int_var is not None
+            ), f"expected an int_var dimension, but got {int_var=} for {shape=}"
+            dim_values = list(int_var._attrs["values"])
+            if len(dim_values) == 1:
+                output_shape.append(IntImm(dim_values[0]))
+            else:
+                # dynamic dimension
+                dim_name = int_var._attrs["name"]
+                output_shape.append(IntVar(name=dim_name, values=dim_values))
+        return output_shape
+
     def make_output_shape(
         self,
         y_shape_values: List[Union[List[int], int]],
@@ -129,12 +148,11 @@ class _reshape_base(_view):
             if len(values) == 1:
                 output_shape.append(IntImm(values[0]))
             else:
-                if not is_intvar_tensor:
-                    assert (
-                        self._attrs["unknown_idx"] == -1
-                    ), f"{self._attrs['op']} doesn't support multiple dynamic dims, "
-                    "got {idx} and {self._attrs['unknown_idx']}"
-                    self._attrs["unknown_idx"] = idx
+                assert (
+                    self._attrs["unknown_idx"] == -1
+                ), f"{self._attrs['op']} doesn't support multiple dynamic dims, "
+                "got {idx} and {self._attrs['unknown_idx']}"
+                self._attrs["unknown_idx"] = idx
                 output_shape.append(
                     dynamic_dim if dynamic_dim is not None else IntVar(values=values)
                 )
@@ -254,11 +272,7 @@ class reshape(_reshape_base):
                 dynamic_dim=x_dynamic_dims[0] if reuse_dynamic_dim else None,
             )
         else:
-            new_shape_vals = [
-                shape._attrs["int_var"]._attrs["values"]
-                for shape in self._attrs["shape"]
-            ]
-            return self.make_output_shape(new_shape_vals, is_intvar_tensor=True)
+            return self.make_output_shape_from_int_vars(self._attrs["shape"])
 
     def __call__(self, x: Tensor, shape: List[Any]) -> Tensor:
         self._attrs["shape"] = shape
@@ -269,7 +283,9 @@ class reshape(_reshape_base):
                 self._attrs["inputs"].append(s)
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        output = Tensor(output_shape, src_ops={self}, is_view_of=x)
+        output = Tensor(
+            output_shape, src_ops={self}, is_view_of=x, dtype=x._attrs["dtype"]
+        )
         self._attrs["outputs"] = [output]
         return output
 
@@ -469,7 +485,9 @@ class squeeze(_view):
         self._attrs["inputs"] = [x]
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        output = Tensor(output_shape, src_ops={self}, is_view_of=x)
+        output = Tensor(
+            output_shape, src_ops={self}, is_view_of=x, dtype=x._attrs["dtype"]
+        )
         self._attrs["outputs"] = [output]
         return output
 

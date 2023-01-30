@@ -15,22 +15,49 @@
 """
 Util functions to handle alignment.
 """
-# Currently read4, add2 is best for both backend, so two backend seems identical.
-# They may diverge when we got deeper understanding / further optimization.
-ALIGNMENTS = [
-    8,
-    4,
-    2,
-    1,
-]
+
+from typing import List
+
+from aitemplate.compiler.dtype import normalize_dtype
 
 
-def find_max_alignment(number: int) -> int:
+# FIXME: These alignment constraints are for cutlass/ck. We should consider
+# to refine this part for other backends.
+def get_alignments(dtype: str) -> List[int]:
+    """
+    Return all of the valid alignment values for the dtype.
+    """
+    dtype = normalize_dtype(dtype)
+    if dtype in ("float16", "bfloat16"):
+        return [8, 4, 2, 1]
+    elif dtype in ("float", "float32"):
+        return [4, 2, 1]
+    else:
+        raise NotImplementedError(f"unsupported {dtype=} for alignments")
+
+
+def find_max_alignment(number: int, dtype: str) -> int:
     """
     Return the first alignment value that meets the alignment requirement
     for accessing the `number` of elements. This is dtype dependent.
     """
-    for alignment in ALIGNMENTS:
+    alignments = get_alignments(dtype)
+    for alignment in alignments:
         if number % alignment == 0:
             return alignment
     return 1
+
+
+def valid_alignment(align: int, dtype: str) -> bool:
+    """
+    Return True if the given align value is legitimate for the dtype.
+    """
+    dtype = normalize_dtype(dtype)
+    # 2-elem-alignment is required by fp16, because async.copy needs at least 32
+    # bits. For fp32 dtype values, 1-elem-alignment is valid.
+    if dtype in ("float16", "bfloat16"):
+        return align % 2 == 0
+    elif dtype in ("float", "float32"):
+        return True
+    else:
+        raise NotImplementedError(f"unsupported {dtype=} for valid_alignment")

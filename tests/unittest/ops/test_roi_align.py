@@ -21,6 +21,8 @@ from aitemplate.compiler import compile_model
 
 from aitemplate.frontend import IntVar, nn, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 try:
     import torchvision
@@ -40,7 +42,7 @@ def random_boxes(num_boxes, max_coord=100):
 
 @skipIfNoTorchVision
 class RoiAlignTestCase(unittest.TestCase):
-    def _create_tensors(self, num_rois, b, rand=False):
+    def _create_tensors(self, num_rois, b, rand=False, dtype="float16"):
         if rand:
             boxes = random_boxes(num_rois, 200)
             inds = np.arange(b)
@@ -48,25 +50,22 @@ class RoiAlignTestCase(unittest.TestCase):
             rois = torch.cat(
                 (torch.tensor(batch_inds).reshape(b, -1, 1), boxes.reshape(b, -1, 4)), 2
             )
-            rois = rois.reshape(-1, 5).cuda().half()
+            rois = rois.reshape(-1, 5).cuda()
         else:
-            rois = (
-                torch.tensor(
-                    [
-                        [0, -2.0, -2.0, 22.0, 22.0],
-                        [0, 10.0, 10.0, 30.0, 30.0],
-                        [0, 1.0, 1.0, 10.0, 10.0],
-                        [1, -2.0, -2.0, 22.0, 22.0],
-                        [1, 10.0, 10.0, 30.0, 30.0],
-                        [1, 1.0, 1.0, 10.0, 10.0],
-                    ]
-                )
-                .cuda()
-                .half()
-            )
-        return rois
+            rois = torch.tensor(
+                [
+                    [0, -2.0, -2.0, 22.0, 22.0],
+                    [0, 10.0, 10.0, 30.0, 30.0],
+                    [0, 1.0, 1.0, 10.0, 10.0],
+                    [1, -2.0, -2.0, 22.0, 22.0],
+                    [1, 10.0, 10.0, 30.0, 30.0],
+                    [1, 1.0, 1.0, 10.0, 10.0],
+                ]
+            ).cuda()
+        torch_dtype = string_to_torch_dtype(dtype)
+        return rois.to(dtype=torch_dtype)
 
-    def _test_fp16_single_op(
+    def _test_single_op(
         self,
         HH,
         WW,
@@ -77,20 +76,21 @@ class RoiAlignTestCase(unittest.TestCase):
         sampling_ratio=2,
         batch_size=(1, 1),
         rand=False,
-        test_name="roi_align",
+        test_name="roi_align_fp16",
+        dtype="float16",
     ):
         target = detect_target()
 
         X = Tensor(
             shape=[IntVar(values=list(batch_size), name="input_batch"), HH, WW, CC],
-            dtype="float16",
+            dtype=dtype,
             name="input_0",
             is_input=True,
         )
 
         R = Tensor(
             shape=[IntVar(values=[num_rois, num_rois], name="roi_batch"), 5],
-            dtype="float16",
+            dtype=dtype,
             name="input_1",
             is_input=True,
         )
@@ -110,8 +110,8 @@ class RoiAlignTestCase(unittest.TestCase):
         module = compile_model(Y, target, "./tmp", test_name)
 
         for b in batch_size:
-            X_pt = torch.randn(b, CC, WW, HH).cuda().half()
-            rois = self._create_tensors(num_rois, b, rand)
+            X_pt = get_random_torch_tensor([b, CC, WW, HH], dtype=dtype)
+            rois = self._create_tensors(num_rois, b, rand, dtype=dtype)
 
             if b == 1:
                 rois = rois[:num_rois, :]
@@ -121,16 +121,31 @@ class RoiAlignTestCase(unittest.TestCase):
             )
             Y_pt = OP_pt(X_pt, rois)
             x = X_pt.permute((0, 2, 3, 1)).contiguous()
-            inputs = [x, rois]
-            y = torch.empty([num_rois, pooled_size, pooled_size, CC]).cuda().half()
-            module.run_with_tensors(inputs, [y])
+            y = torch.empty_like(Y_pt).permute((0, 2, 3, 1)).contiguous()
+            module.run_with_tensors([x, rois], [y])
             y_transpose = y.permute((0, 3, 1, 2))
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-1, rtol=1e-1))
 
-    def test_roi_align(self):
-        self._test_fp16_single_op(HH=56, WW=56, CC=256, test_name="roi_align1")
+    def test_roi_align_fp16(self):
+        self._test_single_op(
+            HH=56,
+            WW=56,
+            CC=256,
+            test_name="roi_align1",
+            dtype="float16",
+        )
         # self._test_fp16_single_op(HH=16, WW=16, CC=32, num_rois=6, batch_size=(2, 2), rand=True, test_name="roi_align2")
+
+    def test_roi_align_fp32(self):
+        self._test_single_op(
+            HH=56,
+            WW=56,
+            CC=256,
+            test_name="roi_align1",
+            dtype="float32",
+        )
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

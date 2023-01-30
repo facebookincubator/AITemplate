@@ -26,12 +26,26 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 from aitemplate.utils import shape_utils
 
 
 class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
-    def _fused_elementwise_e2e_helper(
-        self, batch0_sizes: List[int], batch1_sizes: List[int], m1: int, m2: int, k: int
+    def __init__(self, *args, **kwargs):
+        super(FusedElementwiseWithStridedOutputsTestCase, self).__init__(
+            *args, **kwargs
+        )
+        self._test_id = 0
+
+    def _test_fused_elementwise_with_strided_outputs(
+        self,
+        batch0_sizes: List[int],
+        batch1_sizes: List[int],
+        m1: int,
+        m2: int,
+        k: int,
+        test_name: str = "fused_elementwise_with_strided_outputs",
+        dtype: str = "float16",
     ):
         # Construct one graph with 2 fused_elementwises + 1 cat.
         batch0_dim = shape_utils.gen_int_var_min_max(batch0_sizes, "batch0")
@@ -44,13 +58,13 @@ class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
                 IntImm(m1),
                 IntImm(k),
             ],
-            dtype="float16",
+            dtype=dtype,
             name="input0",
             is_input=True,
         )
         X2 = Tensor(
             shape=[],
-            dtype="float16",
+            dtype=dtype,
             name="X2",
             value=3.0,
         )
@@ -61,7 +75,7 @@ class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
                 IntImm(m2),
                 IntImm(k),
             ],
-            dtype="float16",
+            dtype=dtype,
             name="input1",
             is_input=True,
         )
@@ -79,13 +93,20 @@ class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
             [X7],
             target,
             "./tmp",
-            f"fused_elementwise_with_strided_outputs_m1_{m1}_m2_{m2}_k_{k}",
+            f"{test_name}_{self._test_id}",
         ) as module:
+            self._test_id += 1
             for batch0_size in batch0_sizes:
                 for batch1_size in batch1_sizes:
                     # Run PyTorch baseline.
-                    x1_pt = torch.randn(batch0_size, batch1_size, m1, k).cuda().half()
-                    x3_pt = torch.randn(batch0_size, batch1_size, m2, k).cuda().half()
+                    x1_pt = get_random_torch_tensor(
+                        [batch0_size, batch1_size, m1, k],
+                        dtype=dtype,
+                    )
+                    x3_pt = get_random_torch_tensor(
+                        [batch0_size, batch1_size, m2, k],
+                        dtype=dtype,
+                    )
                     x5_pt = torch.tanh(x1_pt + 3.0)
                     x6_pt = torch.tanh(x3_pt)
                     x7_pt = torch.cat([x5_pt, x6_pt], dim=2)
@@ -96,46 +117,184 @@ class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
                     inputs[name_to_index_map["input0"]] = x1_pt
                     inputs[name_to_index_map["input1"]] = x3_pt
 
-                    x7 = (
-                        torch.empty([batch0_size, batch1_size, m1 + m2, k])
-                        .cuda()
-                        .half()
-                    )
+                    x7 = torch.empty_like(x7_pt)
                     module.run_with_tensors(inputs, [x7])
                     # Do comparisons.
                     self.assertTrue(torch.allclose(x7, x7_pt, atol=1e-2, rtol=1e-2))
 
-    def test_all_aligned(self):
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[1], batch1_sizes=[2, 4, 5], m1=8, m2=8, k=1
+    def test_all_aligned_fp16(self):
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1],
+            batch1_sizes=[2, 4, 5],
+            m1=8,
+            m2=8,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp16",
+            dtype="float16",
         )
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[1, 99, 1024], batch1_sizes=[8], m1=8, m2=16, k=1
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1, 99, 1024],
+            batch1_sizes=[8],
+            m1=8,
+            m2=16,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp16",
+            dtype="float16",
         )
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[3, 5, 1024], batch1_sizes=[2, 5], m1=4, m2=4, k=2
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[3, 5, 1024],
+            batch1_sizes=[2, 5],
+            m1=4,
+            m2=4,
+            k=2,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp16",
+            dtype="float16",
         )
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[1024], batch1_sizes=[2], m1=4, m2=2, k=4
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1024],
+            batch1_sizes=[2],
+            m1=4,
+            m2=2,
+            k=4,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp16",
+            dtype="float16",
         )
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[1024], batch1_sizes=[2], m1=16, m2=64, k=32
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1024],
+            batch1_sizes=[2],
+            m1=16,
+            m2=64,
+            k=32,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp16",
+            dtype="float16",
         )
 
-    def test_not_aligned(self):
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[8], batch1_sizes=[23, 88, 100], m1=1, m2=1, k=1
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_all_aligned_fp32(self):
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1],
+            batch1_sizes=[2, 4, 5],
+            m1=8,
+            m2=8,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp32",
+            dtype="float32",
         )
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[88, 100, 234], batch1_sizes=[40], m1=4, m2=2, k=1
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1, 99, 1024],
+            batch1_sizes=[8],
+            m1=8,
+            m2=16,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp32",
+            dtype="float32",
         )
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[23, 56, 93], batch1_sizes=[12, 34, 55], m1=1, m2=2, k=2
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[3, 5, 1024],
+            batch1_sizes=[2, 5],
+            m1=4,
+            m2=4,
+            k=2,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp32",
+            dtype="float32",
         )
-        self._fused_elementwise_e2e_helper(
-            batch0_sizes=[2], batch1_sizes=[1024], m1=8, m2=2, k=1
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1024],
+            batch1_sizes=[2],
+            m1=4,
+            m2=2,
+            k=4,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp32",
+            dtype="float32",
+        )
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[1024],
+            batch1_sizes=[2],
+            m1=16,
+            m2=64,
+            k=32,
+            test_name="fused_elementwise_with_strided_outputs_all_aligned_fp32",
+            dtype="float32",
+        )
+
+    def test_not_aligned_fp16(self):
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[8],
+            batch1_sizes=[23, 88, 100],
+            m1=1,
+            m2=1,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp16",
+            dtype="float16",
+        )
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[88, 100, 234],
+            batch1_sizes=[40],
+            m1=4,
+            m2=2,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp16",
+            dtype="float16",
+        )
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[23, 56, 93],
+            batch1_sizes=[12, 34, 55],
+            m1=1,
+            m2=2,
+            k=2,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp16",
+            dtype="float16",
+        )
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[2],
+            batch1_sizes=[1024],
+            m1=8,
+            m2=2,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp16",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_not_aligned_fp32(self):
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[8],
+            batch1_sizes=[23, 88, 100],
+            m1=1,
+            m2=1,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp32",
+            dtype="float32",
+        )
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[88, 100, 234],
+            batch1_sizes=[40],
+            m1=4,
+            m2=2,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp32",
+            dtype="float32",
+        )
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[23, 56, 93],
+            batch1_sizes=[12, 34, 55],
+            m1=1,
+            m2=2,
+            k=2,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp32",
+            dtype="float32",
+        )
+        self._test_fused_elementwise_with_strided_outputs(
+            batch0_sizes=[2],
+            batch1_sizes=[1024],
+            m1=8,
+            m2=2,
+            k=1,
+            test_name="fused_elementwise_with_strided_outputs_not_aligned_fp32",
+            dtype="float32",
         )
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

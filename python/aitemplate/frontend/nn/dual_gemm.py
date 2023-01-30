@@ -59,9 +59,20 @@ class T5DenseGatedGeluDense(Module):
         dtype="float16",
     ):
         super().__init__()
-        self.wi_0_weight = Parameter(shape=[out_channels, in_channels], dtype=dtype)
-        self.wi_1_weight = Parameter(shape=[out_channels, in_channels], dtype=dtype)
-        self.wo = Linear(out_channels, in_channels, bias=False)
+        self.wi_0_weight = Parameter(
+            shape=[out_channels, in_channels],
+            dtype=dtype,
+        )
+        self.wi_1_weight = Parameter(
+            shape=[out_channels, in_channels],
+            dtype=dtype,
+        )
+        self.wo = Linear(
+            out_channels,
+            in_channels,
+            bias=False,
+            dtype=dtype,
+        )
         self.op = ops.dual_gemm_rcr_fast_gelu()
 
     def forward(self, *args):

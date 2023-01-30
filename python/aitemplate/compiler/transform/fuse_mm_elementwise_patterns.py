@@ -21,6 +21,7 @@ from ..ops.gemm_universal import (
     bmm_crr_add,
     bmm_rrr,
     bmm_rrr_add,
+    gemm_rcr,
     gemm_rcr_bias,
     gemm_rcr_bias_add,
     gemm_rcr_bias_add_add,
@@ -37,6 +38,16 @@ from ..ops.gemm_universal import (
     gemm_rcr_bias_sigmoid_mul_tanh,
     gemm_rcr_bias_tanh,
 )
+
+
+def get_gemm_rcr_bias_patterns():
+    gemm_rcr_bias_patterns = [
+        (
+            (gemm_rcr(), elementwise(FuncEnum.ADD)),
+            gemm_rcr_bias,
+        ),
+    ]
+    return gemm_rcr_bias_patterns
 
 
 def get_patterns():

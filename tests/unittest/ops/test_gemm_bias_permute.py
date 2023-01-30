@@ -19,11 +19,17 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 @unittest.skipIf(detect_target().name() == "cuda", "Not supported by CUDA.")
 class GEMMBiasPermuteTestCase(unittest.TestCase):
-    def _test_gemm_rcr_bias_permute_m2n3(self, copy_op=False):
+    def _test_gemm_rcr_bias_permute_m2n3(
+        self,
+        copy_op=False,
+        test_name="gemm_rcr_bias_permute_m2n3",
+        dtype="float16",
+    ):
         M0 = 4
         M1 = 256
         N0 = 4
@@ -34,35 +40,62 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         K = 256
         shape = (M1, N0, N1)
         target = detect_target()
-        X = Tensor(shape=[M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[N, K], dtype="float16", name="input_1", is_input=True)
-        B = Tensor(shape=[N], dtype="float16", name="input_2", is_input=True)
+        X = Tensor(
+            shape=[M, K],
+            dtype=dtype,
+            name="input_0",
+            is_input=True,
+        )
+        W = Tensor(
+            shape=[N, K],
+            dtype=dtype,
+            name="input_1",
+            is_input=True,
+        )
+        B = Tensor(
+            shape=[N],
+            dtype=dtype,
+            name="input_2",
+            is_input=True,
+        )
         OP = ops.gemm_rcr_bias_permute(shape, layout="m2n3")
         if copy_op:
             OP = ops.gemm_rcr_bias_permute(**OP._get_op_attributes())
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "gemm_rcr_bias_permute_m2n3")
-        X_pt = torch.randn(M, K).cuda().half()
-        W_pt = torch.randn(N, K).cuda().half()
-        B_pt = torch.randn(N).cuda().half()
+        module = compile_model(Y, target, "./tmp", test_name)
+        X_pt = get_random_torch_tensor([M, K], dtype=dtype)
+        W_pt = get_random_torch_tensor([N, K], dtype=dtype)
+        B_pt = get_random_torch_tensor([N], dtype=dtype)
 
         Y_l = torch.nn.functional.linear(X_pt, W_pt, bias=B_pt)
         Y_r = Y_l.reshape(M0, M1, N0, N1, N2)
         Y_pt = torch.permute(Y_r, [2, 0, 3, 1, 4])
 
         inputs = [X_pt, W_pt, B_pt]
-        y = torch.empty(Y_pt.shape).cuda().half()
+        y = torch.empty_like(Y_pt)
         module.run_with_tensors(inputs, [y])
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_gemm_rcr_bias_permute_m2n3(self):
-        self._test_gemm_rcr_bias_permute_m2n3()
-        self._test_gemm_rcr_bias_permute_m2n3(copy_op=True)
+    def test_gemm_rcr_bias_permute_m2n3_fp16(self):
+        self._test_gemm_rcr_bias_permute_m2n3(
+            test_name="gemm_rcr_bias_permute_m2n3_fp16",
+            dtype="float16",
+        )
+        self._test_gemm_rcr_bias_permute_m2n3(
+            copy_op=True,
+            test_name="gemm_rcr_bias_permute_m2n3_fp16_copy_op",
+            dtype="float16",
+        )
 
-    def _test_gemm_rcr_bias_permute_m3n2(self, copy_op=False):
+    def _test_gemm_rcr_bias_permute_m3n2(
+        self,
+        copy_op=False,
+        test_name="gemm_rcr_bias_permute_m3n2",
+        dtype="float16",
+    ):
         M0 = 4
         M1 = 16
         M2 = 32
@@ -73,9 +106,24 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         K = 256
         shape = (M1, M2, N0)
         target = detect_target()
-        X = Tensor(shape=[M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[N, K], dtype="float16", name="input_1", is_input=True)
-        B = Tensor(shape=[N], dtype="float16", name="input_2", is_input=True)
+        X = Tensor(
+            shape=[M, K],
+            dtype=dtype,
+            name="input_0",
+            is_input=True,
+        )
+        W = Tensor(
+            shape=[N, K],
+            dtype=dtype,
+            name="input_1",
+            is_input=True,
+        )
+        B = Tensor(
+            shape=[N],
+            dtype=dtype,
+            name="input_2",
+            is_input=True,
+        )
         OP = ops.gemm_rcr_bias_permute(shape, layout="m3n2")
         if copy_op:
             OP = ops.gemm_rcr_bias_permute(**OP._get_op_attributes())
@@ -83,24 +131,36 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "gemm_rcr_bias_permute_m3n2")
-        X_pt = torch.randn(M, K).cuda().half()
-        W_pt = torch.randn(N, K).cuda().half()
-        B_pt = torch.randn(N).cuda().half()
+        X_pt = get_random_torch_tensor([M, K], dtype=dtype)
+        W_pt = get_random_torch_tensor([N, K], dtype=dtype)
+        B_pt = get_random_torch_tensor([N], dtype=dtype)
         Y_l = torch.nn.functional.linear(X_pt, W_pt, bias=B_pt)
         Y_r = Y_l.reshape(M0, M1, M2, N0, N1)
         Y_pt = torch.permute(Y_r, [2, 0, 3, 1, 4])
 
         inputs = [X_pt, W_pt, B_pt]
-        y = torch.empty(Y_pt.shape).cuda().half()
+        y = torch.empty_like(Y_pt)
         module.run_with_tensors(inputs, [y])
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_gemm_rcr_bias_permute_m3n2(self):
-        self._test_gemm_rcr_bias_permute_m3n2()
-        self._test_gemm_rcr_bias_permute_m3n2(copy_op=True)
+    def test_gemm_rcr_bias_permute_m3n2_fp16(self):
+        self._test_gemm_rcr_bias_permute_m3n2(
+            test_name="gemm_rcr_bias_permute_m3n2_fp16",
+            dtype="float16",
+        )
+        self._test_gemm_rcr_bias_permute_m3n2(
+            copy_op=True,
+            test_name="gemm_rcr_bias_permute_m3n2_fp16_copy_op",
+            dtype="float16",
+        )
 
-    def _test_gemm_rcr_permute_m2n3(self, copy_op=False):
+    def _test_gemm_rcr_permute_m2n3(
+        self,
+        copy_op=False,
+        test_name="gemm_rcr_permute_m2n3",
+        dtype="float16",
+    ):
         M0 = 4
         M1 = 256
         N0 = 4
@@ -111,8 +171,18 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         K = 256
         shape = (M1, N0, N1)
         target = detect_target()
-        X = Tensor(shape=[M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[N, K], dtype="float16", name="input_1", is_input=True)
+        X = Tensor(
+            shape=[M, K],
+            dtype=dtype,
+            name="input_0",
+            is_input=True,
+        )
+        W = Tensor(
+            shape=[N, K],
+            dtype=dtype,
+            name="input_1",
+            is_input=True,
+        )
         OP = ops.gemm_rcr_permute(shape, layout="m2n3")
         if copy_op:
             OP = ops.gemm_rcr_permute(**OP._get_op_attributes())
@@ -120,22 +190,29 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "gemm_rcr_permute_m2n3")
-        X_pt = torch.randn(M, K).cuda().half()
-        W_pt = torch.randn(N, K).cuda().half()
+        X_pt = get_random_torch_tensor([M, K], dtype=dtype)
+        W_pt = get_random_torch_tensor([N, K], dtype=dtype)
 
         Y_l = torch.nn.functional.linear(X_pt, W_pt)
         Y_r = Y_l.reshape(M0, M1, N0, N1, N2)
         Y_pt = torch.permute(Y_r, [2, 0, 3, 1, 4])
 
         inputs = [X_pt, W_pt]
-        y = torch.empty(Y_pt.shape).cuda().half()
+        y = torch.empty_like(Y_pt)
         module.run_with_tensors(inputs, [y])
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_gemm_rcr_permute_m2n3(self):
-        self._test_gemm_rcr_permute_m2n3()
-        self._test_gemm_rcr_permute_m2n3(copy_op=True)
+    def test_gemm_rcr_permute_m2n3_fp16(self):
+        self._test_gemm_rcr_permute_m2n3(
+            test_name="test_gemm_rcr_permute_m2n3_fp16",
+            dtype="float16",
+        )
+        self._test_gemm_rcr_permute_m2n3(
+            copy_op=True,
+            test_name="test_gemm_rcr_permute_m2n3_fp16_copy_op",
+            dtype="float16",
+        )
 
     # ========== enable them after fix profiler =========
     # def test_gemm_rcr_bias_relu(self):

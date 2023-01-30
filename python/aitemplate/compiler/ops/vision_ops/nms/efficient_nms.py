@@ -16,6 +16,7 @@
 Efficient nms.
 """
 import itertools
+import logging
 import os
 import re
 from collections import OrderedDict
@@ -26,11 +27,13 @@ import jinja2
 
 from ..... import backend
 from .....backend import registry
-from .....utils import logger, shape_utils
+from .....utils import shape_utils
 from ....base import IntImm, Operator, Tensor
 
-
 # pylint: disable=C0103,W0221,W0102,W0223
+
+
+_LOGGER = logging.getLogger(__name__)
 
 # TODO: change to column last
 SHAPE_FUNC_TEMPLATE = jinja2.Template(
@@ -140,11 +143,20 @@ class efficient_nms(Operator):
         self._extract_exec_path(boxes)
         output_shape = self._infer_shapes(boxes, scores)
 
+        x = boxes
         num_detections = Tensor(
             [output_shape[0], IntImm(1)], dtype="int64", src_ops={self}
         )
-        detection_boxes = Tensor(output_shape, src_ops={self})
-        detection_scores = Tensor(output_shape[:-1], src_ops={self})
+        detection_boxes = Tensor(
+            output_shape,
+            src_ops={self},
+            dtype=x._attrs["dtype"],
+        )
+        detection_scores = Tensor(
+            output_shape[:-1],
+            src_ops={self},
+            dtype=x._attrs["dtype"],
+        )
         detection_classes = Tensor(output_shape[:-1], dtype="int64", src_ops={self})
         output = (num_detections, detection_boxes, detection_scores, detection_classes)
         self._attrs["outputs"] = [
@@ -211,7 +223,7 @@ class efficient_nms(Operator):
         cmd.append(x_shape[1] * x_shape[2])
         cmd.append(x_shape[2])
         command = [str(x) for x in cmd]
-        logger.info(__name__, "profiling cmd: {}".format(command))
+        _LOGGER.info("profiling cmd: {}".format(command))
         return command
 
     def _profile_single_workload(self, profiler_prefix, exec_key, devices):
@@ -246,8 +258,7 @@ class efficient_nms(Operator):
         profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
 
         for wkl in workloads:
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
             workspace = self._profile_single_workload(profiler_prefix, wkl, devices)

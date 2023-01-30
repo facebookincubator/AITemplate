@@ -21,8 +21,13 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 
-logger = logging.getLogger(__name__)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class SliceScatterReshapeCatTestCase(unittest.TestCase):
@@ -40,17 +45,18 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         input_x_shape,
         dim,
         add_tanh=False,
+        dtype="float16",
     ):
         target = detect_target()
 
-        input_X_pt = torch.randn(input_x_shape).cuda().half()
+        input_X_pt = get_random_torch_tensor(input_x_shape, dtype)
 
         Ys_pt = []
         Xs_pt = []
         for input_shape, start_indices, end_indices in zip(
             input_shapes, input_start_indices, input_end_indices
         ):
-            X_pt = torch.randn(input_shape).cuda().half()
+            X_pt = get_random_torch_tensor(input_shape, dtype)
             Xs_pt.append(X_pt)
             slice_indices = [slice(i, j) for i, j in zip(start_indices, end_indices)]
             Y_pt = X_pt[slice_indices]
@@ -62,7 +68,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
             Y_pt = torch.tanh(Y_pt)
 
         input_X = Tensor(
-            shape=input_x_shape, dtype="float16", name="input_x", is_input=True
+            shape=input_x_shape, dtype=dtype, name="input_x", is_input=True
         )
         Ys = []
         for idx, (input_shape, start_indices, end_indices) in enumerate(
@@ -70,7 +76,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         ):
             slice_op = ops.dynamic_slice()
             X_name = "input_{}".format(idx)
-            X = Tensor(shape=input_shape, dtype="float16", name=X_name, is_input=True)
+            X = Tensor(shape=input_shape, dtype=dtype, name=X_name, is_input=True)
             Y = slice_op(X, start_indices=start_indices, end_indices=end_indices)
             Ys.append(Y)
         concat_op = ops.concatenate()
@@ -84,7 +90,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logger.info(
+        _LOGGER.info(
             "AITemplate output_0 shape: {}, pt shape: {}".format(y_shape, Y_pt.size())
         )
         np.testing.assert_equal(y_shape, Y_pt.size())
@@ -110,7 +116,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         for i, X_pt in enumerate(Xs_pt):
             inputs[input_name_to_index[f"input_{i}"]] = X_pt
         inputs[input_name_to_index["input_x"]] = input_X_pt
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
         self.test_count += 1
@@ -132,6 +138,18 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
             input_x_shape=[4, 5, 8],
             dim=1,
             add_tanh=True,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_slice_scatter_reshape_float(self):
+        self._run_one_test(
+            input_shapes=[[8, 16], [20, 30]],
+            input_start_indices=[[0, 4], [12, 2]],
+            input_end_indices=[[4, 14], [16, 8]],
+            reshape_to=[4, 2, 8],
+            input_x_shape=[4, 5, 8],
+            dim=1,
+            dtype="float",
         )
 
 

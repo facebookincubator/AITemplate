@@ -315,10 +315,11 @@ void DispatchIndexType(
     const void* src,
     const int* permutation,
     void* dst,
+    size_t elem_size,
     cudaStream_t stream) {
   // Vector read/write.
   // This fixed a bug in the original oneflow code.
-  src_dims[num_dims - 1] = src_dims[num_dims - 1] * 2 / movement_size;
+  src_dims[num_dims - 1] = src_dims[num_dims - 1] * elem_size / movement_size;
 
   size_t count = 1;
   for (size_t i = 0; i < num_dims; ++i) {
@@ -340,12 +341,14 @@ void DispatchMovementSize(
     const void* src,
     const int* permutation,
     void* dst,
+    size_t elem_size,
     cudaStream_t stream) {
   void (*func)(
       int64_t* /*src_dims*/,
       const void* /*src*/,
       const int* /*permutation*/,
       void* /*dst*/,
+      size_t /*elem_size*/,
       cudaStream_t /*stream*/) = nullptr;
   if (movement_size == 1) {
     func = DispatchIndexType<num_dims, 1>;
@@ -360,10 +363,10 @@ void DispatchMovementSize(
   } else {
     throw std::runtime_error("unsupported movement_size for permute");
   }
-  func(src_dims, src, permutation, dst, stream);
+  func(src_dims, src, permutation, dst, elem_size, stream);
 }
 
-template <size_t num_dims, size_t elem_size>
+template <size_t num_dims, typename ElemType>
 void invokePermute(
     void* dst,
     const void* src,
@@ -377,10 +380,10 @@ void invokePermute(
     throw std::runtime_error("src is NULL!");
   }
 
-  // 2 bytes/half * 8 halves
+  constexpr size_t elem_size = sizeof(ElemType);
   constexpr size_t kMaxMovementSize = 16;
   const size_t movement_size = GetMovementSize<kMaxMovementSize>(
       elem_size, num_dims, src_dims, src, permutation, dst);
   DispatchMovementSize<num_dims>(
-      movement_size, src_dims, src, permutation, dst, stream);
+      movement_size, src_dims, src, permutation, dst, elem_size, stream);
 }

@@ -23,6 +23,7 @@ from aitemplate.compiler.ops import elementwise, squeeze, unsqueeze
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 def _construct_shape(
@@ -44,17 +45,19 @@ def _construct_shape(
 
 
 class SqueezeTestCase(unittest.TestCase):
-    def _test_helper(self, dim, shape, expected_shape, test_name, do_squeeze):
+    def _test_helper(
+        self, dim, shape, expected_shape, test_name, do_squeeze, input_type="float16"
+    ):
         target = detect_target()
 
         shape_vars, input_0_names = _construct_shape(shape, 0)
         expected_shape_vars, input_1_names = _construct_shape(expected_shape, 0)
 
         input_0 = Tensor(
-            shape=shape_vars, dtype="float16", name="input_0", is_input=True
+            shape=shape_vars, dtype=input_type, name="input_0", is_input=True
         )
         input_1 = Tensor(
-            shape=expected_shape_vars, dtype="float16", name="input_1", is_input=True
+            shape=expected_shape_vars, dtype=input_type, name="input_1", is_input=True
         )
 
         if do_squeeze:
@@ -76,8 +79,8 @@ class SqueezeTestCase(unittest.TestCase):
         all_input_1_shapes = itertools.product(*expected_shape)
 
         for input_0_shape, input_1_shape in zip(all_input_0_shapes, all_input_1_shapes):
-            input_0_pt = torch.randn(input_0_shape).cuda().half()
-            input_1_pt = torch.randn(input_1_shape).cuda().half()
+            input_0_pt = get_random_torch_tensor(input_0_shape, input_type)
+            input_1_pt = get_random_torch_tensor(input_1_shape, input_type)
             if do_squeeze:
                 # For some reason, torch.squeeze(X_pt, dim) fails when
                 # dim is None (even though the docs say dim is Optional[int])!
@@ -91,8 +94,9 @@ class SqueezeTestCase(unittest.TestCase):
             output_pt = torch.mul(Y_pt, input_1_pt)
             inputs = [input_0_pt, input_1_pt]
 
-            output = torch.empty(input_1_shape).cuda().half()
+            output = torch.empty_like(input_1_pt)
             module.run_with_tensors(inputs, [output])
+            # outputs from view ops must be exactly equal
             self.assertTrue(torch.equal(output, output_pt))
 
     def test_squeeze(self):
@@ -126,6 +130,28 @@ class SqueezeTestCase(unittest.TestCase):
             [[4, 3], [1], [2], [3], [1]],
             "unsqueeze2",
             False,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
+    def test_squeeze_float32(self):
+        self._test_helper(
+            2,
+            [[4, 2], [4], [1], [8]],
+            [[4, 2], [4], [8]],
+            "squeeze_float32",
+            True,
+            input_type="float32",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
+    def test_unsqueeze_float32(self):
+        self._test_helper(
+            0,
+            [[4, 3], [1], [2], [1]],
+            [[1], [4, 3], [1], [2], [1]],
+            "unsqueeze_float32",
+            False,
+            input_type="float32",
         )
 
 

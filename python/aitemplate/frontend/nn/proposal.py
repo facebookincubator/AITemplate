@@ -104,7 +104,13 @@ def generate_anchors(ratios=(0.5, 1, 2), scales=(8, 16, 32)):
 
 
 def generate_shifted_anchors(
-    im_h, im_w, feat_stride, scales, ratios, batch_size, dtype
+    im_h,
+    im_w,
+    feat_stride,
+    scales,
+    ratios,
+    batch_size,
+    dtype,
 ):
     """
     Enumerate all shifted anchors
@@ -134,13 +140,17 @@ def generate_shifted_anchors(
     return exp_anchors.astype(dtype)
 
 
-def gen_batch_inds(batch_size, rpn_post_nms_top_n):
+def gen_batch_inds(
+    batch_size,
+    rpn_post_nms_top_n,
+    dtype="float16",
+):
     if batch_size > 1:
         inds = np.arange(batch_size)
         batch_inds = np.repeat(inds.reshape(-1, 1), repeats=rpn_post_nms_top_n, axis=1)
-        return batch_inds.reshape(batch_size, rpn_post_nms_top_n, 1).astype("float16")
+        return batch_inds.reshape(batch_size, rpn_post_nms_top_n, 1).astype(dtype)
     else:
-        return np.zeros((batch_size, rpn_post_nms_top_n, 1)).astype("float16")
+        return np.zeros((batch_size, rpn_post_nms_top_n, 1)).astype(dtype)
 
 
 class Proposal(Module):
@@ -186,7 +196,11 @@ class Proposal(Module):
             self.batch_size,
             self.dtype,
         )
-        self._batch_inds = gen_batch_inds(batch_size, rpn_post_nms_top_n)
+        self._batch_inds = gen_batch_inds(
+            batch_size,
+            rpn_post_nms_top_n,
+            dtype=dtype,
+        )
 
     def forward(self, *args):
         assert len(args) >= 1
@@ -236,36 +250,58 @@ class Proposal(Module):
         ctr_y = ops.elementwise(FuncEnum.ADD)(anchor_y1, height_mid)
 
         pred_ctr_x = ops.elementwise(FuncEnum.ADD)(
-            ops.elementwise(FuncEnum.MUL)(delta_x, widths), ctr_x
+            ops.elementwise(FuncEnum.MUL)(delta_x, widths),
+            ctr_x,
         )
         pred_ctr_y = ops.elementwise(FuncEnum.ADD)(
-            ops.elementwise(FuncEnum.MUL)(delta_y, heights), ctr_y
+            ops.elementwise(FuncEnum.MUL)(delta_y, heights),
+            ctr_y,
         )
         pred_w = ops.elementwise(FuncEnum.MUL)(
-            ops.elementwise(FuncEnum.EXP)(delta_w), widths
+            ops.elementwise(FuncEnum.EXP)(delta_w),
+            widths,
         )
         pred_h = ops.elementwise(FuncEnum.MUL)(
-            ops.elementwise(FuncEnum.EXP)(delta_h), heights
+            ops.elementwise(FuncEnum.EXP)(delta_h),
+            heights,
         )
 
         p_x1 = ops.elementwise(FuncEnum.SUB)(
-            pred_ctr_x, ops.elementwise(FuncEnum.MUL)(const_0_5, pred_w)
+            pred_ctr_x,
+            ops.elementwise(FuncEnum.MUL)(const_0_5, pred_w),
         )
         p_y1 = ops.elementwise(FuncEnum.SUB)(
-            pred_ctr_y, ops.elementwise(FuncEnum.MUL)(const_0_5, pred_h)
+            pred_ctr_y,
+            ops.elementwise(FuncEnum.MUL)(const_0_5, pred_h),
         )
         p_x2 = ops.elementwise(FuncEnum.ADD)(
-            pred_ctr_x, ops.elementwise(FuncEnum.MUL)(const_0_5, pred_w)
+            pred_ctr_x,
+            ops.elementwise(FuncEnum.MUL)(const_0_5, pred_w),
         )
         p_y2 = ops.elementwise(FuncEnum.ADD)(
-            pred_ctr_y, ops.elementwise(FuncEnum.MUL)(const_0_5, pred_h)
+            pred_ctr_y,
+            ops.elementwise(FuncEnum.MUL)(const_0_5, pred_h),
         )
 
         if self.clip_box:
-
-            x_min = Tensor(shape=[], dtype="float16", name="X_min", value=0)
-            x_max_h = Tensor(shape=[], dtype="float16", name="X_min_h", value=self.im_h)
-            x_max_w = Tensor(shape=[], dtype="float16", name="X_min_w", value=self.im_w)
+            x_min = Tensor(
+                shape=[],
+                dtype=self.dtype,
+                name="X_min",
+                value=0,
+            )
+            x_max_h = Tensor(
+                shape=[],
+                dtype=self.dtype,
+                name="X_min_h",
+                value=self.im_h,
+            )
+            x_max_w = Tensor(
+                shape=[],
+                dtype=self.dtype,
+                name="X_min_w",
+                value=self.im_w,
+            )
 
             f_x1 = ops.elementwise(FuncEnum.HARDTANH)(p_x1, x_min, x_max_w)
             f_y1 = ops.elementwise(FuncEnum.HARDTANH)(p_y1, x_min, x_max_h)

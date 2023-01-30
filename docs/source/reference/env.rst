@@ -9,6 +9,8 @@ Codegen
 
 **RECOMPILE**: If set to "0", it skips compilation for the .so and reuses the previously compiled ones. It is used to speed up local testing. The default value is "1" to always recompile.
 
+**AIT_NDEBUG**: If set to "1", compile with `NDEBUG`, disabling debug assertions. Recommended for production builds. "1" by default.
+
 Profiling
 ---------
 

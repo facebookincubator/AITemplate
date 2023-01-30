@@ -21,14 +21,20 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class StridedSplitGroupGemmTestCase(unittest.TestCase):
-    def test_split_group_gemm(self):
+    def _test_split_group_gemm(self, dtype="float16"):
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
 
         K1 = 32
@@ -43,13 +49,13 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
 
         X = Tensor(
             shape=[IntImm(M), IntImm(K)],
-            dtype="float16",
+            dtype=dtype,
             name="x",
             is_input=True,
         )
-        W1 = Tensor(shape=[N, K1], dtype="float16", name="w1", is_input=True)
-        W2 = Tensor(shape=[N, K2], dtype="float16", name="w2", is_input=True)
-        W3 = Tensor(shape=[N, K3], dtype="float16", name="w3", is_input=True)
+        W1 = Tensor(shape=[N, K1], dtype=dtype, name="w1", is_input=True)
+        W2 = Tensor(shape=[N, K2], dtype=dtype, name="w2", is_input=True)
+        W3 = Tensor(shape=[N, K3], dtype=dtype, name="w3", is_input=True)
 
         split_op = ops.split()
         X1, X2, X3 = split_op(X, [K1, K2, K3], dim)
@@ -72,10 +78,10 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]
         )
 
-        X_pt = torch.randn(M, K).cuda().half()
-        W1_pt = torch.randn(N, K1).cuda().half()
-        W2_pt = torch.randn(N, K2).cuda().half()
-        W3_pt = torch.randn(N, K3).cuda().half()
+        X_pt = get_random_torch_tensor([M, K], dtype)
+        W1_pt = get_random_torch_tensor([N, K1], dtype)
+        W2_pt = get_random_torch_tensor([N, K2], dtype)
+        W3_pt = get_random_torch_tensor([N, K3], dtype)
         X1_pt, X2_pt, X3_pt = torch.split(X_pt, [K1, K2, K3], dim)
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt)
@@ -84,7 +90,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y_np = Y_pt.cpu().numpy()
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logging.info("AITemplate y_shape: {}".format(y_shape))
+        _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
         np.testing.assert_equal(y_shape, Y_np.shape)
 
         inputs = [
@@ -93,14 +99,14 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
             W2_pt,
             W3_pt,
         ]
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_split_group_gemm_bias(self):
+    def _test_split_group_gemm_bias(self, dtype="float16"):
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
 
         K1 = 32
@@ -113,15 +119,13 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
 
         dim = 1
 
-        X = Tensor(
-            shape=[IntImm(M), IntImm(K)], dtype="float16", name="x", is_input=True
-        )
-        W1 = Tensor(shape=[N, K1], dtype="float16", name="w1", is_input=True)
-        W2 = Tensor(shape=[N, K2], dtype="float16", name="w2", is_input=True)
-        W3 = Tensor(shape=[N, K3], dtype="float16", name="w3", is_input=True)
-        B1 = Tensor(shape=[N], dtype="float16", name="b1", is_input=True)
-        B2 = Tensor(shape=[N], dtype="float16", name="b2", is_input=True)
-        B3 = Tensor(shape=[N], dtype="float16", name="b3", is_input=True)
+        X = Tensor(shape=[IntImm(M), IntImm(K)], dtype=dtype, name="x", is_input=True)
+        W1 = Tensor(shape=[N, K1], dtype=dtype, name="w1", is_input=True)
+        W2 = Tensor(shape=[N, K2], dtype=dtype, name="w2", is_input=True)
+        W3 = Tensor(shape=[N, K3], dtype=dtype, name="w3", is_input=True)
+        B1 = Tensor(shape=[N], dtype=dtype, name="b1", is_input=True)
+        B2 = Tensor(shape=[N], dtype=dtype, name="b2", is_input=True)
+        B3 = Tensor(shape=[N], dtype=dtype, name="b3", is_input=True)
 
         split_op = ops.split()
         X1, X2, X3 = split_op(X, [K1, K2, K3], dim)
@@ -149,13 +153,13 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]
         )
 
-        X_pt = torch.randn(M, K).cuda().half()
-        W1_pt = torch.randn(N, K1).cuda().half()
-        W2_pt = torch.randn(N, K2).cuda().half()
-        W3_pt = torch.randn(N, K3).cuda().half()
-        B1_pt = torch.randn(N).cuda().half()
-        B2_pt = torch.randn(N).cuda().half()
-        B3_pt = torch.randn(N).cuda().half()
+        X_pt = get_random_torch_tensor([M, K], dtype)
+        W1_pt = get_random_torch_tensor([N, K1], dtype)
+        W2_pt = get_random_torch_tensor([N, K2], dtype)
+        W3_pt = get_random_torch_tensor([N, K3], dtype)
+        B1_pt = get_random_torch_tensor([N], dtype)
+        B2_pt = get_random_torch_tensor([N], dtype)
+        B3_pt = get_random_torch_tensor([N], dtype)
         X1_pt, X2_pt, X3_pt = torch.split(X_pt, [K1, K2, K3], dim)
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt, bias=B1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt, bias=B2_pt)
@@ -164,7 +168,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y_np = Y_pt.cpu().numpy()
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logging.info("AITemplate y_shape: {}".format(y_shape))
+        _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
         np.testing.assert_equal(y_shape, Y_np.shape)
 
         input_name_to_index = module.get_input_name_to_index_map()
@@ -176,14 +180,14 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         inputs[input_name_to_index["b1"]] = B1_pt
         inputs[input_name_to_index["b2"]] = B2_pt
         inputs[input_name_to_index["b3"]] = B3_pt
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_split_group_gemm_reorder(self):
+    def _test_split_group_gemm_reorder(self, dtype="float16"):
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
 
         K1 = 32
@@ -196,12 +200,10 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
 
         dim = 1
 
-        X = Tensor(
-            shape=[IntImm(M), IntImm(K)], dtype="float16", name="x", is_input=True
-        )
-        W1 = Tensor(shape=[N, K1], dtype="float16", name="w1", is_input=True)
-        W2 = Tensor(shape=[N, K2], dtype="float16", name="w2", is_input=True)
-        W3 = Tensor(shape=[N, K3], dtype="float16", name="w3", is_input=True)
+        X = Tensor(shape=[IntImm(M), IntImm(K)], dtype=dtype, name="x", is_input=True)
+        W1 = Tensor(shape=[N, K1], dtype=dtype, name="w1", is_input=True)
+        W2 = Tensor(shape=[N, K2], dtype=dtype, name="w2", is_input=True)
+        W3 = Tensor(shape=[N, K3], dtype=dtype, name="w3", is_input=True)
 
         split_op = ops.split()
         X1, X2, X3 = split_op(X, [K1, K2, K3], dim)
@@ -224,10 +226,10 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]
         )
 
-        X_pt = torch.randn(M, K).cuda().half()
-        W1_pt = torch.randn(N, K1).cuda().half()
-        W2_pt = torch.randn(N, K2).cuda().half()
-        W3_pt = torch.randn(N, K3).cuda().half()
+        X_pt = get_random_torch_tensor([M, K], dtype)
+        W1_pt = get_random_torch_tensor([N, K1], dtype)
+        W2_pt = get_random_torch_tensor([N, K2], dtype)
+        W3_pt = get_random_torch_tensor([N, K3], dtype)
         X1_pt, X2_pt, X3_pt = torch.split(X_pt, [K1, K2, K3], dim)
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt)
@@ -236,7 +238,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y_np = Y_pt.cpu().numpy()
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logging.info("AITemplate y_shape: {}".format(y_shape))
+        _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
         np.testing.assert_equal(y_shape, Y_np.shape)
 
         inputs = [0 for i in range(4)]
@@ -245,14 +247,14 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         inputs[name_to_idx["w1"]] = W1_pt
         inputs[name_to_idx["w2"]] = W2_pt
         inputs[name_to_idx["w3"]] = W3_pt
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_split_group_gemm_bias_reorder(self):
+    def _test_split_group_gemm_bias_reorder(self, dtype="float16"):
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
 
         K1 = 32
@@ -265,15 +267,13 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
 
         dim = 1
 
-        X = Tensor(
-            shape=[IntImm(M), IntImm(K)], dtype="float16", name="x", is_input=True
-        )
-        W1 = Tensor(shape=[N, K1], dtype="float16", name="w1", is_input=True)
-        W2 = Tensor(shape=[N, K2], dtype="float16", name="w2", is_input=True)
-        W3 = Tensor(shape=[N, K3], dtype="float16", name="w3", is_input=True)
-        B1 = Tensor(shape=[N], dtype="float16", name="b1", is_input=True)
-        B2 = Tensor(shape=[N], dtype="float16", name="b2", is_input=True)
-        B3 = Tensor(shape=[N], dtype="float16", name="b3", is_input=True)
+        X = Tensor(shape=[IntImm(M), IntImm(K)], dtype=dtype, name="x", is_input=True)
+        W1 = Tensor(shape=[N, K1], dtype=dtype, name="w1", is_input=True)
+        W2 = Tensor(shape=[N, K2], dtype=dtype, name="w2", is_input=True)
+        W3 = Tensor(shape=[N, K3], dtype=dtype, name="w3", is_input=True)
+        B1 = Tensor(shape=[N], dtype=dtype, name="b1", is_input=True)
+        B2 = Tensor(shape=[N], dtype=dtype, name="b2", is_input=True)
+        B3 = Tensor(shape=[N], dtype=dtype, name="b3", is_input=True)
 
         split_op = ops.split()
         X1, X2, X3 = split_op(X, [K1, K2, K3], dim)
@@ -301,13 +301,13 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
             expected_inputs_group_gemm_op, group_gemm_op._attrs["inputs"]
         )
 
-        X_pt = torch.randn(M, K).cuda().half()
-        W1_pt = torch.randn(N, K1).cuda().half()
-        W2_pt = torch.randn(N, K2).cuda().half()
-        W3_pt = torch.randn(N, K3).cuda().half()
-        B1_pt = torch.randn(N).cuda().half()
-        B2_pt = torch.randn(N).cuda().half()
-        B3_pt = torch.randn(N).cuda().half()
+        X_pt = get_random_torch_tensor([M, K], dtype)
+        W1_pt = get_random_torch_tensor([N, K1], dtype)
+        W2_pt = get_random_torch_tensor([N, K2], dtype)
+        W3_pt = get_random_torch_tensor([N, K3], dtype)
+        B1_pt = get_random_torch_tensor([N], dtype)
+        B2_pt = get_random_torch_tensor([N], dtype)
+        B3_pt = get_random_torch_tensor([N], dtype)
         X1_pt, X2_pt, X3_pt = torch.split(X_pt, [K1, K2, K3], dim)
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt, bias=B1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt, bias=B2_pt)
@@ -316,7 +316,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y_np = Y_pt.cpu().numpy()
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
-        logging.info("AITemplate y_shape: {}".format(y_shape))
+        _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
         np.testing.assert_equal(y_shape, Y_np.shape)
 
         input_name_to_index = module.get_input_name_to_index_map()
@@ -328,9 +328,22 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         inputs[input_name_to_index["b1"]] = B1_pt
         inputs[input_name_to_index["b2"]] = B2_pt
         inputs[input_name_to_index["b3"]] = B3_pt
-        y = torch.empty(y_shape).cuda().half()
+        y = get_torch_empty_tensor(y_shape, dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+
+    def test_split_group_gemm_float16(self):
+        self._test_split_group_gemm()
+        self._test_split_group_gemm_bias()
+        self._test_split_group_gemm_reorder()
+        self._test_split_group_gemm_bias_reorder()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_split_group_gemm_float(self):
+        self._test_split_group_gemm(dtype="float")
+        self._test_split_group_gemm_bias(dtype="float")
+        self._test_split_group_gemm_reorder(dtype="float")
+        self._test_split_group_gemm_bias_reorder(dtype="float")
 
 
 if __name__ == "__main__":

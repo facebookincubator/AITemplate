@@ -15,6 +15,7 @@
 """
 Unittests for vanilla_attenion.
 """
+import logging
 import math
 import os
 import unittest
@@ -26,8 +27,11 @@ from aitemplate.compiler import compile_model, Model
 from aitemplate.frontend import nn, Tensor
 from aitemplate.frontend.nn.vanilla_attention import vanilla_attention
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger, shape_utils
+from aitemplate.utils import shape_utils
 from einops import rearrange
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def mark_output(y):
@@ -199,9 +203,7 @@ class vanillaAttentionTestCase(unittest.TestCase):
                 [y],
                 count=100,
             )
-            logger.info(
-                __file__, "benchmark vanilla-attn time: {0}".format(time_per_iter_ms)
-            )
+            _LOGGER.info("benchmark vanilla-attn time: {0}".format(time_per_iter_ms))
 
         self.assertTrue(torch.allclose(y_pt.half(), y, atol=1e-1, rtol=1e-1))
 
@@ -317,9 +319,7 @@ class vanillaAttentionTestCase(unittest.TestCase):
                     ys,
                     count=100,
                 )
-                logger.info(
-                    __file__, "benchmark cross-attn time: {0}".format(time_per_iter_ms)
-                )
+                _LOGGER.info("benchmark cross-attn time: {0}".format(time_per_iter_ms))
 
     def test_cross_attn(self):
         self._test_mha(batch_sizes=[1], seqlen=2, seqlen_kv=32, dim=512, num_heads=8)

@@ -18,4 +18,8 @@ def op_to_content(op):
     # TODO (XXX): Add op specialized attrs here, like gemm/conv
     content = {}
     content["op_type"] = op._attrs["op"]
+    if op._attrs["op"] == "fused_elementwise":
+        content["func"] = ", ".join(
+            [str(x._attrs["func"]) for x in op._attrs["elementwise_ops"]]
+        )
     return content

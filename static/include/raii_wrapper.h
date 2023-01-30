@@ -69,4 +69,17 @@ inline GraphPtr RAII_EndCaptureAndCreateGraph(
   return GraphPtr(graph, GraphDestroy);
 }
 
+class RAII_ProfilerRange {
+ public:
+  RAII_ProfilerRange(char* name) {
+    ProfilerRangePush(name);
+  }
+  ~RAII_ProfilerRange() {
+    ProfilerRangePop();
+  }
+
+  RAII_ProfilerRange(const RAII_ProfilerRange&) = delete;
+  RAII_ProfilerRange(RAII_ProfilerRange&&) = delete;
+};
+
 } // namespace ait

@@ -12,10 +12,15 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import os
 from typing import Any, List
 
-from aitemplate.utils import logger
+from aitemplate.utils.misc import is_debug
+from aitemplate.utils.visualization import plot_graph
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def get_sorted_ops(tensors) -> List[Any]:
@@ -63,14 +68,17 @@ def sorted_op_pseudo_code(ops, with_shape=True) -> str:
 
 
 def dump_graph_debug_str_to_file(tensors, workdir, name):
-    if logger.is_debug():
+    if is_debug():
         # Dump graph and pseudo code for debug only
         prefix = os.path.join(workdir, name)
         graph_path = prefix + "_graph.txt"
         pseudo_code_path = prefix + "_pseudo_code.txt"
+        graph_visual_path = prefix + "_graph_vis.html"
         with open(graph_path, "w") as f:
             f.write(sorted_graph_debug_str(tensors))
-            logger.debug(__file__, f"Dumped {name} graph to {graph_path}")
+            _LOGGER.debug(f"Dumped {name} graph to {graph_path}")
         with open(pseudo_code_path, "w") as f:
             f.write(sorted_graph_pseudo_code(tensors))
-            logger.debug(__file__, f"Dumped {name} pseudo code to {pseudo_code_path}")
+            _LOGGER.debug(f"Dumped {name} pseudo code to {pseudo_code_path}")
+        plot_graph(tensors, graph_visual_path)
+        _LOGGER.debug(f"Dumped {name} visualization to {graph_visual_path}")

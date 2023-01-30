@@ -15,6 +15,9 @@
 import contextlib
 import ctypes
 import itertools
+import json
+import os
+import tempfile
 import unittest
 from typing import Callable, Optional, Tuple
 
@@ -506,6 +509,27 @@ class ModelAPITestCase(unittest.TestCase):
         self.assertTrue(torch.equal(out_pt, out_ait))
         self.assertEqual(len(tensors), 1)
         self.assertTrue(torch.equal(tensors["output"], in0 * in1))
+
+    def test_profile(self):
+        module, (in0, in1), (out_pt, out_ait) = self._get_simple_graph_and_output(
+            "test_profile", False, True
+        )
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            profile_name = os.path.join(tmpdirname, "profile.json")
+            module.profile(
+                [
+                    torch_to_ait_data(in0),
+                    torch_to_ait_data(in1),
+                ],
+                [torch_to_ait_data(out_ait)],
+                20,
+                profile_name,
+            )
+            with open(profile_name) as f:
+                report = json.loads(f.read())
+                self.assertTrue(len(report), 1)
+                for _, elapsed in report.items():
+                    self.assertGreater(elapsed, 0)
 
     def test_get_output_dtype(self):
         module, inputs, output_np = self._get_simple_graph_and_output(
@@ -1421,7 +1445,7 @@ class ModelAPITestCase(unittest.TestCase):
                 f"test_custom_allocator_{allocator_kind.value}",
                 allocator_kind=AITemplateAllocatorKind.TRACKING,
             ) as module:
-                allocator = module.DLL.allocator_handle
+                allocator = module.allocator_handle
                 self.assertIsNotNone(allocator.value)
 
                 if allocator_kind == AITemplateAllocatorKind.TRACKING:

@@ -15,6 +15,7 @@
 
 from . import (
     bmm_rcr_softmax,
+    dual_bmm_rrr_div,
     dual_gemm_rcr_fast_gelu,
     dual_gemm_rcr_silu,
     gemm_rcr_bias_softmax,
@@ -23,8 +24,9 @@ from . import (
 
 __all__ = [
     "bmm_rcr_softmax",
+    "dual_bmm_rrr_div",
+    "dual_gemm_rcr_fast_gelu",
+    "dual_gemm_rcr_silu",
     "gemm_rcr_bias_softmax",
     "gemm_rcr_softmax",
-    "dual_gemm_rcr_silu",
-    "dual_gemm_rcr_fast_gelu",
 ]

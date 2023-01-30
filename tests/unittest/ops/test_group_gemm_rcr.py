@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import unittest
 
 import torch
@@ -19,19 +20,23 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.utils import logger
+from aitemplate.testing.test_utils import get_random_torch_tensor
 from parameterized import param, parameterized
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class GroupGEMMRcrTestCase(unittest.TestCase):
     @parameterized.expand(
         [
-            param(False, "group_gemm_rcr_run_once"),
-            param(True, "group_gemm_rcr_run_twice"),
+            param(False, "group_gemm_rcr_run_once", "float16"),
+            param(True, "group_gemm_rcr_run_twice", "float16"),
+            param(False, "group_gemm_rcr_run_once_fp32", "float32"),
         ]
     )
-    def test_rcr(self, run_twice: bool, test_name: str):
+    def test_rcr(self, run_twice: bool, test_name: str, dtype: str):
         M = 256
         K1 = 128
         N1 = 60
@@ -39,12 +44,12 @@ class GroupGEMMRcrTestCase(unittest.TestCase):
         N2 = 64
         target = detect_target()
         if int(target._arch) < 80:
-            logger.warning(__file__, "Group Gemm need SM80 HW")
+            _LOGGER.warning("Group Gemm need SM80 HW")
             return
-        X1 = Tensor(shape=[M, K1], dtype="float16", name="x1", is_input=True)
-        X2 = Tensor(shape=[M, K2], dtype="float16", name="x2", is_input=True)
-        W1 = Tensor(shape=[N1, K1], dtype="float16", name="w1", is_input=True)
-        W2 = Tensor(shape=[N2, K2], dtype="float16", name="w2", is_input=True)
+        X1 = Tensor(shape=[M, K1], dtype=dtype, name="x1", is_input=True)
+        X2 = Tensor(shape=[M, K2], dtype=dtype, name="x2", is_input=True)
+        W1 = Tensor(shape=[N1, K1], dtype=dtype, name="w1", is_input=True)
+        W2 = Tensor(shape=[N2, K2], dtype=dtype, name="w2", is_input=True)
         OP = ops.group_gemm_rcr()
         Y1, Y2 = OP(operand_groups=[[X1, W1], [X2, W2]])
         Y1._attrs["name"] = "y1"
@@ -61,10 +66,10 @@ class GroupGEMMRcrTestCase(unittest.TestCase):
             graph_outputs.append(Y3)
 
         module = compile_model(graph_outputs, target, "./tmp", test_name)
-        X1_pt = torch.randn(M, K1).cuda().half()
-        X2_pt = torch.randn(M, K2).cuda().half()
-        W1_pt = torch.randn(N1, K1).cuda().half()
-        W2_pt = torch.randn(N2, K2).cuda().half()
+        X1_pt = get_random_torch_tensor(shape=(M, K1), dtype=dtype)
+        X2_pt = get_random_torch_tensor(shape=(M, K2), dtype=dtype)
+        W1_pt = get_random_torch_tensor(shape=(N1, K1), dtype=dtype)
+        W2_pt = get_random_torch_tensor(shape=(N2, K2), dtype=dtype)
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt)
 
@@ -74,11 +79,11 @@ class GroupGEMMRcrTestCase(unittest.TestCase):
             "x2": X2_pt,
             "w2": W2_pt,
         }
-        y1 = torch.empty([M, N1]).cuda().half()
-        y2 = torch.empty([M, N2]).cuda().half()
+        y1 = torch.empty_like(Y1_pt)
+        y2 = torch.empty_like(Y2_pt)
         outputs = {"y1": y1, "y2": y2}
         if run_twice:
-            outputs["y3"] = torch.empty([M, N1]).cuda().half()
+            outputs["y3"] = torch.empty_like(y1)
 
         module.run_with_tensors(inputs, outputs)
         self.assertTrue(torch.allclose(Y1_pt, y1, atol=1e-1, rtol=1e-1))

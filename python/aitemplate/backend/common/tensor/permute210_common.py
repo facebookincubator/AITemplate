@@ -37,12 +37,9 @@ FUNC_DECL_TEMPLATE = jinja2.Template(
 void {{func_name}}(
   const void* /* input */,
   void* /* output */,
-  int64_t* /* x_dim0 */,
-  int64_t* /* x_dim1 */,
-  int64_t* /* x_dim2 */,
-  int64_t* /* y_dim0 */,
-  int64_t* /* y_dim1 */,
-  int64_t* /* y_dim2 */,
+  int64_t /* x_dim0 */,
+  int64_t /* x_dim1 */,
+  int64_t /* x_dim2 */,
   {{prefix}}Stream_t /* stream */
 );
 """
@@ -56,9 +53,6 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{x_dim0}},
 {{indent}}    {{x_dim1}},
 {{indent}}    {{x_dim2}},
-{{indent}}    {{y_dim0}},
-{{indent}}    {{y_dim1}},
-{{indent}}    {{y_dim2}},
 {{indent}}    stream
 {{indent}});
 """
@@ -70,9 +64,9 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}permute210_launcher(
 {{indent}}    in_ptr,
 {{indent}}    out_ptr,
-{{indent}}    *x_dim0,
-{{indent}}    *x_dim1,
-{{indent}}    *x_dim2,
+{{indent}}    x_dim0,
+{{indent}}    x_dim1,
+{{indent}}    x_dim2,
 {{indent}}    stream
 {{indent}});
 {{indent}}return;
@@ -84,6 +78,7 @@ SRC_TEMPLATE = jinja2.Template(
 {{header_files}}
 
 #define TILE_SIZE 32
+#define CH_K 4
 
 namespace {
 template <typename T>
@@ -95,7 +90,7 @@ __global__ void permute210_kernel(T *output,
   __shared__ T shbuf[TILE_SIZE][TILE_SIZE + 1];
 
   int32_t strides[2] = { c * w, w };
-  int32_t offset = blockIdx.y * strides[1]; // We are slicing through static c.
+  int32_t offset = blockIdx.y * strides[1];  // We are slicing through static c.
 
   int32_t xBlock = blockIdx.x * TILE_SIZE;
   int32_t yBlock = blockIdx.z * TILE_SIZE;
@@ -106,21 +101,21 @@ __global__ void permute210_kernel(T *output,
   const T *A = input + inputIdx;
 
   if (x < w) {
-    if (y + 24 < n) { // This guards (y, y+8, y+16, y+24) are within boundary.
+    if (y + 24 < n) {  // This guards (y, y+8, y+16, y+24) are within boundary.
       int tid = threadIdx.y;
       #pragma unroll
-      for (int loopIdx = 0; loopIdx < 4; loopIdx++) {
+      for (int loopIdx = 0; loopIdx < CH_K; loopIdx++) {
         shbuf[threadIdx.x][tid] = A[threadIdx.x];
-        A                       = &A[8 * strides[0]];
-        tid += 8;
+        A                       = &A[TILE_SIZE / CH_K * strides[0]];
+        tid += TILE_SIZE / CH_K;
       }
     } else {
       #pragma unroll
-      for (int tid = threadIdx.y; tid < 32; tid += 8) {
+      for (int tid = threadIdx.y; tid < TILE_SIZE; tid += TILE_SIZE / CH_K) {
         if (yBlock + tid < n) {
           shbuf[threadIdx.x][tid] = A[threadIdx.x];
         }
-        A = &A[8 * strides[0]];
+        A = &A[TILE_SIZE / CH_K * strides[0]];
       }
     }
   }
@@ -141,18 +136,18 @@ __global__ void permute210_kernel(T *output,
     if (y + 24 < w) {
       int tid = threadIdx.y;
       #pragma unroll
-      for (int loopIdx = 0; loopIdx < 4; loopIdx++) {
+      for (int loopIdx = 0; loopIdx < CH_K; loopIdx++) {
         output[threadIdx.x] = shbuf[tid][threadIdx.x];
-        output              = &output[8 * strides[0]];
-        tid += 8;
+        output              = &output[TILE_SIZE / CH_K * strides[0]];
+        tid += TILE_SIZE / CH_K;
       }
     } else {
       #pragma unroll
-      for (int tid = threadIdx.y; tid < 32; tid += 8) {
+      for (int tid = threadIdx.y; tid < TILE_SIZE; tid += TILE_SIZE / CH_K) {
         if (yBlock + tid < w) {
           output[threadIdx.x] = shbuf[tid][threadIdx.x];
         }
-        output = &output[8 * strides[0]];
+        output = &output[TILE_SIZE / CH_K * strides[0]];
       }
     }
   }
@@ -164,8 +159,8 @@ void permute210_launcher(const void* in_ptr,
                          int x_dim1,
                          int x_dim2,
                          {{prefix}}Stream_t stream) {
-  dim3 grid((x_dim2 + (TILE_SIZE-1))/TILE_SIZE, x_dim1, (x_dim0 + (TILE_SIZE-1))/TILE_SIZE);
-  dim3 block(TILE_SIZE, TILE_SIZE/4);
+  dim3 grid((x_dim2 + TILE_SIZE - 1) / TILE_SIZE, x_dim1, (x_dim0 + TILE_SIZE - 1) / TILE_SIZE);
+  dim3 block(TILE_SIZE, TILE_SIZE / CH_K);
   permute210_kernel<{{lib_dtype}}><<<grid, block, 0, stream>>>(
     static_cast<{{lib_dtype}}*>(out_ptr),
     static_cast<const {{lib_dtype}}*>(in_ptr),
@@ -179,19 +174,16 @@ void permute210_launcher(const void* in_ptr,
 void {{function_name}} (
     const void* in_ptr,
     void* out_ptr,
-    int64_t* x_dim0,
-    int64_t* x_dim1,
-    int64_t* x_dim2,
-    int64_t* y_dim0,
-    int64_t* y_dim1,
-    int64_t* y_dim2,
+    int64_t x_dim0,
+    int64_t x_dim1,
+    int64_t x_dim2,
     {{prefix}}Stream_t stream
 ) {
   if (!in_ptr) {
     throw std::runtime_error("in_ptr is NULL!");
   }
   if (!out_ptr) {
-    throw std::runtime_error("in_ptr is NULL!");
+    throw std::runtime_error("out_ptr is NULL!");
   }
   {{exec_paths}}
 }
@@ -200,7 +192,11 @@ void {{function_name}} (
 )
 
 
-def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) -> str:
+def gen_function(
+    func_attrs: Dict[str, Any],
+    header_files: str,
+    backend_spec,
+) -> str:
     """
     Parameters
     ----------
@@ -229,7 +225,10 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function_decl(
+    func_attrs: Dict[str, Any],
+    backend_spec,
+) -> str:
     """
     Parameters
     ----------
@@ -250,7 +249,11 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
     )
 
 
-def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> str:
+def gen_function_call(
+    func_attrs: Dict[str, Any],
+    backend_spec,
+    indent="  ",
+) -> str:
     """
     Parameters
     ----------
@@ -269,16 +272,12 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> 
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
     y = func_attrs["outputs"][0]
-    yshape = y._attrs["shape"]
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         in_ptr=x._attrs["name"],
         out_ptr=y._attrs["name"],
-        x_dim0="&" + xshape[0]._attrs["name"],
-        x_dim1="&" + xshape[1]._attrs["name"],
-        x_dim2="&" + xshape[2]._attrs["name"],
-        y_dim0="&" + yshape[0]._attrs["name"],
-        y_dim1="&" + yshape[1]._attrs["name"],
-        y_dim2="&" + yshape[2]._attrs["name"],
+        x_dim0=xshape[0]._attrs["name"],
+        x_dim1=xshape[1]._attrs["name"],
+        x_dim2=xshape[2]._attrs["name"],
         indent=indent,
     )

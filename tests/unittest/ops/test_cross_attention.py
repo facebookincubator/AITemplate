@@ -33,6 +33,14 @@ def mark_output(y):
 
 
 class crossattentionTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        torch.manual_seed(0)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.test_id = 0
+
     def _test_mha(
         self,
         batch_sizes,
@@ -94,7 +102,10 @@ class crossattentionTestCase(unittest.TestCase):
         Y = Y + inputs_ait
         mark_output(Y)
         target = detect_target(use_fp16_acc=False)
-        exe_module = compile_model(Y, target, "./tmp", "cross_attn_dynamic")
+        exe_module = compile_model(
+            Y, target, "./tmp", f"cross_attn_dynamic_{self.test_id}"
+        )
+        self.test_id += 1
         for name, weight in params_ait.items():
             exe_module.set_constant_with_tensor(name, weight)
 
@@ -131,8 +142,8 @@ class crossattentionTestCase(unittest.TestCase):
         self._test_mha(
             batch_sizes=[1, 32, 64], seqlen=128, seqlen_kv=62, dim=512, num_heads=8
         )
+        self._test_mha(batch_sizes=[128], seqlen=1, seqlen_kv=4, dim=16, num_heads=2)
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
     unittest.main()

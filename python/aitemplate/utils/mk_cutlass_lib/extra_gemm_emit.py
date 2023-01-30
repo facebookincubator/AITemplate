@@ -242,9 +242,13 @@ DUAL_GEMM_TEMPLATE = jinja2.Template(
     """
     using ${operation_name}_base =
     cutlass::gemm::device::DualGemm<
-        ${element_a}, ${layout_a},
-        ${element_b}, ${layout_b},
-        ${element_c}, ${layout_c},
+        ${element_a},
+        ${layout_a},
+        ${element_b},
+        ${layout_b0},
+        ${layout_b1},
+        ${element_c},
+        ${layout_c},
         ${element_accumulator},
         ${opcode_class},
         ${arch},
@@ -298,7 +302,7 @@ class EmitDualGemmInstance:
       """
 
 
-  def emit(self, operation):
+  def emit(self, operation, broadcast_b1=False):
 
     threadblock_shape = operation.tile_description.threadblock_shape
     warp_count = operation.tile_description.warp_count
@@ -310,9 +314,10 @@ class EmitDualGemmInstance:
       LayoutType.RowMajor: LayoutType.ColumnMajor
     }
 
-    instance_layout_A, instance_layout_B, instance_layout_C = \
+    instance_layout_A, instance_layout_B0, instance_layout_C = \
       (operation.A.layout, operation.B.layout, operation.C.layout)
-    #
+    # B1 is broadcasted in column-major with zero stride (the latter set in the Arguments)
+    instance_layout_B1 = LayoutType.ColumnMajor if broadcast_b1 else instance_layout_B0
 
     # Support built-in epilogue functors or user-defined functions
     if isinstance(operation.epilogue_functor, enum.Enum):
@@ -340,7 +345,8 @@ class EmitDualGemmInstance:
       'element_a': DataTypeTag[operation.A.element],
       'layout_a': LayoutTag[instance_layout_A],
       'element_b': DataTypeTag[operation.B.element],
-      'layout_b': LayoutTag[instance_layout_B],
+      'layout_b0': LayoutTag[instance_layout_B0],
+      'layout_b1': LayoutTag[instance_layout_B1],
       'element_c': DataTypeTag[operation.C.element],
       'layout_c': LayoutTag[instance_layout_C],
       'element_accumulator': DataTypeTag[operation.accumulator_type()],

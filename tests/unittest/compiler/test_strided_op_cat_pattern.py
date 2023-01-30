@@ -27,7 +27,10 @@ from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils, shape_utils
 
 
@@ -44,6 +47,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         m2: int,
         m3: int,
         k: int,
+        dtype: str = "float16",
     ):
         # Construct one graph with 2 fused_elementwises + 1 cat.
         batch0_dim = shape_utils.gen_int_var_min_max(batch0_sizes, "batch_0")
@@ -51,25 +55,25 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         X1 = Tensor(
             shape=[batch0_dim, batch1_dim, IntImm(m1), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="input0",
             is_input=True,
         )
         X2 = Tensor(
             shape=[],
-            dtype="float16",
+            dtype=dtype,
             name="X2",
             value=3.0,
         )
         X3 = Tensor(
             shape=[batch0_dim, batch1_dim, IntImm(m2), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="input1",
             is_input=True,
         )
         X9 = Tensor(
             shape=[batch0_dim, batch1_dim, IntImm(m3), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="input2",
             is_input=True,
         )
@@ -88,7 +92,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             [X8],
             target,
             "./tmp",
-            "fused_elementwise_cat_m1_{}_m2_{}_m3_{}_k_{}".format(m1, m2, m3, k),
+            f"fused_elementwise_cat_m1_{m1}_m2_{m2}_m3_{m3}_k_{k}_{dtype}",
         ) as module:
             # Verify the generated graph.
             sorted_graph = module.debug_sorted_graph
@@ -98,9 +102,9 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
             # Run PyTorch baseline.
             for sizes in itertools.product(batch0_sizes, batch1_sizes):
-                x1_pt = torch.randn(sizes[0], sizes[1], m1, k).cuda().half()
-                x3_pt = torch.randn(sizes[0], sizes[1], m2, k).cuda().half()
-                x9_pt = torch.randn(sizes[0], sizes[1], m3, k).cuda().half()
+                x1_pt = get_random_torch_tensor([sizes[0], sizes[1], m1, k], dtype)
+                x3_pt = get_random_torch_tensor([sizes[0], sizes[1], m2, k], dtype)
+                x9_pt = get_random_torch_tensor([sizes[0], sizes[1], m3, k], dtype)
                 x5_pt = torch.tanh(x1_pt + 3.0)
                 x6_pt = torch.tanh(x3_pt)
                 x7_pt = torch.cat([x5_pt, x6_pt, x9_pt], dim=2)
@@ -108,8 +112,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
                 # Run AITemplate module.
                 inputs = [x1_pt, x3_pt, x9_pt]
-                x8 = (
-                    torch.empty([sizes[0] * sizes[1], (m1 + m2 + m3) * k]).cuda().half()
+                x8 = get_torch_empty_tensor(
+                    [sizes[0] * sizes[1], (m1 + m2 + m3) * k], dtype
                 )
                 module.run_with_tensors(inputs, [x8])
 
@@ -172,20 +176,116 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             batch0_sizes=[2, 59, 88], batch1_sizes=[20], m1=12, m2=16, m3=4, k=1
         )
 
-    def test_elementwise_cat_1(self):
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_elementwise_float(self):
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[1024], batch1_sizes=[2], m1=8, m2=16, m3=8, k=1, dtype="float"
+        )
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[2, 59, 88],
+            batch1_sizes=[20],
+            m1=6,
+            m2=8,
+            m3=2,
+            k=1,
+            dtype="float",
+        )
+        # float v.s. float
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[100, 30],
+            batch1_sizes=[2],
+            m1=1,
+            m2=1,
+            m3=8,
+            k=1,
+            dtype="float",
+        )
+        # float2 v.s. float
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[30],
+            batch1_sizes=[2, 88, 99],
+            m1=2,
+            m2=3,
+            m3=8,
+            k=1,
+            dtype="float",
+        )
+        # float v.s. float2
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[77, 89, 188],
+            batch1_sizes=[1, 2, 4],
+            m1=3,
+            m2=2,
+            m3=8,
+            k=1,
+            dtype="float",
+        )
+        # float4 v.s. float
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[2],
+            batch1_sizes=[1, 3, 1024],
+            m1=4,
+            m2=5,
+            m3=8,
+            k=1,
+            dtype="float",
+        )
+        # float4 v.s. float2
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[2],
+            batch1_sizes=[1, 3, 1024],
+            m1=4,
+            m2=6,
+            m3=8,
+            k=1,
+            dtype="float",
+        )
+        # Offset alignment tests.
+        # offset alignment = 1
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[2, 59, 88],
+            batch1_sizes=[20],
+            m1=3,
+            m2=4,
+            m3=5,
+            k=1,
+            dtype="float",
+        )
+        # offset alignment = 2
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[2, 59, 88],
+            batch1_sizes=[20],
+            m1=6,
+            m2=8,
+            m3=2,
+            k=1,
+            dtype="float",
+        )
+        # offset alignment = 4
+        self._fused_elementwise_e2e_helper(
+            batch0_sizes=[2, 59, 88],
+            batch1_sizes=[20],
+            m1=12,
+            m2=16,
+            m3=4,
+            k=1,
+            dtype="float",
+        )
+
+    def _test_elementwise_cat_1(self, dtype="float16"):
         BATCH_SIZE = 1024
         NUM_FLOAT_FEATURES = 1456
 
         X1 = Tensor(
             shape=[IntImm(BATCH_SIZE), IntImm(NUM_FLOAT_FEATURES)],
-            dtype="float16",
+            dtype=dtype,
             name="float_features",
             is_input=True,
         )
         X2 = ops.elementwise(FuncEnum.SIGN)(X1)  # Sign
         X3 = ops.elementwise(FuncEnum.ABS)(X1)  # Abs
         X4 = ops.elementwise(FuncEnum.LOGE)(
-            ops.elementwise(FuncEnum.ADD)(X3, Tensor(shape=[], value=1.0))
+            ops.elementwise(FuncEnum.ADD)(X3, Tensor(shape=[], dtype=dtype, value=1.0))
         )  # Log1p
         X5 = ops.elementwise(FuncEnum.MUL)(X2, X4)  # Mul
         X6 = ops.concatenate()([X5, X1], dim=1)  # Concat
@@ -198,9 +298,11 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             [X6],
             target,
             "./tmp",
-            "test_elementwise_cat_1",
+            f"test_elementwise_cat_1_{dtype}",
         ) as module:
-            float_features = torch.randn(BATCH_SIZE, NUM_FLOAT_FEATURES).cuda().half()
+            float_features = get_random_torch_tensor(
+                [BATCH_SIZE, NUM_FLOAT_FEATURES], dtype
+            )
             x1_pt = torch.sign(float_features)  # Sign
             x2_pt = torch.abs(float_features)  # Abs
             x3_pt = torch.log1p(x2_pt)  # Log1p
@@ -208,8 +310,61 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             x5_pt = torch.cat([x4_pt, float_features], dim=1)  # Concat
 
             # Run AITemplate module.
-            x6 = torch.empty(x5_pt.size()).cuda().half()
+            x6 = get_torch_empty_tensor(x5_pt.size(), dtype)
             module.run_with_tensors([float_features], [x6])
+
+            # Do comparisons.
+            self.assertTrue(torch.allclose(x6, x5_pt, atol=1e-2, rtol=1e-2))
+
+    def test_elementwise_cat_1(self):
+        self._test_elementwise_cat_1()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_elementwise_cat_1_float(self):
+        self._test_elementwise_cat_1(dtype="float")
+
+    def test_elementwise_cat_non_fusion(self):
+        BATCH_SIZE = 1024
+        NUM_FLOAT_FEATURES = 1456
+
+        X1 = Tensor(
+            shape=[IntImm(BATCH_SIZE), IntImm(NUM_FLOAT_FEATURES)],
+            name="float_features",
+            is_input=True,
+        )
+        X2 = ops.elementwise(FuncEnum.SIGN)(X1)  # Sign
+        X3 = ops.elementwise(FuncEnum.ABS)(X1)  # Abs
+        X4 = ops.elementwise(FuncEnum.LOGE)(
+            ops.elementwise(FuncEnum.ADD)(X3, Tensor(shape=[], value=1.0))
+        )  # Log1p
+        X5 = ops.elementwise(FuncEnum.MUL)(X2, X4)  # Mul
+        X5._attrs["name"] = "intermediate_out"
+        X5._attrs["is_output"] = True
+        X6 = ops.concatenate()([X5, X1], dim=1)  # Concat
+        X6._attrs["name"] = "output0"
+        X6._attrs["is_output"] = True
+
+        # Gen module.
+        target = detect_target()
+        with compile_model(
+            [X5, X6],
+            target,
+            "./tmp",
+            "test_elementwise_cat_1_non_fusion",
+        ) as module:
+            float_features = get_random_torch_tensor([BATCH_SIZE, NUM_FLOAT_FEATURES])
+            x1_pt = torch.sign(float_features)  # Sign
+            x2_pt = torch.abs(float_features)  # Abs
+            x3_pt = torch.log1p(x2_pt)  # Log1p
+            x4_pt = x1_pt * x3_pt  # Mul
+            x5_pt = torch.cat([x4_pt, float_features], dim=1)  # Concat
+
+            # Run AITemplate module.
+            x6 = get_torch_empty_tensor(x5_pt.size())
+            x5 = get_torch_empty_tensor(x4_pt.size())
+            module.run_with_tensors(
+                [float_features], {"output0": x6, "intermediate_out": x5}
+            )
 
             # Do comparisons.
             self.assertTrue(torch.allclose(x6, x5_pt, atol=1e-2, rtol=1e-2))
@@ -224,81 +379,82 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         m2: int = -1,
         cat_dim: int = 1,
         no_fuse: bool = False,
+        dtype: str = "float16",
     ):
         # Construct one graph with 3 gemms + 1 cat.
         nd_gemm = m2 > 0
         if nd_gemm:
             X1 = Tensor(
                 shape=[IntImm(m), IntImm(m2), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name="X1",
                 is_input=True,
             )
             X2 = Tensor(
                 shape=[IntImm(m), IntImm(m2), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name="X2",
                 is_input=True,
             )
             X3 = Tensor(
                 shape=[IntImm(m), IntImm(m2), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name="X3",
                 is_input=True,
             )
             X4 = Tensor(
                 shape=[IntImm(m), IntImm(m2), IntImm(n2)],
-                dtype="float16",
+                dtype=dtype,
                 name="X4",
                 is_input=True,
             )
         else:
             X1 = Tensor(
                 shape=[IntImm(m), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name="X1",
                 is_input=True,
             )
             X2 = Tensor(
                 shape=[IntImm(m), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name="X2",
                 is_input=True,
             )
             X3 = Tensor(
                 shape=[IntImm(m), IntImm(k)],
-                dtype="float16",
+                dtype=dtype,
                 name="X3",
                 is_input=True,
             )
             X4 = Tensor(
                 shape=[IntImm(m), IntImm(n2)],
-                dtype="float16",
+                dtype=dtype,
                 name="X4",
                 is_input=True,
             )
 
         W1 = Tensor(
             shape=[IntImm(n1), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="W1",
             is_input=True,
         )
         W2 = Tensor(
             shape=[IntImm(n2), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="W2",
             is_input=True,
         )
         B2 = Tensor(
             shape=[IntImm(n2)],
-            dtype="float16",
+            dtype=dtype,
             name="B2",
             is_input=True,
         )
         W3 = Tensor(
             shape=[IntImm(k), IntImm(n3)],
-            dtype="float16",
+            dtype=dtype,
             name="W3",
             is_input=True,
         )
@@ -317,7 +473,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             [X9],
             target,
             "./tmp",
-            "fused_gemm_m_{}_k_{}_n1_{}_n2_{}_n3_{}".format(m, k, n1, n2, n3),
+            f"fused_gemm_m_{m}_k_{k}_n1_{n1}_n2_{n2}_n3_{n3}_{dtype}",
         ) as module:
 
             if not no_fuse:
@@ -329,21 +485,21 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
             if nd_gemm:
                 # Run PyTorch baseline.
-                x1_pt = torch.randn(m, m2, k).cuda().half()
-                x2_pt = torch.randn(m, m2, k).cuda().half()
-                x3_pt = torch.randn(m, m2, k).cuda().half()
-                x4_pt = torch.randn(m, m2, n2).cuda().half()
+                x1_pt = get_random_torch_tensor([m, m2, k], dtype)
+                x2_pt = get_random_torch_tensor([m, m2, k], dtype)
+                x3_pt = get_random_torch_tensor([m, m2, k], dtype)
+                x4_pt = get_random_torch_tensor([m, m2, n2], dtype)
             else:
                 # Run PyTorch baseline.
-                x1_pt = torch.randn(m, k).cuda().half()
-                x2_pt = torch.randn(m, k).cuda().half()
-                x3_pt = torch.randn(m, k).cuda().half()
-                x4_pt = torch.randn(m, n2).cuda().half()
+                x1_pt = get_random_torch_tensor([m, k], dtype)
+                x2_pt = get_random_torch_tensor([m, k], dtype)
+                x3_pt = get_random_torch_tensor([m, k], dtype)
+                x4_pt = get_random_torch_tensor([m, n2], dtype)
 
-            w1_pt = torch.randn(n1, k).cuda().half()
-            w2_pt = torch.randn(n2, k).cuda().half()
-            b2_pt = torch.randn(n2).cuda().half()
-            w3_pt = torch.randn(k, n3).cuda().half()
+            w1_pt = get_random_torch_tensor([n1, k], dtype)
+            w2_pt = get_random_torch_tensor([n2, k], dtype)
+            b2_pt = get_random_torch_tensor([n2], dtype)
+            w3_pt = get_random_torch_tensor([k, n3], dtype)
 
             x5_pt = torch.nn.functional.linear(x1_pt, w1_pt)
             x6_pt = torch.nn.functional.linear(x2_pt, w2_pt, b2_pt)
@@ -368,7 +524,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
             inputs[name_to_idx["B2"]] = b2_pt
 
-            x9 = torch.empty(x9_pt.shape).cuda().half()
+            x9 = get_torch_empty_tensor(x9_pt.shape, dtype)
             module.run_with_tensors(inputs, [x9])
 
             # Do comparisons.
@@ -385,31 +541,53 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             m=1024, k=256, n1=32, n2=32, n3=32, m2=8, cat_dim=1, no_fuse=True
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_gemm_float(self):
+        self._fused_gemm_e2e_helper(m=1024, k=256, n1=5, n2=32, n3=4, dtype="float")
+        self._fused_gemm_e2e_helper(
+            m=1024, k=256, n1=8, n2=16, n3=32, m2=8, cat_dim=2, dtype="float"
+        )
+        self._fused_gemm_e2e_helper(
+            m=1024,
+            k=256,
+            n1=32,
+            n2=32,
+            n3=32,
+            m2=8,
+            cat_dim=1,
+            no_fuse=True,
+            dtype="float",
+        )
+
     def _fused_gemm_alignment_e2e_helper(
-        self, gemm_op, input_n: int, m: int, k: int, n: int
+        self, gemm_op, input_n: int, m: int, k: int, n: int, dtype: str = "float16"
     ):
         # Construct one graph with 1 input + 1 gemm_bias_add + 1 cat.
         Input1 = Tensor(
             shape=[IntImm(m), IntImm(input_n)],
-            dtype="float16",
+            dtype=dtype,
             name="Input1",
             is_input=True,
         )
         X1 = Tensor(
             shape=[IntImm(m), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             is_input=True,
         )
         W1 = Tensor(
             shape=[IntImm(n), IntImm(k)],
-            dtype="float16",
+            dtype=dtype,
             name="W1",
             is_input=True,
         )
         B1 = Tensor(
             shape=[IntImm(n)],
-            dtype="float16",
+            dtype=dtype,
             name="B1",
             is_input=True,
         )
@@ -419,7 +597,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             num_inputs = 5
             X2 = Tensor(
                 shape=[IntImm(m), IntImm(n)],
-                dtype="float16",
+                dtype=dtype,
                 name="X2",
                 is_input=True,
             )
@@ -440,7 +618,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             [Y],
             target,
             "./tmp",
-            f"fused_{gemm_op_kind}_alignment_input_n_{input_n}_m_{m}_n_{n}_k_{k}",
+            f"fused_{gemm_op_kind}_alignment_input_n_{input_n}_m_{m}_n_{n}_k_{k}_{dtype}",
         ) as module:
 
             # Verify the generated graph.
@@ -462,15 +640,15 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             np.testing.assert_equal(concat_op._attrs["input_masks"], [True, False])
 
             # Run PyTorch baseline.
-            input_pt = torch.randn(m, input_n).cuda().half()
-            x1_pt = torch.randn(m, k).cuda().half()
-            w1_pt = torch.randn(n, k).cuda().half()
-            b1_pt = torch.randn(n).cuda().half()
+            input_pt = get_random_torch_tensor([m, input_n], dtype)
+            x1_pt = get_random_torch_tensor([m, k], dtype)
+            w1_pt = get_random_torch_tensor([n, k], dtype)
+            b1_pt = get_random_torch_tensor([n], dtype)
 
             y1_pt = torch.nn.functional.linear(x1_pt, w1_pt)
             y1_pt = torch.nn.functional.linear(x1_pt, w1_pt, b1_pt)
             if gemm_op_kind == "gemm_rcr_bias_add":
-                x2_pt = torch.randn(m, n).cuda().half()
+                x2_pt = get_random_torch_tensor([m, n], dtype)
                 y1_pt += x2_pt
 
             y_pt = torch.cat([input_pt, y1_pt], dim=1)
@@ -485,7 +663,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             inputs[name_to_idx["W1"]] = w1_pt
             inputs[name_to_idx["B1"]] = b1_pt
 
-            y = torch.empty([m, input_n + n]).cuda().half()
+            y = get_torch_empty_tensor([m, input_n + n], dtype)
             module.run_with_tensors(inputs, [y])
 
             # Do comparisons.
@@ -503,6 +681,19 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
         self._fused_gemm_alignment_e2e_helper(
             gemm_op=ops.gemm_rcr_bias_add(), input_n=7, m=4, k=4, n=8
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_gemm_alignment_float(self):
+        self._fused_gemm_alignment_e2e_helper(
+            gemm_op=ops.gemm_rcr_bias_add(), input_n=1, m=2, k=2, n=4, dtype="float"
+        )
+        self._fused_gemm_alignment_e2e_helper(
+            gemm_op=ops.gemm_rcr_bias_add(), input_n=4, m=4, k=4, n=2, dtype="float"
         )
 
     # Tests to ensure that we correctly update epilogue alignment values
@@ -539,6 +730,45 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             else:
                 os.environ["FORCE_PROFILE"] = old_force_ci
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    # Tests to ensure that we correctly update epilogue alignment values
+    def test_gemm_update_epilogue_alignment_float(self):
+        # Note that we have to force profiling in ci. Otherwise, we would not
+        # be able to fetch cached config.
+        target = detect_target()
+        old_force_ci = os.environ.get("FORCE_PROFILE", None)
+        if target.in_ci_env():
+            os.environ["FORCE_PROFILE"] = "1"
+
+        # a smaller epilogue alignment 1
+        self._fused_gemm_alignment_e2e_helper(
+            gemm_op=ops.gemm_rcr_bias(), input_n=1, m=2, k=2, n=4, dtype="float"
+        )
+        # a larger epilogue alignment 4
+        self._fused_gemm_alignment_e2e_helper(
+            gemm_op=ops.gemm_rcr_bias(), input_n=4, m=2, k=2, n=4, dtype="float"
+        )
+
+        # a smaller epilogue alignment 1
+        self._fused_gemm_alignment_e2e_helper(
+            gemm_op=ops.gemm_rcr_bias_add(), input_n=2, m=3, k=2, n=4, dtype="float"
+        )
+        # a larger epilogue alignment 4
+        self._fused_gemm_alignment_e2e_helper(
+            gemm_op=ops.gemm_rcr_bias_add(), input_n=4, m=3, k=2, n=4, dtype="float"
+        )
+
+        # restore old env
+        if target.in_ci_env():
+            if old_force_ci is None:
+                del os.environ["FORCE_PROFILE"]
+            else:
+                os.environ["FORCE_PROFILE"] = old_force_ci
+
     def _fused_layernorm_e2e_helper(
         self,
         m: int,
@@ -548,6 +778,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         batch_size: Optional[IntVar] = None,
         gamma_is_none: bool = False,
         beta_is_none: bool = False,
+        dtype: str = "float16",
     ):
         logging.info(
             f"_fused_layernorm_e2e: m={m}, n1={n1}, n2={n2}, cat_dim={cat_dim}, batch_size={batch_size}"
@@ -560,7 +791,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         # Construct one graph with 2 layernorms + 1 cat.
         X1 = Tensor(
             shape=_maybe_add_batch_size_ait([IntImm(m), IntImm(n1)]),
-            dtype="float16",
+            dtype=dtype,
             name="X1",
             is_input=True,
         )
@@ -569,7 +800,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         else:
             GAMMA1 = Tensor(
                 shape=[IntImm(n1)],
-                dtype="float16",
+                dtype=dtype,
                 name="gamma1",
                 is_input=True,
             )
@@ -578,13 +809,13 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         else:
             BETA1 = Tensor(
                 shape=[IntImm(n1)],
-                dtype="float16",
+                dtype=dtype,
                 name="beta1",
                 is_input=True,
             )
         X2 = Tensor(
             shape=_maybe_add_batch_size_ait([IntImm(m), IntImm(n2)]),
-            dtype="float16",
+            dtype=dtype,
             name="X2",
             is_input=True,
         )
@@ -593,7 +824,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         else:
             GAMMA2 = Tensor(
                 shape=[IntImm(n2)],
-                dtype="float16",
+                dtype=dtype,
                 name="gamma2",
                 is_input=True,
             )
@@ -602,7 +833,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         else:
             BETA2 = Tensor(
                 shape=[IntImm(n2)],
-                dtype="float16",
+                dtype=dtype,
                 name="beta2",
                 is_input=True,
             )
@@ -623,8 +854,10 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             [X7],
             target,
             "./tmp",
-            "fused_layernorm",
+            f"fused_layernorm_{dtype}",
+            dll_name=f"test_{self._test_id}.so",
         ) as module:
+            self._test_id += 1
             # Verify the generated graph.
             sorted_graph = module.debug_sorted_graph
             num_tensors = 7
@@ -637,24 +870,24 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             self.assertEqual(len(sorted_ops), 2)
 
             # Run PyTorch baseline.
-            x1_pt = torch.randn(_maybe_add_batch_size_pt([m, n1])).cuda().half()
+            x1_pt = get_random_torch_tensor(_maybe_add_batch_size_pt([m, n1]), dtype)
             if gamma_is_none:
                 gamma1_pt = None
             else:
-                gamma1_pt = torch.randn(n1).cuda().half()
+                gamma1_pt = get_random_torch_tensor([n1], dtype)
             if beta_is_none:
                 beta1_pt = None
             else:
-                beta1_pt = torch.randn(n1).cuda().half()
-            x2_pt = torch.randn(_maybe_add_batch_size_pt([m, n2])).cuda().half()
+                beta1_pt = get_random_torch_tensor([n1], dtype)
+            x2_pt = get_random_torch_tensor(_maybe_add_batch_size_pt([m, n2]), dtype)
             if gamma_is_none:
                 gamma2_pt = None
             else:
-                gamma2_pt = torch.randn(n2).cuda().half()
+                gamma2_pt = get_random_torch_tensor([n2], dtype)
             if beta_is_none:
                 beta2_pt = None
             else:
-                beta2_pt = torch.randn(n2).cuda().half()
+                beta2_pt = get_random_torch_tensor([n2], dtype)
 
             x3_pt = torch.nn.functional.layer_norm(
                 x1_pt, x1_pt.size()[-1:], gamma1_pt, beta1_pt
@@ -676,7 +909,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 inputs.append(gamma2_pt)
             if not beta_is_none:
                 inputs.append(beta2_pt)
-            x7 = torch.empty(x7_pt.size()).cuda().half()
+            x7 = get_torch_empty_tensor(x7_pt.size(), dtype)
             module.run_with_tensors(inputs, [x7])
 
             # Do comparisons.
@@ -722,6 +955,40 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             batch_size=IntVar([1, 10], name="batch_size"),
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_layernorm_float(self):
+        self._fused_layernorm_e2e_helper(
+            m=1024, n1=256, n2=256, cat_dim=1, dtype="float"
+        )
+        self._fused_layernorm_e2e_helper(m=1, n1=256, n2=256, cat_dim=0, dtype="float")
+        self._fused_layernorm_e2e_helper(
+            m=1024,
+            n1=256,
+            n2=256,
+            cat_dim=1,
+            gamma_is_none=True,
+            beta_is_none=True,
+            dtype="float",
+        )
+        self._fused_layernorm_e2e_helper(m=2, n1=128, n2=5, cat_dim=1, dtype="float")
+        self._fused_layernorm_e2e_helper(
+            m=2,
+            n1=3,
+            n2=128,
+            cat_dim=1,
+            gamma_is_none=True,
+            beta_is_none=True,
+            dtype="float",
+        )
+        self._fused_layernorm_e2e_helper(
+            m=1024,
+            n1=256,
+            n2=256,
+            cat_dim=1,
+            batch_size=IntVar([1, 10], name="batch_size"),
+            dtype="float",
+        )
+
     def _test_group_layernorm_sigmoid_mul_cat_fusion(
         self,
         input_shapes,
@@ -731,6 +998,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         fuse_sigmoid_mul=True,
         use_group_ops=True,
         num_cat_ops=1,
+        dtype="float16",
     ):
         assert num_cat_ops in (1, 2), "Only supports testing with num_cat_ops in (1, 2)"
         testname = (
@@ -754,7 +1022,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                         IntImm(shape[0]),
                         IntImm(shape[1]),
                     ],
-                    dtype="float16",
+                    dtype=dtype,
                     name="X_" + str(i),
                     is_input=True,
                 )
@@ -764,7 +1032,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 if gamma_is_none
                 else Tensor(
                     shape=[IntImm(shape[1])],
-                    dtype="float16",
+                    dtype=dtype,
                     name="gamma_" + str(i),
                     is_input=True,
                 )
@@ -775,7 +1043,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 if beta_is_none
                 else Tensor(
                     shape=[IntImm(shape[1])],
-                    dtype="float16",
+                    dtype=dtype,
                     name="beta_" + str(i),
                     is_input=True,
                 )
@@ -850,12 +1118,16 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             gammas_pt = []
             betas_pt = []
             for shape in input_shapes:
-                xs_pt.append(torch.randn(shape).cuda().half())
+                xs_pt.append(get_random_torch_tensor(shape, dtype))
                 gamma_pt = (
-                    None if gamma_is_none else torch.randn(shape[1]).cuda().half()
+                    None
+                    if gamma_is_none
+                    else get_random_torch_tensor([shape[1]], dtype)
                 )
                 gammas_pt.append(gamma_pt)
-                beta_pt = None if beta_is_none else torch.randn(shape[1]).cuda().half()
+                beta_pt = (
+                    None if beta_is_none else get_random_torch_tensor([shape[1]], dtype)
+                )
                 betas_pt.append(beta_pt)
 
             y0s_pt = []
@@ -888,7 +1160,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                     inputs[input_name_to_index[f"beta_{i}"]] = betas_pt[i]
             ys = []
             for y_pt in ys_pt:
-                ys.append(torch.empty(y_pt.size()).cuda().half())
+                ys.append(get_torch_empty_tensor(y_pt.size(), dtype))
             module.run_with_tensors(inputs, ys)
             for y_pt, y in zip(ys_pt, ys):
                 self.assertTrue(
@@ -961,10 +1233,64 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 use_group_ops=False,
             )
 
-    def _test_bmm_cat_fusion(self, B, M, Ns, Ks, cat_dim, testname):
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_group_layernorm_sigmoid_mul_cat_fusion_float(self):
+        for fuse_sigmoid_mul in (True, False):
+            self._test_group_layernorm_sigmoid_mul_cat_fusion(
+                [[128, 256]] * 4, 0, fuse_sigmoid_mul=fuse_sigmoid_mul, dtype="float"
+            )
+            self._test_group_layernorm_sigmoid_mul_cat_fusion(
+                [[128, 64], [128, 256], [128, 125]],
+                1,
+                fuse_sigmoid_mul=fuse_sigmoid_mul,
+                dtype="float",
+            )
+            self._test_group_layernorm_sigmoid_mul_cat_fusion(
+                [[128, 256]],
+                0,
+                gamma_is_none=True,
+                beta_is_none=True,
+                fuse_sigmoid_mul=fuse_sigmoid_mul,
+                dtype="float",
+            )
+            self._test_group_layernorm_sigmoid_mul_cat_fusion(
+                [[128, 256]] * 6,
+                0,
+                fuse_sigmoid_mul=fuse_sigmoid_mul,
+                num_cat_ops=2,
+                dtype="float",
+            )
+            # test group layernorm fusion (horizontal fusion)
+            self._test_group_layernorm_sigmoid_mul_cat_fusion(
+                [[128, 256]] * 6,
+                1,
+                fuse_sigmoid_mul=fuse_sigmoid_mul,
+                use_group_ops=False,
+                num_cat_ops=2,
+                dtype="float",
+            )
+            self._test_group_layernorm_sigmoid_mul_cat_fusion(
+                [[128, 256]] * 6,
+                1,
+                fuse_sigmoid_mul=fuse_sigmoid_mul,
+                use_group_ops=False,
+                dtype="float",
+            )
+
+    def _test_bmm_rcr_cat_fusion(
+        self,
+        B,
+        M,
+        Ns,
+        Ks,
+        cat_dim,
+        test_name,
+        expected_num_tensors,
+        expected_num_ops,
+        dtype="float16",
+    ):
         n = len(Ns)
         Cs = []
-        dtype = "float16"
 
         Xs_pt = []
         Ys_pt = []
@@ -990,8 +1316,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 C = ops.bmm_rcr_n1()(X, Y)
             Cs.append(C)
 
-            x = torch.randn(B, M, K).cuda().half()
-            y = torch.randn(B, N, K).cuda().half()
+            x = get_random_torch_tensor([B, M, K], dtype)
+            y = get_random_torch_tensor([B, N, K], dtype)
             c = torch.bmm(x, y.permute([0, 2, 1]))
             Xs_pt.append(x)
             Ys_pt.append(y)
@@ -1004,28 +1330,308 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(Y, target, "./tmp", testname) as module:
+        with compile_model(Y, target, "./tmp", test_name) as module:
             input_name_to_index = module.get_input_name_to_index_map()
             inputs = [0 for i in range(2 * n)]
             for i in range(n):
                 inputs[input_name_to_index[f"X{i}"]] = Xs_pt[i]
                 inputs[input_name_to_index[f"Y{i}"]] = Ys_pt[i]
-            y = torch.empty(y_pt.size()).cuda().half()
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
             module.run_with_tensors(inputs, [y])
+
+            sorted_graph = module.debug_sorted_graph
+            self.assertEqual(len(sorted_graph), expected_num_tensors)
+            sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+            self.assertEqual(len(sorted_ops), expected_num_ops)
+
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
-    def test_bmm_cat_fusion(self):
-        self._test_bmm_cat_fusion(1, 8, [2, 2, 2], [4, 5, 32], 2, "test_bmm_cat_1")
-        self._test_bmm_cat_fusion(1, 16, [1, 1, 1], [32, 16, 32], 1, "test_bmm_cat_2")
-        self._test_bmm_cat_fusion(1, 16, [1, 1, 1], [32, 16, 32], 2, "test_bmm_cat_3")
-        self._test_bmm_cat_fusion(1, 16, [1, 1, 1], [32, 16, 32], -1, "test_bmm_cat_4")
+    def test_bmm_rcr_cat_fusion(self):
+        self._test_bmm_rcr_cat_fusion(
+            B=1,
+            M=8,
+            Ns=[2, 2, 2],
+            Ks=[4, 5, 32],
+            cat_dim=2,
+            test_name="test_bmm_rcr_cat_1",
+            expected_num_tensors=11,
+            expected_num_ops=5,
+        )
+        self._test_bmm_rcr_cat_fusion(
+            B=1,
+            M=16,
+            Ns=[1, 1, 1],
+            Ks=[32, 16, 32],
+            cat_dim=1,
+            test_name="test_bmm_rcr_cat_2",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+        )
+        self._test_bmm_rcr_cat_fusion(
+            B=1,
+            M=16,
+            Ns=[1, 1, 1],
+            Ks=[32, 16, 32],
+            cat_dim=2,
+            test_name="test_bmm_rcr_cat_3",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+        )
+        self._test_bmm_rcr_cat_fusion(
+            B=1,
+            M=16,
+            Ns=[1, 1, 1],
+            Ks=[32, 16, 32],
+            cat_dim=-1,
+            test_name="test_bmm_rcr_cat_4",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+        )
+
+    def _test_bmm_crr_cat_fusion(
+        self,
+        B,
+        M,
+        Ns,
+        Ks,
+        cat_dim,
+        test_name,
+        expected_num_tensors,
+        expected_num_ops,
+        dtype="float16",
+    ):
+        n = len(Ns)
+        Cs = []
+
+        Xs_pt = []
+        Ys_pt = []
+        Cs_pt = []
+        for i in range(n):
+            N = Ns[i]
+            K = Ks[i]
+            X = Tensor(
+                shape=[B, K, M],
+                dtype=dtype,
+                name=f"X{i}",
+                is_input=True,
+            )
+            Y = Tensor(
+                shape=[B, K, N],
+                dtype=dtype,
+                name=f"Y{i}",
+                is_input=True,
+            )
+            C = ops.bmm_crr()(X, Y)
+            Cs.append(C)
+
+            x = get_random_torch_tensor([B, K, M], dtype)
+            y = get_random_torch_tensor([B, K, N], dtype)
+            c = torch.bmm(x.permute([0, 2, 1]), y)
+            Xs_pt.append(x)
+            Ys_pt.append(y)
+            Cs_pt.append(c)
+
+        Y = ops.concatenate()(Cs, dim=cat_dim)
+        Y._attrs["name"] = "output"
+        Y._attrs["is_output"] = True
+        y_pt = torch.cat(Cs_pt, dim=cat_dim)
+
+        # Gen module.
+        target = detect_target()
+        with compile_model(Y, target, "./tmp", test_name) as module:
+            input_name_to_index = module.get_input_name_to_index_map()
+            inputs = [0 for i in range(2 * n)]
+            for i in range(n):
+                inputs[input_name_to_index[f"X{i}"]] = Xs_pt[i]
+                inputs[input_name_to_index[f"Y{i}"]] = Ys_pt[i]
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
+            module.run_with_tensors(inputs, [y])
+
+            sorted_graph = module.debug_sorted_graph
+            self.assertEqual(len(sorted_graph), expected_num_tensors)
+            sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+            self.assertEqual(len(sorted_ops), expected_num_ops)
+
+            self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+
+    def test_bmm_crr_cat_fusion(self):
+        # [B, K, M] x [B, K, N] = [B, M, N]
+        self._test_bmm_crr_cat_fusion(
+            B=1,
+            M=8,
+            Ns=[2, 4, 10],
+            Ks=[4, 5, 32],
+            cat_dim=2,
+            test_name="test_bmm_crr_cat_1",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+        )
+        self._test_bmm_crr_cat_fusion(
+            B=8,
+            M=16,
+            Ns=[4, 4, 4],
+            Ks=[3, 16, 9],
+            cat_dim=1,
+            test_name="test_bmm_crr_cat_2",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+        )
+
+    def _test_bmm_crr_add_cat_fusion(
+        self,
+        B,
+        M,
+        Ns,
+        Ks,
+        cat_dim,
+        test_name,
+        expected_num_tensors,
+        expected_num_ops,
+        dtype="float16",
+    ):
+        n = len(Ns)
+        Cs = []
+
+        Xs_pt = []
+        Ys_pt = []
+        Ds_pt = []
+        Cs_pt = []
+        for i in range(n):
+            N = Ns[i]
+            K = Ks[i]
+            X = Tensor(
+                shape=[B, K, M],
+                dtype=dtype,
+                name=f"X{i}",
+                is_input=True,
+            )
+            Y = Tensor(
+                shape=[B, K, N],
+                dtype=dtype,
+                name=f"Y{i}",
+                is_input=True,
+            )
+            D = Tensor(
+                shape=[B, M, N],
+                dtype=dtype,
+                name=f"D{i}",
+                is_input=True,
+            )
+            C = ops.bmm_crr_add()(X, Y, D)
+            Cs.append(C)
+
+            x = get_random_torch_tensor([B, K, M], dtype)
+            y = get_random_torch_tensor([B, K, N], dtype)
+            d = get_random_torch_tensor([B, M, N], dtype)
+            c = torch.bmm(x.permute([0, 2, 1]), y)
+            c = c + d
+            Xs_pt.append(x)
+            Ys_pt.append(y)
+            Ds_pt.append(d)
+            Cs_pt.append(c)
+
+        Y = ops.concatenate()(Cs, dim=cat_dim)
+        Y._attrs["name"] = "output"
+        Y._attrs["is_output"] = True
+        y_pt = torch.cat(Cs_pt, dim=cat_dim)
+
+        # Gen module.
+        target = detect_target()
+        with compile_model(Y, target, "./tmp", test_name) as module:
+            input_name_to_index = module.get_input_name_to_index_map()
+            inputs = [0 for i in range(3 * n)]
+            for i in range(n):
+                inputs[input_name_to_index[f"X{i}"]] = Xs_pt[i]
+                inputs[input_name_to_index[f"Y{i}"]] = Ys_pt[i]
+                inputs[input_name_to_index[f"D{i}"]] = Ds_pt[i]
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
+            module.run_with_tensors(inputs, [y])
+
+            sorted_graph = module.debug_sorted_graph
+            self.assertEqual(len(sorted_graph), expected_num_tensors)
+            sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+            self.assertEqual(len(sorted_ops), expected_num_ops)
+
+            self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+
+    def test_bmm_crr_add_cat_fusion(self):
+        self._test_bmm_crr_add_cat_fusion(
+            B=7,
+            M=10,
+            Ns=[2, 12, 8],
+            Ks=[4, 5, 6],
+            cat_dim=2,
+            test_name="test_bmm_crr_add_cat_1",
+            expected_num_tensors=10,
+            expected_num_ops=3,
+        )
+        self._test_bmm_crr_add_cat_fusion(
+            B=8,
+            M=4,
+            Ns=[10, 10, 10],
+            Ks=[4, 5, 6],
+            cat_dim=1,
+            test_name="test_bmm_crr_add_cat_2",
+            expected_num_tensors=10,
+            expected_num_ops=3,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_cat_fusion_float(self):
+        self._test_bmm_rcr_cat_fusion(
+            B=1,
+            M=8,
+            Ns=[2, 2, 2],
+            Ks=[4, 5, 32],
+            cat_dim=2,
+            test_name="test_bmm_rcr_cat_float_1",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+            dtype="float",
+        )
+        self._test_bmm_rcr_cat_fusion(
+            B=1,
+            M=16,
+            Ns=[1, 1, 1],
+            Ks=[32, 16, 32],
+            cat_dim=2,
+            test_name="test_bmm_rcr_cat_float_3",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+            dtype="float",
+        )
+        self._test_bmm_crr_cat_fusion(
+            B=8,
+            M=16,
+            Ns=[4, 4, 4],
+            Ks=[3, 16, 9],
+            cat_dim=1,
+            test_name="test_bmm_crr_cat_float_2",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+            dtype="float",
+        )
+        self._test_bmm_crr_add_cat_fusion(
+            B=7,
+            M=10,
+            Ns=[2, 12, 8],
+            Ks=[4, 5, 6],
+            cat_dim=2,
+            test_name="test_bmm_crr_add_cat_float_1",
+            expected_num_tensors=10,
+            expected_num_ops=3,
+            dtype="float",
+        )
 
     def _test_bmm_rcr_update_epilogue_alignment(
-        self, bmm_op, input_N, B, M, N, K, testname
+        self, bmm_op, input_N, B, M, N, K, testname, dtype="float16"
     ):
         # create a graph with 1 input + 1 bmm + 1 concat
         cat_dim = -1
-        dtype = "float16"
 
         bmm_op_kind = bmm_op._attrs["op"]
         Input1 = Tensor(
@@ -1058,7 +1664,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             num_inputs += 1
             X2 = Tensor(
                 shape=[IntImm(B), IntImm(M), IntImm(N)],
-                dtype="float16",
+                dtype=dtype,
                 name="X2",
                 is_input=True,
             )
@@ -1066,11 +1672,11 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         else:
             C = bmm_op(X, W)
 
-        input1_pt = torch.randn(B, M, input_N).cuda().half()
-        x_pt = torch.randn(B, M, K).cuda().half()
-        w_pt = torch.randn(*w_shape).cuda().half()
+        input1_pt = get_random_torch_tensor([B, M, input_N], dtype)
+        x_pt = get_random_torch_tensor([B, M, K], dtype)
+        w_pt = get_random_torch_tensor(w_shape, dtype)
         if num_inputs == 4:
-            x2_pt = torch.randn(B, M, N).cuda().half()
+            x2_pt = get_random_torch_tensor([B, M, N], dtype)
 
         if "rcr" in bmm_op_kind:
             c_pt = torch.bmm(x_pt, w_pt.permute([0, 2, 1]))
@@ -1096,12 +1702,12 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         inputs[input_name_to_index["W"]] = w_pt
         if num_inputs == 4:
             inputs[input_name_to_index["X2"]] = x2_pt
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
     # Test to ensure we update epilogue alignment values
-    def test_bmm_rcr_update_epilogue_alignment(self):
+    def _test_bmm_rcr_update_epilogue_alignment_common(self, dtype="float16"):
         # Note that we have to force profiling in ci. Otherwise, we would not
         # be able to fetch cached config.
         target = detect_target()
@@ -1118,6 +1724,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             N=5,
             K=8,
             testname="test_bmm_rcr_epilogue_3",
+            dtype=dtype,
         )
         # a larger epilogue value 4
         self._test_bmm_rcr_update_epilogue_alignment(
@@ -1128,6 +1735,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             N=5,
             K=8,
             testname="test_bmm_rcr_epilogue_4",
+            dtype=dtype,
         )
 
         # a smaller epilogue value 2
@@ -1139,6 +1747,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             N=4,
             K=8,
             testname="test_bmm_rcr_epilogue_1",
+            dtype=dtype,
         )
         # a larger epilogue value 4
         self._test_bmm_rcr_update_epilogue_alignment(
@@ -1149,6 +1758,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             N=4,
             K=8,
             testname="test_bmm_rcr_epilogue_2",
+            dtype=dtype,
         )
 
         # restore old env
@@ -1158,6 +1768,17 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             else:
                 os.environ["FORCE_PROFILE"] = old_force_ci
 
+    def test_bmm_rcr_update_epilogue_alignment(self):
+        self._test_bmm_rcr_update_epilogue_alignment_common()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_rcr_update_epilogue_alignment_float(self):
+        self._test_bmm_rcr_update_epilogue_alignment_common(dtype="float")
+
     def _test_reduce_cat_fusion_1(
         self,
         input_shape,
@@ -1166,7 +1787,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         cat_dim,
         new_cat_dim_val,
         test_name,
-        input_type="float16",
+        dtype="float16",
     ):
         torch.manual_seed(0)
         logging.info(
@@ -1175,7 +1796,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
         target = detect_target()
 
-        X1 = Tensor(shape=input_shape, dtype=input_type, name="input_1", is_input=True)
+        X1 = Tensor(shape=input_shape, dtype=dtype, name="input_1", is_input=True)
 
         x2_shape = []
         for idx in range(len(input_shape)):
@@ -1186,7 +1807,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 x2_shape.append(input_shape[idx])
         # set concat_dim to a new value for testing
         x2_shape[cat_dim] = new_cat_dim_val
-        X2 = Tensor(shape=x2_shape, dtype=input_type, name="input_2", is_input=True)
+        X2 = Tensor(shape=x2_shape, dtype=dtype, name="input_2", is_input=True)
 
         reduce_op = ops.reduce_mean(reduction_dim, keepdim=keepdim, dtype=None)
         Y1 = reduce_op(X1)
@@ -1210,8 +1831,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 np.testing.assert_equal(Y_src_ops[0], reduce_op)
             np.testing.assert_equal(concat_op._attrs["input_masks"], [False, True])
 
-            X1_pt = get_random_torch_tensor(input_shape, input_type)
-            X2_pt = get_random_torch_tensor(x2_shape, input_type)
+            X1_pt = get_random_torch_tensor(input_shape, dtype)
+            X2_pt = get_random_torch_tensor(x2_shape, dtype)
             Y1_pt = torch.mean(X1_pt, dim=reduction_dim, keepdim=keepdim)
             Y_pt = torch.cat([Y1_pt, X2_pt], dim=cat_dim)
 
@@ -1265,7 +1886,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         cat_dim,
         new_cat_dim_val,
         test_name,
-        input_type="float16",
+        dtype="float16",
     ):
         torch.manual_seed(0)
         logging.info(
@@ -1274,7 +1895,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
         target = detect_target()
 
-        X1 = Tensor(shape=input_shape, dtype=input_type, name="input_1", is_input=True)
+        X1 = Tensor(shape=input_shape, dtype=dtype, name="input_1", is_input=True)
 
         x2_shape = []
         for idx in range(len(input_shape)):
@@ -1285,7 +1906,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 x2_shape.append(input_shape[idx])
         # set concat_dim to a new value for testing
         x2_shape[cat_dim] = new_cat_dim_val
-        X2 = Tensor(shape=x2_shape, dtype=input_type, name="input_2", is_input=True)
+        X2 = Tensor(shape=x2_shape, dtype=dtype, name="input_2", is_input=True)
 
         reduce_mean_op = ops.reduce_mean(reduction_dim, keepdim=keepdim, dtype=None)
         Y1 = reduce_mean_op(X1)
@@ -1296,7 +1917,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         Y3 = ops.concatenate()([X2, Y1, Y2], dim=cat_dim)
 
         x3_shape = [d._attrs["values"][0] for d in Y3._attrs["shape"]]
-        X3 = Tensor(shape=x3_shape, dtype=input_type, name="input_3", is_input=True)
+        X3 = Tensor(shape=x3_shape, dtype=dtype, name="input_3", is_input=True)
 
         add_op = ops.elementwise(FuncEnum.ADD)
         Y = add_op(Y3, X3)
@@ -1329,9 +1950,9 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 concat_op._attrs["input_masks"], [True, False, False]
             )
 
-            X1_pt = get_random_torch_tensor(input_shape, input_type)
-            X2_pt = get_random_torch_tensor(x2_shape, input_type)
-            X3_pt = get_random_torch_tensor(x3_shape, input_type)
+            X1_pt = get_random_torch_tensor(input_shape, dtype)
+            X2_pt = get_random_torch_tensor(x2_shape, dtype)
+            X3_pt = get_random_torch_tensor(x3_shape, dtype)
             Y1_pt = torch.mean(X1_pt, dim=reduction_dim, keepdim=keepdim)
             Y2_pt = torch.var(X1_pt, dim=reduction_dim, unbiased=True, keepdim=keepdim)
             Y3_pt = torch.cat([X2_pt, Y1_pt, Y2_pt], dim=cat_dim)
@@ -1393,7 +2014,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         cat_dim,
         new_cat_dim_val,
         test_name,
-        input_type="float16",
+        dtype="float16",
     ):
         torch.manual_seed(0)
         logging.info(
@@ -1402,7 +2023,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
         target = detect_target()
 
-        X1 = Tensor(shape=input_shape, dtype=input_type, name="input_1", is_input=True)
+        X1 = Tensor(shape=input_shape, dtype=dtype, name="input_1", is_input=True)
 
         x2_shape = []
         for idx in range(len(input_shape)):
@@ -1413,7 +2034,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 x2_shape.append(input_shape[idx])
         # set concat_dim to a new value for testing
         x2_shape[cat_dim] = new_cat_dim_val
-        X2 = Tensor(shape=x2_shape, dtype=input_type, name="input_2", is_input=True)
+        X2 = Tensor(shape=x2_shape, dtype=dtype, name="input_2", is_input=True)
 
         reduce_op = ops.reduce_mean(reduction_dim, keepdim=keepdim, dtype=None)
         Y1 = reduce_op(X1)
@@ -1439,8 +2060,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 concat_op._attrs["input_masks"], [True, False, True]
             )
 
-            X1_pt = get_random_torch_tensor(input_shape, input_type)
-            X2_pt = get_random_torch_tensor(x2_shape, input_type)
+            X1_pt = get_random_torch_tensor(input_shape, dtype)
+            X2_pt = get_random_torch_tensor(x2_shape, dtype)
             Y1_pt = torch.mean(X1_pt, dim=reduction_dim, keepdim=keepdim)
             Y_pt = torch.cat([X2_pt, Y1_pt, X2_pt], dim=cat_dim)
 
@@ -1479,7 +2100,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         cat_dim,
         new_cat_dim_val,
         test_name,
-        input_type="float16",
+        dtype="float16",
     ):
         torch.manual_seed(0)
         logging.info(
@@ -1494,7 +2115,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         X1 = Tensor(
             shape=[batch_dim, *input_shape],
-            dtype=input_type,
+            dtype=dtype,
             name="input_1",
             is_input=True,
         )
@@ -1513,7 +2134,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         x2_shape[cat_dim - 1] = new_cat_dim_val
         X2 = Tensor(
             shape=[batch_dim, *x2_shape],
-            dtype=input_type,
+            dtype=dtype,
             name="input_2",
             is_input=True,
         )
@@ -1542,8 +2163,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             np.testing.assert_equal(concat_op._attrs["input_masks"], [False, True])
 
             for batch in batch_sizes:
-                X1_pt = get_random_torch_tensor([batch, *input_shape], input_type)
-                X2_pt = get_random_torch_tensor([batch, *x2_shape], input_type)
+                X1_pt = get_random_torch_tensor([batch, *input_shape], dtype)
+                X2_pt = get_random_torch_tensor([batch, *x2_shape], dtype)
                 Y1_pt = torch.linalg.vector_norm(
                     X1_pt, ord=ord_kind, dim=reduction_dim, keepdim=keepdim
                 )
@@ -1564,21 +2185,20 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             keepdim=True,
             cat_dim=2,
             new_cat_dim_val=5,
-            test_name="test_reduce_cat_1_0",
+            test_name="test_reduce_cat_fusion_batch",
         )
 
-    def test_col_reduce_cat_fusion(self):
+    def _test_col_reduce_cat_fusion(self, dtype="float16"):
         torch.manual_seed(0)
         input_a_shape = [1, 4096]
         input_b_shape = [1, 250, 256]
-        input_type = "float16"
         reduction_dim = 1
         cat_dim = -1
-        test_name = "test_col_reduce_sum_cat"
+        test_name = f"test_col_reduce_sum_cat_{dtype}"
 
         target = detect_target()
-        A = Tensor(shape=input_a_shape, dtype=input_type, name="input_a", is_input=True)
-        B = Tensor(shape=input_b_shape, dtype=input_type, name="input_b", is_input=True)
+        A = Tensor(shape=input_a_shape, dtype=dtype, name="input_a", is_input=True)
+        B = Tensor(shape=input_b_shape, dtype=dtype, name="input_b", is_input=True)
 
         X = ops.reduce_sum(dim=reduction_dim)(B)
         Y = ops.concatenate()([A, X], dim=cat_dim)
@@ -1592,31 +2212,33 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         concat_op = sorted_ops[1]
         np.testing.assert_equal(concat_op._attrs["input_masks"], [True, True])
 
-        a_pt = get_random_torch_tensor(input_a_shape, input_type)
-        b_pt = get_random_torch_tensor(input_b_shape, input_type)
+        a_pt = get_random_torch_tensor(input_a_shape, dtype)
+        b_pt = get_random_torch_tensor(input_b_shape, dtype)
         x_pt = torch.sum(b_pt, dim=reduction_dim)
         y_pt = torch.cat([a_pt, x_pt], dim=cat_dim)
 
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         inputs = {"input_a": a_pt, "input_b": b_pt}
         module.run_with_tensors(inputs, [y])
         y_pt = y_pt.cpu().numpy()
 
         torch.testing.assert_close(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
 
-    def test_strided_op_multiple_cats(self):
+    def test_col_reduce_cat_fusion(self):
+        self._test_col_reduce_cat_fusion()
+
+    def _test_strided_op_multiple_cats(self, dtype="float16"):
         # y1 = concat(x0, x1) # [4, 30]
         # y2 = slice(y1) # [4, 6]
         # y = concat(y1, y2) # [4, 36]
         x0_shape = [4, 10]
         x1_shape = [4, 20]
-        input_type = "float16"
         cat_dim = 1
-        test_name = "test_strided_op_multiple_cats"
+        test_name = f"test_strided_op_multiple_cats_{dtype}"
 
         target = detect_target()
-        X0 = Tensor(shape=x0_shape, dtype=input_type, name="x0", is_input=True)
-        X1 = Tensor(shape=x1_shape, dtype=input_type, name="x1", is_input=True)
+        X0 = Tensor(shape=x0_shape, dtype=dtype, name="x0", is_input=True)
+        X1 = Tensor(shape=x1_shape, dtype=dtype, name="x1", is_input=True)
 
         Y1 = ops.concatenate()([X0, X1], dim=cat_dim)
         slice_start_indices = [0, 0]
@@ -1631,8 +2253,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         module = compile_model(Y, target, "./tmp", test_name)
 
-        x0_pt = get_random_torch_tensor(x0_shape, input_type)
-        x1_pt = get_random_torch_tensor(x1_shape, input_type)
+        x0_pt = get_random_torch_tensor(x0_shape, dtype)
+        x1_pt = get_random_torch_tensor(x1_shape, dtype)
         y1_pt = torch.cat([x0_pt, x1_pt], dim=cat_dim)
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -1640,14 +2262,14 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         y2_pt = y1_pt[slice_indices]
         y_pt = torch.cat([y1_pt, y2_pt], dim=cat_dim)
 
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         inputs = {"x0": x0_pt, "x1": x1_pt}
         module.run_with_tensors(inputs, [y])
         y_pt = y_pt.cpu().numpy()
 
         torch.testing.assert_close(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
 
-    def test_strided_op_multiple_cats_2(self):
+    def _test_strided_op_multiple_cats_2(self, dtype="float16"):
         # y1 = x0 + x1
         # y2 = slice(y1)
         # y3 = concat(x2, y2)
@@ -1655,14 +2277,13 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         x0_shape = [4, 10]
         x1_shape = [4, 10]
         x2_shape = [4, 20]
-        input_type = "float16"
         cat_dim = 1
-        test_name = "test_strided_op_multiple_cats_2"
+        test_name = f"test_strided_op_multiple_cats_2_{dtype}"
 
         target = detect_target()
-        X0 = Tensor(shape=x0_shape, dtype=input_type, name="x0", is_input=True)
-        X1 = Tensor(shape=x1_shape, dtype=input_type, name="x1", is_input=True)
-        X2 = Tensor(shape=x2_shape, dtype=input_type, name="x2", is_input=True)
+        X0 = Tensor(shape=x0_shape, dtype=dtype, name="x0", is_input=True)
+        X1 = Tensor(shape=x1_shape, dtype=dtype, name="x1", is_input=True)
+        X2 = Tensor(shape=x2_shape, dtype=dtype, name="x2", is_input=True)
 
         Y1 = ops.elementwise(FuncEnum.ADD)(X0, X1)
         slice_start_indices = [0, 0]
@@ -1682,9 +2303,9 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         self.assertEqual(len(sorted_ops), 2)
         self.assertEqual(sorted_ops[1]._attrs["op"], "concatenate")
 
-        x0_pt = get_random_torch_tensor(x0_shape, input_type)
-        x1_pt = get_random_torch_tensor(x1_shape, input_type)
-        x2_pt = get_random_torch_tensor(x2_shape, input_type)
+        x0_pt = get_random_torch_tensor(x0_shape, dtype)
+        x1_pt = get_random_torch_tensor(x1_shape, dtype)
+        x2_pt = get_random_torch_tensor(x2_shape, dtype)
         y1_pt = x0_pt + x1_pt
         slice_indices = [
             slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
@@ -1693,12 +2314,59 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         y3_pt = torch.cat([x2_pt, y2_pt], dim=cat_dim)
         y_pt = torch.cat([y3_pt, y3_pt], dim=cat_dim)
 
-        y = torch.empty(y_pt.size()).cuda().half()
+        y = get_torch_empty_tensor(y_pt.size(), dtype)
         inputs = {"x0": x0_pt, "x1": x1_pt, "x2": x2_pt}
         module.run_with_tensors(inputs, [y])
         y_pt = y_pt.cpu().numpy()
 
         torch.testing.assert_close(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
+
+    def test_strided_op_multiple_cats(self):
+        self._test_strided_op_multiple_cats()
+        self._test_strided_op_multiple_cats_2()
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_reduce_cat_float(self):
+        self._test_reduce_cat_fusion_1(
+            input_shape=[4, 2],
+            reduction_dim=1,
+            keepdim=True,
+            cat_dim=1,
+            new_cat_dim_val=5,
+            test_name="test_reduce_cat_1_0_float",
+            dtype="float",
+        )
+        self._test_reduce_cat_fusion_2(
+            input_shape=[10, 22, 16],
+            reduction_dim=1,
+            keepdim=False,
+            cat_dim=1,
+            new_cat_dim_val=5,
+            test_name="test_reduce_cat_2_1_float",
+            dtype="float",
+        )
+        self._test_reduce_cat_fusion_3(
+            input_shape=[3, 11, 16],
+            reduction_dim=2,
+            keepdim=False,
+            cat_dim=0,
+            new_cat_dim_val=10,
+            test_name="test_reduce_cat_3_1_float",
+            dtype="float",
+        )
+        self._test_reduce_cat_fusion_batch(
+            batch_sizes=[5, 20],
+            input_shape=[4, 2],
+            reduction_dim=2,
+            keepdim=True,
+            cat_dim=2,
+            new_cat_dim_val=5,
+            test_name="test_reduce_cat_fusion_batch_float",
+            dtype="float",
+        )
+        self._test_col_reduce_cat_fusion(dtype="float")
+        self._test_strided_op_multiple_cats(dtype="float")
+        self._test_strided_op_multiple_cats_2(dtype="float")
 
 
 if __name__ == "__main__":

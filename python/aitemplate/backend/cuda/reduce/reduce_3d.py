@@ -192,6 +192,7 @@ KERNEL_SRC_TEMPLATE = jinja2.Template(
 #include "cutlass/matrix_shape.h"
 #include "cutlass/numeric_conversion.h"
 #include "cutlass/tensor_ref.h"
+#include "cutlass/fast_math.h"
 
 #ifndef CHECK_ERROR_REDUCE
 #define CHECK_ERROR_REDUCE(expr)                             \\
@@ -272,7 +273,7 @@ struct ReductionKernel3D {
   };
 
   struct SharedStorage {
-    cutlass::AlignedArray<ElementCompute, Shape::kCount> exchange;
+    cutlass::AlignedArray<ElementCompute, Shape::kCount, Shape::kCount * alignof(ElementCompute)> exchange;
   };
 
   CUTLASS_DEVICE
@@ -858,7 +859,9 @@ def gen_function(
 
     # FIXME: these alignments values are only for half_t type.
     # make it adjustable to other types such as float.
-    alignments = [16, 8, 4, 2, 1]
+    alignments = [8, 4, 2, 1]
+    if x._attrs["dtype"] in ("float16",):
+        alignments.append(16)
     # This is ugly. Ideally, we should have templated code like below:
     # template <typename Alignment>
     # reduce_launcher(...) {
@@ -902,8 +905,9 @@ def gen_function(
     assert (
         len(output_accessors) == 1
     ), f"expected the length of output_accessors to be one but got {len(output_accessors)}"
+    dtype = func_attrs["inputs"][0].dtype()
     output_alignment = tensor_accessor_codegen.find_max_alignment_for_accessors(
-        output_accessors
+        dtype, output_accessors
     )
     special_exec_path, special_kernel = reduce_small_axis.get_exec_cond_and_kernel(
         func_attrs,

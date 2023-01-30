@@ -16,18 +16,22 @@
 Base operator definition for reduce-family ops.
 """
 import itertools
+import logging
 
 from typing import List
 
 from .... import backend
 from ....backend import registry
-from ....utils import logger, shape_utils
+from ....utils import shape_utils
 from ....utils.tensor_utils import wrap_dim
 from ...base import IntImm, IntVar, Operator, Tensor
 from ...dtype import get_dtype_size
 from ...tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0221
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class reduce_base(Operator):
@@ -249,11 +253,13 @@ class reduce_base(Operator):
         # Note that this is a temprary solution only for col-reduction reduce_sum
         # kernels that invoke cutlass's TensorReduction kernel. Once we have our
         # own implementation, we will remove the workaround.
-        if self._attrs["op"] == "reduce_sum" and (reduction_axes[0] != input_rank - 1):
+        if self._attrs["op"] == "reduce_sum" and (
+            self._attrs["reduction_axes"][0] != input_rank - 1
+        ):
             ws_size = self._compute_workspace_size(
-                x._attrs["shape"], reduction_axes[0], x.dtype()
+                x._attrs["shape"], self._attrs["reduction_axes"][0], x.dtype()
             )
-            logger.info(__name__, f'allocating {ws_size} for tensor {x._attrs["name"]}')
+            _LOGGER.info(f'allocating {ws_size} for tensor {x._attrs["name"]}')
             self._attrs["workspace"] = ws_size
         return output
 

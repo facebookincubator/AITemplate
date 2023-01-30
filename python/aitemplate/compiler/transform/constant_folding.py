@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import os
 from typing import Dict, List
 
@@ -20,9 +21,12 @@ import numpy as np
 from aitemplate import backend, compiler
 
 from aitemplate.compiler.base import _NumpyConstantTensorData, IntVarTensor, Tensor
+from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.compiler.model import AITData, Model
 from aitemplate.compiler.transform.transform_utils import replace_tensor
-from aitemplate.utils import logger
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def _output_from_tensor(tensor: Tensor) -> Tensor:
@@ -105,7 +109,7 @@ def _constant_folding_impl(
     subgraph = _extract_foldable_subgraph(sorted_graph)
     output_tensors = [tensor for tensor in subgraph if tensor._attrs["is_output"]]
     if not output_tensors:
-        logger.info(__file__, "No constants to fold, skipping constant folding.")
+        _LOGGER.info("No constants to fold, skipping constant folding.")
         return {}
 
     blob, constant_blob, workspace = compiler.transform.memory_planning(subgraph)
@@ -134,7 +138,7 @@ def _constant_folding_impl(
         if tensor._attrs["data"] is None:
             name = tensor._attrs["name"]
             shape = module.get_output_maximum_shape(tensor._attrs["name"])
-            arr = np.empty(shape, dtype=tensor._attrs["dtype"])
+            arr = np.empty(shape, dtype=normalize_dtype(tensor._attrs["dtype"]))
             new_tensor = Tensor(
                 shape=tensor._attrs["shape"],
                 name=name,
@@ -167,8 +171,7 @@ def constant_folding(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
     try:
         new_constants = _constant_folding_impl(sorted_graph, workdir)
     except Exception as e:
-        logger.warning(
-            __file__,
+        _LOGGER.warning(
             f"Constant folding encountered an error: {e}. The graph will not be modified.",
         )
         return sorted_graph

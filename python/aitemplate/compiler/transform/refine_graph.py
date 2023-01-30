@@ -15,14 +15,17 @@
 """
 Graph pass to dedup operators with same signatures.
 """
+import logging
 from typing import List
 
-from ...utils import logger
 from ...utils.graph_utils import get_sorted_ops
 
 from ..base import Operator, Tensor
 
 # pylint: disable=C0103
+
+
+_LOGGER = logging.getLogger(__name__)
 
 SPECIAL_CHECK_FUNC_KEYS = {
     "inputs",
@@ -153,7 +156,5 @@ def refine_graph(sorted_graph: List[Tensor]):
         if found:
             refined_ops_set.add(func._attrs["op"])
 
-    logger.debug(__file__, f"refined ops: {refined_ops_set}")
-    logger.info(
-        __file__, f"reduced unique ops from {total_ops} to {total_ops - refined_ops}"
-    )
+    _LOGGER.debug(f"refined ops: {refined_ops_set}")
+    _LOGGER.info(f"reduced unique ops from {total_ops} to {total_ops - refined_ops}")

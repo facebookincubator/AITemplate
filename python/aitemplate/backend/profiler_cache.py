@@ -16,15 +16,17 @@
 SQLite backend for conv/gemm profiling cache
 """
 import enum
+import logging
 import sqlite3
 
 from typing import Any, Dict, Tuple
 
 import jinja2
 
-from ..utils import logger
-
 # pylint: disable=W0613
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class CacheMode(enum.Enum):
@@ -131,7 +133,7 @@ VALUES (
 
 CONV_INIT_TEMPLATE = jinja2.Template(
     """
- CREATE TABLE IF NOT EXISTS {{dev}}_conv (
+ CREATE TABLE IF NOT EXISTS {{dev}}_conv_{{version}} (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   exec_entry VARCHAR(8192) NOT NULL,
   exec_entry_sha1 VARCHAR(64) NOT NULL,
@@ -164,7 +166,7 @@ CONV_INIT_TEMPLATE = jinja2.Template(
 CONV_QUERY_TEMPLATE = jinja2.Template(
     """
 SELECT algo, workspace
-FROM {{dev}}_conv
+FROM {{dev}}_conv_{{version}}
 WHERE
 dtype_a={{dtype_a}} AND
 dtype_b={{dtype_b}} AND
@@ -189,7 +191,7 @@ exec_entry_sha1='{{exec_entry_sha1}}';
 
 CONV_INSERT_TEMPLATE = jinja2.Template(
     """
-INSERT INTO {{dev}}_conv (
+INSERT INTO {{dev}}_conv_{{version}} (
     exec_entry,
     exec_entry_sha1,
     dtype_a,
@@ -240,7 +242,7 @@ VALUES (
 
 CONV3D_INIT_TEMPLATE = jinja2.Template(
     """
- CREATE TABLE IF NOT EXISTS {{dev}}_conv3d (
+ CREATE TABLE IF NOT EXISTS {{dev}}_conv3d_{{version}} (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   exec_entry VARCHAR(8192) NOT NULL,
   exec_entry_sha1 VARCHAR(64) NOT NULL,
@@ -280,7 +282,7 @@ CONV3D_INIT_TEMPLATE = jinja2.Template(
 CONV3D_QUERY_TEMPLATE = jinja2.Template(
     """
 SELECT algo, workspace
-FROM {{dev}}_conv3d
+FROM {{dev}}_conv3d_{{version}}
 WHERE
 dtype_a={{dtype_a}} AND
 dtype_b={{dtype_b}} AND
@@ -312,7 +314,7 @@ exec_entry_sha1='{{exec_entry_sha1}}';
 
 CONV3D_INSERT_TEMPLATE = jinja2.Template(
     """
-INSERT INTO {{dev}}_conv3d (
+INSERT INTO {{dev}}_conv3d_{{version}} (
     exec_entry,
     exec_entry_sha1,
     dtype_a,
@@ -489,8 +491,10 @@ class ProfileCacheDB(object):
         #     We could choose the old working version upon rollback, but we might
         #     leave some content from the failing version in the db. How are we
         #     going to update the db if we update the version again, and so on.
-        # TODO: add similar version control for conv and norm
+        # TODO: add similar version control for norm
         self._gemm_cache_version = 1
+        self._conv_cache_version = 1
+        self._conv3d_cache_version = 1
         if uri is not None:
             self._mode = CacheMode.REMOTE
         if self._mode == CacheMode.LOCAL:
@@ -508,25 +512,101 @@ class ProfileCacheDB(object):
         self._create_conv3d_table()
         self._create_norm_table()
 
-    def get_profile_gemm_cache_version(self) -> int:
+    @property
+    def gemm_cache_version(self) -> int:
         return self._gemm_cache_version
+
+    @property
+    def conv_cache_version(self) -> int:
+        return self._conv_cache_version
+
+    @property
+    def conv3d_cache_version(self) -> int:
+        return self._conv3d_cache_version
 
     def _create_gemm_table(self):
         """Creates gemm table."""
-        if not self._gemm_table_version_matches():
-            logger.info(__name__, "temporarily keep old cache versions")
+        version = self.gemm_cache_version
+        if not self._table_exists("gemm", version):
+            _LOGGER.info(
+                "Temporarily keeping the old gemm cache versions if exist",
+            )
             # FIXME: will delete unmatched version once we get into production
             # self._delete_existing_table("gemm")
 
-        logger.info(
-            __name__,
-            f"Trying to make a new gemm table with {self._gemm_cache_version=}",
-        )
-        sql = GEMM_INIT_TEMPLATE.render(
-            dev=self._target, version=self._gemm_cache_version
-        )
+            _LOGGER.info(
+                f"Creating a new gemm table with {version=}",
+            )
+            sql = GEMM_INIT_TEMPLATE.render(
+                dev=self._target,
+                version=version,
+            )
+            self._cur.execute(sql)
+            self._con.commit()
+
+    def _create_conv_table(self):
+        """Creates conv table."""
+        version = self.conv_cache_version
+        if not self._table_exists("conv", version):
+            _LOGGER.info(
+                "Temporarily keeping the old conv cache versions if exist",
+            )
+            # FIXME: will delete unmatched version once we get into production
+            # self._delete_existing_table("conv")
+
+            _LOGGER.info(
+                f"Creating a new conv table with {version=}",
+            )
+            sql = CONV_INIT_TEMPLATE.render(
+                dev=self._target,
+                version=version,
+            )
+            self._cur.execute(sql)
+            self._con.commit()
+
+    def _create_conv3d_table(self):
+        """Creates conv3d table."""
+        version = self.conv3d_cache_version
+        if not self._table_exists("conv3d", version):
+            _LOGGER.info(
+                "Temporarily keeping the old conv3d cache versions if exist",
+            )
+            # FIXME: will delete unmatched version once we get into production
+            # self._delete_existing_table("conv3d")
+
+            _LOGGER.info(
+                f"Creating a new conv3d table with {version=}",
+            )
+            sql = CONV3D_INIT_TEMPLATE.render(
+                dev=self._target,
+                version=version,
+            )
+            self._cur.execute(sql)
+            self._con.commit()
+
+    def _create_norm_table(self):
+        """Creates conv table."""
+        sql = NORM_INIT_TEMPLATE.render(dev=self._target)
         self._cur.execute(sql)
         self._con.commit()
+
+    def _table_exists(self, table_kind, cache_version):
+        """Check if the table of given kind and cache version exists."""
+        table_name = f"{self._target}_{table_kind}_{cache_version}"
+        sql = CHECK_TABLE_EXISTENCE_TEMPLATE.render(table_name=table_name)
+        self._cur.execute(sql)
+        tables = self._cur.fetchall()
+
+        if tables:
+            _LOGGER.info(
+                f"{table_name=} exists in the db",
+            )
+            return True
+        else:
+            _LOGGER.info(
+                f"{table_name=} does not exist in the db, possible version mismatch!",
+            )
+            return False
 
     def _delete_existing_table(self, table_kind):
         """Delete an existing table in the db"""
@@ -534,7 +614,7 @@ class ProfileCacheDB(object):
         self._cur.execute(sql)
         all_tables = self._cur.fetchall()
         if len(all_tables) == 0:
-            logger.info(__name__, "deleting table: skip empty table")
+            _LOGGER.info("deleting table: skip empty table")
             return
 
         target_tables = [
@@ -547,44 +627,8 @@ class ProfileCacheDB(object):
         assert (
             len(target_tables) == 1
         ), f"expected only one {table_kind} table but got {target_tables=}"
-        logger.info(__name__, f"deleting table {target_tables[0]=}")
+        _LOGGER.info(f"deleting table {target_tables[0]=}")
         self._cur.execute(f"DROP TABLE {target_tables[0]}")
-
-    def _create_conv_table(self):
-        """Creates conv table."""
-        sql = CONV_INIT_TEMPLATE.render(dev=self._target)
-        self._cur.execute(sql)
-        self._con.commit()
-
-    def _create_conv3d_table(self):
-        """Creates conv3d table."""
-        sql = CONV3D_INIT_TEMPLATE.render(dev=self._target)
-        self._cur.execute(sql)
-        self._con.commit()
-
-    def _create_norm_table(self):
-        """Creates conv table."""
-        sql = NORM_INIT_TEMPLATE.render(dev=self._target)
-        self._cur.execute(sql)
-        self._con.commit()
-
-    def _if_table_exists(self, table_name):
-        """check if a table exists"""
-        sql = CHECK_TABLE_EXISTENCE_TEMPLATE.render(table_name=table_name)
-        self._cur.execute(sql)
-        tables = self._cur.fetchall()
-        return len(tables) > 0
-
-    def _gemm_table_version_matches(self):
-        table_name = f"{self._target}_gemm_{self._gemm_cache_version}"
-        if self._if_table_exists(table_name):
-            logger.info(__name__, f"{table_name=} exists in the db")
-            return True
-        else:
-            logger.info(
-                __name__, f"{table_name=} does not exist in the db, version mismatch!"
-            )
-            return False
 
     def _query(self, sql: str) -> Tuple[str, int]:
         """a function to query op from cache
@@ -625,7 +669,9 @@ class ProfileCacheDB(object):
             profiling results
         """
         sql = GEMM_QUERY_TEMPLATE.render(
-            dev=self._target, version=self._gemm_cache_version, **args
+            dev=self._target,
+            version=self.gemm_cache_version,
+            **args,
         )
         return self._query(sql)
 
@@ -643,7 +689,11 @@ class ProfileCacheDB(object):
         Tuple
             profiling results
         """
-        sql = CONV_QUERY_TEMPLATE.render(dev=self._target, **args)
+        sql = CONV_QUERY_TEMPLATE.render(
+            dev=self._target,
+            version=self.conv_cache_version,
+            **args,
+        )
         return self._query(sql)
 
     def query_conv3d(self, args: Dict[str, Any]) -> Tuple[str, int]:
@@ -660,7 +710,11 @@ class ProfileCacheDB(object):
         Tuple
             profiling results
         """
-        sql = CONV3D_QUERY_TEMPLATE.render(dev=self._target, **args)
+        sql = CONV3D_QUERY_TEMPLATE.render(
+            dev=self._target,
+            version=self.conv3d_cache_version,
+            **args,
+        )
         return self._query(sql)
 
     def query_normalization(self, args: Dict[str, Any]) -> Tuple[str, int]:
@@ -696,7 +750,7 @@ class ProfileCacheDB(object):
                 self._cur.execute(insert_sql)
                 self._db_commit_flag = True
             else:
-                logger.info(__name__, "Ignore repeat profile_record: " + query_sql)
+                _LOGGER.info("Ignore repeat profile_record: " + query_sql)
 
     def insert_gemm(self, args: Dict[str, Any]) -> None:
         """a function to insert gemm op epilogue into cache
@@ -708,7 +762,7 @@ class ProfileCacheDB(object):
         """
         query_sql = GEMM_QUERY_TEMPLATE.render(
             dev=self._target,
-            version=self._gemm_cache_version,
+            version=self.gemm_cache_version,
             dtype_a=args["dtype_a"],
             dtype_b=args["dtype_b"],
             dtype_c=args["dtype_c"],
@@ -724,7 +778,9 @@ class ProfileCacheDB(object):
             exec_entry_sha1=args["exec_entry_sha1"],
         )
         insert_sql = GEMM_INSERT_TEMPLATE.render(
-            dev=self._target, version=self._gemm_cache_version, **args
+            dev=self._target,
+            version=self.gemm_cache_version,
+            **args,
         )
         self._insert(query_sql, insert_sql)
 
@@ -740,6 +796,7 @@ class ProfileCacheDB(object):
         """
         query_sql = CONV_QUERY_TEMPLATE.render(
             dev=self._target,
+            version=self.conv_cache_version,
             dtype_a=args["dtype_a"],
             dtype_b=args["dtype_b"],
             dtype_c=args["dtype_c"],
@@ -759,7 +816,11 @@ class ProfileCacheDB(object):
             split_k=args["split_k"],
             exec_entry_sha1=args["exec_entry_sha1"],
         )
-        insert_sql = CONV_INSERT_TEMPLATE.render(dev=self._target, **args)
+        insert_sql = CONV_INSERT_TEMPLATE.render(
+            dev=self._target,
+            version=self.conv_cache_version,
+            **args,
+        )
         self._insert(query_sql, insert_sql)
 
     def insert_conv3d(self, args: Dict[str, Any]) -> None:
@@ -774,6 +835,7 @@ class ProfileCacheDB(object):
         """
         query_sql = CONV3D_QUERY_TEMPLATE.render(
             dev=self._target,
+            version=self.conv3d_cache_version,
             dtype_a=args["dtype_a"],
             dtype_b=args["dtype_b"],
             dtype_c=args["dtype_c"],
@@ -800,7 +862,11 @@ class ProfileCacheDB(object):
             split_k=args["split_k"],
             exec_entry_sha1=args["exec_entry_sha1"],
         )
-        insert_sql = CONV3D_INSERT_TEMPLATE.render(dev=self._target, **args)
+        insert_sql = CONV3D_INSERT_TEMPLATE.render(
+            dev=self._target,
+            version=self.conv3d_cache_version,
+            **args,
+        )
         self._insert(query_sql, insert_sql)
 
     def insert_normalization(self, args: Dict[str, Any]) -> None:

@@ -23,7 +23,11 @@
 #include "cutlass/util/host_tensor.h"
 #include "cutlass/util/reference/host/tensor_fill.h"
 
+#include <nvtx3/nvToolsExt.h>
+
 namespace ait {
+
+inline thread_local bool target_has_graph_mode = true;
 
 using DeviceError = cudaError_t;
 using DevicePropertyType = cudaDeviceProp;
@@ -180,6 +184,22 @@ inline const char* GetErrorString(DeviceError err) {
 
 inline DeviceError GetDeviceNotReady() {
   return cudaErrorNotReady;
+}
+
+inline DeviceError GetDriverVersion(int* driverVersion) {
+  return cudaDriverGetVersion(driverVersion);
+}
+
+inline DeviceError GetRuntimeVersion(int* runtimeVersion) {
+  return cudaRuntimeGetVersion(runtimeVersion);
+}
+
+inline void ProfilerRangePush(const char* msg) {
+  nvtxRangePushA(msg);
+}
+
+inline void ProfilerRangePop() {
+  nvtxRangePop();
 }
 
 } // namespace ait

@@ -16,6 +16,7 @@
 Argmax.
 """
 import itertools
+import logging
 import os
 import re
 from collections import OrderedDict
@@ -27,10 +28,13 @@ import numpy as np
 
 from .... import backend
 from ....backend import registry
-from ....utils import logger, shape_utils
+from ....utils import shape_utils
 from ...base import Operator, Tensor
 
 # pylint: disable=C0103,W0221,W0102,W0223
+
+
+_LOGGER = logging.getLogger(__name__)
 
 EXEC_KEY_TEMPLATE = jinja2.Template(
     """
@@ -153,7 +157,7 @@ class argmax(Operator):
         cmd.append(x_shape[0])
         cmd.append(x_shape[1])
         command = [str(x) for x in cmd]
-        logger.info(__name__, "profiling cmd: {}".format(command))
+        _LOGGER.info("profiling cmd: {}".format(command))
         return command
 
     def _profile_single_workload(self, profiler_prefix, exec_key, devices):
@@ -199,8 +203,7 @@ class argmax(Operator):
         profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
 
         for wkl in workloads:
-            logger.info(
-                __name__,
+            _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
             workspace = self._profile_single_workload(profiler_prefix, wkl, devices)

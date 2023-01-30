@@ -23,13 +23,17 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils, shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "cuda", "Only supported by ROCM.")
 class SplitBMMTestCase(unittest.TestCase):
     def _test_split_reshape_bmm_permute(
-        self, bs, nheads, seq_len, hidden_size, test_name
+        self, bs, nheads, seq_len, hidden_size, test_name, dtype="float16"
     ):
         target = detect_target()
         head_dim = hidden_size // nheads
@@ -37,7 +41,7 @@ class SplitBMMTestCase(unittest.TestCase):
 
         batch_dim = shape_utils.gen_int_var_min_max(bs, name="batch_size")
         input_shape = [3, batch_dim, nheads, seq_len, head_dim]
-        X = Tensor(shape=input_shape, dtype="float16", name="input_0", is_input=True)
+        X = Tensor(shape=input_shape, dtype=dtype, name="input_0", is_input=True)
         (Q, K, V) = ops.split()(X, 1, dim=0)
 
         OP = ops.bmm_softmax_bmm_permute(shape=(nheads,), scale=scale)
@@ -60,7 +64,7 @@ class SplitBMMTestCase(unittest.TestCase):
 
         for b in bs:
             input_shape = [3, b, nheads, seq_len, head_dim]
-            x_pt = torch.randn(*input_shape).cuda().half()
+            x_pt = get_random_torch_tensor(input_shape, dtype)
             (q_pt, k_pt, v_pt) = torch.split(x_pt, 1, dim=0)
             q_pt = q_pt.reshape(-1, seq_len, head_dim)
             k_pt = k_pt.reshape(-1, seq_len, head_dim)
@@ -74,7 +78,7 @@ class SplitBMMTestCase(unittest.TestCase):
             y_r = y_l.reshape(b, nheads, seq_len, head_dim)
             y_pt = torch.permute(y_r, [0, 2, 1, 3])
 
-            y = torch.empty([b, seq_len, nheads, head_dim]).cuda().half()
+            y = get_torch_empty_tensor([b, seq_len, nheads, head_dim], dtype)
             module.run_with_tensors([x_pt], [y])
             self.assertTrue(torch.allclose(y_pt, y, atol=1e-1, rtol=1e-1))
 

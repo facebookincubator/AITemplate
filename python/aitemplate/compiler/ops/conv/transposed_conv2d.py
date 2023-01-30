@@ -15,8 +15,14 @@
 """
 Transposed conv2d op.
 """
+
+import itertools
+from typing import List
+
 import jinja2
 
+from ....utils import shape_utils
+from ...base import Tensor
 from .conv2d import conv2d
 
 SHAPE_FUNC_TEMPLATE = jinja2.Template(
@@ -109,3 +115,54 @@ class transposed_conv2d(conv2d):
         self._attrs["op"] = "transposed_conv2d"
         self._attrs["epilogue"] = "LinearCombination"
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
+
+    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+        if x[3] != w[0] * self._attrs["group"]:
+            raise RuntimeError("X/W Shape mismatch for conv2d")
+        eval_func = self.shape_eval_template.render(
+            indent="",
+            dtype="",
+            div="//",
+            stride=self._attrs["stride"],
+            pad=self._attrs["pad"],
+            dilate=self._attrs["dilate"],
+            x_dim0=x[0],
+            x_dim1=x[1],
+            x_dim2=x[2],
+            x_dim3=x[3],
+            w_dim0=w[3],  # for conv_transpose w = [c_in, kh, kw, c_out]
+            w_dim1=w[1],
+            w_dim2=w[2],
+        )
+        output = {}
+        exec(eval_func, output)  # noqa: P204
+        return [
+            int(output["NO"]),
+            int(output["HO"]),
+            int(output["WO"]),
+            int(output["CO"]),
+        ]
+
+    def _infer_shapes(self, x: Tensor, w: Tensor) -> List[int]:
+        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
+        x_shapes = itertools.product(*x_shape_values)
+        w_shape = [var._attrs["values"][0] for var in w._attrs["shape"]]
+        self._attrs["CO"] = w_shape[3]
+        self._attrs["KH"] = w_shape[1]
+        self._attrs["KW"] = w_shape[2]
+        # run infershape for each
+        y_shapes = []
+        for x_shape in x_shapes:
+            y_shape = self._infer_shape(x_shape, w_shape)
+            y_shapes.append(y_shape)
+
+        def unique(vector):
+            return sorted(set(vector))
+
+        output_shape = [
+            shape_utils.gen_int_var(unique([d[0] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[1] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
+        ]
+        return output_shape

@@ -55,7 +55,9 @@ def reg(func_name: str, func: Callable = None) -> Callable:
         If same key is founded in registry, will raise a RuntimeError
     """
     if func_name in BACKEND_FUNCTIONS:
-        raise RuntimeError("{name} funcion has been registered.".format(name=func_name))
+        raise RuntimeError(
+            "{name} funcion has already been registered.".format(name=func_name)
+        )
 
     def _do_reg(func):
         BACKEND_FUNCTIONS[func_name] = func

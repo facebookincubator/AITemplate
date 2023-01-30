@@ -24,18 +24,18 @@ from . import group_common
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-        problem_sizes_device,
-        problem_count,
-        threadblock_count,
-        {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},
-        ({{elem_input_type}}**)(ptr_A),
-        ({{elem_input_type}}**)(ptr_B),
-        ({{elem_input_type}}**)(ptr_bias),
-        ({{elem_output_type}}**)ptr_C,
-        lda,
-        ldb,
-        ldc,
-        ldd
+    problem_sizes_device,                                    // GemmCoord *problem_sizes
+    problem_count,                                           // int problem_count
+    threadblock_count,                                       // int threadblock_count
+    {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename EpilogueOutputOp::Params output_op
+    ({{elem_input_type}}**)(ptr_A),                          // ElementA ** ptr_A
+    ({{elem_input_type}}**)(ptr_B),                          // ElementB ** ptr_B
+    ({{elem_input_type}}**)(ptr_bias),                       // ElementC ** ptr_C
+    ({{elem_output_type}}**)ptr_C,                           // ElementC ** ptr_D
+    lda,                                                     // typename LayoutA::Stride::LongIndex *lda
+    ldb,                                                     // typename LayoutB::Stride::LongIndex *ldb
+    ldc,                                                     // typename LayoutC::Stride::LongIndex *ldc
+    ldd,                                                     // typename LayoutC::Stride::LongIndex *ldd
 """
 )
 

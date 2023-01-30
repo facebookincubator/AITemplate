@@ -108,8 +108,6 @@ class ModelContainer : ModelContainerBase {
  public:
   ModelContainer(
       size_t num_models,
-      size_t blob_size,
-      size_t workspace_size,
       size_t num_inputs,
       size_t num_outputs,
       size_t num_unbound_constants,
@@ -134,6 +132,15 @@ class ModelContainer : ModelContainerBase {
       StreamType stream,
       bool graph_mode,
       int64_t** output_shapes_out);
+
+  void Profile(
+      const AITData* inputs,
+      size_t num_inputs,
+      AITData* outputs,
+      size_t num_outputs,
+      StreamType stream,
+      size_t num_iters,
+      const char* filename);
 
   float Benchmark(
       const AITData* inputs,
@@ -187,7 +194,7 @@ class ModelContainer : ModelContainerBase {
 
   AITemplateAllocator& allocator_;
 
-  std::vector<Model> models_;
+  std::vector<std::unique_ptr<Model>> models_;
   std::vector<Model*> available_models_;
   std::deque<Model*> pending_models_;
 

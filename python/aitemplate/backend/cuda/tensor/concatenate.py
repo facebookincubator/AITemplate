@@ -19,6 +19,22 @@ CUDA concatenate function
 from ... import registry
 from ...backend_spec import CUDASpec
 from ...common import concatenate_common
+from . import concatenate_fast
+
+
+def _is_valid_fast_cat(func_attrs):
+    """
+    Checks whether the call is acceptable for the concatenate
+    kernel in concatenate_fast.py
+    """
+
+    if "fast_cat" not in func_attrs:
+        return False
+    if not func_attrs["fast_cat"]:
+        return False
+    if len(func_attrs["inputs"]) == 0:
+        return False
+    return True
 
 
 @registry.reg("cuda.concatenate.func_decl")
@@ -56,12 +72,20 @@ def gen_function(func_attrs, element_func=None, element_func_def=None):
     str
         Rendered function body.
     """
-    return concatenate_common.gen_function(
-        func_attrs=func_attrs,
-        backend_spec=CUDASpec(),
-        element_func=element_func,
-        element_func_def=element_func_def,
-    )
+    if _is_valid_fast_cat(func_attrs):
+        return concatenate_fast.gen_function(
+            func_attrs,
+            concatenate_common.SRC_TEMPLATE,
+            element_func=element_func,
+            element_func_def=element_func_def,
+        )
+    else:
+        return concatenate_common.gen_function(
+            func_attrs=func_attrs,
+            backend_spec=CUDASpec(),
+            element_func=element_func,
+            element_func_def=element_func_def,
+        )
 
 
 @registry.reg("cuda.concatenate.func_call")

@@ -18,6 +18,7 @@ Rocm target specialization.
 # pylint: disable=W0702,W0707,W0611,C0415
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -26,12 +27,13 @@ from typing import List
 
 from aitemplate.backend.target import AIT_STATIC_FILES_PATH
 
-from ...utils import logger
-
 from .. import registry
 from ..target import COMPOSABLE_KERNEL_PATH, Target
 
 # pylint: disable=W0613
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class ROCM(Target):
@@ -305,9 +307,7 @@ class FBROCM(ROCM):
         convert_hippcc_json = parutil.get_file_path(
             os.path.join("aitemplate/testing", "convert_hipcc_cmd")
         )
-        logger.info(
-            __name__, f"Load the hipcc compile option from {convert_hippcc_json}"
-        )
+        _LOGGER.info(f"Load the hipcc compile option from {convert_hippcc_json}")
         with open(convert_hippcc_json, "r") as hipcc_options_json:
             self.hipcc_options_json = json.load(hipcc_options_json)
 

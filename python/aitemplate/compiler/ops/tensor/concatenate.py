@@ -41,17 +41,24 @@ class concatenate(Operator):
 
     """
 
-    def __init__(self) -> None:
+    def __init__(self, fast_cat=True) -> None:
+        # TMP: note that fast_cat is a temporary flag to force backend to select
+        # the fast concat implementation. After we finish benchmark fast concat,
+        # we should remove this flag. Instead, we will rely on backend to dispatch
+        # to the appropriate implementation based on input shapes if the fast
+        # concat couldn't handle all cases. If the fast concat is complete, we
+        # can remove the old concat kernel.
         super().__init__()
         self._attrs["op"] = "concatenate"
         self._attrs["has_profiler"] = False
+        self._attrs["fast_cat"] = fast_cat
 
     def _unique(self, vector):
         return sorted(set(vector))
 
-    def _infer_shapes(self, inputs: List[Tensor], dim) -> List[IntVar]:
-        """Infers shapes for concatenate."""
-
+    @staticmethod
+    def check_rank(inputs: List[Tensor], dim) -> bool:
+        """check if the rank is valid"""
         if len(inputs) < 1:
             raise RuntimeError("expected a list of Tensors")
         x = inputs[0]
@@ -60,18 +67,20 @@ class concatenate(Operator):
             raise RuntimeError("expected a non-scalar tensor")
         if dim >= rank:
             raise RuntimeError(
-                "concat_dim ({dim}) expected to be less than rank ({rank})".format(
-                    dim=dim, rank=rank
-                )
+                f"concat_dim ({dim}) expected to be less than rank ({rank})"
             )
         for t in inputs:
             r = len(t._attrs["shape"])
             if r != rank:
                 raise RuntimeError(
-                    "tensors expected to have the same rank, got {} and {}".format(
-                        r, rank
-                    )
+                    f"tensors expected to have the same rank but got {rank=} "
+                    f'and {r=} for tensor {t._attrs["name"]}'
                 )
+
+    def _infer_shapes(self, inputs: List[Tensor], dim) -> List[IntVar]:
+        """Infers shapes for concatenate."""
+        concatenate.check_rank(inputs, dim)
+
         input_shapes = [i._attrs["shape"] for i in inputs]
         output_shape = []
         input_shape_values = [

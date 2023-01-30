@@ -201,7 +201,7 @@ __global__ void layernorm_sigmoid_mul_stored_locally(
   float local_sums[1] = {0.0f};
   if (tid < quarter_n) {
     local_val =
-        *input_accessor.get<const float4, const float4>(input, offset + tid);
+        *input_accessor.get<const float, const float4>(input, offset + tid);
 
     local_sums[0] = local_val.x + local_val.y + local_val.z + local_val.w;
   }
@@ -466,8 +466,16 @@ __global__ void layernorm_sigmoid_mul(
   __syncthreads();
 
   for (int i = tid; i < n; i += blockDim.x) {
+#ifdef AIT_LAYERNORM_CONST_GAMMA
+    const float gamma_val = AIT_LAYERNORM_CONST_GAMMA;
+#else
     const float gamma_val = static_cast<float>(gamma[i]);
+#endif // AIT_LAYERNORM_CONST_GAMMA
+#ifdef AIT_LAYERNORM_CONST_BETA
+    const float beta_val = AIT_LAYERNORM_CONST_BETA;
+#else
     const float beta_val = static_cast<float>(beta[i]);
+#endif // AIT_LAYERNORM_CONST_BETA
     float local_val = static_cast<float>(
         *input_accessor.get<const T, const T>(input, offset + i));
 
@@ -628,14 +636,7 @@ cudaError_t invokeLayernormSigmoidMul(
     block.x = 512;
     if constexpr (std::is_same<T, half>::value) {
       layernorm_sigmoid_mul<FuseSigmoidMul><<<grid, block, 0, stream>>>(
-          (half*)(output),
-          (const half*)(input),
-          (const half*)(gamma),
-          (const half*)(beta),
-          n,
-          eps,
-          input_accessor,
-          output_accessor);
+          output, input, gamma, beta, n, eps, input_accessor, output_accessor);
       LAYER_NORM_CUDA_CHECK_LAUNCH();
     } else {
       layernorm_sigmoid_mul<T, T_ACC, FuseSigmoidMul>

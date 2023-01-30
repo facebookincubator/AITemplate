@@ -19,6 +19,7 @@ from typing import Dict
 
 DTYPE_TO_CUDATYPE: Dict[str, str] = {
     "float16": "half",
+    "float32": "float",
     "float": "float",
     "int64": "int64_t",
 }

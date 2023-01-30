@@ -20,6 +20,7 @@ import torch
 from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 try:
     from detectron2.modeling.poolers import ROIPooler
@@ -30,15 +31,20 @@ except ImportError:
 skipIfNoD2 = skipIf(not HAS_D2, "no detectron2")
 
 
-def random_boxes(num_boxes, max_coord=512):
+def random_boxes(num_boxes, max_coord=512, dtype="float16"):
     boxes = torch.rand(num_boxes, 4) * (max_coord * 0.5)
     boxes.clamp_(min=1.0)
     boxes[:, 2:] += boxes[:, :2]
-    return boxes.cuda().half()
+    torch_dtype = string_to_torch_dtype(dtype)
+    return boxes.cuda().to(dtype=torch_dtype)
 
 
 @skipIfNoD2
 class RoiAlignTestCase(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        torch.manual_seed(0)
+
     def _test_fpn_roi_align(
         self,
         boxes,
@@ -54,24 +60,26 @@ class RoiAlignTestCase(unittest.TestCase):
         rebuild=True,
         bench=False,
         copy_op=False,
+        dtype="float16",
+        eps=1e-2,
     ):
         HH, WW = im_shape
         target = detect_target()
 
         P2 = Tensor(
-            shape=[1, HH // 4, WW // 4, CC], dtype="float16", name="P2", is_input=True
+            shape=[1, HH // 4, WW // 4, CC], dtype=dtype, name="P2", is_input=True
         )
 
         P3 = Tensor(
-            shape=[1, HH // 8, WW // 8, CC], dtype="float16", name="P3", is_input=True
+            shape=[1, HH // 8, WW // 8, CC], dtype=dtype, name="P3", is_input=True
         )
         P4 = Tensor(
-            shape=[1, HH // 16, WW // 16, CC], dtype="float16", name="P4", is_input=True
+            shape=[1, HH // 16, WW // 16, CC], dtype=dtype, name="P4", is_input=True
         )
         P5 = Tensor(
-            shape=[1, HH // 32, WW // 32, CC], dtype="float16", name="P5", is_input=True
+            shape=[1, HH // 32, WW // 32, CC], dtype=dtype, name="P5", is_input=True
         )
-        R = Tensor(shape=[num_rois, 5], dtype="float16", name="ROI", is_input=True)
+        R = Tensor(shape=[num_rois, 5], dtype=dtype, name="ROI", is_input=True)
 
         OP = ops.multi_level_roi_align(
             num_rois=num_rois,
@@ -131,16 +139,15 @@ class RoiAlignTestCase(unittest.TestCase):
 
         rois = torch.zeros(num_rois, 5)
         rois[:, 1:] = boxes
-        rois = rois.cuda().half()
-        X_p2 = features[0].half()
-        X_p3 = features[1].half()
-        X_p4 = features[2].half()
-        X_p5 = features[3].half()
+        rois = rois.cuda()
 
-        x_p2 = X_p2.permute((0, 2, 3, 1)).contiguous()
-        x_p3 = X_p3.permute((0, 2, 3, 1)).contiguous()
-        x_p4 = X_p4.permute((0, 2, 3, 1)).contiguous()
-        x_p5 = X_p5.permute((0, 2, 3, 1)).contiguous()
+        torch_dtype = string_to_torch_dtype(dtype)
+        rois = rois.to(dtype=torch_dtype)
+        features = [f.to(dtype=torch_dtype) for f in features]
+
+        x_p2, x_p3, x_p4, x_p5 = [
+            f.permute((0, 2, 3, 1)).contiguous() for f in features
+        ]
 
         inputs = {
             "P2": x_p2,
@@ -149,13 +156,14 @@ class RoiAlignTestCase(unittest.TestCase):
             "P5": x_p5,
             "ROI": rois,
         }
-        y = torch.empty([num_rois, pooled_size, pooled_size, CC]).cuda().half()
+        y = torch.empty_like(y_pt).permute((0, 2, 3, 1)).contiguous()
+        y = y.to(dtype=torch_dtype)
         module.run_with_tensors(inputs, [y])
         y_transpose = y.permute((0, 3, 1, 2))
-        eps = 1e-2
-        self.assertTrue(torch.allclose(y_pt.half(), y_transpose, atol=eps, rtol=eps))
+        y_transpose = y_transpose.to(dtype=y_pt.dtype)
+        self.assertTrue(torch.allclose(y_pt, y_transpose, atol=eps, rtol=eps))
 
-    def test_fpn_roi_align(self):
+    def _runner(self, dtype="float16", eps=1e-2):
         N, C, H, W = 1, 16, 512, 512
         std = 11
         mean = 0
@@ -172,21 +180,7 @@ class RoiAlignTestCase(unittest.TestCase):
             feature5.cuda(),
         ]
 
-        boxes = torch.tensor(
-            [
-                [100.0, 120.0, 152.0, 152.0],
-                [2.0, 2.0, 52.0, 52.0],
-                [1.0, 1.0, 100.0, 100.0],
-                [110.0, 110.0, 300.0, 300.0],
-                [1.0, 1.0, 150.0, 150.0],
-                [10.0, 10.0, 300.0, 300.0],
-                [10.0, 10.0, 400.0, 400.0],
-                [110.0, 110.0, 400.0, 400.0],
-                [110.0, 110.0, 350.0, 350.0],
-                [10.0, 10.0, 510.0, 510.0],
-            ]
-        ).cuda()
-        boxes = random_boxes(100)
+        boxes = random_boxes(100, dtype=dtype)
         self._test_fpn_roi_align(
             boxes,
             features,
@@ -195,7 +189,9 @@ class RoiAlignTestCase(unittest.TestCase):
             im_shape=(H, W),
             pooled_size=7,
             rebuild=1,
-            test_name="fpn_roi_align",
+            test_name=f"fpn_roi_align_{dtype}",
+            dtype=dtype,
+            eps=eps,
         )
         self._test_fpn_roi_align(
             boxes,
@@ -205,11 +201,18 @@ class RoiAlignTestCase(unittest.TestCase):
             im_shape=(H, W),
             pooled_size=7,
             rebuild=1,
-            test_name="fpn_roi_align_copy_op",
+            test_name=f"fpn_roi_align_copy_op_{dtype}",
             copy_op=True,
+            dtype=dtype,
+            eps=eps,
         )
+
+    def test_fpn_roi_align_fp16(self):
+        self._runner(dtype="float16", eps=1e-1)
+
+    def test_fpn_roi_align_fp32(self):
+        self._runner(dtype="float32", eps=1e-2)
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
     unittest.main()
