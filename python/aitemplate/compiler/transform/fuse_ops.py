@@ -24,10 +24,13 @@ from aitemplate.compiler.base import Operator
 from aitemplate.compiler.transform.toposort import toposort
 
 from ..base import Tensor
-from ..ops.common import fused_elementwise
+from ..ops.common import elementwise, fused_elementwise
 from ..ops.common.epilogue import FuncEnum
+from ..ops.groupnorm.groupnorm import group_norm
+from ..ops.groupnorm.groupnorm_swish import group_norm_swish
 from ..ops.layernorm import layernorm_sigmoid_mul
 from . import transform_utils
+from .fuse_utils import transform_simple_fusion_patterns
 
 # pylint: disable=C0103,W0612
 
@@ -376,10 +379,26 @@ def _fuse_layernorm_sigmoid_mul(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
+def _fuse_groupnorm_sigmoid_mul(sorted_graph: List[Tensor]) -> List[Tensor]:
+    fusion_patterns = [
+        (
+            (
+                group_norm(num_groups=2, num_channels=4),
+                elementwise(FuncEnum.SIGMOID),
+                elementwise(FuncEnum.MUL),
+            ),
+            group_norm_swish,
+        )
+    ]
+    graph = transform_simple_fusion_patterns(sorted_graph, fusion_patterns)
+    return graph
+
+
 def fuse_ops(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
     funcs = [
         _fuse_layernorm_sigmoid_mul,
-        _fuse_elementwise,
+        _fuse_groupnorm_sigmoid_mul,
+        _fuse_elementwise,  # this pass should be left in the last one
     ]
     for func in funcs:
         sorted_graph = func(sorted_graph)
