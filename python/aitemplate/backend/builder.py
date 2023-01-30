@@ -32,6 +32,8 @@ from typing import Optional
 
 import jinja2
 
+from aitemplate.utils.debug_settings import AITDebugSettings
+
 from ..utils.misc import is_debug
 from .target import Target
 from .task_runner import BaseRunner, Task
@@ -40,6 +42,7 @@ from .task_runner import BaseRunner, Task
 
 
 _LOGGER = logging.getLogger(__name__)
+_DEBUG_SETTINGS = AITDebugSettings()
 
 
 def _augment_for_trace(cmd):
@@ -769,7 +772,14 @@ clean:
         cmds = [make_clean_cmd, make_all_cmd]
         _run_make_cmds(cmds, self._timeout, build_dir)
 
-    def make(self, file_pairs, dll_name, workdir, test_name, debug_settings):
+    def make(
+        self,
+        file_pairs,
+        dll_name,
+        workdir,
+        test_name,
+        debug_settings=_DEBUG_SETTINGS
+    ):
         self.gen_makefile(file_pairs, dll_name, workdir, test_name, debug_settings)
         make_path = shlex.quote(Target.current().make())
         build_dir = shlex.quote(os.path.join(workdir, test_name))

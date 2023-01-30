@@ -117,12 +117,17 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         # Now we run the generate executable
         cwd = os.getcwd()
         workdir = os.path.join(cwd, "tmp", test_name)
+        working_env = os.environ.copy()
+        if "LD_LIBRARY_PATH" in working_env:
+            working_env["LD_LIBRARY_PATH"] = working_env["LD_LIBRARY_PATH"] + ":" + workdir
+        else:
+            working_env["LD_LIBRARY_PATH"] = workdir
         _LOGGER.info(f"work dir: {workdir}")
         with subprocess.Popen(
             ["./test.exe"],
             shell=True,
             cwd=workdir,
-            env=os.environ.copy(),
+            env=working_env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
         ) as proc:
