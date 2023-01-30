@@ -465,12 +465,12 @@ class conv2d(Operator):
                 "To bypass, you need to make it available in the db table.",
             )
         if target.name() == "rocm":
+            runner = backend.profiler_runner.Runner(
+                devices, self._attrs["name"], timeout=180
+            )
             op_type = self._attrs["op"]
             all_op_names = list(self._attrs["op_instance"].keys())
             for op_name in all_op_names:
-                runner = backend.profiler_runner.Runner(
-                    devices, self._attrs["name"], timeout=180
-                )
                 x_shape = self._invert_exec_key(exec_key)
                 command = self._gen_profile_cmd(profiler_prefix, op_name, x_shape)
                 runner.push(op_name, command)
