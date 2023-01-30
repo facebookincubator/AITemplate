@@ -248,7 +248,9 @@ def compile_model(
 
             start_t = datetime.now()
             compile_engine = backend.builder.Builder()
-            compile_engine.make(file_pairs, dll_name, workdir, test_name)
+            compile_engine.make(
+                file_pairs, dll_name, workdir, test_name, debug_settings
+            )
             _LOGGER.info(
                 f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",
             )

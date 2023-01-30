@@ -120,6 +120,10 @@ inline DeviceError FreeDeviceMemory(Handle src) {
   return hipFree(src);
 }
 
+inline DeviceError FreeDeviceHostMemory(Handle src) {
+  return hipHostFree(src);
+}
+
 inline DeviceError FreeDeviceMemoryAsync(
     Handle src,
     StreamType /*stream*/ = 0) {
@@ -129,6 +133,10 @@ inline DeviceError FreeDeviceMemoryAsync(
 
 inline DeviceError DeviceMalloc(Handle* dst, size_t size) {
   return hipMalloc(dst, size);
+}
+
+inline DeviceError DeviceMallocHost(Handle* dst, size_t size) {
+  return hipHostMalloc(dst, size, hipHostMallocDefault);
 }
 
 inline DeviceError DeviceMallocAsync(
