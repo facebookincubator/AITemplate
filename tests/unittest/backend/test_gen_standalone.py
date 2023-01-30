@@ -81,7 +81,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         target = detect_target()
         debug_settings = AITDebugSettings(gen_standalone=True)
-        dll_name = f"test.so"
+        dll_name = "test.so"
         module = compile_model(
             Y,
             target,
@@ -139,7 +139,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 if proc.returncode != 0:
                     _LOGGER.info(f"stdout:\n\n{stdout}")
                     _LOGGER.info(f"stderr:\n\n{stderr}")
-                    raise RuntimeError(f"failed to execute test.exe")
+                    raise RuntimeError("failed to execute test.exe")
                 else:
                     _LOGGER.info(f"stdout:\n\n{stdout}")
                     all_output_lines = stdout.split("\n")
@@ -147,7 +147,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                         line for line in all_output_lines if "output_0" in line
                     ]
                     self.assertTrue(len(output_lines) == 1)
-                    m = re.search("with shape:\s+([0-9,]+)", output_lines[0])
+                    m = re.search("with shape: +([0-9,]+)", output_lines[0])
                     self.assertTrue(m is not None)
                     shape = m.group(1).split(",")
                     self.assertTrue(int(shape[0]) == 8)

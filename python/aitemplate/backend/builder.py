@@ -32,8 +32,6 @@ from typing import Optional
 
 import jinja2
 
-from aitemplate.utils.debug_settings import AITDebugSettings
-
 from ..utils.misc import is_debug
 from .target import Target
 from .task_runner import BaseRunner, Task
