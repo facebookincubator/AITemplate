@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 # encoding: utf-8
 import operator
 
@@ -1999,7 +2013,6 @@ def linalg_norm(*, input, ord, dim, keepdim):
     ],
 )
 def norm_mapper(node: torch.fx.Node, _: torch.nn.Module) -> torch.fx.Node:
-
     input_node = node.kwargs["input"]
     p = node.kwargs["p"]
     dim = node.kwargs["dim"]
@@ -3042,7 +3055,6 @@ def xl_weight(weight_id: str, metadata: TensorMetadata, proxy_shape, dtype):
 )
 def log_softmax_mapper(node: torch.fx.Node, _: torch.nn.Module) -> torch.fx.Node:
     with node.graph.inserting_after(node):
-
         softmax_kwargs = {
             "input": node.kwargs["input"],
             "dim": node.kwargs["dim"],
