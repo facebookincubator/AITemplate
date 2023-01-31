@@ -43,6 +43,13 @@ enum class AITemplateError : int {
   AITemplateFailure = 1,
 };
 
+#define AIT_ERROR_CHECK(call)                                             \
+  if ((call) != AITemplateError::AITemplateSuccess) {                     \
+    throw std::runtime_error(                                             \
+        std::string(#call " API call failed at ") + __FILE__ + ", line" + \
+        std::to_string(__LINE__));                                        \
+  }
+
 struct AITemplateParamShape {
   AITemplateParamShape() : shape_data(nullptr), size(0) {}
   AITemplateParamShape(const int64_t* shape_data_in, size_t size_in)
@@ -200,6 +207,16 @@ AIT_EXPORT AITemplateError AITemplateModelContainerGetInputName(
     AITemplateModelHandle handle,
     size_t input_idx,
     const char** input_name_out);
+
+AIT_EXPORT AITemplateError AITemplateModelContainerGetMaximumInputShape(
+    AITemplateModelHandle handle,
+    size_t input_idx,
+    AITemplateParamShape* shape);
+
+AIT_EXPORT AITemplateError AITemplateModelContainerGetInputDtype(
+    AITemplateModelHandle handle,
+    size_t input_idx,
+    AITemplateDtype* input_dtype);
 
 AIT_EXPORT AITemplateError AITemplateModelContainerGetNumOutputs(
     AITemplateModelHandle handle,

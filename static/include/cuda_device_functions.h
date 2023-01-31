@@ -37,6 +37,8 @@ using GraphType = cudaGraph_t;
 using GraphExecType = cudaGraphExec_t;
 using Handle = void*;
 
+using bfloat16 = __nv_bfloat16;
+
 inline DeviceError GetDevice(int* device_idx) {
   return cudaGetDevice(device_idx);
 }
@@ -119,12 +121,20 @@ inline DeviceError FreeDeviceMemory(Handle src) {
   return cudaFree(src);
 }
 
+inline DeviceError FreeDeviceHostMemory(Handle src) {
+  return cudaFreeHost(src);
+}
+
 inline DeviceError FreeDeviceMemoryAsync(Handle src, StreamType stream = 0) {
   return cudaFreeAsync(src, stream);
 }
 
 inline DeviceError DeviceMalloc(Handle* dst, size_t size) {
   return cudaMalloc(dst, size);
+}
+
+inline DeviceError DeviceMallocHost(Handle* dst, size_t size) {
+  return cudaMallocHost(dst, size);
 }
 
 inline DeviceError DeviceMallocAsync(
