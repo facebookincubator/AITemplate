@@ -274,7 +274,7 @@ def benchmark_vae(batch_size=1, height=64, width=64, benchmark_pt=False, verify=
 @click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
 def benchmark_diffusers(token, batch_size, verify, benchmark_pt):
-    #assert batch_size == 1, "batch size must be 1 for submodule verification"
+    assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)

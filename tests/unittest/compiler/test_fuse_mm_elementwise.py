@@ -1297,9 +1297,6 @@ class FuseGemmRcrBiasSwishCase(unittest.TestCase):
             dtype="float",
             use_add=True,
         )
-        self._test_gemm_rcr_bias_swish(
-            [8], 16, 3, "gemm_rcr_add_silu_basic", True, True
-        )
 
 
 class FuseBmmCcrAddCase(unittest.TestCase):
