@@ -7,111 +7,111 @@ ignore =
   # Found in https://github.com/psf/black/issues/429
   # Line too long.
   B950,
-  # Indentation is not a multiple of four. 
-  E111, 
+  # Indentation is not a multiple of four.
+  E111,
   # Expected an indented block (comment).
-  E115, 
+  E115,
   # Over-indented.
   E117,
-  # Continuation line under-indented for hanging indent. 
+  # Continuation line under-indented for hanging indent.
   E121,
-  # Continuation line missing indentation or outdented. 
+  # Continuation line missing indentation or outdented.
   E122,
-  # Closing bracket does not match indentation of opening bracket's line. 
+  # Closing bracket does not match indentation of opening bracket's line.
   E123,
-  # Closing bracket does not match visual indentation. 
+  # Closing bracket does not match visual indentation.
   E124,
-  # Continuation line with same indent as next logical line. 
+  # Continuation line with same indent as next logical line.
   E125,
-  # Continuation line over-indented for hanging indent. 
+  # Continuation line over-indented for hanging indent.
   E126,
-  # Continuation line over-indented for visual indent. 
+  # Continuation line over-indented for visual indent.
   E127,
-  # Continuation line under-indented for visual indent. 
+  # Continuation line under-indented for visual indent.
   E128,
-  # Visually indented line with same indent as next logical line. 
+  # Visually indented line with same indent as next logical line.
   E129,
-  # Continuation line unaligned for hanging indent. 
+  # Continuation line unaligned for hanging indent.
   E131,
-  # Whitespace after '('. 
+  # Whitespace after '('.
   E201,
-  # Whitespace before ')'. 
+  # Whitespace before ')'.
   E202,
-  # Whitespace before ':'. 
+  # Whitespace before ':'.
   E203,
-  # Multiple spaces before operator. 
+  # Multiple spaces before operator.
   E221,
-  # Multiple spaces after operator. 
+  # Multiple spaces after operator.
   E222,
-  # Missing whitespace around operator. 
+  # Missing whitespace around operator.
   E225,
-  # Missing whitespace around arithmetic operator. 
+  # Missing whitespace around arithmetic operator.
   E226,
-  # Missing whitespace around bitwise or shift operator. 
+  # Missing whitespace around bitwise or shift operator.
   E227,
-  # Missing whitespace after ',', ';', or ':'. 
+  # Missing whitespace after ',', ';', or ':'.
   E231,
-  # Multiple spaces after ','. 
+  # Multiple spaces after ','.
   E241,
-  # Unexpected spaces around keyword / parameter equals. 
+  # Unexpected spaces around keyword / parameter equals.
   E251,
-  # Missing whitespace around parameter equals. 
+  # Missing whitespace around parameter equals.
   E252,
-  # At least two spaces before inline comment. 
-  E261, 
+  # At least two spaces before inline comment.
+  E261,
   # Inline comment should start with '# '.
-  E262, 
+  E262,
   # Block comment should start with '# '.
   E265,
-  # Multiple spaces after keyword. 
+  # Multiple spaces after keyword.
   E271,
-  # Multiple spaces before keyword. 
+  # Multiple spaces before keyword.
   E272,
-  # Expected 1 blank line, found 0. 
+  # Expected 1 blank line, found 0.
   E301,
-  # Expected 2 blank lines, found 0. 
+  # Expected 2 blank lines, found 0.
   E302,
-  # Too many blank lines (3). 
+  # Too many blank lines (3).
   E303,
-  # Expected 2 blank lines after end of function or class. 
+  # Expected 2 blank lines after end of function or class.
   E305,
-  # Expected 1 blank line before a nested definition. 
+  # Expected 1 blank line before a nested definition.
   E306,
-  # Line too long (82 > 79 characters). 
+  # Line too long (82 > 79 characters).
   E501,
-  # The backslash is redundant between brackets. 
+  # The backslash is redundant between brackets.
   E502,
-  # Multiple statements on one line (colon). 
+  # Multiple statements on one line (colon).
   E701,
-  # Multiple statements on one line (semicolon). 
+  # Multiple statements on one line (semicolon).
   E702,
-  # Statement ends with a semicolon. 
+  # Statement ends with a semicolon.
   E703,
-  # Multiple statements on one line (def). 
+  # Multiple statements on one line (def).
   E704,
-  # Trailing whitespace. 
+  # Trailing whitespace.
   W291,
-  # No newline at end of file. 
+  # No newline at end of file.
   W292,
-  # Blank line contains whitespace. 
+  # Blank line contains whitespace.
   W293,
-  # Blank line at end of file. 
+  # Blank line at end of file.
   W391,
-  # Line break occurred after a binary operator. 
-  W504, 
+  # Line break occurred after a binary operator.
+  W504,
 
   # Too opinionated.
   # Block comment should start with '# '.
   E265,
-  # Too many leading '#' for block comment. 
+  # Too many leading '#' for block comment.
   E266,
-  # Module level import not at top of file. (Use cases like demandimport https://fburl.com/demandimport require statements before imports) 
-  E402, 
+  # Module level import not at top of file. (Use cases like demandimport https://fburl.com/demandimport require statements before imports)
+  E402,
   # Do not use bare except, specify exception instead. (Duplicate of B001)
-  E722, 
+  E722,
   # (Duplicate of B003)
-  P207, 
+  P207,
   # (Duplicate of C403)
   P208,
   # Line break occurred before a binary operator.
-  W503  
+  W503

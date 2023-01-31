@@ -18,25 +18,45 @@ setup_env: &setup_env
   - run:
       name: Setup environment
       command: |
-        python3.8 --version
-        python3.8 -m pip install --upgrade pip
-        cd python
-        python3.8 setup.py bdist_wheel
-        sudo python3.8 -m pip install --no-input dist/*.whl
-        cd ..
-        python3.8 -m pip install pytest
-        python3.8 -m pip install torch
-        python3.8 -m pip install numpy
-        python3.8 -m pip install jinja2
-        python3.8 -m pip install recordtype
-        python3.8 -m pip install parameterized
-        python3.8 -m pip install einops
-        git submodule sync
-        git submodule update --init
-        echo 'export PYTHONPATH=$PWD/python:$PYTHONPATH' >> $BASH_ENV
-        echo 'export PATH=/usr/local/cuda-11.4/bin:$PATH' >> $BASH_ENV
-        echo 'export CI_FLAG=CIRCLECI' >> $BASH_ENV
-        echo 'export CACHE_DIR=$PWD/tests/ci_profile_cache' >> $BASH_ENV
+        for i in {1..3}; do
+          python3.8 --version &&
+          python3.8 -m pip install --upgrade pip &&
+          cd /home/circleci/project/python &&
+          python3.8 setup.py bdist_wheel &&
+          sudo python3.8 -m pip install --no-input dist/*.whl &&
+          cd /home/circleci/project &&
+          python3.8 -m pip install pytest &&
+          python3.8 -m pip install torch &&
+          python3.8 -m pip install numpy &&
+          python3.8 -m pip install jinja2 &&
+          python3.8 -m pip install recordtype &&
+          python3.8 -m pip install parameterized &&
+          python3.8 -m pip install einops &&
+          git submodule sync &&
+          git submodule update --init &&
+          echo 'export PYTHONPATH=$PWD/python:$PYTHONPATH' >> $BASH_ENV &&
+          echo 'export PATH=/usr/local/cuda-11.4/bin:$PATH' >> $BASH_ENV &&
+          echo 'export CI_FLAG=CIRCLECI' >> $BASH_ENV &&
+          echo 'export CACHE_DIR=$PWD/tests/ci_profile_cache' >> $BASH_ENV &&
+          break || sleep 5;
+        done
+
+
+setup_fx2ait_env: &setup_fx2ait_env
+  - run:
+      name: Setup fx2ait environment
+      command: |
+        for i in {1..3}; do
+          wget https://developer.download.nvidia.com/compute/redist/cudnn/v8.7.0/local_installers/11.8/cudnn-linux-x86_64-8.7.0.84_cuda11-archive.tar.xz
+          tar -xvf cudnn-*-archive.tar.xz
+          sudo cp cudnn-*-archive/include/cudnn*.h /usr/local/cuda/include
+          sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64
+          sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
+          python3.8 -m pip install --pre torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/nightly/cu116
+          python3.8 fx2ait/setup.py install --prefix=/home/circleci/
+          echo 'export PYTHONPATH=$PWD/fx2ait:$PYTHONPATH' >> $BASH_ENV
+          break || sleep 5;
+        done
 
 basic_tests: &basic_tests
   - run:
@@ -44,19 +64,38 @@ basic_tests: &basic_tests
       command: |
         set -e
         TEST_FILES=$(circleci tests glob "tests/unittest/**/test_*.py" | grep -v benchmark | circleci tests split --split-by=timings)
-        mkdir test-results
-        python3.8 -m pytest $TEST_FILES --junitxml=test-results/junit.xml --verbose --continue-on-collection-errors -rA
+        mkdir ~/test-results
+        python3.8 -m pytest $TEST_FILES -o junit_family=xunit1 --junitxml=~/test-results/junit.xml --verbose --continue-on-collection-errors -rA
 
+fx2ait_tests: &fx2ait_tests
+  - run:
+      name: Run fx2ait tests
+      command: |
+        source $BASH_ENV
+        mkdir -p ~/test-fx2ait-results
+        TEST_FILES=$(circleci tests glob "fx2ait/fx2ait/test/test_*.py" "fx2ait/fx2ait/test/converters/**/test_*.py")
+        python3.8 -m pytest $TEST_FILES -o junit_family=xunit1 --junitxml=~/test-fx2ait-results/junit.xml --verbose --continue-on-collection-errors -rA
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
+  fx2ait-test:
+    machine:
+      image: ubuntu-2004-cuda-11.4:202110-01
+      resource_class: gpu.nvidia.medium
+    steps:
+      - checkout
+      - <<: *setup_env
+      - <<: *setup_fx2ait_env
+      - <<: *fx2ait_tests
+      - store_test_results:
+          path: ~/test-fx2ait-results
+
   build-and-test:
     machine:
       image: ubuntu-2004-cuda-11.4:202110-01
       # Check T101565170 for multi-gpu use cases.
       resource_class: gpu.nvidia.medium
-
     parallelism: 10
 
     # Checkout the code as the first step. This is a dedicated CircleCI step.
@@ -69,7 +108,7 @@ jobs:
       - <<: *setup_env
       - <<: *basic_tests
       - store_test_results:
-          path: test-results
+          path: ~/test-results
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
@@ -77,4 +116,5 @@ workflows:
   unittest: # This is the name of the workflow, feel free to change it to better match your workflow.
     # Inside the workflow, you define the jobs you want to run.
     jobs:
+      - fx2ait-test
       - build-and-test
