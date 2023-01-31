@@ -773,12 +773,7 @@ clean:
         _run_make_cmds(cmds, self._timeout, build_dir)
 
     def make(
-        self,
-        file_pairs,
-        dll_name,
-        workdir,
-        test_name,
-        debug_settings=_DEBUG_SETTINGS
+        self, file_pairs, dll_name, workdir, test_name, debug_settings=_DEBUG_SETTINGS
     ):
         self.gen_makefile(file_pairs, dll_name, workdir, test_name, debug_settings)
         make_path = shlex.quote(Target.current().make())

@@ -119,7 +119,9 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         workdir = os.path.join(cwd, "tmp", test_name)
         working_env = os.environ.copy()
         if "LD_LIBRARY_PATH" in working_env:
-            working_env["LD_LIBRARY_PATH"] = working_env["LD_LIBRARY_PATH"] + ":" + workdir
+            working_env["LD_LIBRARY_PATH"] = (
+                working_env["LD_LIBRARY_PATH"] + ":" + workdir
+            )
         else:
             working_env["LD_LIBRARY_PATH"] = workdir
         _LOGGER.info(f"work dir: {workdir}")
