@@ -127,7 +127,7 @@ class pool2d_base(Operator):
             return sorted(set(vector))
 
         output_shape = [
-            shape_utils.gen_int_var(unique([d[0] for d in y_shapes])),
+            x._attrs["shape"][0],
             shape_utils.gen_int_var(unique([d[1] for d in y_shapes])),
             shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
             shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
