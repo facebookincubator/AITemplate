@@ -125,6 +125,8 @@ AITemplate is currently maintained by Meta engineers: [Ying Zhang](https://githu
 
 AITemplate is co-created by Meta engineers: [Bing Xu](https://github.com/antinucleon), [Ying Zhang](https://github.com/ipiszy), [Hao Lu](https://github.com/hlu1), [Yang Chen](https://github.com/chenyang78), and [Terry Chen](https://github.com/terrychenism), with major contributions coming from more talented engineers. A non-exhaustive list to mention is Mike Iovine, Mu-Chu Lee, Scott Wolchok, Oleg Khabinov, Shirong Wu, Huaming Li, Hui Guo, Zhijing Li, Max Podkorytov. We also want to thank the discussions with Andrew Tulloch, Yinghai Lu, Lu Fang.
 
+FX2AIT and Aten2AIT are co-created and maintained by Meta engineers: [Wei Wei](https://github.com/frank-wei), [Shirong Wu](https://github.com/wushirong) and [Zhijing Li](https://github.com/tissue3).
+
 
 ## Acknowledgement
 
