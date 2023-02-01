@@ -299,9 +299,9 @@ std::vector<torch::Tensor> AITModelImpl::processOutputs(
     auto output = at::detail::make_tensor_base<c10::TensorImpl>(
         std::move(output_index_to_output_storage_impl.at(output_idx)),
         #ifdef AIT_USE_ROCM
-        c10::DispatchKeySet(c10::DispatchKey::CUDA),
-        #else
         c10::DispatchKeySet(c10::DispatchKey::HIP),
+        #else
+        c10::DispatchKeySet(c10::DispatchKey::CUDA),
         #endif
         scalarTypeToTypeMeta(dtype));
     const auto& size = output_shapes.at(output_idx);
