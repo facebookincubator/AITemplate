@@ -3,8 +3,12 @@ cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 project(ait_model)
 find_package(Torch REQUIRED)
 
+if(${AIT_USE_ROCM})
+  add_compile_definitions(AIT_USE_ROCM)
+endif()
+
 include_directories(
-   ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/picojson
+  ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/picojson
 )
 
 # Define our library target

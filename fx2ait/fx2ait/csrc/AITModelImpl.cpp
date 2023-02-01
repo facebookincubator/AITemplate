@@ -6,9 +6,15 @@
 #include <sstream>
 
 #include "ATen/Context.h" // @manual
+#ifdef AIT_USE_ROCM
+#include "ATen/hip/HIPContext.h"
+#include "c10/core/CPUAllocator.h"
+#include "c10/hip/HIPStream.h"
+#else
 #include "ATen/cuda/CUDAContext.h"
 #include "c10/core/CPUAllocator.h"
 #include "c10/cuda/CUDAStream.h"
+#endif
 
 #ifdef FBCODE_AIT
 #include "folly/MapUtil.h"
@@ -17,7 +23,9 @@
 namespace torch::aitemplate {
 
 AITemplatePyTorchCachingAllocator::AITemplatePyTorchCachingAllocator() {
+  #ifndef AIT_USE_ROCM
   at::globalContext().lazyInitCUDA();
+  #endif
   cuda_allocator_ = at::cuda::getCUDADeviceAllocator();
   TORCH_CHECK(cuda_allocator_ != nullptr);
 }
@@ -290,7 +298,11 @@ std::vector<torch::Tensor> AITModelImpl::processOutputs(
 
     auto output = at::detail::make_tensor_base<c10::TensorImpl>(
         std::move(output_index_to_output_storage_impl.at(output_idx)),
+        #ifdef AIT_USE_ROCM
         c10::DispatchKeySet(c10::DispatchKey::CUDA),
+        #else
+        c10::DispatchKeySet(c10::DispatchKey::HIP),
+        #endif
         scalarTypeToTypeMeta(dtype));
     const auto& size = output_shapes.at(output_idx);
     if (size.size() != 1 || size[0] != 0) {
@@ -368,7 +380,11 @@ std::vector<torch::Tensor> AITModelImpl::forward(
 
   std::vector<torch::Tensor> outputs;
   {
+    #ifdef AIT_USE_ROCM
+    const auto& cuda_stream = at::hip::getCurrentHIPStream(device.index());
+    #else
     const auto& cuda_stream = at::cuda::getCurrentCUDAStream(device.index());
+    #endif
     const auto stream_id = cuda_stream.stream();
     // TODO: remove casting after fixing API
     AITemplateStreamHandle stream_handle =
@@ -427,7 +443,11 @@ void AITModelImpl::profile(
       device);
 
   {
+    #ifdef AIT_USE_ROCM
+    const auto& cuda_stream = at::hip::getCurrentHIPStream(device.index());
+    #else
     const auto& cuda_stream = at::cuda::getCurrentCUDAStream(device.index());
+    #endif
     const auto stream_id = cuda_stream.stream();
     // TODO: remove casting after fixing API
     AITemplateStreamHandle stream_handle =

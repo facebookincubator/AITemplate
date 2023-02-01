@@ -15,7 +15,7 @@
 # ROCM Docker Image for AITemplate
 FROM ubuntu:20.04
 
-ARG ROCMVERSION=5.3
+ARG ROCMVERSION=5.4.2
 
 RUN set -xe
 
@@ -44,9 +44,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libpthread-stubs0-dev \
     llvm-amdgpu \
     pkg-config \
-    python \
     python3 \
-    python-dev \
     python3-dev \
     python3-pip \
     software-properties-common \
