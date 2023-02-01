@@ -54,7 +54,6 @@ class Conv3dDepthwiseTestCase(unittest.TestCase):
                 is_input=True,
             )
 
-
         OP = ops.depthwise_conv3d(stride=1, pad=1, dilate=1, group=groups, bias=bias)
         if copy_op:
             OP = ops.depthwise_conv3d(**OP._get_op_attributes())
@@ -76,7 +75,9 @@ class Conv3dDepthwiseTestCase(unittest.TestCase):
         w = W_pt.permute((0, 2, 3, 4, 1)).contiguous()
         y = torch.empty_like(Y_pt).permute((0, 2, 3, 4, 1)).contiguous()
         if bias:
-            module.run_with_tensors({"input_0": x, "input_1": w, "input_2": bias_pt}, [y])
+            module.run_with_tensors(
+                {"input_0": x, "input_1": w, "input_2": bias_pt}, [y]
+            )
         else:
             module.run_with_tensors({"input_0": x, "input_1": w}, [y])
         y_transpose = y.permute((0, 4, 1, 2, 3))
@@ -93,7 +94,6 @@ class Conv3dDepthwiseTestCase(unittest.TestCase):
             test_name="depthwise_conv3d_fp16",
             dtype="float16",
         )
-
 
     def test_fp16_bias(self):
         self._test_depthwise_conv3d(
