@@ -34,9 +34,12 @@ class AITDebugSettings:
         (e.g. NVTX for CUDA and rocTX for AMD) Currently only supports NVIDIA.
     dump_ait_to_py: str, optional
         The path where the AIT graph is dumped into a .py file.
+    gen_standalone : bool (default: False)
+        Generate a standalone executable for the model
     """
 
     check_all_nan_and_inf: bool = False
     check_all_outputs: bool = False
     gen_profiler_annotation: bool = False
     dump_ait_to_py: Optional[str] = None
+    gen_standalone: bool = False

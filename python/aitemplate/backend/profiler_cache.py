@@ -492,9 +492,9 @@ class ProfileCacheDB(object):
         #     leave some content from the failing version in the db. How are we
         #     going to update the db if we update the version again, and so on.
         # TODO: add similar version control for norm
-        self._gemm_cache_version = 1
-        self._conv_cache_version = 1
-        self._conv3d_cache_version = 1
+        self._gemm_cache_version = 2
+        self._conv_cache_version = 2
+        self._conv3d_cache_version = 2
         if uri is not None:
             self._mode = CacheMode.REMOTE
         if self._mode == CacheMode.LOCAL:

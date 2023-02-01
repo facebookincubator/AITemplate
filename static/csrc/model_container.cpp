@@ -324,8 +324,22 @@ size_t ModelContainer::NumInputs() const {
 }
 
 const char* ModelContainer::InputName(size_t input_idx) const {
+  CHECK(input_idx < num_inputs_);
   CHECK_VECTOR_ACCESS(param_names_, input_idx)
   return param_names_[input_idx];
+}
+
+AITemplateParamShape ModelContainer::MaxInputShape(size_t input_idx) const {
+  CHECK(input_idx < num_inputs_);
+  CHECK_VECTOR_ACCESS(max_param_shapes_, input_idx)
+  auto& input_shape = max_param_shapes_[input_idx];
+  return AITemplateParamShape{input_shape.data(), input_shape.size()};
+}
+
+AITemplateDtype ModelContainer::InputDtype(size_t input_idx) const {
+  CHECK(input_idx < num_inputs_);
+  CHECK_VECTOR_ACCESS(param_dtypes_, input_idx)
+  return param_dtypes_[input_idx];
 }
 
 size_t ModelContainer::NumOutputs() const {

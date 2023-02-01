@@ -162,8 +162,12 @@ class ModelContainer : ModelContainerBase {
   const char* InputName(size_t input_idx) const;
   const char* OutputName(size_t output_idx) const;
 
+  AITemplateParamShape MaxInputShape(size_t input_idx) const;
   AITemplateParamShape MaxOutputShape(size_t output_idx) const;
+
+  AITemplateDtype InputDtype(size_t input_idx) const;
   AITemplateDtype OutputDtype(size_t output_idx) const;
+
   size_t MaxOutputStorageBytes(size_t output_idx) const;
 
   size_t GetNumRuntimes() const {
