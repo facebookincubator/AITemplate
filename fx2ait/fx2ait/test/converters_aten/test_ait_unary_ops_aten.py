@@ -12,6 +12,13 @@ unary_ops = [
     (torch.sigmoid, torch.ops.aten.sigmoid.default),
     (torch.sign, torch.ops.aten.sign.default),
     (torch.tanh, torch.ops.aten.tanh.default),
+    (torch.sin, torch.ops.aten.sin.default),
+    (torch.cos, torch.ops.aten.cos.default),
+    (torch.sqrt, torch.ops.aten.sqrt.default),
+    (
+        torch.clone,
+        torch.ops.aten.clone.default,
+    ),  # clone op can not be the output directly
 ]
 
 
@@ -20,20 +27,20 @@ class TestUnaryOpsConverter(DispatchTestCase):
     def test_unary_ops(self, name, orig_op: Callable, expected_op):
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
-                return orig_op(x)
+                return orig_op(x) * 2
 
         model = TestModule().cuda().half()
         inputs = [
             torch.randn(1, 2, 3).half().cuda(),
         ]
-
+        _ = model(*inputs)
         self.run_test(model, inputs, expected_ops={expected_op})
 
     @parameterized.expand([(op[1].__name__, op[0], op[1]) for op in unary_ops])
     def test_dynamic_unary_ops(self, name, orig_op: Callable, expected_op):
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
-                return orig_op(x)
+                return orig_op(x) * 2
 
         model = TestModule().cuda().half()
         inputs_spec = TensorSpec.create_spec_from_shapes(

@@ -1,3 +1,4 @@
+import copy
 import logging
 import math
 import operator
@@ -127,6 +128,52 @@ def acc_ops_tanh(
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     return elementwise(FuncEnum.TANH)(input_val)
+
+
+@ait_converter(acc_ops.sin)
+def acc_ops_sin(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    return elementwise(FuncEnum.SIN)(input_val)
+
+
+@ait_converter(acc_ops.cos)
+def acc_ops_cos(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    return elementwise(FuncEnum.COS)(input_val)
+
+
+@ait_converter(acc_ops.sqrt)
+def acc_ops_sqrt(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    return elementwise(FuncEnum.SQRT)(input_val)
+
+
+@ait_converter(acc_ops.clone)
+def acc_ops_clone(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    res = copy.deepcopy(input_val)
+    res._attrs["dst_ops"].clear()
+    return res
 
 
 @ait_converter(acc_ops.sum)
