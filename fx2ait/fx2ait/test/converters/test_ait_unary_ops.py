@@ -26,6 +26,10 @@ unary_ops = [
     (torch.sign, acc_ops.sign),
     (torch.log, acc_ops.log),
     (torch.relu, acc_ops.relu),
+    (torch.sin, acc_ops.sin),
+    (torch.cos, acc_ops.cos),
+    (torch.sqrt, acc_ops.sqrt),
+    (torch.clone, acc_ops.clone),
 ]
 
 
@@ -34,7 +38,7 @@ class TestUnaryOpsConverter(AITTestCase):
     def test_unary_ops(self, name, orig_op: Callable, expected_op):
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
-                return orig_op(x)
+                return orig_op(x) * 2
 
         model = TestModule().cuda().half()
         inputs = [

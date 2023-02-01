@@ -14,6 +14,7 @@
 #
 import logging
 import torch  # isort:skip
+import copy
 import operator
 from typing import Dict, List, Tuple, Union
 
@@ -382,6 +383,30 @@ def aten_ops_conv2d(
         result = concatenate()(conv_groups, dim=3)
 
     return result
+
+
+@ait_converter(torch.ops.aten.clone.default)
+def aten_unary_ops_clone(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    res = copy.deepcopy(input_val)
+    res._attrs["dst_ops"].clear()
+    return res
+
+
+@ait_converter(torch.ops.aten.cos.default)
+def aten_unary_ops_cos(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    return elementwise(FuncEnum.COS)(input_val)
 
 
 @ait_converter(aten_compose_chunk)
@@ -1106,6 +1131,28 @@ def aten_unary_ops_sign(
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
 
     return elementwise(FuncEnum.SIGN)(input_val)
+
+
+@ait_converter(torch.ops.aten.sin.default)
+def aten_unary_ops_sin(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    return elementwise(FuncEnum.SIN)(input_val)
+
+
+@ait_converter(torch.ops.aten.sqrt.default)
+def aten_unary_ops_sqrt(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    return elementwise(FuncEnum.SQRT)(input_val)
 
 
 @ait_converter(torch.ops.aten.tanh.default)
