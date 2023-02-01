@@ -79,7 +79,7 @@ class AITTestCase(TestCase):
                 torch.nn.MultiheadAttention if transformer_mode else None
             ],
         )
-        print(mod)
+        print(mod.graph)
 
         original_inputs = inputs
         if permute_inputs:
