@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import ast
 import builtins
 import copy
@@ -56,7 +70,6 @@ class Acc_Rewriter(ast.NodeTransformer):
     def rewrite(
         self, fn: FunctionType
     ) -> Tuple[FunctionType, Set[Type[Exception]], Set[Type[Exception]]]:
-
         # Normalize the source lines
         sourcelines, _ = inspect.getsourcelines(fn)
         sourcelines = normalize_source_lines(sourcelines)
