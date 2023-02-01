@@ -15,7 +15,7 @@
 import logging
 import torch  # isort:skip
 import operator
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy
 
@@ -50,6 +50,8 @@ from aitemplate.compiler.public import (
     split,
     squeeze,
     Tensor as AITTensor,
+    transposed_conv2d,
+    transposed_conv2d_bias,
     unsqueeze,
 )
 from fx2ait.converters.utils import (
@@ -239,12 +241,21 @@ def _choose_conv2d_op(
     dilate: int,
     x: AITTensor,
     weight: AITTensor,
-    bias: Optional[AITTensor],
+    bias: [AITTensor],
+    transposed: [bool] = False,
 ) -> ConverterOutput:
     """
     Helper to choose conv2d vs. conv2d_bias op based on existence of bias
     and pad channel input dim to 4/8
     """
+    if transposed:
+        if bias:
+            return transposed_conv2d_bias(stride=stride, pad=pad, dilate=dilate)(
+                x, weight, bias
+            )
+        else:
+            return transposed_conv2d(stride=stride, pad=pad, dilate=dilate)(x, weight)
+
     last_dim = x._attrs["shape"][-1]._attrs["values"][0]
     # CUDA conv channel dim weights need to align w/ a multiple of 2/4/8
     # if CI < 4, pad to 4; if 5 < CI < 8, pad to 8;
@@ -292,7 +303,8 @@ def aten_ops_conv2d(
     padding = identical_elem_tuple_to_int(padding)
     dilation = args[5]
     dilation = identical_elem_tuple_to_int(dilation)
-    # TODO transposed=args[6], output_padding=args[7]
+    transposed = args[6]
+    # output_padding = args[7]
     groups = args[8]
 
     assert all(
@@ -300,10 +312,21 @@ def aten_ops_conv2d(
     ), "Expected int stride, padding, and dilation"
 
     if groups is None or groups == 1:
-        result = _choose_conv2d_op(stride, padding, dilation, input_val, weight, bias)
+        if transposed:
+            if bias:
+                result = transposed_conv2d_bias(
+                    stride=stride, pad=padding, dilate=dilation
+                )(input_val, weight, bias)
+            else:
+                result = transposed_conv2d(stride=stride, pad=padding, dilate=dilation)(
+                    input_val, weight
+                )
+        else:
+            result = _choose_conv2d_op(
+                stride, padding, dilation, input_val, weight, bias, transposed
+            )
     else:
         # Grouped conv doesn't currently work on AIT CUDA, manually map
-        # groups = kwargs["groups"]
         group_size = input_val.shape()[3]._attrs["values"][0] // groups
         w_group_size = weight.shape()[0]._attrs["values"][0] // groups
 
@@ -352,6 +375,7 @@ def aten_ops_conv2d(
                     1,
                     f"{name}.bias.slice_{i}",
                 ),
+                transposed=transposed,
             )
             for i in range(groups)
         ]

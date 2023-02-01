@@ -15,7 +15,7 @@
 import logging
 import math
 import operator
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -52,6 +52,8 @@ from aitemplate.compiler.public import (
     squeeze,
     Tensor as AITTensor,
     topk,
+    transposed_conv2d,
+    transposed_conv2d_bias,
     tuple_construct,
     unsqueeze,
     var,
@@ -586,6 +588,120 @@ def acc_ops_tuple_construct(
     return tuple_construct()(*tensors)
 
 
+@ait_converter(acc_ops.conv_transpose2d)
+def acc_ops_conv_transpose2d(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    output_padding = identical_elem_tuple_to_int(kwargs["output_padding"])
+    assert output_padding == 0, "output_padding is not 0!"
+
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+
+    weight = kwargs["weight"]
+    assert isinstance(weight, AITTensor)
+    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 1)
+    weight._attrs["shape"] = nchw2nhwc(weight._attrs["shape"])
+    w_last_dim = weight._attrs["data"].tensor.shape[-1]
+
+    bias = kwargs["bias"]
+    assert bias is None or isinstance(bias, AITTensor)
+
+    stride = identical_elem_tuple_to_int(kwargs["stride"])
+    padding = identical_elem_tuple_to_int(kwargs["padding"])
+    dilation = identical_elem_tuple_to_int(kwargs["dilation"])
+    assert dilation == 1, "dilation {dilation} does not equal to 1!"
+    assert all(
+        isinstance(x, int) for x in [stride, padding, dilation]
+    ), "Expected int stride, padding, and dilation"
+
+    if kwargs["groups"] is None or kwargs["groups"] == 1:
+        assert (
+            w_last_dim % 8 == 0
+        ), f"cutlass needs weight output channel={w_last_dim} is not divisble by 8! This restriction may be not valid in newer version"
+
+        if bias:
+            result = transposed_conv2d_bias(
+                stride=stride, pad=padding, dilate=dilation
+            )(input_val, weight, bias)
+        else:
+            result = transposed_conv2d(stride=stride, pad=padding, dilate=dilation)(
+                input_val, weight
+            )
+    else:
+        # Grouped conv doesn't currently work on AIT CUDA, manually map
+        groups = kwargs["groups"]
+        assert (
+            w_last_dim * groups
+        ) % 8 == 0, f"cutlass needs weight output channel={w_last_dim*groups} is not divisble by 8! This restriction may be not valid in newer version"
+
+        group_size = input_val.shape()[3]._attrs["values"][0] // groups
+        w_group_size = weight.shape()[0]._attrs["values"][0] // groups
+
+        def get_channel_dim_slice_idx(start, end, step):
+            all_none_slice = slice(None, None, None)
+            return (
+                all_none_slice,
+                all_none_slice,
+                all_none_slice,
+                slice(start, end, step),
+            )
+
+        def get_batch_dim_slice_idx(start, end, step):
+            return (slice(start, end, step),)
+
+        def make_slice(x, slice_idx, name):
+            return acc_ops_slice(
+                target,
+                args,
+                {
+                    "input": x,
+                    "idx": slice_idx,
+                },
+                name,
+            )
+
+        conv_groups = [
+            _choose_conv2d_op(
+                stride,
+                padding,
+                dilation,
+                make_slice(  # input_val[:,:,:,gs*i:gs*i + gs]
+                    input_val,
+                    get_channel_dim_slice_idx(
+                        i * group_size, i * group_size + group_size, 1
+                    ),
+                    f"{name}.slice_{i}",
+                ),
+                make_slice(  # weights[wgs*i:wgs*i + wgs,]
+                    weight,
+                    get_batch_dim_slice_idx(
+                        i * w_group_size, i * w_group_size + w_group_size, 1
+                    ),
+                    f"{name}.weight.slice_{i}",
+                ),
+                None
+                if bias is None
+                else make_slice(  # bias[wgs*i:wgs*i + wgs,]
+                    bias,
+                    get_batch_dim_slice_idx(
+                        i * w_group_size, i * w_group_size + w_group_size, 1
+                    ),
+                    f"{name}.bias.slice_{i}",
+                ),
+                transposed=True,
+            )
+            for i in range(groups)
+        ]
+        result = concatenate()(conv_groups, dim=3)
+
+    return result
+
+
 @ait_converter(acc_ops.nan_to_num)
 def acc_ops_nan_to_num(
     target: Target,
@@ -826,12 +942,20 @@ def _choose_conv2d_op(
     dilate: int,
     x: AITTensor,
     weight: AITTensor,
-    bias: Optional[AITTensor],
+    bias: [AITTensor],
+    transposed: [bool] = False,
 ) -> ConverterOutput:
     """
     Helper to choose conv2d vs. conv2d_bias op based on existence of bias
     and pad channel input dim to 4/8
     """
+    if transposed:
+        if bias:
+            return transposed_conv2d_bias(stride=stride, pad=pad, dilate=dilate)(
+                x, weight, bias
+            )
+        else:
+            return transposed_conv2d(stride=stride, pad=pad, dilate=dilate)(x, weight)
     last_dim = x._attrs["shape"][-1]._attrs["values"][0]
     # CUDA conv channel dim weights need to align w/ a multiple of 2/4/8
     # if CI < 4, pad to 4; if 5 < CI < 8, pad to 8;
@@ -930,13 +1054,16 @@ def acc_ops_conv2d(
                     ),
                     f"{name}.weight.slice_{i}",
                 ),
-                make_slice(  # bias[wgs*i:wgs*i + wgs,]
+                None
+                if bias is None
+                else make_slice(  # bias[wgs*i:wgs*i + wgs,]
                     bias,
                     get_batch_dim_slice_idx(
                         i * w_group_size, i * w_group_size + w_group_size, 1
                     ),
                     f"{name}.bias.slice_{i}",
                 ),
+                transposed=False,
             )
             for i in range(groups)
         ]
