@@ -1,7 +1,7 @@
 # AITemplate
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-brightgreen.svg)](https://github.com/facebookincubator/AITemplate/blob/main/LICENSE) |
-[![Documentation](https://github.com/facebookincubator/AITemplate/actions/workflows/docs.yml/badge.svg)](https://facebookincubator.github.io/AITemplate) |
+[![Documentation](https://github.com/facebookincubator/AITemplate/actions/workflows/docs.yaml/badge.svg)](https://facebookincubator.github.io/AITemplate) |
 [![CircleCI](https://circleci.com/gh/facebookincubator/AITemplate.svg?style=svg)](https://app.circleci.com/pipelines/github/facebookincubator/AITemplate)
 
 
@@ -36,6 +36,16 @@ The AITemplate-generated Python runtime can take PyTorch tensors as inputs and o
 ### Extensions without suffering
 
 AITemplate provides a straightforward approach for making an extension in codegen. To add a new operator or a new fused kernel into AITemplate, most of the time one only needs to add two Python files: one for a graph node definition and another for the backend codegen. The CUDA/HIP kernel in a text header file can be directly utilized in the codegen.
+
+## FX2AIT
+FX2AIT is a Python-based tool that converts PyTorch models into AITemplate (AIT) engine for lightning-fast inference serving. Using FX2AIT's built-in AITLowerer, partial AIT acceleration can be achieved for models with unsupported operators in AITemplate.
+
+Key features of FX2AIT include:
+
+* Easy Conversion: FX2AIT requires only a PyTorch model and input for conversion, generating an "AITModule" output for inference serving.
+* Expanded Support: AITemplate does not support all PyTorch operators. FX2AIT's AITLowerer offers a solution for partial AIT conversion for models with unsupported operators. Check the example/03_lowering_split for more information.
+
+More info can be found from https://github.com/facebookincubator/AITemplate/tree/main/fx2ait.
 
 ## Installation
 
@@ -93,19 +103,17 @@ AITemplate provides the following model templates & reference performance data o
 
 ## Release
 
-AITemplate has a 90 days release cycle.
-In the next one or two releases, we will focus on:
-- Deprecating FlashAttention: Unify CUDA Attention computation to Composable Kernel (AMD GPU) style back-to-back fusion to improve performance and increase flexibility for NVIDIA GPU Transformer users.
-- Remove kernel profiling requirement.
-- GEMM + LayerNorm fusion, GEMM + GEMM fusion, Conv + Conv fusion.
-- Better dynamic shape support: Focus on the dynamic sequence in Transformers.
-- More model templates:  Provide model templates with control flow and containers.
-- More automatic graph passes: Relief manual rewrite models to obtain the best performance.
-- Enable more fusions on AMD backend.
+All current development updates can be seen in the AITemplate repository. Releases are not on a set schedule and will only be tagged for significant feature releases.
 
-Some ongoing/potential work that won't appear in the next short-term release:
-- Automatic Pytorch-FX, ONNX, Open-XLA and other format model conversion.
-- Quantized model (int8/fp8/int4) support.
+Mid-term plan:
+- Better dynamic shape support: Focus on the dynamic sequence in Transformers. Add symbolic shape support.
+- More automatic graph passes: Relief manual rewrite models to obtain the best performance.
+- Quantization: fp8/int8/int4.
+- Sparsity pruning for Gemm.
+- PT2 integration: Aten2AIT is under active development.
+
+Long-term plan:
+- Automatic ONNX, Open-XLA and other format model conversion.
 - Composable Kernel CPU extension on AVX2/AVX-512 for AMD Epyc CPU.
 
 ## Contributing
@@ -113,9 +121,9 @@ Check our [contributing guide](CONTRIBUTING.md) to learn about how to contribute
 
 ## The Team
 
-AITemplate is co-created by Meta engineers: [Bing Xu](https://github.com/antinucleon), [Ying Zhang](https://github.com/ipiszy), [Hao Lu](https://github.com/hlu1), [Yang Chen](https://github.com/chenyang78), and [Terry Chen](https://github.com/terrychenism), with major contributions coming from more talented engineers. A non-exhaustive list to mention is Mike Iovine, Mu-Chu Lee, Scott Wolchok, Oleg Khabinov, Shirong Wu, Huaming Li, Hui Guo, Zhijing Li, Max Podkorytov. We also want to thank the discussions with Andrew Tulloch, Yinghai Lu, Lu Fang.
+AITemplate is currently maintained by Meta engineers: [Ying Zhang](https://github.com/ipiszy), [Yang Chen](https://github.com/chenyang78), [Terry Chen](https://github.com/terrychenism), [Mu-Chu Lee](https://github.com/muchulee8), [Max Podkorytov](https://github.com/tenpercent), [Adnan Akhundov](https://github.com/aakhundov).
 
-AITemplate is currently maintained by Meta engineers: [Ying Zhang](https://github.com/ipiszy), [Hao Lu](https://github.com/hlu1), [Yang Chen](https://github.com/chenyang78), [Terry Chen](https://github.com/terrychenism), [Mike Iovine](https://github.com/mikeiovine) and [Mu-Chu Lee](https://github.com/muchulee8).
+AITemplate is co-created by Meta engineers: [Bing Xu](https://github.com/antinucleon), [Ying Zhang](https://github.com/ipiszy), [Hao Lu](https://github.com/hlu1), [Yang Chen](https://github.com/chenyang78), and [Terry Chen](https://github.com/terrychenism), with major contributions coming from more talented engineers. A non-exhaustive list to mention is Mike Iovine, Mu-Chu Lee, Scott Wolchok, Oleg Khabinov, Shirong Wu, Huaming Li, Hui Guo, Zhijing Li, Max Podkorytov. We also want to thank the discussions with Andrew Tulloch, Yinghai Lu, Lu Fang.
 
 
 ## Acknowledgement
