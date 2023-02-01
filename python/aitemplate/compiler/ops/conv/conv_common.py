@@ -75,7 +75,7 @@ def generate_profiler_sources(func_attrs, op_class, workdir, shape_template):
         op=func_attrs["op"],
     )
     gen_profiler_func = registry.get(func_key)
-    
+
     if target.name() == "rocm":
         return gen_profiler_func(func_attrs, workdir, shape_template)
 

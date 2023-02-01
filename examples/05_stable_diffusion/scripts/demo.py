@@ -12,11 +12,17 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
 import click
 import torch
 
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
+from aitemplate.utils.import_path import import_parent
 from diffusers import EulerDiscreteScheduler
+
+if __name__ == "__main__":
+    import_parent(filepath=__file__, level=1)
+
 from src.pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 
 

@@ -32,6 +32,8 @@ from typing import Optional
 
 import jinja2
 
+from aitemplate.utils.debug_settings import AITDebugSettings
+
 from ..utils.misc import is_debug
 from .target import Target
 from .task_runner import BaseRunner, Task
@@ -40,6 +42,7 @@ from .task_runner import BaseRunner, Task
 
 
 _LOGGER = logging.getLogger(__name__)
+_DEBUG_SETTINGS = AITDebugSettings()
 
 
 def _augment_for_trace(cmd):
@@ -358,7 +361,7 @@ class Builder(object):
         self._runner.join()
         self._runner.pull()
 
-    def gen_makefile(self, file_pairs, dll_name, workdir, test_name):
+    def gen_makefile(self, file_pairs, dll_name, workdir, test_name, debug_settings):
 
         makefile_template = jinja2.Template(
             """
@@ -374,20 +377,43 @@ obj_files = {{obj_files}}
     {{bfile_cmd}}
 
 .PHONY: all clean clean_constants
-all: {{target}}
+all: {{targets}}
 
-{{target}}: $(obj_files)
+{{dll_target}}: $(obj_files)
     {{build_so_cmd}}
 
+{{build_standalone_rules}}
+
 clean:
-    rm -f *.obj {{target}} test.so
+    rm -f *.obj {{targets}}
 
 clean_constants:
     rm -f constants.bin
 """
         )
+
+        standalone_rules_template = jinja2.Template(
+            """
+{{standalone_src}}: {{standalone_obj}}
+    {{cfile_cmd}}
+
+{{exe_target}}: {{exe_target_deps}}
+    {{build_exe_cmd}}
+"""
+        )
+
         build_so_cmd = "$(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)"
-        obj_files = [pair[1].split("/")[-1] for pair in file_pairs]
+        standalone_src = "standalone.cu"
+        standalone_obj = "standalone.obj"
+        obj_files = []
+        # standalone.cu is an AITemplate internal file that is used for generating
+        # standalone executables. We only want to compile it when the relevant
+        # debug option is enabled.
+        obj_files = [
+            pair[1].split("/")[-1]
+            for pair in file_pairs
+            if not pair[1].endswith(standalone_obj)
+        ]
         obj_files = " ".join(obj_files)
 
         cc = Target.current().cc()
@@ -410,16 +436,36 @@ clean_constants:
             bfile_cmd = _augment_for_trace(bfile_cmd)
             build_so_cmd = _augment_for_trace(build_so_cmd)
 
+        build_exe_cmd = "$(CC) $(CFLAGS) -o $@ $(obj_files)"
+        targets = f"{dll_name}"
+
+        build_standalone_rules = ""
+        if debug_settings.gen_standalone:
+            build_exe_cmd = f"$(CC) $(CFLAGS) -o $@ {standalone_obj} {dll_name}"
+            exe_name = os.path.splitext(dll_name)[0] + ".exe"
+            exe_target_deps = f"{dll_name} {standalone_obj}"
+            build_standalone_rules = standalone_rules_template.render(
+                standalone_src=standalone_src,
+                standalone_obj=standalone_obj,
+                cfile_cmd=cfile_cmd,
+                exe_target=exe_name,
+                exe_target_deps=exe_target_deps,
+                build_exe_cmd=build_exe_cmd,
+            )
+            targets += f" {exe_name}"
+
         makefile_str = makefile_template.render(
             cc=cc,
             cpp=cpp,
             CFLAGS=compile_options,
             fPIC=fpic,
             obj_files=obj_files,
-            target=dll_name,
+            dll_target=dll_name,
+            targets=targets,
             cfile_cmd=cfile_cmd,
             bfile_cmd=bfile_cmd,
             build_so_cmd=build_so_cmd,
+            build_standalone_rules=build_standalone_rules,
         )
 
         dumpfile = os.path.join(workdir, test_name, "Makefile")
@@ -725,8 +771,10 @@ clean:
         cmds = [make_clean_cmd, make_all_cmd]
         _run_make_cmds(cmds, self._timeout, build_dir)
 
-    def make(self, file_pairs, dll_name, workdir, test_name):
-        self.gen_makefile(file_pairs, dll_name, workdir, test_name)
+    def make(
+        self, file_pairs, dll_name, workdir, test_name, debug_settings=_DEBUG_SETTINGS
+    ):
+        self.gen_makefile(file_pairs, dll_name, workdir, test_name, debug_settings)
         make_path = shlex.quote(Target.current().make())
         build_dir = shlex.quote(os.path.join(workdir, test_name))
         make_flags = " ".join(

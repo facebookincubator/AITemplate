@@ -11,18 +11,17 @@
 #  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
-#
 
-# flake8: noqa
+import sys
+from pathlib import Path
 
-from . import (
-    alignment,
-    graph_utils,
-    import_path,
-    markdown_table,
-    misc,
-    shape_utils,
-    tensor_utils,
-    torch_utils,
-    visualization,
-)
+
+def import_parent(filepath: str, level: int) -> None:
+    r_filepath = Path(filepath).resolve()
+    parent, top = r_filepath.parent, r_filepath.parents[level]
+
+    sys.path.append(str(top))
+    try:
+        sys.path.remove(str(parent))
+    except ValueError:  # Already removed
+        pass

@@ -115,7 +115,7 @@ class MultiheadAttention(Module):
         ), f"dim {dim} should be divisible by num_heads {num_heads}"
         self.num_heads = num_heads
         head_dim = dim // num_heads
-        self.scale = head_dim ** -0.5
+        self.scale = head_dim**-0.5
         self.causal = causal
         self.has_residual = has_residual
         self.mask_seq = mask_seq

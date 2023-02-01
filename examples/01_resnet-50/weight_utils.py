@@ -31,14 +31,14 @@ CONV_WEIGHT_PATTERN = re.compile(r"conv\d+\.weight")
 
 
 class timm_export(object):
-    def __init__(self, model_name):
+    def __init__(self, model_name, pretrained=True):
         self.model_name = model_name
         if model_name != "resnet50":
             raise NotImplementedError
 
         with torch.no_grad():
             self.pt_model = timm.create_model(
-                model_name, pretrained=True, num_classes=1000
+                model_name, pretrained=pretrained, num_classes=1000
             )
         self.pt_state = self.pt_model.state_dict()
 

@@ -233,6 +233,26 @@ AITemplateError AITemplateModelContainerGetInputName(
       { *input_name_out = m->InputName(input_idx); })
 }
 
+AITemplateError AITemplateModelContainerGetMaximumInputShape(
+    AITemplateModelHandle handle,
+    size_t input_idx,
+    AITemplateParamShape* shape) {
+  RETURN_ERROR_IF_NULL(handle)
+  RETURN_ERROR_IF_NULL(shape)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({ *shape = m->MaxInputShape(input_idx); })
+}
+
+AITemplateError AITemplateModelContainerGetInputDtype(
+    AITemplateModelHandle handle,
+    size_t input_idx,
+    AITemplateDtype* input_dtype) {
+  RETURN_ERROR_IF_NULL(handle)
+  RETURN_ERROR_IF_NULL(input_dtype)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({ *input_dtype = m->InputDtype(input_idx); })
+}
+
 AITemplateError AITemplateModelContainerGetNumOutputs(
     AITemplateModelHandle handle,
     size_t* num_outputs_out) {

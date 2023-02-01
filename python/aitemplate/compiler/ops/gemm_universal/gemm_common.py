@@ -629,6 +629,7 @@ class gemm(Operator):
             op_type = self._attrs["op"]
             all_op_names = list(self._attrs["op_instance"].keys())
             for op_name in all_op_names:
+
                 def _gen_callback(split_k):
                     def process_result_callback(result, postprocessing_delegate):
                         postprocessing_delegate.add_instance(

@@ -1,5 +1,5 @@
 # Simple workflow for deploying static content to GitHub Pages
-name: Documentation
+name: Deploy docs to Pages
 
 on:
   # Runs on pushes targeting the default branch
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9"]
+        python-version: ["3.8"]
     steps:
       - name: Checkout
         uses: actions/checkout@v3

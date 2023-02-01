@@ -22,9 +22,7 @@ from . import common
 
 
 @registry.reg("cuda.conv2d.config")
-def conv2d_config(
-    func_attrs
-):
+def conv2d_config(func_attrs):
     """Populates conv2d cutlass configs into 'op_instance' field."""
     func_attrs["op_instance"] = common.extract_config(
         func_attrs=func_attrs,

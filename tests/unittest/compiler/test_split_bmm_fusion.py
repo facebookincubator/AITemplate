@@ -273,7 +273,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
 
         a = get_random_torch_tensor([B, M, K], dtype)
         (q, k, v) = a.split(split_size_or_sections, split_dim)
-        qk = torch.bmm(q, k.permute(0, 2, 1)) * K ** -0.5
+        qk = torch.bmm(q, k.permute(0, 2, 1)) * K**-0.5
         qk = torch.softmax(qk, -1)
         qkv = torch.bmm(qk, v)
         y_pt = qkv.reshape(B // 3 // NH, NH, M, K).permute([0, 2, 1, 3])

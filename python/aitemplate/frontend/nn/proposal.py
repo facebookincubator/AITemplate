@@ -89,7 +89,7 @@ def generate_anchors(ratios=(0.5, 1, 2), scales=(8, 16, 32)):
     """
     anchors = []
     for size in scales:
-        area = size ** 2.0
+        area = size**2.0
         for aspect_ratio in ratios:
             im_w = math.sqrt(area / aspect_ratio)
             im_h = aspect_ratio * im_w
