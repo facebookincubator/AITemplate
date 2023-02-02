@@ -86,6 +86,7 @@ def create_ait_operator_support(
         # 1. We only support subgraphs with torch.Tensor inputs for now
         ops.OpSupports.decline_if_input_dtype(torch.int64),
         ops.OpSupports.decline_if_input_dtype(torch.int32),
+        ops.OpSupports.decline_if_input_dtype(torch.float64),
         ops.OpSupports.decline_if_input_dtype(dict),
         # 2. Node is supported if it has AIT converter:
         supported_if_converter_registered,

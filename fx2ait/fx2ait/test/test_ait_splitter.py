@@ -3,6 +3,7 @@ from fx2ait.acc_tracer import acc_tracer
 from fx2ait.ait_splitter import (  # @manual=//aitemplate/AITemplate/fx2ait/fx2ait:fx2ait
     AITSplitter,
     AITSplitterSettings,
+    create_ait_operator_support,
 )
 from fx2ait.tools.common_fx2ait import AITTestCase
 from torch.fx.passes import operator_support as op_support
@@ -87,3 +88,47 @@ class TestSplit(AITTestCase):
         self.assertEqual(acc_tracer.acc_ops.cos, run_on_acc_2_nodes[0].target)
         self.assertEqual(acc_tracer.acc_ops.sigmoid, run_on_acc_2_nodes[1].target)
         self.assertEqual(acc_tracer.acc_ops.tanh, run_on_acc_2_nodes[2].target)
+
+    def test_decline_if_input_dtype(self):
+        operator_support = create_ait_operator_support()
+
+        class TestModule(torch.nn.Module):
+            def forward(self, a):
+                b = torch.relu(a)
+                return b
+
+        test_mod = TestModule().cuda().eval()
+        x = torch.randn(2, 3)
+        mod = acc_tracer.trace(test_mod, [x])
+        settings = AITSplitterSettings()
+        settings.min_acc_module_size = 0
+        # nodes w/ float16 input should be lowered
+        splitter = AITSplitter(
+            mod,
+            (x.half().cuda(),),
+            operator_support,
+            settings,
+        )
+        split_results_half = splitter.generate_split_results()
+        self.assertTrue(len(split_results_half), 1)
+        self.assertEqual(
+            dict(split_results_half.split_module.named_children()).keys(),
+            {"_run_on_acc_0"},
+        )
+
+        # nodes w/ float64 input should not be lowered
+        mod = acc_tracer.trace(test_mod, [x])
+        splitter = AITSplitter(
+            mod,
+            (x.double().cuda(),),
+            operator_support,
+            settings,
+        )
+
+        split_results_double = splitter.generate_split_results()
+
+        self.assertTrue(len(split_results_double), 1)
+        self.assertEqual(
+            dict(split_results_double.split_module.named_children()).keys(),
+            {"_run_on_gpu_0"},
+        )
