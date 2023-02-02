@@ -466,6 +466,29 @@ def acc_ops_getitem(
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     idx = kwargs["idx"]
+    if isinstance(idx, Sequence) and any(isinstance(x, Sequence) for x in idx):
+        count = 0
+        dim = None
+        s = None
+        for d, x in enumerate(idx):
+            if isinstance(x, Sequence):
+                count += 1
+                dim = d
+                s = x
+        # TODO: Because multi-list concatenations e.g. x[[0,1],[0,2]] have broadcast implications
+        # which requires careful pre-conditions and complicated calculations,
+        # we ignore the situation for now and may add support per request.
+        assert count == 1, "Expected only one dimension with list concatenation."
+
+        # For list concatenations, we first take slices and then concate them back
+        # In terms of performance, AIT backend will take care of fusing these ops.
+        groups = []
+        kw = {"input": input_val}
+        for x in s:
+            kw["idx"] = idx[:dim] + (x,) + idx[dim + 1 :]
+            groups.append(unsqueeze(dim)(acc_ops_slice(target, args, kw, name)))
+        return concatenate()(groups, dim=dim)
+
     if isinstance(idx, slice) or (
         isinstance(idx, Sequence) and any(isinstance(x, slice) for x in idx)
     ):
