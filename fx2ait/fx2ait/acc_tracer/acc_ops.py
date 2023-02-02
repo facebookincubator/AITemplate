@@ -3220,6 +3220,12 @@ def baddbmm_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
         return add_node
 
 
+@register_acc_op_mapping(op_and_target=("call_function", torch.clone))
+@register_acc_op
+def clone(*, input):
+    return torch.clone(input)
+
+
 ###############################################################################
 
 # Set ops as side-effectul, this prevents them from being optimized away or
