@@ -102,6 +102,7 @@ class AITSplitterSettings(splitter_base._SplitterSettingBase):
     def __init__(self, min_acc_module_size=DEFAULT_MIN_ACC_MODULE_SIZE):
         super().__init__()
         self.min_acc_module_size = min_acc_module_size
+        self.exclude_support_node_name: set = set()
 
 
 class AITSplitter(splitter_base._SplitterBase):
@@ -115,7 +116,16 @@ class AITSplitter(splitter_base._SplitterBase):
         if not settings:
             settings = AITSplitterSettings()
         if not operator_support:
-            operator_support = create_ait_operator_support()
+            operator_support = create_ait_operator_support(
+                op_lowering_disallow_list=settings.exclude_support_node_name
+            )
+        else:
+            operator_support = ops.chain(
+                operator_support,
+                ops.OpSupports.decline_if_node_in_names(
+                    settings.exclude_support_node_name
+                ),
+            )
         super().__init__(
             module,
             sample_input,
