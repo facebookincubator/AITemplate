@@ -53,6 +53,22 @@ class TestSliceTensor(AITTestCase):
                 "slice_zero_slice",
                 (slice(None, None, None), slice(None, None, None), slice(0, 0, None)),
             ),
+            (
+                "slice_list_slice",
+                (slice(0, 1, None), [2], slice(0, 10, None)),
+            ),
+            (
+                "zero_list_zero",
+                (slice(0, 1, None), [0, 7, 5, 3, 1, 9], slice(0, 0, None)),
+            ),
+            (
+                "all_list_all",
+                (slice(None, None, None), [2, 2, 2, 2], slice(None, None, None)),
+            ),
+            (
+                "slice_zero_list",
+                (slice(0, 1, None), slice(0, 0, None), [0, 1, 3]),
+            ),
         ]
     )
     def test_slice_tensor(self, name, idx):
