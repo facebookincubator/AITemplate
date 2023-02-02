@@ -138,6 +138,40 @@ class BMMPermuteTestCase(unittest.TestCase):
             [10], [8], N=64, K=88, d1=10, test_name="permute3_float", dtype="float"
         )
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_permute_bfloat16(self):
+        self._test_rrr(
+            [10],
+            [8],
+            N=88,
+            K=64,
+            d1=10,
+            test_name="permute3_bfloat16",
+            dtype="bfloat16",
+        )
+        self._test_rrr(
+            [10],
+            [8],
+            N=88,
+            K=64,
+            d1=10,
+            test_name="permute3_copy_op_bfloat16",
+            copy_op=True,
+            dtype="bfloat16",
+        )
+        self._test_rcr(
+            [10],
+            [8],
+            N=64,
+            K=88,
+            d1=10,
+            test_name="permute3_bfloat16",
+            dtype="bfloat16",
+        )
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

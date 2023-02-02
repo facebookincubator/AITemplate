@@ -256,6 +256,45 @@ class GEMMTestCase(unittest.TestCase):
             dtype="float",
         )
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_gemm_permute_bfloat16(self):
+        for has_bias in (True, False):
+            for copy_op in (True, False):
+                self._test_rcr(
+                    [80],
+                    32,
+                    96,
+                    (5, 3, 2),
+                    "permute1_bfloat16",
+                    has_bias=has_bias,
+                    copy_op=copy_op,
+                    dtype="bfloat16",
+                )
+        self._test_rcr_0213(
+            [29, 29 * 8],
+            256,
+            300000,
+            [29, 100000],
+            "permute_0213_2_bfloat16",
+            has_bias=False,
+            copy_op=False,
+            layout="0213",
+            dtype="bfloat16",
+        )
+        self._test_rrr([128], 64, 256, (8, 4, 4), "permute2_bfloat16", dtype="bfloat16")
+        self._test_rrr(
+            [128],
+            64,
+            256,
+            (8, 4, 4),
+            "permute2_copy_op_bfloat16",
+            copy_op=True,
+            dtype="bfloat16",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
