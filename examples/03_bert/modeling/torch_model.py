@@ -17,14 +17,12 @@ from transformers import AutoModelForMaskedLM, BertForMaskedLM
 
 
 class BertBaseUncased:
-    def __init__(self, pretrained=True):
+    def __init__(self, model_path="bert-base-uncased", pretrained=True):
         if not pretrained:
-            pretrained = AutoModelForMaskedLM.from_pretrained("bert-base-uncased")
+            pretrained = AutoModelForMaskedLM.from_pretrained(model_path)
             self._model = BertForMaskedLM(pretrained.config).cuda().half()
         else:
-            self._model = (
-                AutoModelForMaskedLM.from_pretrained("bert-base-uncased").cuda().half()
-            )
+            self._model = AutoModelForMaskedLM.from_pretrained(model_path).cuda().half()
         self._vocab_size = 30522
 
     def forward(self, *args, **kwargs):
