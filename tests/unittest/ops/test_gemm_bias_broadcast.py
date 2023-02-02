@@ -14,7 +14,6 @@
 #
 import unittest
 
-import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
@@ -41,7 +40,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         self.D1_pt = get_random_torch_tensor([*m_shape, n], dtype)
 
     def _test_and_verify(
-        self, module, numpy_output, dtype, has_d1=False, module_output_name="output_0"
+        self, module, torch_output, dtype, has_d1=False, module_output_name="output_0"
     ):
         inputs = {
             "input_0": self.X_pt,
@@ -51,14 +50,12 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         }
         if has_d1:
             inputs["d1"] = self.D1_pt
-        y = get_torch_empty_tensor(list(numpy_output.shape), dtype)
+        y = get_torch_empty_tensor(list(torch_output.shape), dtype)
         module.run_with_tensors(inputs, [y])
         if self.X_pt.nelement() == 0 or self.W_pt.nelement() == 0:
             pass
         else:
-            np.testing.assert_allclose(
-                numpy_output, y.cpu().numpy(), atol=1e-1, rtol=1e-1
-            )
+            torch.testing.assert_close(torch_output, y, atol=1e-1, rtol=1e-1)
 
     def _test_bias_rcr_mul_add(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -75,8 +72,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             * self.D0_pt
             + self.D1_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype, has_d1=True)
+        self._test_and_verify(module, Y_pt, dtype, has_d1=True)
 
     def test_bias_rcr_mul_add(self):
         self._test_bias_rcr_mul_add(8, None, None, 8, 8)
@@ -104,8 +100,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             )
             * self.D0_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype)
+        self._test_and_verify(module, Y_pt, dtype)
 
     def test_bias_rcr_sigmoid_mul(self):
         self._test_bias_rcr_sigmoid_mul(8, None, None, 8, 8)
@@ -133,8 +128,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             )
             * self.D0_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype)
+        self._test_and_verify(module, Y_pt, dtype)
 
     def test_bias_rcr_sigmoid_mul_tanh(self):
         self._test_bias_rcr_sigmoid_mul_tanh(8, None, None, 8, 8)
@@ -161,8 +155,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             torch.nn.functional.linear(self.X_pt, self.W_pt, bias=self.B_pt)
             + self.D0_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype)
+        self._test_and_verify(module, Y_pt, dtype)
 
     def test_bias_rcr_add(self):
         self._test_bias_rcr_add(8, None, None, 8, 8)
@@ -188,8 +181,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             torch.nn.functional.linear(self.X_pt, self.W_pt, bias=self.B_pt)
             + self.D0_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype)
+        self._test_and_verify(module, Y_pt, dtype)
 
     def test_bias_rcr_add_relu(self):
         self._test_bias_rcr_add_relu(8, None, None, 8, 8)
@@ -216,8 +208,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             + self.D0_pt
             + self.D1_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype, has_d1=True)
+        self._test_and_verify(module, Y_pt, dtype, has_d1=True)
 
     def test_bias_rcr_add_add_relu(self):
         target = detect_target()
@@ -250,8 +241,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             torch.nn.functional.linear(self.X_pt, self.W_pt, bias=self.B_pt)
             * self.D0_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype)
+        self._test_and_verify(module, Y_pt, dtype)
 
     def test_bias_rcr_mul(self):
         self._test_bias_rcr_mul(8, None, None, 8, 8)
@@ -278,8 +268,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             + self.D0_pt
             + self.D1_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype, has_d1=True)
+        self._test_and_verify(module, Y_pt, dtype, has_d1=True)
 
     def test_bias_rcr_add_add(self):
         self._test_bias_rcr_add_add(8, None, None, 8, 8)
@@ -306,8 +295,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
             torch.nn.functional.linear(self.X_pt, self.W_pt, bias=self.B_pt)
             * self.D0_pt
         )
-        Y_np = Y_pt.cpu().numpy()
-        self._test_and_verify(module, Y_np, dtype)
+        self._test_and_verify(module, Y_pt, dtype)
 
     def test_bias_rcr_mul_tanh(self):
         self._test_bias_rcr_mul_tanh(8, None, None, 8, 8)
@@ -320,7 +308,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
         "Not supported by CUDA < SM80.",
     )
-    def test_bias_broadcast_float(self):
+    def test_gemm_bias_broadcast_float(self):
         self._test_bias_rcr_mul_add(None, 2, 32, 256, 128, dtype="float")
         self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128, dtype="float")
         self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128, dtype="float")
@@ -331,6 +319,23 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="float")
         self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="float")
         self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="float")
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_gemm_bias_broadcast_bfloat16(self):
+        self._test_bias_rcr_mul_add(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_add(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_add_add_relu(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="bfloat16")
+        self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="bfloat16")
 
 
 if __name__ == "__main__":
