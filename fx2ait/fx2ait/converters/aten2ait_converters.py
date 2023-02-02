@@ -917,7 +917,7 @@ def aten_ops_hardtanh(
     input_val = args[0]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
-    result = elementwise(FuncEnum.TANH)(input_val)
+    result = input_val
     minimal = args[1] if len(args) > 1 else -1
     maximum = args[2] if len(args) > 2 else 1
     if minimal is not None:
