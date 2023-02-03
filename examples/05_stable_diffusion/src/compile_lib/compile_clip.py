@@ -82,12 +82,13 @@ def compile_clip(
     seqlen=64,
     dim=768,
     num_heads=12,
+    depth=12,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
+    act_layer="gelu",
 ):
     mask_seq = 0
     causal = True
-    depth = 23
 
     ait_mod = ait_CLIPTextTransformer(
         num_hidden_layers=depth,
@@ -97,6 +98,7 @@ def compile_clip(
         seq_len=seqlen,
         causal=causal,
         mask_seq=mask_seq,
+        act_layer=act_layer,
     )
     ait_mod.name_parameter_tensor()
 

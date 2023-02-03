@@ -77,9 +77,13 @@ class StableDiffusionVerification(unittest.TestCase):
         self.unet_config = {
             "batch_size": 2,
             "dim": 320,
-            "hidden_dim": 1024,
+            "hidden_dim": pipe.unet.config.cross_attention_dim,
             "width": 64,
             "height": 64,
+        }
+
+        self.unet_compile_extra_config = {
+            "attention_head_dim": pipe.unet.config.attention_head_dim,
         }
 
         self.clip_config = {
@@ -88,8 +92,10 @@ class StableDiffusionVerification(unittest.TestCase):
         }
 
         self.clip_compile_extra_config = {
-            "dim": 1024,
-            "num_heads": 16,
+            "depth": pipe.text_encoder.config.num_hidden_layers,
+            "num_heads": pipe.text_encoder.config.num_attention_heads,
+            "dim": pipe.text_encoder.config.hidden_size,
+            "act_layer": pipe.text_encoder.config.hidden_act,
         }
 
     def test_vae(self):
@@ -112,6 +118,7 @@ class StableDiffusionVerification(unittest.TestCase):
             use_fp16_acc=False,
             convert_conv_to_gemm=True,
             **self.unet_config,
+            **self.unet_compile_extra_config,
         )
         benchmark_unet(
             self.pt_unet,

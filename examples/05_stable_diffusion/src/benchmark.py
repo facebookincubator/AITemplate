@@ -297,7 +297,11 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     )
     # UNet
     benchmark_unet(
-        pipe.unet, batch_size=batch_size * 2, benchmark_pt=benchmark_pt, verify=verify
+        pipe.unet,
+        batch_size=batch_size * 2,
+        benchmark_pt=benchmark_pt,
+        verify=verify,
+        hidden_dim=pipe.text_encoder.config.hidden_size,
     )
     # VAE
     benchmark_vae(
