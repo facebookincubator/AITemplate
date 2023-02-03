@@ -100,10 +100,14 @@ SRC_TEMPLATE = jinja2.Template(
 #include <iostream>
 #include <type_traits>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
 
 namespace {
+
+using bfloat16 = __nv_bfloat16;
+
 
 // For each thread, read
 // A tile: 8 x K
@@ -151,8 +155,8 @@ __global__ void gemm_rrr_small_nk_kernel(
     for (int i = 0; i < num_elems_in_float4; ++i) {
       CUTLASS_PRAGMA_UNROLL
       for (int j = 0; j < N; ++j) {
-        if (USE_FP16_ACC) {
-          half sum = 0;
+        if constexpr (USE_FP16_ACC) {
+          TElem sum = 0;
           CUTLASS_PRAGMA_UNROLL
           for (int k = 0; k < K; ++k) {
             sum = __hfma(a_tile[i * K + k], b[k][j], sum);
@@ -202,8 +206,8 @@ __global__ void gemm_rrr_small_nk_kernel(
     for (int i = 0; i < m; ++i) {
       CUTLASS_PRAGMA_UNROLL
       for (int j = 0; j < N; ++j) {
-        if (USE_FP16_ACC) {
-          half sum = 0;
+        if constexpr (USE_FP16_ACC) {
+          TElem sum = 0;
           CUTLASS_PRAGMA_UNROLL
           for (int k = 0; k < K; ++k) {
             sum = __hfma(a_tile[i][k], b[k][j], sum);
@@ -243,7 +247,7 @@ __global__ void gemm_rrr_small_nk_kernel(
 
 // N <= 8, K <= 8
 template<typename ElemT, int N, int K,
-         typename = std::enable_if_t<std::is_same_v<ElemT, float> || std::is_same_v<ElemT, half>, void>>
+         typename = std::enable_if_t<std::is_same_v<ElemT, float> || std::is_same_v<ElemT, half> || std::is_same_v<ElemT, bfloat16>, void>>
 void gemm_rrr_small_nk_launcher(ElemT* a_ptr,
                          ElemT* b_ptr,
                          ElemT* c_ptr,
@@ -255,7 +259,7 @@ void gemm_rrr_small_nk_launcher(ElemT* a_ptr,
   dim3 thread_block(nthread);
   constexpr int n_element_per_t = nthread * num_elems_in_float4;
   dim3 grid((M + n_element_per_t - 1) / n_element_per_t);
-  if (use_fp16_acc && std::is_same_v<ElemT, half>) {
+  if (use_fp16_acc && (std::is_same_v<ElemT, half> || std::is_same_v<ElemT, bfloat16>)) {
     gemm_rrr_small_nk_kernel<ElemT, nthread, N, K, true><<<grid, thread_block, 0, stream>>>(
       reinterpret_cast<const float4*>(a_ptr),
       reinterpret_cast<const float4*>(b_ptr),
