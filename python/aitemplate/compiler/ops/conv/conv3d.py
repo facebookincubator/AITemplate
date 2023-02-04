@@ -477,7 +477,7 @@ class conv3d(Operator):
             all_op_names = list(self._attrs["op_instance"].keys())
             for op_name in all_op_names:
                 runner = backend.profiler_runner.Runner(
-                    devices, self._attrs["name"], timeout=180
+                    devices, self._attrs["name"], timeout=None
                 )
                 x_shape = self._invert_exec_key(exec_key)
                 command = self._gen_profile_cmd(profiler_prefix, op_name, x_shape)

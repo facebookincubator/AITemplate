@@ -44,8 +44,8 @@ namespace ait {
 namespace {
 void DeviceCheckLastError(const char* file, int line) {
   auto device_error = GetLastError();
-  if (device_error != GetDeviceSuccess()) {
-    std::string msg = std::string("Got error: ") + GetLastErrorString() +
+  if (device_error != GetDeviceSuccess() && device_error != GetDeviceNotReady()) {
+    std::string msg = std::string("Got error: ") + GetErrorString(device_error) +
                       " enum: " + std::to_string(device_error) +
                       " at " + file + ": " + std::to_string(line);
     LOG(ERROR) << msg;

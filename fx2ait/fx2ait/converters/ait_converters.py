@@ -44,6 +44,8 @@ from aitemplate.compiler.public import (
     vector_norm,
 )
 
+from aitemplate.testing import detect_target
+
 from fx2ait.acc_tracer import acc_ops, ait_acc_ops
 from torch.fx.node import Argument, Target
 
@@ -58,6 +60,8 @@ from .utils import (
     nchw2nhwc,
     unify_dynamic_shape_name,
 )
+
+USE_ROCM = detect_target().name() == "rocm"
 
 logger: logging.Logger = logging.getLogger(__name__)
 ConverterOutput = Union[AITTensor, Tuple[AITTensor, ...], List[IntVar], IntVar]
@@ -155,17 +159,20 @@ def acc_ops_linear(
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
-
+    if USE_ROCM:
+        shape = input_val._attrs["shape"]
+        input_val = input_val if len(shape) == 2 else reshape()(input_val, [-1, shape[-1].value()])
     weight = kwargs["weight"]
     assert isinstance(weight, AITTensor)
-
+    
     result = gemm_rcr()(input_val, weight)
 
     bias = kwargs["bias"]
     if bias is not None:
         assert isinstance(bias, AITTensor)
         result = elementwise(FuncEnum.ADD)(result, bias)
-
+    if USE_ROCM:
+        result = result if len(shape) == 2 else reshape()(result, [shape[0].value(), -1, result._attrs["shape"][-1].value()])
     return result
 
 

@@ -5,11 +5,14 @@ import numpy as np
 import torch
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import _TorchConstantTensorData
+from aitemplate.testing import detect_target
 from aitemplate.frontend import nn
 from torch.fx.node import Argument
 
 from .ait_converters import ConverterOutput
 from .converter_registry import ait_converter
+
+USE_CUDA = detect_target().name() == "cuda"
 
 
 @ait_converter(torch.nn.modules.activation.MultiheadAttention)
@@ -26,14 +29,25 @@ def multi_head_attention_module(
     value = kwargs["value"] if "value" in kwargs else args[2]
     bsz, seq_len_q, dim = query.shape()
     _, seq_len, _ = key.shape()
-    attn = nn.CrossAttention(
-        dim=submod.embed_dim,
-        seq_len=seq_len_q.value(),
-        seq_len_kv=seq_len.value(),
-        num_heads=submod.num_heads,
-        qkv_bias=True,
-        has_residual=False,
-    )
+    if USE_CUDA:
+        attn = nn.CrossAttention(
+            dim=submod.embed_dim,
+            seq_len=seq_len_q.value(),
+            seq_len_kv=seq_len.value(),
+            num_heads=submod.num_heads,
+            qkv_bias=True,
+            has_residual=False,
+        )
+    else:
+        attn = nn.MultiheadAttention(
+            dim=submod.embed_dim,
+            batch_size=bsz.value(),
+            seq_len=seq_len_q.value(),
+            num_heads=submod.num_heads,
+            qkv_bias=True,
+            has_residual=False,
+            use_mem_eff=True
+        )
 
     # Bind constant tensor for MHA module
     mapped_params = _map_ait_pt_params(attn, submod)

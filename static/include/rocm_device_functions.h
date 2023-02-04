@@ -191,7 +191,7 @@ inline DeviceError QueryEvent(EventType event) {
   return hipEventQuery(event);
 }
 
-inline const char* GetErrorString(DeviceError err) {
+inline std::string GetErrorString(DeviceError err) {
   return hipGetErrorString(err);
 }
 

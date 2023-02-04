@@ -322,7 +322,7 @@ class ProfilerRunner:
             f.cancel()
         # block until each done_callback completes,
         # or raise Empty exception after 3 minutes of waiting
-        block_timeout = 360 if Target.current().name() == "rocm" else 180
+        block_timeout = None if Target.current().name() == "rocm" else 180
         for _ in self._futures:
             self._done_queue.get(timeout=block_timeout)
         self._postprocessing_delegate.postprocess_results()
