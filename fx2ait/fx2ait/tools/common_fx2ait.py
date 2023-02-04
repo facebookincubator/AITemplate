@@ -82,7 +82,6 @@ class AITTestCase(TestCase):
         permute_inputs: Optional[List[int]] = None,
         permute_outputs: Optional[List[int]] = None,
         transformer_mode: Optional[bool] = False,
-        passes: List[Callable] = [],
     ):
         # TODO: add precision to interpreter once AIT supports multiple precision level
         # TODO: @qxy11 remove permute options once AIT supports channels-first format
@@ -94,9 +93,6 @@ class AITTestCase(TestCase):
                 torch.nn.MultiheadAttention if transformer_mode else None
             ],
         )
-        for p in passes:
-            mod = p(mod, inputs)
-
         print(mod.graph)
 
         original_inputs = inputs
