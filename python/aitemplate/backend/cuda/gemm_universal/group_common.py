@@ -153,6 +153,8 @@ ADAPTOR_FUNCTION_TEMPLATE = jinja2.Template(
 #include "cutlass/util/reference/host/tensor_fill.h"
 #include "cutlass/util/reference/device/tensor_fill.h"
 
+using bfloat16 = nv_bfloat16;
+
 #define CUTLASS_CHECK(status)                                                         \\
   {                                                                                   \\
     cutlass::Status error = status;                                                   \\
