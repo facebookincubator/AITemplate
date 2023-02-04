@@ -13,9 +13,6 @@
 #  limitations under the License.
 #
 import torch
-from deeplearning.trt.torch_tensorrt.py.torch_tensorrt.fb.passes.dper_pass import (
-    push_down_split_ops,
-)
 from fx2ait.acc_tracer import acc_ops
 from fx2ait.tools.common_fx2ait import AITTestCase
 from parameterized import parameterized
@@ -86,8 +83,7 @@ class TestSliceTensor(AITTestCase):
 
         mod = SliceTensor(idx).half().cuda()
         inputs = [torch.randn(2, 10, 10, 10).half().cuda()]
-        passes = [push_down_split_ops]
-        self.run_test(mod, inputs, expected_ops={acc_ops.getitem}, passes=passes)
+        self.run_test(mod, inputs, expected_ops={acc_ops.getitem})
 
     @parameterized.expand([("default", 1), ("neg", -2)])
     def test_get_item(self, _, idx):
