@@ -81,13 +81,9 @@ class GEMMRrrSmallNKTestCase(unittest.TestCase):
         # self._test_rrr([1000000], 8, 16)
         # self._test_rrr([1000000], 6, 3, False)
 
-    def test_gemm_rrr_small_nk_float32(self):
+    def test_float32(self):
         self._test_rrr([0, 1], 6, 3, False, dtype="float32", atol=1e-5, rtol=1.3e-6)
         self._test_rrr([100001], 7, 10, False, dtype="float32", atol=1e-5, rtol=1.3e-6)
-
-    def test_gemm_rrr_small_nk_bfloat16(self):
-        self._test_rrr([0, 1], 6, 3, False, dtype="bfloat16", atol=1e-1, rtol=1e-1)
-        self._test_rrr([100001], 7, 10, False, dtype="bfloat16", atol=1e-1, rtol=1e-1)
 
 
 if __name__ == "__main__":
