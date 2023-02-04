@@ -34,9 +34,10 @@ class GroupGEMMRcrTestCase(unittest.TestCase):
             param(False, "group_gemm_rcr_run_once", "float16"),
             param(True, "group_gemm_rcr_run_twice", "float16"),
             param(False, "group_gemm_rcr_run_once_fp32", "float32"),
+            param(False, "group_gemm_rcr_run_once_bf16", "bfloat16"),
         ]
     )
-    def test_rcr(self, run_twice: bool, test_name: str, dtype: str):
+    def test_group_gemm_rcr(self, run_twice: bool, test_name: str, dtype: str):
         M = 256
         K1 = 128
         N1 = 60
@@ -86,10 +87,10 @@ class GroupGEMMRcrTestCase(unittest.TestCase):
             outputs["y3"] = torch.empty_like(y1)
 
         module.run_with_tensors(inputs, outputs)
-        self.assertTrue(torch.allclose(Y1_pt, y1, atol=1e-1, rtol=1e-1))
-        self.assertTrue(torch.allclose(Y2_pt, y2, atol=1e-1, rtol=1e-1))
+        torch.testing.assert_close(Y1_pt, y1, atol=1e-1, rtol=1e-1)
+        torch.testing.assert_close(Y2_pt, y2, atol=1e-1, rtol=1e-1)
         if run_twice:
-            self.assertTrue(torch.allclose(Y1_pt, outputs["y3"], atol=1e-1, rtol=1e-1))
+            torch.testing.assert_close(Y1_pt, outputs["y3"], atol=1e-1, rtol=1e-1)
 
 
 if __name__ == "__main__":
