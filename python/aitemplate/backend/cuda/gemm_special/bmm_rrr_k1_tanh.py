@@ -89,30 +89,76 @@ SRC_TEMPLATE = jinja2.Template(
     """
 #include <iostream>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
 #include "cutlass/fast_math.h"
 
-#ifndef __HALF_TO_US
-#define __HALF_TO_US(var) *(reinterpret_cast<unsigned short *>(&(var)))
+using bfloat16 = __nv_bfloat16;
+
+#ifndef REINTERPRET_AS_U16
+#define REINTERPRET_AS_U16(var) *(reinterpret_cast<unsigned short *>(&(var)))
 #endif
 
 namespace {
 
 template <typename T>
-__device__ T fast_tanh(T x);
+__device__ __inline__ T fast_tanh(T x);
 
 template <>
-__device__ half fast_tanh(half x) {
+__device__ __inline__ half fast_tanh(half x) {
   #if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && (__CUDA_ARCH__ >= 750)
 
-  asm volatile ( "tanh.approx.f16 %0, %1;" : "=h"(__HALF_TO_US(x)) : "h"(__HALF_TO_US(x)));
+  asm volatile ( "tanh.approx.f16 %0, %1;" : "=h"(REINTERPRET_AS_U16(x)) : "h"(REINTERPRET_AS_U16(x)));
   return x;
 
   #else
   return half(cutlass::fast_tanh(float(x)));
   #endif
 }
+
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && (__CUDA_ARCH__ >= 800)
+
+template <>
+__device__ __inline__ bfloat16 fast_tanh(bfloat16 x) {
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 12) && (__CUDA_ARCH__ >= 900)
+
+  asm volatile ( "tanh.approx.bf16 %0, %1;" : "=h"(REINTERPRET_AS_U16(x)) : "h"(REINTERPRET_AS_U16(x)));
+  return x;
+
+#else
+  return bfloat16(cutlass::fast_tanh(float(x)));
+#endif
+}
+
+#endif // (__CUDA_ARCH__ >= 800)
+
+template <>
+__device__ __inline__ float fast_tanh(float x) {
+  return cutlass::fast_tanh(x);
+}
+
+template<typename ElemT>
+__device__ __inline__ ElemT intrinsic_mul(ElemT x, ElemT y);
+
+template<>
+__device__ __inline__ float intrinsic_mul(float x, float y) {
+  return __fmul_rn(x, y);
+}
+
+template<>
+__device__ __inline__ half intrinsic_mul(half x, half y) {
+  return __hmul(x, y);
+}
+
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && (__CUDA_ARCH__ >= 800)
+
+template<>
+__device__ __inline__ bfloat16 intrinsic_mul(bfloat16 x, bfloat16 y) {
+  return __hmul(x, y);
+}
+
+#endif
 
 template<typename ElemT, int num_thread>
 __global__ void bmm_rrr_k1_tanh_kernel(const float4* a_ptr,
@@ -137,7 +183,7 @@ __global__ void bmm_rrr_k1_tanh_kernel(const float4* a_ptr,
     for (int i = 0; i < num_elems_in_float4; ++i) {
       CUTLASS_PRAGMA_UNROLL
       for (int j = 0; j < num_elems_in_float4; ++j) {
-        tmp[i * num_elems_in_float4 + j] = fast_tanh(__hmul(a_vec_ptr[i], b_vec_ptr[j]));
+        tmp[i * num_elems_in_float4 + j] = fast_tanh(intrinsic_mul(a_vec_ptr[i], b_vec_ptr[j]));
       }
     }
     CUTLASS_PRAGMA_UNROLL
@@ -207,6 +253,7 @@ void {{function_name}} (
   {{exec_paths}}
 }
 
+#undef REINTERPRET_AS_U16
 """
 )
 
