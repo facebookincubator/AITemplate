@@ -203,7 +203,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        dll_name = f"test.so"
+        dll_name = "test.so"
         test_name = "slice_scatter_reshape_cat_float16_2"
         module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         Y_src_ops = Y._attrs["src_ops"]

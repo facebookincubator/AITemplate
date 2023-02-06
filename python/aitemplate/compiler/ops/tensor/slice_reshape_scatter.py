@@ -100,7 +100,7 @@ class slice_reshape_scatter(Operator):
         cat_op_2_outputs = cat_op_2._attrs["outputs"]
         assert len(cat_op_2_outputs) == 1, (
             f'{cat_op_2._attrs["name"]=} may only have one output, but got more '
-            f"{outputs=}"
+            f"{cat_op_2_outputs=}"
         )
         self._attrs["outputs"] = cat_op_2_outputs
 
