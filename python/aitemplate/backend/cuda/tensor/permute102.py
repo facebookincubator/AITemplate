@@ -24,9 +24,11 @@ from ...common.tensor import permute102_common
 
 Header_files = """
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include "cutlass/cutlass.h"
 #include "cutlass/util/host_tensor.h"
+
 """
 
 
