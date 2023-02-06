@@ -15,7 +15,6 @@
 import logging
 import unittest
 
-import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
@@ -34,9 +33,10 @@ class GroupGEMMRcrBiasCatTestCase(unittest.TestCase):
         [
             param("group_gemm_rcr_bias_cat_fp16", "float16"),
             param("group_gemm_rcr_bias_cat_fp32", "float32"),
+            param("group_gemm_rcr_bias_cat_bf16", "bfloat16"),
         ]
     )
-    def test_rcr_bias_cat(self, test_name, dtype):
+    def test_group_gemm_rcr_bias_cat(self, test_name, dtype):
         M = 256
         K1 = 128
         N1 = 60
@@ -66,11 +66,10 @@ class GroupGEMMRcrBiasCatTestCase(unittest.TestCase):
         Y1_pt = torch.nn.functional.linear(X1_pt, W1_pt, bias=B1_pt)
         Y2_pt = torch.nn.functional.linear(X2_pt, W2_pt, bias=B2_pt)
         Y_pt = torch.cat([Y1_pt, Y2_pt], dim=1)
-        Y_np = Y_pt.cpu().numpy()
 
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
         _LOGGER.info("AITemplate y_shape: {}".format(y_shape))
-        np.testing.assert_equal(y_shape, Y_np.shape)
+        torch.testing.assert_close(y_shape, list(Y_pt.shape))
 
         inputs = {
             "x1": X1_pt,

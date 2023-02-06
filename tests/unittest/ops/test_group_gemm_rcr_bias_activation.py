@@ -33,8 +33,10 @@ class GroupGEMMRcrBiasActTestCase(unittest.TestCase):
         [
             param("group_gemm_rcr_bias_relu_fp16", "float16", "relu"),
             param("group_gemm_rcr_bias_relu_fp32", "float32", "relu"),
+            param("group_gemm_rcr_bias_relu_bf16", "bfloat16", "relu"),
             param("group_gemm_rcr_bias_sigmoid_fp16", "float16", "sigmoid"),
             param("group_gemm_rcr_bias_sigmoid_fp32", "float32", "sigmoid"),
+            param("group_gemm_rcr_bias_sigmoid_bf16", "bfloat16", "sigmoid"),
         ]
     )
     def test_rcr_activation(self, test_name, dtype, activation):
