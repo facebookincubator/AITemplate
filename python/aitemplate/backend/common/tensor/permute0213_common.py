@@ -134,6 +134,48 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}      stream
 {{indent}}  );
 {{indent}}}
+{% elif dtype == "bfloat16" %}
+{{indent}}if (x_dim3 % 8 == 0) {
+{{indent}}  permute0213_launcher<float4>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2,
+{{indent}}      x_dim3 / 8,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}} else if (x_dim3 % 4 == 0) {
+{{indent}}  permute0213_launcher<float2>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2,
+{{indent}}      x_dim3 / 4,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}} else if (x_dim3 % 2 == 0) {
+{{indent}}  permute0213_launcher<float>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2,
+{{indent}}      x_dim3 / 2,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}} else {
+{{indent}}  permute0213_launcher<bfloat16>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2,
+{{indent}}      x_dim3,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}}
 {% endif %}
 {{indent}}return;
 """
