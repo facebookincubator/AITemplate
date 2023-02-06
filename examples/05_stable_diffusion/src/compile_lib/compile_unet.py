@@ -57,12 +57,13 @@ def compile_unet(
     hidden_dim=1024,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
+    attention_head_dim=[5, 10, 20, 20],  # noqa: B006
 ):
 
     ait_mod = ait_UNet2DConditionModel(
         sample_size=64,
         cross_attention_dim=hidden_dim,
-        attention_head_dim=[5, 10, 20, 20],
+        attention_head_dim=attention_head_dim,
     )
     ait_mod.name_parameter_tensor()
 

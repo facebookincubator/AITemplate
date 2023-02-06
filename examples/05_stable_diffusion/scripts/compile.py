@@ -64,10 +64,12 @@ def compile_diffusers(
     compile_clip(
         pipe.text_encoder,
         batch_size=batch_size,
-        dim=1024,
-        num_heads=16,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
+        depth=pipe.text_encoder.config.num_hidden_layers,
+        num_heads=pipe.text_encoder.config.num_attention_heads,
+        dim=pipe.text_encoder.config.hidden_size,
+        act_layer=pipe.text_encoder.config.hidden_act,
     )
     # UNet
     compile_unet(
@@ -77,6 +79,8 @@ def compile_diffusers(
         height=hh,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
+        hidden_dim=pipe.unet.config.cross_attention_dim,
+        attention_head_dim=pipe.unet.config.attention_head_dim,
     )
     # VAE
     compile_vae(
