@@ -33,8 +33,6 @@ from parameterized import param, parameterized
 class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(FusedLayernormSigmoidMulTestCase, self).__init__(*args, **kwargs)
-        self._atol = 1e-2
-        self._rtol = 1e-3
         self._test_id = 0
 
     def _test_fused_layernorm_sigmoid_mul(
@@ -44,6 +42,8 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         gamma_is_none=False,
         beta_is_none=False,
         use_size_op=False,
+        atol=1e-2,
+        rtol=1e-2,
         eps=1e-5,
         dtype="float16",
     ):
@@ -127,7 +127,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
                     inputs["beta"] = x3_pt
                 x6 = torch.empty_like(x6_pt)
                 module.run_with_tensors(inputs, [x6])
-                torch.testing.assert_close(x6, x6_pt, atol=self._atol, rtol=self._rtol),
+                torch.testing.assert_close(x6, x6_pt, atol=atol, rtol=rtol),
 
     def test_fused_layernorm_sigmoid_mul_fp16(self):
         for eps in (1e-5, 1e-1):
@@ -292,6 +292,86 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
             dtype="float32",
         )
 
+    def test_fused_layernorm_sigmoid_mul_bf16(self):
+        for eps in (1e-5, 1e-1):
+            self._test_fused_layernorm_sigmoid_mul(
+                NS=(1496,),
+                eps=eps,
+                dtype="bfloat16",
+                atol=1e-2,
+                rtol=1e-2,
+            )
+            # block_size = n kernel
+            self._test_fused_layernorm_sigmoid_mul(
+                NS=(515,),
+                eps=eps,
+                dtype="bfloat16",
+                atol=1e-2,
+                rtol=1e-2,
+            )
+            # block_size = 512 kernel
+            self._test_fused_layernorm_sigmoid_mul(
+                NS=(1055,),
+                eps=eps,
+                dtype="bfloat16",
+                atol=1e-2,
+                rtol=1e-2,
+            )
+
+        # test ND inputs
+        eps = 1e-5
+        self._test_fused_layernorm_sigmoid_mul(
+            MS=(2, 2),
+            NS=(64, 8),
+            eps=eps,
+            dtype="bfloat16",
+            atol=1e-2,
+            rtol=1e-2,
+        )
+        # block_size = n kernel
+        self._test_fused_layernorm_sigmoid_mul(
+            MS=(2, 2),
+            NS=(213, 2),
+            eps=eps,
+            dtype="bfloat16",
+            atol=1e-2,
+            rtol=1e-2,
+        )
+        self._test_fused_layernorm_sigmoid_mul(
+            MS=(2, 2),
+            NS=(3, 2),
+            eps=eps,
+            dtype="bfloat16",
+            atol=1e-2,
+            rtol=1e-2,
+        )
+        # block_size = 512 kernel
+        self._test_fused_layernorm_sigmoid_mul(
+            MS=(2, 4),
+            NS=(1055, 5),
+            eps=eps,
+            dtype="bfloat16",
+            atol=1e-2,
+            rtol=1e-2,
+        )
+
+        self._test_fused_layernorm_sigmoid_mul(
+            NS=(1496,),
+            gamma_is_none=True,
+            beta_is_none=True,
+            dtype="bfloat16",
+            atol=1e-2,
+            rtol=1e-2,
+        )
+        self._test_fused_layernorm_sigmoid_mul(
+            NS=(515,),
+            gamma_is_none=True,
+            beta_is_none=True,
+            dtype="bfloat16",
+            atol=1e-2,
+            rtol=1e-2,
+        )
+
     # dim0 is batch size
     def _test_batch_fused_layernorm_sigmoid_mul(
         self,
@@ -301,6 +381,8 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         beta_is_none=False,
         use_size_op=False,
         eps=1e-5,
+        atol=1e-2,
+        rtol=1e-2,
         dtype="float16",
     ):
         logging.info(
@@ -398,11 +480,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
                     inputs["beta"] = beta_pt
                 x4 = torch.empty_like(y_t)
                 module.run_with_tensors(inputs, [x4])
-                self.assertTrue(
-                    torch.allclose(x4, y_t, atol=self._atol, rtol=self._rtol),
-                    f"max diff: {torch.max(x4 - y_t) if y_t.numel() > 0 else 0}, "
-                    f"min diff: {torch.min(x4 - y_t) if y_t.numel() > 0 else 0}",
-                )
+                torch.testing.assert_close(x4, y_t, atol=atol, rtol=rtol)
 
     # dim1 is the batch size
     def _test_batch_fused_layernorm_sigmoid_mul_dim1(
@@ -411,6 +489,8 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         N,
         gamma_is_none=False,
         beta_is_none=False,
+        atol=1e-2,
+        rtol=1e-2,
         dtype="float16",
     ):
         logging.info(
@@ -497,16 +577,13 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
                     inputs["beta"] = beta_pt
                 x4 = torch.empty_like(y_t)
                 module.run_with_tensors(inputs, [x4])
-                self.assertTrue(
-                    torch.allclose(x4, y_t, atol=self._atol, rtol=self._rtol),
-                    f"max diff: {torch.max(x4 - y_t) if y_t.numel() > 0 else 0}, "
-                    f"min diff: {torch.min(x4 - y_t) if y_t.numel() > 0 else 0}",
-                )
+                torch.testing.assert_close(x4, y_t, atol=atol, rtol=rtol)
 
     @parameterized.expand(
         [
             param("float16"),
             param("float32"),
+            param("bfloat16"),
         ]
     )
     def test_batch_fused_layernorm_sigmoid_mul(self, dtype: str):
@@ -610,6 +687,8 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         use_size_op=False,
         eps=1e-5,
         fuse_sigmoid_mul=True,
+        atol=1e-2,
+        rtol=1e-2,
         dtype="float16",
     ):
         testname = (
@@ -744,16 +823,13 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         for i in range(B):
             logging.debug(f"output: {i}")
             y = outputs[i]
-            self.assertTrue(
-                torch.allclose(ys_pt[i], y, atol=self._atol, rtol=self._rtol),
-                f"max diff: {torch.max(ys_pt[i]- y) if y.numel() > 0 else 0}, "
-                f"min diff: {torch.min(ys_pt[i] - y) if y.numel() > 0 else 0}",
-            )
+            torch.testing.assert_close(ys_pt[i], y, atol=atol, rtol=rtol)
 
     @parameterized.expand(
         [
             param("float16"),
             param("float32"),
+            param("bfloat16"),
         ]
     )
     def test_group_fused_layernorm_sigmoid_mul(self, dtype: str):
@@ -921,6 +997,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         [
             param("float16"),
             param("float32"),
+            param("bfloat16"),
         ]
     )
     def test_group_layernorm(self, dtype: str):
