@@ -15,6 +15,7 @@
 """
 Slice_reshape_scatter.
 """
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from .... import backend
 from ....backend import registry
@@ -85,15 +86,44 @@ class slice_reshape_scatter(Operator):
                 idx = i
                 break
         assert idx >= 0
+        # The original output of this slice_reshape_scatter op is the output
+        # of the reshape op.
+        self._attrs["output_accessors"] = [
+            TensorAccessor(reshape_op._attrs["outputs"][0])
+        ]
         cat_op_2.remove_input_at(idx)
         transform_utils.remove_single_tensor_op_from_sorted_graph(reshape_op)
 
         self._attrs["inputs"] = [
             op._attrs["inputs"][0] for op in self._attrs["slice_ops"]
         ]
-        self._attrs["outputs"] = cat_op_2._attrs["outputs"]
+        cat_op_2_outputs = cat_op_2._attrs["outputs"]
+        assert len(cat_op_2_outputs) == 1, (
+            f'{cat_op_2._attrs["name"]=} may only have one output, but got more '
+            f"{outputs=}"
+        )
+        self._attrs["outputs"] = cat_op_2_outputs
+
+        # setup output TensorAccessor
+        offset = 0
+        cat_dim = cat_op_2._attrs["concat_dim"]
+        orig_idx = -1
+        for i, input_tensor in enumerate(cat_op_2._attrs["original_inputs"]):
+            if input_tensor == reshape_op._attrs["outputs"][0]:
+                orig_idx = i
+                break
+            input_tensor_shape = input_tensor._attrs["shape"]
+            offset += input_tensor_shape[cat_dim].value()
+        assert orig_idx >= 0, (
+            f'could not find {input_tensor._attrs["name"]=} in the original_inputs'
+            "of cat_op_2"
+        )
+        self._attrs["output_accessors"][0].update_base_tensor(
+            cat_op_2_outputs[0], cat_dim, offset
+        )
+
         for x in self._attrs["inputs"]:
-            x._attrs["dst_ops"] = {self}
+            x._attrs["dst_ops"].add(self)
         for y in self._attrs["outputs"]:
             y._attrs["src_ops"].add(self)
 
