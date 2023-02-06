@@ -223,6 +223,9 @@ void reduce_mean_launcher_small_axis(
     if constexpr (std::is_same_v<ElemOutputType, cutlass::half_t>) {
       HANDLE_ONE_WRITE_VEC(2, cutlass::half_t)
     }
+    else if constexpr (std::is_same_v<ElemOutputType, cutlass::bfloat16_t>) {
+      HANDLE_ONE_WRITE_VEC(2, cutlass::bfloat16_t)
+    }
     throw std::runtime_error("unsupported vector size for write");
   } else {
     throw std::runtime_error("unsupported num_row_per_threads");
@@ -272,6 +275,8 @@ def _get_read_vector_type(input_shape, input_type, force_min_vec_type=False) -> 
     type_to_size_in_bit = {
         "half": 16,
         "cutlass::half_t": 16,
+        "bfloat16": 16,
+        "cutlass::bfloat16_t": 16,
         "float": 32,
     }
 
@@ -280,16 +285,29 @@ def _get_read_vector_type(input_shape, input_type, force_min_vec_type=False) -> 
     # (2) the input type is inherited from reduce_3d, so we still
     #     use cutlass::half_t for fp16. We will replace it to half once we
     #     unify our half representation
-    vector_types = [
-        ("uint4", 16),
-        ("uint2", 8),
-        ("unsigned", 4),
-        ("cutlass::half_t", 2),
-    ]
+    vector_types = {
+        "cutlass::half_t": [
+            ("uint4", 16),
+            ("uint2", 8),
+            ("unsigned", 4),
+            ("cutlass::half_t", 2),
+        ],
+        "cutlass::bfloat16_t": [
+            ("uint4", 16),
+            ("uint2", 8),
+            ("unsigned", 4),
+            ("cutlass::bfloat16_t", 2),
+        ],
+        "float": [
+            ("uint4", 16),
+            ("uint2", 8),
+            ("unsigned", 4),
+        ],
+    }
 
     def _size_to_vector_type(sz_in_byte) -> str:
         """return vector_type for the given size"""
-        for vec_type, sz in vector_types:
+        for vec_type, sz in vector_types[input_type]:
             if sz_in_byte % sz == 0:
                 return vec_type
         raise NotImplementedError("Unsupported vector size: {}".format(sz_in_byte))
@@ -338,7 +356,7 @@ def _get_read_vector_type(input_shape, input_type, force_min_vec_type=False) -> 
             return False
         return True
 
-    for vec_type, sz in vector_types:
+    for vec_type, sz in vector_types[input_type]:
         if _valid_vector_type(vec_type, sz):
             return vec_type
 
