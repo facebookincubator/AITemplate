@@ -66,7 +66,7 @@ struct WelfordData {
       int new_count = new_data.count + count;
       ElementT nb_over_n = ElementT(new_data.count) / ElementT(new_count);
       mean = mean + delta * nb_over_n;
-      m2 =  m2 + new_data.m2 + delta * delta * count * nb_over_n;
+      m2 =  m2 + new_data.m2 + delta * delta * nb_over_n * ElementT(count);
       return WelfordData(new_count, mean, m2);
     }
 
