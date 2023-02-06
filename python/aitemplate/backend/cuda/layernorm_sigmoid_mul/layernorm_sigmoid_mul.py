@@ -32,9 +32,12 @@ from . import layernorm_common
 FUNC_TEMPLATE = jinja2.Template(
     """
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include "cutlass/cutlass.h"
 #include "cutlass/fast_math.h"
 #include "logging.h"
+
+using bfloat16 = __nv_bfloat16;
 
 {{gamma_beta_const_defs}}
 
