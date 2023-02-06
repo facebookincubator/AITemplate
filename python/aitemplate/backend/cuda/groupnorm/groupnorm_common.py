@@ -61,6 +61,7 @@ FUNC_TEMPLATE = jinja2.Template(
     """
 #include <cuda.h>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 
 #include <cub/cub.cuh>
@@ -71,6 +72,8 @@ FUNC_TEMPLATE = jinja2.Template(
 #include <math_constants.h>
 #include <assert.h>
 
+using bfloat16 = __nv_bfloat16;
+using bfloat16_2 = __nv_bfloat162;
 
 {{gamma_beta_const_defs}}
 

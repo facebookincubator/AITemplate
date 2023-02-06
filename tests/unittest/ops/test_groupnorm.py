@@ -45,6 +45,8 @@ class GroupnormTestCase(unittest.TestCase):
         eps=1e-5,
         use_swish=False,
         copy_op=False,
+        atol=1e-2,
+        rtol=1e-2,
         dtype="float16",
     ):
         test_name = "group_norm_swish" if use_swish else "group_norm"
@@ -112,7 +114,7 @@ class GroupnormTestCase(unittest.TestCase):
         # print("pt: ", t)
 
         torch.testing.assert_close(
-            x4, x4_pt.permute(0, 2, 3, 1).contiguous(), atol=1e-2, rtol=1e-2
+            x4, x4_pt.permute(0, 2, 3, 1).contiguous(), atol=atol, rtol=rtol
         )
         self.test_count += 1
 
@@ -178,6 +180,33 @@ class GroupnormTestCase(unittest.TestCase):
             num_groups=32,
             eps=1e-5,
             dtype="float32",
+            use_swish=True,
+        )
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "bf16 is supported with CUDA sm80+",
+    )
+    @unittest.skipIf(detect_target().name() == "rocm", "bf16 not supported in ROCm")
+    def test_groupnorm_bfloat16(self):
+        # H % 8 != 0
+        self._test_groupnorm(
+            x_shape=[7, 13, 9, 12],
+            num_groups=4,
+            eps=1e-5,
+            atol=1e-1,
+            rtol=1e-1,
+            dtype="bfloat16",
+            use_swish=True,
+        )
+        # H % 8 == 0
+        self._test_groupnorm(
+            x_shape=[2, 16, 16, 640],
+            num_groups=32,
+            eps=1e-5,
+            atol=1e-1,
+            rtol=1e-1,
+            dtype="bfloat16",
             use_swish=True,
         )
 
