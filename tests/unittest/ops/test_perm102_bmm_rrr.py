@@ -34,10 +34,10 @@ from parameterized import parameterized
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMMTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand([("float16"), ("float32"), ("bfloat16")])
     def test_perm102_bmm_rrr(self, dtype="float16"):
-        if dtype == "float32" and int(detect_target()._arch) < 80:
-            self.skipTest(f"fp32 BMM not supported in {detect_target()._arch}")
+        if dtype != "float16" and int(detect_target()._arch) < 80:
+            self.skipTest(f"{dtype} BMM not supported in {detect_target()._arch}")
         B = 25
         M = 128
         K = 256
@@ -65,10 +65,10 @@ class Perm102BMMTestCase(unittest.TestCase):
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMMBiasTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand([("float16"), ("float32"), ("bfloat16")])
     def test_perm102_bmm_rrr_bias(self, dtype="float16"):
-        if dtype == "float32" and int(detect_target()._arch) < 80:
-            self.skipTest(f"fp32 BMM not supported in {detect_target()._arch}")
+        if dtype != "float16" and int(detect_target()._arch) < 80:
+            self.skipTest(f"{dtype} BMM not supported in {detect_target()._arch}")
         B = 25
         M = 128
         K = 256

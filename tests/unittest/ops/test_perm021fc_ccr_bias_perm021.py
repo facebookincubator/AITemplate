@@ -100,6 +100,17 @@ class Perm021FCCCRBiasPerm021TestCase(unittest.TestCase):
             dtype="float32",
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        int(detect_target()._arch) < 80,
+        f"bf16 BMM not supported in {detect_target()._arch}",
+    )
+    def test_perm021fc_ccr_bias_perm021_bf16(self):
+        self._test_perm021fc_ccr_bias_perm021(
+            test_name="perm021fc_ccr_bias_perm021_bf16",
+            dtype="bfloat16",
+        )
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)
