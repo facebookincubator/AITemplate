@@ -40,6 +40,8 @@ class LayernormTestCase(unittest.TestCase):
         beta_is_none=False,
         use_size_op=False,
         eps=1e-5,
+        atol=1e-3,
+        rtol=1e-3,
         dtype="float16",
     ):
         torch_dtype = string_to_torch_dtype(dtype)
@@ -116,7 +118,7 @@ class LayernormTestCase(unittest.TestCase):
                 inputs["beta"] = x3_pt
             x4 = torch.empty([batch_size, *MS, *NS], dtype=torch_dtype).cuda()
             module.run_with_tensors(inputs, [x4])
-            torch.testing.assert_close(x4, x4_pt, atol=1e-3, rtol=1e-3)
+            torch.testing.assert_close(x4, x4_pt, atol=atol, rtol=rtol)
             self.test_count += 1
 
     def test_layernorm(self):
@@ -156,6 +158,28 @@ class LayernormTestCase(unittest.TestCase):
         self._test_layernorm(eps=0.1, dtype="float32")
         self._test_layernorm(MS=(16, 64), NS=(4, 32), dtype="float32")
         self._test_layernorm(MS=(16, 8, 4), NS=(2, 4, 32), dtype="float32")
+
+    @unittest.skipIf(
+        detect_target().name() == "rocm", "fp32 layer norm is not supported on ROCm"
+    )
+    def test_layernorm_bf16(self):
+        self._test_layernorm(dtype="bfloat16", atol=1e-2, rtol=1e-2)
+        self._test_layernorm(gamma_is_none=True, dtype="bfloat16", atol=1e-2, rtol=1e-2)
+        self._test_layernorm(beta_is_none=True, dtype="bfloat16", atol=1e-2, rtol=1e-2)
+        self._test_layernorm(
+            gamma_is_none=True,
+            beta_is_none=True,
+            dtype="bfloat16",
+            atol=1e-2,
+            rtol=1e-2,
+        )
+        self._test_layernorm(eps=0.1, dtype="bfloat16", atol=1e-2, rtol=1e-2)
+        self._test_layernorm(
+            MS=(16, 64), NS=(4, 32), dtype="bfloat16", atol=1e-2, rtol=1e-2
+        )
+        self._test_layernorm(
+            MS=(16, 8, 4), NS=(2, 4, 32), dtype="bfloat16", atol=1e-2, rtol=1e-2
+        )
 
 
 if __name__ == "__main__":
