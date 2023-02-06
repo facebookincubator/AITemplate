@@ -50,13 +50,21 @@ class BMMRrrK1TanhTestCase(unittest.TestCase):
         else:
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_rrr(self):
+    def test_bmm_rrr_k1_tanh_float16(self):
         self._test_rrr(B=1024, M=32, K=1, N=32, test_name="bmm_rrr_k1")
         self._test_rrr(B=1024, M=0, K=1, N=32, test_name="bmm_rrr_k1_zero_m")
         self._test_rrr(B=1024, M=32, K=0, N=32, test_name="bmm_rrr_k1_zero_k")
 
-    def test_float32(self):
+    def test_bmm_rrr_k1_tanh_float32(self):
         self._test_rrr(B=1024, M=32, K=1, N=32, test_name="bmm_rrr_k1", dtype="float32")
+
+    @unittest.skipIf(
+        int(detect_target()._arch) < 80, "bf16 is supported with CUDA sm80+"
+    )
+    def test_bmm_rrr_k1_tanh_bfloat16(self):
+        self._test_rrr(
+            B=1024, M=32, K=1, N=32, test_name="bmm_rrr_k1", dtype="bfloat16"
+        )
 
 
 if __name__ == "__main__":
