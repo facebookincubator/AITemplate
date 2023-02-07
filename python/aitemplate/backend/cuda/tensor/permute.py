@@ -62,9 +62,12 @@ SRC_TEMPLATE = jinja2.Template(
 #include <limits>
 #include <stdexcept>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include "cutlass/arch/memory_sm80.h"
 #include "cutlass/cutlass.h"
 #include "logging.h"
+
+using bfloat16 = __nv_bfloat16;
 
 namespace {
 
@@ -119,6 +122,7 @@ def gen_function(func_attrs: Dict[str, Any]) -> str:
     dtype = x.dtype()
     assert dtype in (
         "float16",
+        "bfloat16",
         "float32",
         "float",
     ), "permute is only tested for floating point type"
