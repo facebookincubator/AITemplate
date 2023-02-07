@@ -152,6 +152,14 @@ struct DefaultComputeType<half> {
   using type = float;
 };
 
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
+    (__CUDA_ARCH__ >= 800)
+template <>
+struct DefaultComputeType<bfloat16> {
+  using type = float;
+};
+#endif
+
 // #if CUDA_VERSION >= 11000
 // template<>
 // struct DefaultComputeType<nv_bfloat16> {
