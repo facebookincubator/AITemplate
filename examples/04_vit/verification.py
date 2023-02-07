@@ -129,8 +129,8 @@ def verification(
             params_ait[f"{prefix}_{ait_key}"] = torch.from_numpy(cu_len).cuda()
 
     # set weights
-    for name, weight in params_ait.items():
-        ait_mod.set_constant_with_tensor(name, weight)
+    ait_mod.set_many_constants_with_tensors(params_ait)
+    ait_mod.fold_constants(sync=True)
 
     inputs = [input_pt.permute((0, 2, 3, 1)).contiguous()]
     ys = []

@@ -209,8 +209,8 @@ def compile_module(
 
     mod = compile_model(y, target, "./tmp", model_name)
 
-    for k, v in params.items():
-        mod.set_constant_with_tensor(k, v)
+    mod.set_many_constants_with_tensors(params)
+    mod.fold_constants(sync=True)
 
     return mod
 

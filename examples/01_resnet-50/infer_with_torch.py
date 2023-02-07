@@ -98,8 +98,8 @@ def inference(model_name, mod=None):
         mod = Model(os.path.join("./tmp", model_name, "test.so"))
 
     # Set torch tensor params to runtime
-    for k, v in cuda_params.items():
-        mod.set_constant_with_tensor(k, v)
+    mod.set_many_constants_with_tensors(cuda_params)
+    mod.fold_constants(sync=True)
 
     # prepare input/output tensor
     x_input = prepare_data()

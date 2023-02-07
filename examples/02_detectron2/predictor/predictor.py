@@ -176,9 +176,8 @@ class Predictor:
         Load the AIT module of the detection model, and set the weights.
         """
         mod = Model(os.path.join(workdir, detection_model_name, "test.so"))
-        for name, weight in self.weights.items():
-            mod.set_constant_with_tensor(name, weight)
-
+        mod.set_many_constants_with_tensors(self.weights)
+        mod.fold_constants(sync=True)
         return mod
 
     def run_batch(self, batch_data, graph_mode=False):

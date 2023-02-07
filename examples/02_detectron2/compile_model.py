@@ -99,6 +99,7 @@ def benchmark(cfg, mod=None):
         mask_size = cfg.MODEL.ROI_MASK_HEAD.POOLER_RESOLUTION * 2
         outputs.append(torch.empty([BS, topk, mask_size, mask_size]).cuda().half())
 
+    mod.fold_constants(sync=True)
     mod.benchmark_with_tensors([x], outputs, count=100, repeat=2, graph_mode=True)
 
 
