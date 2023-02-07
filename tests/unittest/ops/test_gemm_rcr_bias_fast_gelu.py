@@ -29,6 +29,10 @@ from aitemplate.utils import shape_utils
 
 
 class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def _test_rcr(
         self, Ms, test_name, use_fast_gelu=True, dtype="float16", atol=1e-1, rtol=1e-1
     ):
