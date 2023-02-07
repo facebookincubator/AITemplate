@@ -52,7 +52,7 @@ class NewGELUActivation(torch.nn.Module):
 class GEMMRcrFastGeluTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        torch.manual_seed(0)
+        torch.manual_seed(10)
 
     def _test_rcr(
         self, Ms, test_name, use_fast_gelu=True, atol=1e-1, rtol=1e-1, dtype="float16"
