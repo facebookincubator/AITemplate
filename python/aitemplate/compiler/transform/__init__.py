@@ -14,7 +14,7 @@
 #
 # flake8: noqa
 from .bind_constants import bind_constants
-from .constant_folding import constant_folding
+from .constant_folding import constant_folding, constant_folding_v2
 from .fuse_conv_elementwise import fuse_conv_elementwise
 from .fuse_group_ops import (
     fuse_group_gemm_ops,

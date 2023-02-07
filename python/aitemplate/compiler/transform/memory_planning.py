@@ -250,7 +250,10 @@ def greedy_by_size_memory_planning(sorted_graph: List[Tensor]):  # noqa: C901
     # now we assign blobs for weights and inputs
     constant_offset = 0
     for node in sorted_graph:
-        if node._attrs["data"] is not None:
+        if (
+            node._attrs["data"] is not None
+            or node._attrs["constant_folding_output_idx"] is not None
+        ):
             node._attrs["offset"] = constant_offset
             constant_offset += node.size_bytes(alignment=64)
 
@@ -270,7 +273,10 @@ def naive_memory_planning(sorted_graph: List[Tensor]):
     offset = 0
     constant_offset = 0
     for node in sorted_graph:
-        if node._attrs["data"] is not None:
+        if (
+            node._attrs["data"] is not None
+            or node._attrs["constant_folding_output_idx"] is not None
+        ):
             node._attrs["offset"] = constant_offset
             constant_offset += node.size_bytes(alignment=64)
         elif not node._attrs["is_view_of"]:

@@ -413,6 +413,8 @@ class Tensor(Node):
         # Data to be bound for constant folding. See _bind_data.
         self._attrs["data"] = None
 
+        self._attrs["constant_folding_output_idx"] = None
+
         self._attrs["check_nan_and_inf"] = check_nan_and_inf
         self._attrs["check_outputs"] = check_outputs
 
