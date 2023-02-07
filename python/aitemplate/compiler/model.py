@@ -554,7 +554,7 @@ class Model(object):
         the stream will always be synchronized after copying the outputs to the host.
 
         Warning: don't use this! It's not optimal with respect to performance.
-        It's here for use by internal constant folding passes.
+        It's here for use if you need it for debugging purpose.
         """
         return self._run_impl(
             inputs, outputs, stream_ptr, graph_mode=graph_mode, outputs_on_host=True
@@ -571,7 +571,7 @@ class Model(object):
         Like RunWithTensors(), but takes host memory tensors
 
         Warning: don't use this! It's not optimal with respect to performance.
-        It's here for use by internal constant folding passes.
+        It's here for use if you need it for debugging.
         """
         _check_tensors_contiguous_and_on_gpu(
             inputs,
@@ -741,6 +741,35 @@ class Model(object):
             self.handle, c_name, ctypes.byref(c_tensor)
         )
 
+    def set_many_constants(self, tensors: Dict[str, AITData]):
+        """
+        Bulk set many constants at once. More efficient than set_constant()
+        since it only has to acquire the lock once.
+        """
+        c_names = (ctypes.c_char_p * len(tensors))()
+        c_tensors = (_CFormatAITData * len(tensors))()
+        ait_tensors = {
+            name.encode("utf-8"): self._convert_single_param_to_c_format(tensor)
+            for name, tensor in tensors.items()
+        }
+        for i, (name_bytes, tensor) in enumerate(ait_tensors.items()):
+            c_names[i] = ctypes.c_char_p(name_bytes)
+            c_tensors[i] = tensor
+
+        num_tensors = ctypes.c_size_t(len(tensors))
+        self.DLL.AITemplateModelContainerSetManyConstants(
+            self.handle, c_names, c_tensors, num_tensors
+        )
+
+    def set_many_constants_with_tensors(self, tensors: Dict[str, AITData]):
+        ait_tensors = {}
+        for name, tensor in tensors.items():
+            if not tensor.is_contiguous() or not tensor.is_cuda:
+                raise ValueError(f"Constant {name} must be contiguous and on the GPU.")
+            self.torch_constant_tensors[name] = tensor
+            ait_tensors[name] = torch_to_ait_data(tensor)
+        self.set_many_constants(ait_tensors)
+
     def set_constant_with_tensor(self, name: str, tensor: TorchTensor):
         """
         Set a constant with a PyTorch tensor.
@@ -906,3 +935,26 @@ class Model(object):
             stream_ptr=stream_ptr,
         )
         return arr
+
+    def fold_constants(self, stream_ptr: Optional[int] = None, sync: bool = True):
+        self.DLL.AITemplateModelContainerFoldConstants(
+            self.handle, ctypes.c_void_p(stream_ptr), ctypes.c_bool(sync)
+        )
+
+    def _get_constant_names_impl(self, constant_folding_only: bool) -> List[str]:
+        num_constants = ctypes.c_size_t()
+        constant_folding_inputs_only = ctypes.c_bool(constant_folding_only)
+        self.DLL.AITemplateModelContainerGetNumConstants(
+            self.handle, constant_folding_inputs_only, ctypes.byref(num_constants)
+        )
+        names = (ctypes.c_char_p * num_constants.value)()
+        self.DLL.AITemplateModelContainerGetConstantNames(
+            self.handle, constant_folding_inputs_only, names
+        )
+        return [name.decode("utf-8") for name in names]
+
+    def get_constant_names(self) -> List[str]:
+        return self._get_constant_names_impl(False)
+
+    def get_constant_folding_input_names(self) -> List[str]:
+        return self._get_constant_names_impl(True)

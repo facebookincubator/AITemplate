@@ -14,7 +14,21 @@
 //
 #pragma once
 
+#include <stdexcept>
+#include <string>
+
 namespace ait {
+
+inline void DeviceCheckLastError(const char* file, int line) {
+  auto device_error = GetLastError();
+  if (device_error != GetDeviceSuccess()) {
+    std::string msg = std::string("Got error: ") + GetLastErrorString() +
+        " enum: " + std::to_string(device_error) + " at " + file + ": " +
+        std::to_string(line);
+    LOG(ERROR) << msg;
+    throw std::runtime_error(msg);
+  }
+}
 
 // This serves as a base class for AIT runtime objects, e.g. the compiled
 // model and the constant folder. It uses CRTP as a mechanism to call into

@@ -41,19 +41,6 @@ MODEL_TEMPLATE = jinja2.Template(
 {{ function_decl }}
 
 namespace ait {
-namespace {
-void DeviceCheckLastError(const char* file, int line) {
-  auto device_error = GetLastError();
-  if (device_error != GetDeviceSuccess()) {
-    std::string msg = std::string("Got error: ") + GetLastErrorString() +
-                      " enum: " + std::to_string(device_error) +
-                      " at " + file + ": " + std::to_string(line);
-    LOG(ERROR) << msg;
-    throw std::runtime_error(msg);
-  }
-}
-
-} // namespace
 
 // Model is the class that actually performs inference. It owns memory for
 // intermediate tensors and dynamic dimensions. Constants are owned by
@@ -61,9 +48,9 @@ void DeviceCheckLastError(const char* file, int line) {
 // by the user.
 // Once an inference run has started, it is not safe to re-use the Model
 // until the run has finished!
-class Model : public ModelBase<Model> {
+class {{model_name}} : public ModelBase<{{model_name}}> {
   public:
-    Model(
+    {{model_name}}(
         size_t blob_size,
         size_t workspace_size,
         size_t unique_workspace_size,
@@ -142,11 +129,11 @@ class Model : public ModelBase<Model> {
       std::cout << "AIT per op profiling finished." << std::endl;
     }
 
-    static std::unique_ptr<Model> Create(
+    static std::unique_ptr<{{model_name}}> Create(
       AITemplateAllocator& allocator,
       uint8_t* constants
     ) {
-      return std::make_unique<Model>(
+      return std::make_unique<{{model_name}}>(
           {{ blob_size }},
           {{ workspace_size }},
           {{ unique_workspace_size }},
@@ -206,6 +193,8 @@ ModelContainerBase::ModelContainerBase(
     );
     max_param_storage_bytes_[i] = max_param_numel_[i] * AITemplateDtypeSizeBytes(param_dtypes_[i]);
   }
+{{ set_up_constant_folding_outputs_offsets }}
+{{ set_up_constant_folding_inputs }}
 
   auto* constants_ptr = static_cast<uint8_t*>(constants_.get());
   const auto binary_constants_bin_size = static_cast<size_t>(_binary_constants_bin_end - _binary_constants_bin_start);

@@ -135,6 +135,19 @@ AITModelImpl::AITModelImpl(
   TORCH_CHECK(handle_, "could not dlopen ", model_path, ": ", dlerror());
   TORCH_CHECK(num_runtimes > 0, "num_runtimes must be positive");
 
+  // It's not clear what stream we want to use yet. Create a new one.
+  // We could alternatively use the default stream, but that could cause extra
+  // synchronization.
+  cudaStream_t creation_stream;
+  TORCH_CHECK(
+      cudaStreamCreateWithFlags(&creation_stream, cudaStreamNonBlocking) ==
+      cudaSuccess);
+
+  using StreamGuard = std::unique_ptr<
+      std::remove_pointer_t<cudaStream_t>,
+      decltype(&cudaStreamDestroy)>;
+  StreamGuard creation_stream_guard{creation_stream, cudaStreamDestroy};
+
 #define LOAD_SYMBOL(var, name_str)                                       \
   var = reinterpret_cast<decltype(var)>(dlsym(handle_.get(), name_str)); \
   TORCH_CHECK(var, "could not dlsym " name_str);
@@ -170,8 +183,22 @@ AITModelImpl::AITModelImpl(
   LOAD_SYMBOL(getNumInputsFunc, "AITemplateModelContainerGetNumInputs");
   LOAD_SYMBOL(getNumOutputsFunc, "AITemplateModelContainerGetNumOutputs");
 #undef LOAD_SYMBOL
+  // TODO: this load is optional so we don't break backwards comptability.
+  // Once all relevant packages have been updated, we can just use
+  // LOAD_SYMBOL.
+  auto* foldConstantsFunc =
+      reinterpret_cast<decltype(&AITemplateModelContainerFoldConstants)>(
+          dlsym(handle_.get(), "AITemplateModelContainerFoldConstants"));
 
   AITCallCreate(createFunc, &model_handle_, num_runtimes, &allocator_);
+
+  if (foldConstantsFunc != nullptr) {
+    AIT_CHECK(foldConstantsFunc(
+        model_handle_,
+        /*stream=*/reinterpret_cast<AITemplateStreamOpaque*>(creation_stream),
+        /*sync=*/true));
+  }
+
   const auto num_inputs = AITCall(getNumInputsFunc, model_handle_);
   const auto num_outputs = AITCall(getNumOutputsFunc, model_handle_);
 

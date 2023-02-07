@@ -65,10 +65,18 @@ ModelContainer::ModelContainer(
   models_.reserve(num_models);
   available_models_.reserve(num_models);
 
+  auto* constants_ptr = static_cast<uint8_t*>(constants_.get());
   for (size_t i = 0; i < num_models; ++i) {
-    models_.push_back(
-        Model::Create(allocator, static_cast<uint8_t*>(constants_.get())));
+    models_.push_back(Model::Create(allocator, constants_ptr));
     available_models_.push_back(models_.back().get());
+  }
+
+  constant_folder_ = ConstantFolder::Create(allocator, constants_ptr);
+
+  // Wire up the constant folder's outputs to our constant buffer.
+  size_t constant_idx = 0;
+  for (auto offset : constant_folding_outputs_offsets_) {
+    constant_folder_->SetOutput(constants_ptr + offset, constant_idx++);
   }
 }
 
@@ -81,6 +89,20 @@ void ModelContainer::Run(
     bool sync,
     bool graph_mode,
     int64_t** output_shapes_out) {
+  std::shared_lock constants_lk(constants_sync_mutex_);
+  if (!constant_folded_once_) {
+    // We don't require users to manually call FoldConstants the first time.
+    // Note that if this throws (due to an unset constant, for example)
+    // constant_folded_once_ will not be set.
+    constants_lk.unlock();
+    std::unique_lock constants_unique_lk(constants_sync_mutex_);
+    // Check again, another thread may have updated after we unlocked.
+    if (!constant_folded_once_) {
+      FoldConstantsImpl(stream);
+    }
+    constants_unique_lk.unlock();
+    constants_lk.lock();
+  }
   auto* model = GetAvailableModel();
   try {
     PrepareForRun(model, inputs, num_inputs, outputs, num_outputs);
@@ -190,6 +212,18 @@ float ModelContainer::Benchmark(
     int64_t** output_shapes_out) {
   if (num_threads == 0) {
     num_threads = std::thread::hardware_concurrency();
+  }
+
+  std::shared_lock constants_lk(constants_sync_mutex_);
+  if (!constant_folded_once_) {
+    constants_lk.unlock();
+    std::unique_lock constants_unique_lk(constants_sync_mutex_);
+    // Check again, another thread may have updated after we unlocked.
+    if (!constant_folded_once_) {
+      FoldConstantsImpl(stream);
+    }
+    constants_unique_lk.unlock();
+    constants_lk.lock();
   }
 
   if (num_threads == 1) {
@@ -306,11 +340,9 @@ float ModelContainer::Benchmark(
   return max_time / total_num_iters;
 }
 
-void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
+void ModelContainer::SetConstantImpl(const char* name, const AITData& tensor) {
   auto it = unbound_constant_name_to_idx_.find(name);
   if (it == unbound_constant_name_to_idx_.end()) {
-    // TODO make this an exception after we fix the CMF benchmarks
-    LOG(ERROR) << "Constant " << name << " not found";
     return;
   }
   auto constant_idx = it->second + num_inputs_ + num_outputs_;
@@ -330,8 +362,43 @@ void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
   }
 
   auto* src = tensor.ptr;
-  for (auto& model : models_) {
-    model->SetConstant(name, src);
+  if (constant_folding_inputs_.find(name) == constant_folding_inputs_.end()) {
+    for (auto& model : models_) {
+      model->SetConstant(name, src);
+    }
+  } else {
+    constant_folder_->SetConstant(name, src);
+  }
+}
+
+void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
+  std::lock_guard lk(constants_sync_mutex_);
+  WaitForAllModels(/*include_constant_folder=*/true);
+  SetConstantImpl(name, tensor);
+}
+
+void ModelContainer::SetManyConstants(
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors) {
+  if (num_tensors == 0) {
+    return;
+  }
+
+  if (tensors == nullptr) {
+    throw std::runtime_error("Tensor array cannot be null");
+  }
+
+  std::lock_guard lk(constants_sync_mutex_);
+  WaitForAllModels(/*include_constant_folder=*/true);
+
+  for (size_t i = 0; i < num_tensors; ++i) {
+    const char* name = names[i];
+    if (name == nullptr) {
+      throw std::runtime_error("Constant name cannot be null");
+    }
+    const auto& tensor = tensors[i];
+    SetConstantImpl(names[i], tensor);
   }
 }
 
@@ -385,6 +452,83 @@ size_t ModelContainer::MaxOutputStorageBytes(size_t output_idx) const {
   auto idx = output_idx + num_inputs_;
   CHECK_VECTOR_ACCESS(max_param_storage_bytes_, idx)
   return max_param_storage_bytes_[idx];
+}
+
+void ModelContainer::WaitForAllModels(bool include_constant_folder) {
+  // Wait for all on-going inferences to finish.
+  for (auto* model : pending_models_) {
+    try {
+      model->WaitForCompletion();
+      // Something has gone horribly wrong if we hit these catch cases, but
+      // there's not much we can do about it. Just put the model back into the
+      // pool and carry on with folding.
+    } catch (std::exception& e) {
+      LOG(WARNING)
+          << "Model threw exception when waiting for inference to finish: "
+          << e.what() << ". Ignoring and continuing constant folding.";
+    } catch (...) {
+      LOG(WARNING)
+          << "Model threw unknown exception when waiting for inference to finish. Ignoring and continuing constant foldng.";
+    }
+    available_models_.push_back(model);
+  }
+
+  if (include_constant_folder) {
+    try {
+      constant_folder_->WaitForCompletion();
+    } catch (...) {
+      LOG(WARNING)
+          << "Constant folder threw exception while waiting for completion, ignoring.";
+    }
+  }
+}
+
+void ModelContainer::FoldConstantsImpl(StreamType stream) {
+  // NB: No need to acquire models_mutex_ here. We're guaranteed that nothing
+  // will be concurrently messing with the Model vectors while we hold the
+  // constants_sync_mutex_ in unique mode. See model_container.h for the full
+  // explanation.
+  WaitForAllModels();
+  // We might have already started constant folding, make sure it finishes
+  // first. It's OK if we throw here, there's no state to restore.
+  // We just won't finish the folding and will need to do it again.
+  constant_folder_->WaitForCompletion();
+  constant_folder_->Run(stream, /*graph_mode=*/false);
+  constant_folded_once_ = true;
+}
+
+void ModelContainer::FoldConstants(StreamType stream, bool sync) {
+  std::lock_guard constant_folding_lk(constants_sync_mutex_);
+  FoldConstantsImpl(stream);
+  if (sync) {
+    DEVICE_CHECK(StreamSynchronize(stream));
+  }
+}
+
+size_t ModelContainer::GetNumConstants() const {
+  return unbound_constant_name_to_idx_.size();
+}
+
+size_t ModelContainer::GetNumConstantFoldingInputs() const {
+  return constant_folding_inputs_.size();
+}
+
+void ModelContainer::WriteAllConstantNamesTo(
+    const char** constant_names_out,
+    bool constant_folding_inputs_only) const {
+  size_t num_to_write = constant_folding_inputs_only
+      ? GetNumConstants()
+      : GetNumConstantFoldingInputs();
+  if (constant_names_out == nullptr && num_to_write != 0) {
+    throw std::runtime_error("constant_names_out cannot be nullptr.");
+  }
+  size_t idx = 0;
+  for (auto& [name, _] : unbound_constant_name_to_idx_) {
+    if (!constant_folding_inputs_only ||
+        constant_folding_inputs_.find(name) != constant_folding_inputs_.end()) {
+      constant_names_out[idx++] = name.c_str();
+    }
+  }
 }
 
 void ModelContainer::PrepareForRun(

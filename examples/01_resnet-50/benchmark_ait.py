@@ -76,8 +76,8 @@ def benchmark(model_name, batch_size, mod=None, graph_mode=True):
         mod = Model(os.path.join("./tmp", model_name, "test.so"))
 
     # Set params
-    for k, v in cuda_params.items():
-        mod.set_constant_with_tensor(k, v)
+    mod.set_many_constants_with_tensors(cuda_params)
+    mod.fold_constants(sync=True)
 
     # prepare input/output tensor
     x_input = torch.randn([batch_size, 224, 224, 3]).cuda().half()
