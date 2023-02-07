@@ -186,7 +186,18 @@ class ModelContainer : ModelContainerBase {
     return models_.size();
   }
 
-  void FoldConstants(StreamType stream);
+  void FoldConstants(StreamType stream, bool sync);
+
+  size_t GetNumConstants() const;
+  size_t GetNumConstantFoldingInputs() const;
+
+  // Write all constant names to the array pointed to by names_out.
+  // This function assumes that names_out has enough space to hold
+  // at least GetNumConstants() pointers. The strings written
+  // are guaranteed to live as long as their owning ModelContainer.
+  void WriteAllConstantNamesTo(
+      const char** names_out,
+      bool constant_folding_inputs_only) const;
 
  private:
   void WaitForAllModels();

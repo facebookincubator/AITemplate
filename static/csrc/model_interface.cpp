@@ -112,6 +112,36 @@ AITemplateError AITemplateModelContainerSetConstant(
   CONVERT_EXCEPTION_TO_ERROR_CODE({ m->SetConstant(name, *tensor); })
 }
 
+AITemplateError AITemplateModelContainerGetNumConstants(
+    AITemplateModelHandle handle,
+    bool constant_folding_inputs_only,
+    size_t* num_constants_out) {
+  RETURN_ERROR_IF_NULL(handle)
+  RETURN_ERROR_IF_NULL(num_constants_out)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({
+    if (constant_folding_inputs_only) {
+      *num_constants_out = m->GetNumConstantFoldingInputs();
+    } else {
+      *num_constants_out = m->GetNumConstants();
+    }
+  })
+}
+
+AITemplateError AITemplateModelContainerGetConstantNames(
+    AITemplateModelHandle handle,
+    bool constant_folding_inputs_only,
+    const char** constant_names_out) {
+  RETURN_ERROR_IF_NULL(handle)
+  // WriteAllConstantNamesTo() will handle nullptr checks on constant_names_out.
+  // Passing nullptr is allowed if there are 0 constants!
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({
+    m->WriteAllConstantNamesTo(
+        constant_names_out, constant_folding_inputs_only);
+  })
+}
+
 AITemplateError AITemplateModelContainerRun(
     AITemplateModelHandle handle,
     const AITData* inputs,
@@ -300,6 +330,16 @@ AITemplateError AITemplateModelContainerGetNumRuntimes(
   RETURN_ERROR_IF_NULL(num_runtimes_out)
   auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
   CONVERT_EXCEPTION_TO_ERROR_CODE({ *num_runtimes_out = m->GetNumRuntimes(); })
+}
+
+AITemplateError AITemplateModelContainerFoldConstants(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    bool sync) {
+  RETURN_ERROR_IF_NULL(handle)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  auto stream = reinterpret_cast<ait::StreamType>(stream_handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({ m->FoldConstants(stream, sync); })
 }
 
 AITemplateError AITemplateAllocatorCreate(

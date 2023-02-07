@@ -469,9 +469,38 @@ void ModelContainer::FoldConstantsImpl(StreamType stream) {
   constant_folded_once_ = true;
 }
 
-void ModelContainer::FoldConstants(StreamType stream) {
+void ModelContainer::FoldConstants(StreamType stream, bool sync) {
   std::lock_guard constant_folding_lk(constants_sync_mutex_);
   FoldConstantsImpl(stream);
+  if (sync) {
+    DEVICE_CHECK(StreamSynchronize(stream));
+  }
+}
+
+size_t ModelContainer::GetNumConstants() const {
+  return unbound_constant_name_to_idx_.size();
+}
+
+size_t ModelContainer::GetNumConstantFoldingInputs() const {
+  return constant_folding_inputs_.size();
+}
+
+void ModelContainer::WriteAllConstantNamesTo(
+    const char** constant_names_out,
+    bool constant_folding_inputs_only) const {
+  size_t num_to_write = constant_folding_inputs_only
+      ? GetNumConstants()
+      : GetNumConstantFoldingInputs();
+  if (constant_names_out == nullptr && num_to_write != 0) {
+    throw std::runtime_error("constant_names_out cannot be nullptr.");
+  }
+  size_t idx = 0;
+  for (auto& [name, _] : unbound_constant_name_to_idx_) {
+    if (!constant_folding_inputs_only ||
+        constant_folding_inputs_.find(name) != constant_folding_inputs_.end()) {
+      constant_names_out[idx++] = name.c_str();
+    }
+  }
 }
 
 void ModelContainer::PrepareForRun(

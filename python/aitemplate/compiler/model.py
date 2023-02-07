@@ -906,3 +906,26 @@ class Model(object):
             stream_ptr=stream_ptr,
         )
         return arr
+
+    def fold_constants(self, stream_ptr: Optional[int] = None, sync: bool = True):
+        self.DLL.AITemplateModelContainerFoldConstants(
+            self.handle, ctypes.c_void_p(stream_ptr), ctypes.c_bool(sync)
+        )
+
+    def _get_constant_names_impl(self, constant_folding_only: bool) -> List[str]:
+        num_constants = ctypes.c_size_t()
+        constant_folding_inputs_only = ctypes.c_bool(constant_folding_only)
+        self.DLL.AITemplateModelContainerGetNumConstants(
+            self.handle, constant_folding_inputs_only, ctypes.byref(num_constants)
+        )
+        names = (ctypes.c_char_p * num_constants.value)()
+        self.DLL.AITemplateModelContainerGetConstantNames(
+            self.handle, constant_folding_inputs_only, names
+        )
+        return [name.decode("utf-8") for name in names]
+
+    def get_constant_names(self) -> List[str]:
+        return self._get_constant_names_impl(False)
+
+    def get_constant_folding_input_names(self) -> List[str]:
+        return self._get_constant_names_impl(True)

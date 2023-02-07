@@ -1469,6 +1469,49 @@ class ModelAPITestCase(unittest.TestCase):
                 module.run_with_tensors([x_pt], [z_ait])
                 self.assertTrue(z_ait.equal(z_pt))
 
+    def test_get_constant_names(self):
+        target = detect_target()
+
+        input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
+        constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
+        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
+        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_1)
+        output = ops.elementwise(FuncEnum.MUL)(x, constant_2)
+        output._attrs["name"] = "output"
+        output._attrs["is_output"] = True
+
+        module = compile_model(output, target, "./tmp", "test_get_constant_names")
+        names = module.get_constant_names()
+        self.assertEqual(len(names), 2)
+        self.assertIn("constant_1", names)
+        self.assertIn("constant_2", names)
+
+    def test_get_constant_folding_input_names(self):
+        target = detect_target()
+
+        input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
+        constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
+        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
+        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_3")
+        # constant 1 is not folded.
+        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_1)
+        # constants 2 and 3 are
+        y = ops.elementwise(FuncEnum.MUL)(constant_2, constant_2)
+
+        output = ops.elementwise(FuncEnum.MUL)(x, y)
+        output._attrs["name"] = "output"
+        output._attrs["is_output"] = True
+
+        module = compile_model(
+            output, target, "./tmp", "test_get_constant_folding_input_names"
+        )
+        names = module.get_constant_folding_input_names()
+        self.assertEqual(names, [])
+        # TODO: uncomment when the new constant folding pass is enabled.
+        # self.assertEqual(len(names), 2)
+        # self.assertIn("constant_2", names)
+        # self.assertIn("constant_3", names)
+
 
 if __name__ == "__main__":
     unittest.main()
