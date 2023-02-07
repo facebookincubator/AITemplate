@@ -319,6 +319,43 @@ class BMMAlphaTestCase(unittest.TestCase):
             dtype="float",
         )
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_alpha_bfloat16(self):
+        self._test_bmm_alpha(
+            bmm_op=ops.bmm_rcr,
+            is_div=False,
+            X_trans=False,
+            W_trans=True,
+            B=1,
+            M=1000000,
+            N=3,
+            K=32,
+            expected_num_tensors=3,
+            expected_num_ops=1,
+            cst_val=2.3,
+            use_fp16_acc=False,
+            dtype="bfloat16",
+        )
+        self._test_bmm_alpha(
+            bmm_op=ops.bmm_rrr_add,
+            is_div=False,
+            X_trans=False,
+            W_trans=False,
+            B=2,
+            M=12,
+            N=8,
+            K=4,
+            cst_val=0.32,
+            expected_num_tensors=4,
+            expected_num_ops=1,
+            use_fp16_acc=False,
+            with_add=True,
+            dtype="bfloat16",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
