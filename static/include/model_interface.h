@@ -149,6 +149,12 @@ AIT_EXPORT AITemplateError AITemplateModelContainerSetConstant(
     const char* name,
     const AITData* tensor);
 
+AIT_EXPORT AITemplateError AITemplateModelContainerSetManyConstants(
+    AITemplateModelHandle handle,
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors);
+
 AIT_EXPORT AITemplateError AITemplateModelContainerGetNumConstants(
     AITemplateModelHandle handle,
     bool constant_folding_inputs_only,

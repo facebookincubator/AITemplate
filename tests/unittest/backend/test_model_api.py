@@ -1512,6 +1512,30 @@ class ModelAPITestCase(unittest.TestCase):
         # self.assertIn("constant_2", names)
         # self.assertIn("constant_3", names)
 
+    def test_set_many_constants(self):
+        target = detect_target()
+
+        input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
+        constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
+        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
+        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_1)
+        output = ops.elementwise(FuncEnum.MUL)(x, constant_2)
+        output._attrs["name"] = "output"
+        output._attrs["is_output"] = True
+
+        module = compile_model(output, target, "./tmp", "test_get_constant_names")
+
+        input_0_pt = torch.randn((1, 2)).cuda().half()
+        constant_1_pt = torch.randn((1, 2)).cuda().half()
+        constant_2_pt = torch.randn((1, 2)).cuda().half()
+        module.set_many_constants_with_tensors(
+            {"constant_1": constant_1_pt, "constant_2": constant_2_pt}
+        )
+        output_pt = input_0_pt * constant_1_pt * constant_2_pt
+        output_ait = torch.empty_like(input_0_pt)
+        module.run_with_tensors([input_0_pt], [output_ait])
+        self.assertTrue(torch.equal(output_pt, output_ait))
+
 
 if __name__ == "__main__":
     unittest.main()

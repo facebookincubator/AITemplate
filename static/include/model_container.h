@@ -167,6 +167,10 @@ class ModelContainer : ModelContainerBase {
       int64_t** output_shapes_out);
 
   void SetConstant(const char* name, const AITData& tensor);
+  void SetManyConstants(
+      const char** names,
+      const AITData* tensors,
+      size_t num_tensors);
 
   size_t NumInputs() const;
   size_t NumOutputs() const;
@@ -200,8 +204,9 @@ class ModelContainer : ModelContainerBase {
       bool constant_folding_inputs_only) const;
 
  private:
-  void WaitForAllModels();
+  void WaitForAllModels(bool include_constant_folder = false);
   void FoldConstantsImpl(StreamType stream);
+  void SetConstantImpl(const char* name, const AITData& tensor);
 
   void PrepareForRun(
       Model* model,

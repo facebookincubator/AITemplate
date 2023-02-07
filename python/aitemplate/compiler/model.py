@@ -741,6 +741,35 @@ class Model(object):
             self.handle, c_name, ctypes.byref(c_tensor)
         )
 
+    def set_many_constants(self, tensors: Dict[str, AITData]):
+        """
+        Bulk set many constants at once. More efficient than set_constant()
+        since it only has to acquire the lock once.
+        """
+        c_names = (ctypes.c_char_p * len(tensors))()
+        c_tensors = (_CFormatAITData * len(tensors))()
+        ait_tensors = {
+            name.encode("utf-8"): self._convert_single_param_to_c_format(tensor)
+            for name, tensor in tensors.items()
+        }
+        for i, (name_bytes, tensor) in enumerate(ait_tensors.items()):
+            c_names[i] = ctypes.c_char_p(name_bytes)
+            c_tensors[i] = tensor
+
+        num_tensors = ctypes.c_size_t(len(tensors))
+        self.DLL.AITemplateModelContainerSetManyConstants(
+            self.handle, c_names, c_tensors, num_tensors
+        )
+
+    def set_many_constants_with_tensors(self, tensors: Dict[str, AITData]):
+        ait_tensors = {}
+        for name, tensor in tensors.items():
+            if not tensor.is_contiguous() or not tensor.is_cuda:
+                raise ValueError(f"Constant {name} must be contiguous and on the GPU.")
+            self.torch_constant_tensors[name] = tensor
+            ait_tensors[name] = torch_to_ait_data(tensor)
+        self.set_many_constants(ait_tensors)
+
     def set_constant_with_tensor(self, name: str, tensor: TorchTensor):
         """
         Set a constant with a PyTorch tensor.

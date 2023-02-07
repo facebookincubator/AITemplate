@@ -340,19 +340,7 @@ float ModelContainer::Benchmark(
   return max_time / total_num_iters;
 }
 
-void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
-  // Prevent constant folding/inferences from starting while we update
-  // constants.
-  std::lock_guard lk(constants_sync_mutex_);
-  // Wait for any ongoing inferences + foldings to finish.
-  WaitForAllModels();
-  try {
-    constant_folder_->WaitForCompletion();
-  } catch (...) {
-    LOG(WARNING)
-        << "Constant folder threw exception while waiting for completion, ignoring.";
-  }
-
+void ModelContainer::SetConstantImpl(const char* name, const AITData& tensor) {
   auto it = unbound_constant_name_to_idx_.find(name);
   if (it == unbound_constant_name_to_idx_.end()) {
     return;
@@ -380,6 +368,37 @@ void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
     }
   } else {
     constant_folder_->SetConstant(name, src);
+  }
+}
+
+void ModelContainer::SetConstant(const char* name, const AITData& tensor) {
+  std::lock_guard lk(constants_sync_mutex_);
+  WaitForAllModels(/*include_constant_folder=*/true);
+  SetConstantImpl(name, tensor);
+}
+
+void ModelContainer::SetManyConstants(
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors) {
+  if (num_tensors == 0) {
+    return;
+  }
+
+  if (tensors == nullptr) {
+    throw std::runtime_error("Tensor array cannot be null");
+  }
+
+  std::lock_guard lk(constants_sync_mutex_);
+  WaitForAllModels(/*include_constant_folder=*/true);
+
+  for (size_t i = 0; i < num_tensors; ++i) {
+    const char* name = names[i];
+    if (name == nullptr) {
+      throw std::runtime_error("Constant name cannot be null");
+    }
+    const auto& tensor = tensors[i];
+    SetConstantImpl(names[i], tensor);
   }
 }
 
@@ -435,7 +454,7 @@ size_t ModelContainer::MaxOutputStorageBytes(size_t output_idx) const {
   return max_param_storage_bytes_[idx];
 }
 
-void ModelContainer::WaitForAllModels() {
+void ModelContainer::WaitForAllModels(bool include_constant_folder) {
   // Wait for all on-going inferences to finish.
   for (auto* model : pending_models_) {
     try {
@@ -452,6 +471,15 @@ void ModelContainer::WaitForAllModels() {
           << "Model threw unknown exception when waiting for inference to finish. Ignoring and continuing constant foldng.";
     }
     available_models_.push_back(model);
+  }
+
+  if (include_constant_folder) {
+    try {
+      constant_folder_->WaitForCompletion();
+    } catch (...) {
+      LOG(WARNING)
+          << "Constant folder threw exception while waiting for completion, ignoring.";
+    }
   }
 }
 

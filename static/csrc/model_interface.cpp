@@ -112,6 +112,17 @@ AITemplateError AITemplateModelContainerSetConstant(
   CONVERT_EXCEPTION_TO_ERROR_CODE({ m->SetConstant(name, *tensor); })
 }
 
+AIT_EXPORT AITemplateError AITemplateModelContainerSetManyConstants(
+    AITemplateModelHandle handle,
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors) {
+  RETURN_ERROR_IF_NULL(handle)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE(
+      { m->SetManyConstants(names, tensors, num_tensors); })
+}
+
 AITemplateError AITemplateModelContainerGetNumConstants(
     AITemplateModelHandle handle,
     bool constant_folding_inputs_only,
