@@ -555,7 +555,7 @@ class conv3d(Operator):
 
         workloads = list(self._attrs["exec_path"].keys())
         profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
-        if "op_instance" not in self._attrs:
+        if "op_instance" not in self._attrs or len(self._attrs["op_instance"]) == 0:
             target = backend.target.Target.current()
             # init candidate ops
             func_key = "{target}.{op}.config".format(
