@@ -34,9 +34,10 @@ class GroupGEMMRcrBiasTestCase(unittest.TestCase):
         [
             param("group_gemm_rcr_bias_fp16", "float16"),
             param("group_gemm_rcr_bias_fp32", "float32"),
+            param("group_gemm_rcr_bias_bf16", "bfloat16"),
         ]
     )
-    def test_rcr(self, test_name, dtype):
+    def test_group_gemm_rcr_bias(self, test_name, dtype):
         M = 256
         K1 = 128
         N1 = 60
