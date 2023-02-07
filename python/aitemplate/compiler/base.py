@@ -133,7 +133,6 @@ class IntVar(Node):
         return (
             isinstance(another, IntVar)
             and self._attrs["values"] == another._attrs["values"]
-            and self._attrs["name"] == another._attrs["name"]
         )
 
     def __hash__(self) -> int:

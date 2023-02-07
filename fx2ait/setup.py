@@ -36,7 +36,6 @@ class CMakeBuild(build_ext):
             "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=" + build_directory,
             "-DPYTHON_EXECUTABLE=" + sys.executable,
             "-DCMAKE_PREFIX_PATH=" + cmake_prefix_path,
-            "-DAIT_USE_ROCM=" + "1" if torch.cuda.is_available() and torch.version.hip else "0",
         ]
 
         cfg = "Debug" if self.debug else "Release"

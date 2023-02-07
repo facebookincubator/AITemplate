@@ -6,7 +6,7 @@
 #include <sstream>
 
 #include "ATen/Context.h" // @manual
-#ifdef AIT_USE_ROCM
+#ifdef __HIP_PLATFORM_HCC__
 #include "ATen/hip/HIPContext.h"
 #include "c10/core/CPUAllocator.h"
 #include "c10/hip/HIPStream.h"
@@ -23,7 +23,7 @@
 namespace torch::aitemplate {
 
 AITemplatePyTorchCachingAllocator::AITemplatePyTorchCachingAllocator() {
-  #ifndef AIT_USE_ROCM
+  #ifndef __HIP_PLATFORM_HCC__
   at::globalContext().lazyInitCUDA();
   #endif
   cuda_allocator_ = at::cuda::getCUDADeviceAllocator();
@@ -298,7 +298,7 @@ std::vector<torch::Tensor> AITModelImpl::processOutputs(
 
     auto output = at::detail::make_tensor_base<c10::TensorImpl>(
         std::move(output_index_to_output_storage_impl.at(output_idx)),
-        #ifdef AIT_USE_ROCM
+        #ifdef __HIP_PLATFORM_HCC__
         c10::DispatchKeySet(c10::DispatchKey::HIP),
         #else
         c10::DispatchKeySet(c10::DispatchKey::CUDA),
@@ -380,7 +380,7 @@ std::vector<torch::Tensor> AITModelImpl::forward(
 
   std::vector<torch::Tensor> outputs;
   {
-    #ifdef AIT_USE_ROCM
+    #ifdef __HIP_PLATFORM_HCC__
     const auto& cuda_stream = at::hip::getCurrentHIPStream(device.index());
     #else
     const auto& cuda_stream = at::cuda::getCurrentCUDAStream(device.index());
@@ -443,7 +443,7 @@ void AITModelImpl::profile(
       device);
 
   {
-    #ifdef AIT_USE_ROCM
+    #ifdef __HIP_PLATFORM_HCC__
     const auto& cuda_stream = at::hip::getCurrentHIPStream(device.index());
     #else
     const auto& cuda_stream = at::cuda::getCurrentCUDAStream(device.index());
