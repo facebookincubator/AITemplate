@@ -138,6 +138,9 @@ def nchw2nhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
     return [shape[0], shape[2], shape[3], shape[1]]
 
 
+def ncdhw2ndhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
+    return [shape[0], shape[2], shape[3], shape[4], shape[1]]
+
 # TODO:  This is a hack to workaround AIT's dynamic shape requirement.
 # Detailed explanation can be found in D41743385 (aten2ait) D41974191(fx2ait).
 # We will throw this one after AIT provides vanilla support.

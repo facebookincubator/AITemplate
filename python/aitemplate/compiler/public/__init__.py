@@ -57,6 +57,8 @@ from aitemplate.compiler.ops.common.view_ops import flatten, reshape, squeeze, u
 from aitemplate.compiler.ops.conv.conv2d import conv2d
 from aitemplate.compiler.ops.conv.conv2d_bias import conv2d_bias
 from aitemplate.compiler.ops.conv.conv2d_bias_relu import conv2d_bias_relu
+from aitemplate.compiler.ops.conv.conv3d import conv3d
+from aitemplate.compiler.ops.conv.depthwise_conv3d import depthwise_conv3d
 from aitemplate.compiler.ops.conv.transposed_conv2d import transposed_conv2d
 from aitemplate.compiler.ops.conv.transposed_conv2d_bias import transposed_conv2d_bias
 from aitemplate.compiler.ops.layernorm.group_layernorm import group_layernorm
