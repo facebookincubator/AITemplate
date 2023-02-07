@@ -554,7 +554,7 @@ class Model(object):
         the stream will always be synchronized after copying the outputs to the host.
 
         Warning: don't use this! It's not optimal with respect to performance.
-        It's here for use by internal constant folding passes.
+        It's here for use if you need it for debugging purpose.
         """
         return self._run_impl(
             inputs, outputs, stream_ptr, graph_mode=graph_mode, outputs_on_host=True
@@ -571,7 +571,7 @@ class Model(object):
         Like RunWithTensors(), but takes host memory tensors
 
         Warning: don't use this! It's not optimal with respect to performance.
-        It's here for use by internal constant folding passes.
+        It's here for use if you need it for debugging.
         """
         _check_tensors_contiguous_and_on_gpu(
             inputs,

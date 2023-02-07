@@ -178,8 +178,8 @@ AIT_EXPORT AITemplateError AITemplateModelContainerRun(
 
 // Like AITemplateModelContainerRun, but expects outputs to be allocated on the
 // host. Does an extra sync/copy at the end to copy them over. Warning: don't
-// use this! It's not optimal with respect to performance. It's here for use by
-// internal constant folding passes.
+// use this! It's not optimal with respect to performance. It's here for use if
+// you need it for debugging.
 AIT_EXPORT AITemplateError AITemplateModelContainerRunWithOutputsOnHost(
     AITemplateModelHandle handle,
     const AITData* inputs,
