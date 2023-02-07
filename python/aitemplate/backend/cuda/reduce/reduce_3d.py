@@ -860,7 +860,7 @@ def gen_function(
     # FIXME: these alignments values are only for half_t type.
     # make it adjustable to other types such as float.
     alignments = [8, 4, 2, 1]
-    if x._attrs["dtype"] in ("float16",):
+    if x._attrs["dtype"] in ("float16", "bfloat16"):
         alignments.append(16)
     # This is ugly. Ideally, we should have templated code like below:
     # template <typename Alignment>
