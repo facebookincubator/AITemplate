@@ -14,42 +14,62 @@
 #
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
-import unittest
 
 import torch
 
-from aitemplate.testing import detect_target
 from fx2ait.acc_tracer import acc_ops
 from fx2ait.tools.common_fx2ait import AITTestCase
 from parameterized import param, parameterized
 
 
-@unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-@unittest.skipIf(
-    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-    "Not supported by CUDA < SM80.",
-)
-class TestAitConv3d(AITTestCase):
+class TestAitDepthwiseConv3d(AITTestCase):
     @parameterized.expand(
         [
-            param("conv3d", 3, bias=False),
             param(
-                name="conv3d_tuple_parameters",
-                kernel_size=3,
-                stride=(4, 4, 4),
-                padding=(2, 2, 2),
-                dilation=2,
-                ci=8,
+                name="depthwise_conv3d",
+                kernel_size=(1, 1, 1),
+                stride=(1, 1, 1),
+                padding=0,
+                dilation=1,
+                ci=96,
                 co=96,
-                groups=1,
-                d=4,
-                h=224,
-                w=224,
-                bias=False,
+                groups=96,
+                d=2,
+                h=56,
+                w=56,
+                bias=True,
+            ),
+            param(
+                name="depthwise_conv3d_2",
+                kernel_size=(1, 1, 1),
+                stride=(1, 1, 1),
+                padding=0,
+                dilation=1,
+                ci=96,
+                co=96,
+                groups=96,
+                d=2,
+                h=28,
+                w=28,
+                bias=True,
+            ),
+            param(
+                name="depthwise_conv3d_3",
+                kernel_size=(1, 1, 1),
+                stride=(1, 1, 1),
+                padding=0,
+                dilation=1,
+                ci=96,
+                co=96,
+                groups=96,
+                d=2,
+                h=7,
+                w=7,
+                bias=True,
             ),
         ]
     )
-    def test_conv3d(
+    def test_depthwise_conv3d(
         self,
         name,
         kernel_size,
