@@ -17,13 +17,11 @@ This transformation splits a slice_scatter or slice_reshape_scatter with a large
 number of inputs into multiple slice_scatter or slice_reshape_scatter ops.
 """
 import copy
-import functools
 import logging
 
 from typing import List
 
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice
-from aitemplate.compiler.stable_set import StableSet
 
 from ...utils import graph_utils, shape_utils
 from .. import ops
@@ -104,6 +102,7 @@ def split_large_slice_scatter_ops(sorted_graph: List[Tensor], _: str) -> List[Te
             new_name = f"{orig_name}_split_{split_idx}"
             new_slice_scatter_op._attrs["name"] = new_name
             new_slice_scatter_op._attrs["original_name"] = new_name
+            new_slice_scatter_op._attrs["has_profiler"] = has_profiler
             new_slice_scatter_op._attrs["outputs"] = outputs
             new_slice_scatter_op._attrs["output_accessors"] = copy.deepcopy(
                 output_accessors
@@ -146,7 +145,7 @@ def split_large_slice_scatter_ops(sorted_graph: List[Tensor], _: str) -> List[Te
                     )
                     assert n_start <= n_end, (
                         f"expected normalized {n_start=} <= {n_end=} for "
-                        f"{dim_val=}, {start=}, {end=}"
+                        f"{dim=}, {start=}, {end=}"
                     )
                     strided_dim_offset *= n_end - n_start
                 local_output_offset += strided_dim_offset
