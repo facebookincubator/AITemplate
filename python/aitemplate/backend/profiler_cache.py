@@ -457,6 +457,13 @@ SELECT name FROM sqlite_master WHERE type='table';
 )
 
 
+__AIT_CACHE_VERSION__ = 2
+
+
+def ait_cache_version() -> int:
+    return __AIT_CACHE_VERSION__
+
+
 class ProfileCacheDB(object):
     r"""Local SQLite profile cache database."""
 
@@ -481,8 +488,12 @@ class ProfileCacheDB(object):
         self._mode = CacheMode.LOCAL
         self._db_commit_flag = False
         # Some design rationales:
-        #   * Each table maintains it own version number. This can avoid re-creating
-        #     tables that are not involved with the breaking changes.
+        #   * All tables share the version number, because we are exposing the
+        #     the cache version. Using a single version number seems to make it
+        #     more clean. One caveat is that we are going to re-create all tables
+        #     even if some of them are not involved with the breaking changes.
+        #     It seems to be fine as we expect the frequency of cache version
+        #     updated to be quite low.
         #   * We only keep a single table (i.e. version) for each category (
         #     gemm, conv and norm) to simplify how we handle breaking changes
         #     and rollbacks caused by failures in the updated version.
@@ -492,9 +503,9 @@ class ProfileCacheDB(object):
         #     leave some content from the failing version in the db. How are we
         #     going to update the db if we update the version again, and so on.
         # TODO: add similar version control for norm
-        self._gemm_cache_version = 2
-        self._conv_cache_version = 2
-        self._conv3d_cache_version = 2
+        self._gemm_cache_version = ait_cache_version()
+        self._conv_cache_version = ait_cache_version()
+        self._conv3d_cache_version = ait_cache_version()
         if uri is not None:
             self._mode = CacheMode.REMOTE
         if self._mode == CacheMode.LOCAL:
