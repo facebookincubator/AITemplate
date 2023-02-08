@@ -28,6 +28,8 @@ from aitemplate.compiler.public import (
     concatenate,
     conv2d,
     conv2d_bias,
+    conv3d,
+    depthwise_conv3d,
     dynamic_slice,
     elementwise,
     expand,
@@ -72,6 +74,7 @@ from .utils import (
     create_unary_op,
     get_positive_dim,
     identical_elem_tuple_to_int,
+    ncdhw2ndhwc,
     nchw2nhwc,
     unify_dynamic_shape_name,
 )
@@ -1140,6 +1143,66 @@ def acc_ops_conv2d(
         result = concatenate()(conv_groups, dim=3)
 
     return result
+
+
+def _choose_conv3d_op(
+    stride: int,
+    pad: int,
+    dilate: int,
+    x: AITTensor,
+    weight: AITTensor,
+    bias: [AITTensor],
+    groups: int = 1,
+) -> ConverterOutput:
+    """
+    Helper to choose conv3d vs. depthwise_conv3d op based on existence of bias
+    and groups
+    """
+    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 4, 1)
+    weight._attrs["shape"] = ncdhw2ndhwc(weight._attrs["shape"])
+
+    if bias is not None:
+        assert (
+            groups == weight._attrs["shape"][0]
+        ), "Currently only support channel == groups"
+        return depthwise_conv3d(
+            stride=stride, pad=pad, dilate=dilate, group=groups, bias=bias
+        )(x, weight)
+    else:
+        assert (
+            groups is None or groups == 1
+        ), "Currently only support non-bias conv3d without groups"
+        return conv3d(stride=stride, pad=pad, dilate=dilate)(x, weight)
+
+
+@ait_converter(acc_ops.conv3d)
+def acc_ops_conv3d(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+
+    weight = kwargs["weight"]
+    assert isinstance(weight, AITTensor)
+
+    bias = kwargs["bias"]
+    assert bias is None or isinstance(bias, AITTensor)
+
+    stride = identical_elem_tuple_to_int(kwargs["stride"])
+    padding = identical_elem_tuple_to_int(kwargs["padding"])
+    dilation = identical_elem_tuple_to_int(kwargs["dilation"])
+
+    assert all(
+        isinstance(x, int) for x in [stride, padding, dilation]
+    ), "Expected int stride, padding, and dilation"
+
+    groups = kwargs["groups"]
+
+    return _choose_conv3d_op(stride, padding, dilation, input_val, weight, bias, groups)
 
 
 @ait_converter(acc_ops.max_pool2d)

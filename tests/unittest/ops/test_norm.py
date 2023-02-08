@@ -195,6 +195,76 @@ class VectorNormTestCase(unittest.TestCase):
             rtol=1e-1,
         )
 
+    def test_l2_norm_bf16(self):
+        self._run_l2_norm(
+            dim=0,
+            input_shape=[1],
+            keepdim=True,
+            input_type="bfloat16",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=-1,
+            input_shape=[3, 2, 2048],
+            keepdim=False,
+            input_type="bfloat16",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=1,
+            input_shape=[3, 1234, 4],
+            keepdim=True,
+            input_type="bfloat16",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=1,
+            input_shape=[5, 60, 34, 4],
+            keepdim=False,
+            input_type="bfloat16",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=0,
+            input_shape=[5, 60, 34, 4],
+            keepdim=False,
+            input_type="bfloat16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=2,
+            input_shape=[5, 1, 34, 4],
+            keepdim=False,
+            input_type="bfloat16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=-1,
+            input_shape=[4, 1230, 1237],
+            keepdim=True,
+            input_type="bfloat16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_l2_norm(
+            dim=-1,
+            input_shape=[1, 1000000, 6],
+            keepdim=True,
+            input_type="bfloat16",
+            output_type="float32",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+
     def _run_batched_vector_norm(
         self,
         *,

@@ -15,7 +15,6 @@
 import logging
 import unittest
 
-import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
@@ -75,7 +74,7 @@ class SplitTestCase(unittest.TestCase):
                 [idx for idx, mask in enumerate(output_masks) if not mask]
             )
             Ys = split_op._attrs["outputs"]
-        np.testing.assert_equal(len(Ys_pt), len(Ys))
+        self.assertEqual(len(Ys_pt), len(Ys))
 
         y_shapes = []
         for idx, Y in enumerate(Ys):
@@ -96,7 +95,7 @@ class SplitTestCase(unittest.TestCase):
 
         for idx, y_pt in enumerate(Ys_pt):
             y = outputs[f"output_{idx}"]
-            self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
+            self.assertTrue(torch.equal(y_pt, y))
         self.test_count += 1
 
     def _run_batch_split(
@@ -146,7 +145,7 @@ class SplitTestCase(unittest.TestCase):
                 else torch.split(X_pt, split_size_or_sections, dim)
             )
 
-            np.testing.assert_equal(len(Ys_pt), len(Ys))
+            self.assertEqual(len(Ys_pt), len(Ys))
 
             y_shapes = [Y_pt.size() for Y_pt in Ys_pt]
             outputs = {
@@ -160,7 +159,7 @@ class SplitTestCase(unittest.TestCase):
 
             for idx, y_pt in enumerate(Ys_pt):
                 y = outputs[f"output_{idx}"]
-                self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
+                self.assertTrue(torch.equal(y_pt, y))
             self.test_count += 1
 
     def test_split(self):
@@ -238,33 +237,29 @@ class SplitTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_split_float(self):
         self._run_split(
-            input_shape=[2, 3], split_size_or_sections=2, dim=1, input_type="float"
-        )
-        self._run_split(
-            input_shape=[4097, 128, 64],
-            split_size_or_sections=1024,
-            dim=0,
-            input_type="float",
-        )
-        self._run_split(
             input_shape=[8, 6, 4],
-            split_size_or_sections=(2, 2),
-            dim=2,
+            split_size_or_sections=(2, 4),
+            dim=1,
             input_type="float",
         )
         self._run_batch_split(
-            batch_sizes=[1, 1],
-            input_shape=[2, 1],
-            split_size_or_sections=1,
-            dim=1,
-            input_type="float",
+            batch_sizes=[11, 5, 9],
+            input_shape=[2, 9, 4],
+            split_size_or_sections=[2, 4, 3],
+            dim=2,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_split_bfloat16(self):
+        self._run_split(
+            input_shape=[2, 3], split_size_or_sections=2, dim=1, input_type="bfloat16"
         )
         self._run_batch_split(
             batch_sizes=[3, 4],
             input_shape=[2, 3, 4],
             split_size_or_sections=2,
             dim=2,
-            input_type="float",
+            input_type="bfloat16",
         )
 
 
