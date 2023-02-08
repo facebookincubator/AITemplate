@@ -121,6 +121,10 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
         self.test_count += 1
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_slice_scatter_reshape(self):
         self._run_one_test(
             input_shapes=[[1, 2], [1, 2]],

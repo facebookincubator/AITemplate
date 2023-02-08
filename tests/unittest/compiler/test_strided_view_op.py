@@ -172,6 +172,10 @@ class StridedViewOpTestCase(unittest.TestCase):
         super(StridedViewOpTestCase, self).__init__(*args, **kwargs)
         self._test_id = 0
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     @parameterized.expand(
         [
             param(f"single_gemm_{name}_fusion_{dtype}", func, dtype)
@@ -280,6 +284,10 @@ class StridedViewOpTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
             self._test_id += 1
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     @parameterized.expand(
         [
             param(
@@ -331,6 +339,10 @@ class StridedViewOpTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
             self._test_id += 1
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     @parameterized.expand(
         [
             param(f"single_op_{name}_non_fusion_{dtype}", func, dtype)
@@ -457,6 +469,10 @@ class StridedViewOpTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y1, y1_pt, atol=1e-2, rtol=1e-2))
             self.assertTrue(torch.allclose(y2, y2_pt, atol=1e-2, rtol=1e-2))
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_two_views(self):
         self._test_two_parallel_views()
         self._test_two_serial_view_outputs()

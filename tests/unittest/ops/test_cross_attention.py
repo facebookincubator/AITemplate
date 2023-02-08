@@ -134,6 +134,10 @@ class crossattentionTestCase(unittest.TestCase):
             )
             print("Batch {} MHA verification pass".format(batch_size))
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_cross_attn(self):
         self._test_mha(batch_sizes=[1], seqlen=2, seqlen_kv=32, dim=512, num_heads=8)
         self._test_mha(
