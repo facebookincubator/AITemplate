@@ -26,7 +26,7 @@ from .proposal import Proposal
 from .roi_ops import *
 from .upsample import *
 from .view_ops import *
-from .attention import CrossAttention, FlashAttention, MultiheadAttention
+from .attention import CrossAttention, FlashAttention, MultiheadAttention, AdsGenAttention
 from .identity import Identity
 from .vanilla_attention import (
     vanilla_attention,

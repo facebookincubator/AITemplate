@@ -389,3 +389,105 @@ class CrossAttention(Module):
         x = self.proj_drop(x)
         x = ops.reshape()(x, [-1, seq, self.dim])
         return x
+
+
+
+class AdsGenAttention(Module):
+    r"""AdsGen Attention.
+
+    Allows the model to jointly attend to information
+    from different representation subspaces as described in the paper:
+    `Attention Is All You Need <https://arxiv.org/abs/1706.03762>`_.
+
+    Multi-Head Attention is defined as:
+    .. math::
+        \text{MultiHead}(Q, K, V) = \text{Concat}(head_1,\dots,head_h)W^O
+
+    where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
+
+    Args:
+        dim: toal dimension of the model
+        batch_size: batch size
+        seq_len: sequence length
+        num_heads: Number of parallel attention heads. Default: 8
+        qkv_bias: whether to add bias to QKV. Default: False
+        attn_drop: Dropout probability on attention output weights. Default: ``0.0`` (no dropout).
+        proj_drop: Dropout probability on projection layers. Default: ``0.0`` (no dropout).
+        has_residual: has or has no residual. Default: `True`.
+        causal: default: `False`.
+        mask_seq: sequence mask, default: ``0``.
+    """
+
+    def __init__(
+        self,
+        dim,
+        batch_size,
+        seq_len,
+        num_heads=4,
+        dim_head=32,
+        qkv_bias=False,
+        attn_drop=0.0,
+        proj_drop=0.0,
+        has_residual=True,
+        causal=False,
+    ):
+        super().__init__()
+        assert (
+            dim % num_heads == 0
+        ), f"dim {dim} should be divisible by num_heads {num_heads}"
+        self.num_heads = num_heads
+        head_dim = dim // num_heads
+        self.scale = head_dim**-0.5
+        self.causal = causal
+        self.has_residual = has_residual
+        hidden_dim = dim_head * num_heads
+
+        self.op = ops.mem_eff_attention(causal=causal)
+
+        self.qkv = Linear(
+            dim,
+            hidden_dim * 3,
+            specialization="permute",
+            shape=(seq_len, 3, self.num_heads),
+        )
+
+        self.attn_drop = Dropout(attn_drop)
+        self.proj = Linear(hidden_dim, dim, specialization="add" if has_residual else None)
+        self.proj_drop = Dropout(proj_drop)
+
+    def get_shape(self, x):
+        shape = [it.value() for it in x._attrs["shape"]]
+        return shape
+
+    def qkv_proj(self, x):
+        batch, seq, hidden = self.get_shape(x)
+        x = ops.reshape()(x, [-1, hidden])
+        return self.qkv(x)
+
+    def attention(self, x):
+        # fused attention
+        # output: (B, Seqlen, num_heads, head_dim)
+        (q, k, v) = ops.split()(x, 1, dim=0)
+        _, b, num_heads, seqlen, d = self.get_shape(q)
+        return self.op(
+            ops.reshape()(q, [b, -1, seqlen, d]),
+            ops.reshape()(k, [b, -1, seqlen, d]),
+            ops.reshape()(v, [b, -1, seqlen, d]),
+        )
+
+    def forward(self, *args):
+        """forward pass for calling mha module"""
+        assert len(args) >= 1
+        x = args[0]
+        batch, seq, hidden = self.get_shape(x)
+        qkv = self.qkv_proj(x)
+        attn_output = self.attention(qkv)
+        attn_output = ops.reshape()(attn_output, [batch * seq, -1])
+        if self.has_residual:
+            assert len(args) == 2
+            x = self.proj(attn_output, args[1])
+        else:
+            x = self.proj(attn_output)
+        x = self.proj_drop(x)
+        x = ops.reshape()(x, [batch, seq, hidden])
+        return x
