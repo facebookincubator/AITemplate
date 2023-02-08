@@ -15,6 +15,8 @@
 """
 Slice_reshape_scatter.
 """
+from typing import Optional
+
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from .... import backend
@@ -138,29 +140,33 @@ class slice_reshape_scatter(Operator):
             y._attrs["src_ops"] = StableSet()
             y._attrs["dst_ops"] = StableSet()
 
-    def __init__(
-        self, cat_op: Operator, reshape_op: Operator, cat_op_2: Operator
-    ) -> None:
+    def __init__(self, scatter_dim: int, element_func: Optional[str] = None) -> None:
         super().__init__()
-        if cat_op_2._attrs["op"] == "concatenate_tanh":
-            self._attrs["element_func"] = "fast_tanh"
-        else:
-            self._attrs["element_func"] = None
-        assert slice_reshape_scatter.is_valid(cat_op, reshape_op, cat_op_2)
-
+        self._attrs["element_func"] = element_func
         self._attrs["op"] = "slice_reshape_scatter"
         self._attrs["has_profiler"] = False
-        self._attrs["scatter_dim"] = cat_op._attrs["concat_dim"]
+        self._attrs["scatter_dim"] = scatter_dim
+
+    @staticmethod
+    def make_op(cat_op: Operator, reshape_op: Operator, cat_op_2: Operator) -> Operator:
+        assert slice_reshape_scatter.is_valid(cat_op, reshape_op, cat_op_2)
+        element_func = None
+        if cat_op_2._attrs["op"] == "concatenate_tanh":
+            element_func = "fast_tanh"
+        scatter_dim = cat_op._attrs["concat_dim"]
+        new_op = slice_reshape_scatter(scatter_dim, element_func)
+
         slice_ops = []
         for x in cat_op._attrs["inputs"]:
             src_ops = x.src_ops()
             assert len(src_ops) == 1
             slice_op = list(src_ops)[0]
             slice_ops.append(slice_op)
-        self._attrs["slice_ops"] = slice_ops
+        new_op._attrs["slice_ops"] = slice_ops
 
-        self._update_inputs_outputs(cat_op, reshape_op, cat_op_2)
-        self._set_depth()
+        new_op._update_inputs_outputs(cat_op, reshape_op, cat_op_2)
+        new_op._set_depth()
+        return new_op
 
     def __call__(self):
         raise RuntimeError("op {} cannot be called directly".format(self._attrs["op"]))

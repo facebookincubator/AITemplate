@@ -80,7 +80,7 @@ def _fuse_slices_concat_reshape_concat(sorted_graph: List[Tensor]) -> List[Tenso
 
         concat_op_2 = next_op
         if slice_reshape_scatter.is_valid(concat_op, reshape_op, concat_op_2):
-            slice_reshape_scatter(concat_op, reshape_op, concat_op_2)
+            slice_reshape_scatter.make_op(concat_op, reshape_op, concat_op_2)
 
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
