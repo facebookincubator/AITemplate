@@ -392,8 +392,8 @@ class CrossAttention(Module):
 
 
 
-class AdsGenAttention(Module):
-    r"""AdsGen Attention.
+class ImagenAttention(Module):
+    r"""AGAttention.
 
     Allows the model to jointly attend to information
     from different representation subspaces as described in the paper:
@@ -407,7 +407,6 @@ class AdsGenAttention(Module):
 
     Args:
         dim: toal dimension of the model
-        batch_size: batch size
         seq_len: sequence length
         num_heads: Number of parallel attention heads. Default: 8
         qkv_bias: whether to add bias to QKV. Default: False
