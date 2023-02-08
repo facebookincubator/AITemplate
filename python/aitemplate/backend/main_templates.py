@@ -80,7 +80,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
     }
 
     void DeviceToDeviceCopies(StreamType stream) {
-  {{ device_to_device_copies }}
+        {{ device_to_device_copies }}
     }
 
     void RunImpl(StreamType stream) {
