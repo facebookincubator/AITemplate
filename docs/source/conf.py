@@ -18,11 +18,11 @@
 # -- Project information -----------------------------------------------------
 
 project = "AITemplate"
-copyright = "2022, Meta Platforms"
+copyright = "2022-2023, Meta Platforms"
 author = "Meta Platforms"
 
 # The full version, including alpha/beta/rc tags
-release = "0.1"
+release = "0.2"
 
 
 # -- General configuration ---------------------------------------------------
