@@ -421,7 +421,6 @@ class AdsGenAttention(Module):
     def __init__(
         self,
         dim,
-        batch_size,
         seq_len,
         num_heads=4,
         dim_head=32,
@@ -447,6 +446,7 @@ class AdsGenAttention(Module):
         self.qkv = Linear(
             dim,
             hidden_dim * 3,
+            bias=qkv_bias,
             specialization="permute",
             shape=(seq_len, 3, self.num_heads),
         )
