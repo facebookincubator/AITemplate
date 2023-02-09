@@ -71,6 +71,7 @@ def _non_output_from_tensor(tensor: Tensor) -> Tensor:
         dst_ops=tensor._attrs["dst_ops"].copy(),
         dtype=tensor._attrs["dtype"],
         is_view_of=tensor._attrs["is_view_of"],
+        modifiable_constant=tensor._attrs["modifiable_constant"],
     )
     new_tensor._attrs["is_param"] = tensor._attrs["is_param"]
     new_tensor._attrs["data"] = tensor._attrs["data"]
