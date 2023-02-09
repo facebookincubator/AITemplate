@@ -54,6 +54,18 @@ class TestSliceTensor(AITTestCase):
                 (slice(None, None, None), slice(None, None, None), slice(0, 0, None)),
             ),
             (
+                "slice_start_seq_slice",
+                (slice(0, 1, None), [0, 1, 2], slice(0, 10, None)),
+            ),
+            (
+                "slice_end_seq_slice",
+                (slice(0, 1, None), [0, 6, 7, 8, 9], slice(0, 10, None)),
+            ),
+            (
+                "slice_long_seq_slice",
+                (slice(0, 1, None), [0, 5, 6, 7, 2, 3, 4, 5], slice(0, 10, None)),
+            ),
+            (
                 "slice_list_slice",
                 (slice(0, 1, None), [2], slice(0, 10, None)),
             ),
