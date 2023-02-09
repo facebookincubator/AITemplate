@@ -487,9 +487,27 @@ def acc_ops_getitem(
         # In terms of performance, AIT backend will take care of fusing these ops.
         groups = []
         kw = {"input": input_val}
-        for x in s:
-            kw["idx"] = idx[:dim] + (x,) + idx[dim + 1 :]
-            groups.append(unsqueeze(dim)(acc_ops_slice(target, args, kw, name)))
+        start_idx = 0
+        end_idx = 1
+        while end_idx < len(s):
+            if s[end_idx] - s[start_idx] == end_idx - start_idx:
+                end_idx += 1
+                continue
+            else:
+                kw["idx"] = (
+                    idx[:dim]
+                    + (slice(s[start_idx], s[end_idx - 1] + 1, None),)
+                    + idx[dim + 1 :]
+                )
+                groups.append(acc_ops_slice(target, args, kw, name))
+                start_idx = end_idx
+                end_idx += 1
+        kw["idx"] = (
+            idx[:dim]
+            + (slice(s[start_idx], s[end_idx - 1] + 1, None),)
+            + idx[dim + 1 :]
+        )
+        groups.append(acc_ops_slice(target, args, kw, name))
         return concatenate()(groups, dim=dim)
 
     if isinstance(idx, slice) or (
