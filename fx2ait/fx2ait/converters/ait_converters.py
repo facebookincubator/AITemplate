@@ -1184,8 +1184,8 @@ def _choose_conv3d_op(
             groups == weight._attrs["shape"][0]
         ), "Currently only support channel == groups"
         return depthwise_conv3d(
-            stride=stride, pad=pad, dilate=dilate, group=groups, bias=bias
-        )(x, weight)
+            stride=stride, pad=pad, dilate=dilate, group=groups, bias=True
+        )(x, weight, bias)
     else:
         assert (
             groups is None or groups == 1
