@@ -286,10 +286,6 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(r2, r2_pt, atol=1e-2, rtol=1e-2))
         self.assertTrue(torch.allclose(r4, r4_pt, atol=1e-2, rtol=1e-2))
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
-    )
     @parameterized.expand([("float16"), ("float")])
     def test_fused_elementwise_indirect_input_dependency(self, dtype):
         r"""

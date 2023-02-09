@@ -43,6 +43,10 @@ if detect_target().name() != "rocm":
 
 
 class FusedElementwiseTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def _test_fused_elementwise_constructor(self, ait_dtype):
         BATCH_SIZE = 1024
         M = 256
