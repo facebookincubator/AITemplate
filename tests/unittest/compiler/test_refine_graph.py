@@ -116,6 +116,10 @@ class RefineGraphTestCase(unittest.TestCase):
         assert len(sorted_ops) == 2
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_elementwise_ops_single_input(self):
         dtype = "float16"
         M = 10

@@ -113,6 +113,32 @@ class GenericPermuteTest(unittest.TestCase):
             testname="test_generic_permute_fp32",
         )
 
+    @parameterized.expand(
+        [
+            param((80, 300, 2), (0, 2, 1)),
+            param((80, 300, 2), (1, 0, 2)),
+            param((80, 300, 2), (2, 1, 0)),
+            param((5, 113, 15, 31), (0, 2, 1, 3)),
+            param((3, 1, 113, 15, 64), (2, 0, 3, 1, 4)),
+            param((8, 29, 100000, 3), (0, 2, 1, 3)),
+            param((32, 12, 4096, 64), (0, 2, 1, 3)),
+            param((1, 12, 128, 64), (0, 2, 1, 3)),
+            param((2, 3, 4, 5), (3, 2, 1, 0)),
+            param((3, 5, 128, 514), (2, 3, 0, 1)),
+            param((128, 512), (1, 0)),
+            param((5, 113, 15, 31), (0, 1, 3, 2)),
+            param((3, 1, 113, 15, 64), (0, 1, 2, 4, 3)),
+        ]
+    )
+    @unittest.skipIf(detect_target().name() == "rocm", "bf16 is not supported by ROCm.")
+    def test_generic_permute_bf16(self, input_shapes, dims):
+        self._test_generic_permute(
+            input_shapes=input_shapes,
+            dims=dims,
+            torch_dtype=torch.bfloat16,
+            testname="test_generic_permute_bf16",
+        )
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

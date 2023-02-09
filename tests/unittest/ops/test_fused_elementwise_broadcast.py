@@ -87,6 +87,10 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [x4])
             self.assertTrue(torch.allclose(x4, x4_pt, atol=1e-2, rtol=1e-2))
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_different_dim_fp16(self):
         self._test_different_dim(
             batch_sizes=[1024],

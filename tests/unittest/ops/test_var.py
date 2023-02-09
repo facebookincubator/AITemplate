@@ -83,7 +83,7 @@ class VarTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(Y_pt, y, atol=atol, rtol=rtol, equal_nan=True))
         self.test_count += 1
 
-    def test_var(self):
+    def test_var_float16(self):
         self._run_var(dim=-1, unbiased=True, input_shape=[1, 1], keepdim=False)
         self._run_var(dim=-1, unbiased=False, input_shape=[1, 1], keepdim=False)
         self._run_var(dim=-1, unbiased=True, input_shape=[1, 5], keepdim=False)
@@ -152,7 +152,7 @@ class VarTestCase(unittest.TestCase):
         self._run_batched_var(dim=2, unbiased=True, keepdim=False)
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    def test_float32(self):
+    def test_var_float32(self):
         self._run_var(
             dim=-1,
             unbiased=False,
@@ -209,6 +209,36 @@ class VarTestCase(unittest.TestCase):
             output_type="float32",
             atol=1.3e-6,
             rtol=1e-5,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "bf16 not supported in ROCm")
+    def test_var_bfloat16(self):
+        self._run_var(
+            dim=-1,
+            unbiased=False,
+            input_shape=[2, 8],
+            keepdim=False,
+            input_type="bfloat16",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_var(
+            dim=-1,
+            unbiased=False,
+            input_shape=[3, 2, 2050],
+            keepdim=False,
+            input_type="bfloat16",
+            atol=1e-1,
+            rtol=1e-1,
+        )
+        self._run_var(
+            dim=1,
+            unbiased=True,
+            input_shape=[1025, 2047],
+            keepdim=True,
+            input_type="bfloat16",
+            atol=1e-1,
+            rtol=1e-1,
         )
 
 
