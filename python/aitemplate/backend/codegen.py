@@ -436,6 +436,9 @@ class ModelContainerGenerator:
         self.num_constants += 1
 
     def _codegen_bound_constant(self, tensor: Tensor) -> None:
+        if not tensor._attrs.get("modifiable_constant", True):
+            return
+
         name = tensor._attrs["name"]
         self.set_up_constant_names.append(
             set_value(

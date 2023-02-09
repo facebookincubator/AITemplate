@@ -338,6 +338,7 @@ class Tensor(Node):
         is_output: bool = False,
         value: Any = None,
         is_view_of: Any = None,
+        modifiable_constant: bool = True,
         check_nan_and_inf: bool = False,
         check_outputs: bool = False,
     ) -> None:
@@ -368,6 +369,8 @@ class Tensor(Node):
             empty list, this Tensor is used to represent a number.
         is_view_of : Any, optional
             Whether this Tensor is a view of another Tensor.
+        modifiable_constant: bool, optional
+            Whether this constant tensor could be modified. Not used if tensor is not constant.
         check_nan_and_inf : bool, optional
             Whether or not to check this tensor is nan or inf during runtime.
         check_outputs : bool, optional
@@ -386,6 +389,7 @@ class Tensor(Node):
         self._attrs["is_output"] = is_output
         self._attrs["is_input"] = is_input
         self._attrs["is_param"] = False
+        self._attrs["modifiable_constant"] = modifiable_constant
 
         # True if this is an internal tensor that aliases an output through
         # a view. Set up in mark_param_tensor
@@ -562,6 +566,7 @@ def _create_host_zero_tensor(
     dst_ops: Set[Node] = None,
     dtype: str = "float16",
     is_output: bool = False,
+    modifiable_constant: bool = False,
 ):
     """
     Create a zero tensor stored on the host machine.
@@ -571,6 +576,7 @@ def _create_host_zero_tensor(
         b"\x00" * get_aligned_size(shape, dtype, alignment=1), dtype=dtype
     )
     tensor = Tensor(shape, name, dst_ops=dst_ops, dtype=dtype, is_output=is_output)
+    tensor._attrs["modifiable_constant"] = modifiable_constant
     tensor._bind_data(zeros)
     return tensor
 
