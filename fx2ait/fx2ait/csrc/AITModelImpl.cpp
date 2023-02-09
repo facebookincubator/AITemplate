@@ -196,7 +196,8 @@ AITModelImpl::AITModelImpl(
     AIT_CHECK(foldConstantsFunc(
         model_handle_,
         /*stream=*/reinterpret_cast<AITemplateStreamOpaque*>(creation_stream),
-        /*sync=*/true));
+        /*sync=*/true,
+        /*double_buffer=*/false));
   }
 
   const auto num_inputs = AITCall(getNumInputsFunc, model_handle_);

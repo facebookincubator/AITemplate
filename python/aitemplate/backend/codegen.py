@@ -333,6 +333,7 @@ class ModelContainerGenerator:
         self.num_constants = 0
         self.constants_data_size = 0
         self.owned_constants_init = []
+        self.reset_constants = []
 
         self.set_up_constant_folding_outputs_offsets = []
 
@@ -469,14 +470,20 @@ class ModelContainerGenerator:
         """
         name = tensor._attrs["name"]
         data = tensor._attrs["data"]
+        const_slice = self._tensor_slice_func(tensor, "constants")
         if data is not None:
             # Owned constant. Set up logic for copying the constant in from *.so.
-            self.set_up_constants.append(self._tensor_slice_func(tensor, "constants"))
+            self.set_up_constants.append(const_slice)
+            self.set_up_constants.append(
+                set_value(
+                    f'constant_name_to_ptr_["{name}"]',
+                    f"const_cast<const void**>(reinterpret_cast<void**>(&{name}))",
+                )
+            )
             self._codegen_bound_constant(tensor)
             self.bound_constant_idx += 1
             if self.constants_data_file is not None:
                 self._add_owned_constant(tensor)
-
         elif tensor._attrs["constant_folding_output_idx"] is not None:
             self.set_up_constant_folding_outputs_offsets.append(
                 set_value(
@@ -484,8 +491,8 @@ class ModelContainerGenerator:
                     tensor._attrs["offset"],
                 )
             )
-            self.tensor_slice.append(self._tensor_slice_func(tensor, "constants"))
-
+            self.tensor_slice.append(const_slice)
+            self.reset_constants.append(const_slice)
         elif not isinstance(tensor, IntVarTensor):
             # Unbound constant. We will expect the user to set this via SetConstant.
             self.set_up_constant_names.append(
@@ -766,6 +773,7 @@ class ModelContainerGenerator:
             num_outputs=self.num_outputs,
             param_size=self.max_constant_blob_size + self.extra_owned_constant_size,
             num_unbound_constants=self.unbound_constant_idx,
+            reset_constants="\n".join(self.reset_constants),
             profiler_annotation=self.debug_settings.gen_profiler_annotation,
         )
 

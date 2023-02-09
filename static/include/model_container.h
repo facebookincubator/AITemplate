@@ -68,8 +68,19 @@ class ModelContainerBase {
   // indices in constant_folder_.
   std::vector<size_t> constant_folding_outputs_offsets_;
 
+  // size for constants_ GPUPtr
+  size_t constants_size_;
   // a single piece of memory for all constants
   GPUPtr constants_;
+  // an additional piece of memory if double buffering is used
+  GPUPtr constants_1_;
+  // True for constants_, False for constants_1_, being used by Model.
+  bool constants_flag_;
+  // Boolean flag to check whether SetConstants/FoldConstants was called.
+  bool set_constants_flag_;
+  bool fold_constants_flag_;
+  // Mapping for constant names to pointer
+  std::unordered_map<std::string, const void*> model_constants;
 
   // size of the containers below: # inputs + # outputs + # unbound constants.
   size_t num_params_;
@@ -187,6 +198,12 @@ class ModelContainer : ModelContainerBase {
       const AITData* tensors,
       size_t num_tensors);
 
+  void SetDoubleBufferConstant(const char* name, const AITData& tensor);
+  void SetManyDoubleBufferConstants(
+      const char** names,
+      const AITData* tensors,
+      size_t num_tensors);
+
   size_t NumInputs() const;
   size_t NumOutputs() const;
 
@@ -205,7 +222,8 @@ class ModelContainer : ModelContainerBase {
     return models_.size();
   }
 
-  void FoldConstants(StreamType stream, bool sync);
+  void FoldConstants(StreamType stream, bool sync, bool double_buffer = false);
+  void SwapConstants();
 
   size_t GetNumConstants(bool unbound_constants_only = true) const;
   size_t GetNumConstantFoldingInputs(bool unbound_constants_only = true) const;
@@ -221,8 +239,12 @@ class ModelContainer : ModelContainerBase {
 
  private:
   void WaitForAllModels(bool include_constant_folder = false);
-  void FoldConstantsImpl(StreamType stream);
-  void SetConstantImpl(const char* name, const AITData& tensor);
+  void FoldConstantsImpl(StreamType stream, bool double_buffer = false);
+  void SetConstantImpl(
+      const char* name,
+      const AITData& tensor,
+      bool double_buffer = false);
+  void SetConstantFolderBuffer();
 
   void PrepareForRun(
       Model* model,
@@ -233,7 +255,8 @@ class ModelContainer : ModelContainerBase {
 
   Model* GetAvailableModel();
   void ReclaimFinishedModels(std::unique_lock<std::mutex>& lk);
-  void ValidateDtype(AITemplateDtype dtype, size_t idx) const;
+  void ValidateParamDtype(AITemplateDtype dtype, size_t idx) const;
+  void ValidateBoundConstantDtype(AITemplateDtype dtype, size_t idx) const;
 
   float BenchmarkImpl(
       const AITData* inputs,
@@ -270,6 +293,9 @@ class ModelContainer : ModelContainerBase {
   // prevents concurrent inferences from happening while kernels are being
   // queued.
   std::shared_mutex constants_sync_mutex_;
+  // constants_double_buffer_mutex_ is separate from constants_sync_mutex since
+  // when we use double buffer, it won't affect the main model.
+  std::shared_mutex constants_double_buffer_mutex_;
 
   size_t num_inputs_;
   size_t num_outputs_;

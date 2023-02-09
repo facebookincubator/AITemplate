@@ -761,6 +761,40 @@ class Model(object):
             self.handle, c_names, c_tensors, num_tensors
         )
 
+    def set_double_buffer_constant(self, name: str, tensor: AITData):
+        """
+        Set a constant. All constants must have values before calling run().
+
+        Note that the pointer inside tensor must be valid for the entire
+        duration of run().
+        """
+        b_name = name.encode("utf-8")
+        c_name = ctypes.c_char_p(b_name)
+        c_tensor = self._convert_single_param_to_c_format(tensor)
+        self.DLL.AITemplateModelContainerSetDoubleBufferConstant(
+            self.handle, c_name, ctypes.byref(c_tensor)
+        )
+
+    def set_many_double_buffer_constants(self, tensors: Dict[str, AITData]):
+        """
+        Bulk set many constants at once. More efficient than set_constant()
+        since it only has to acquire the lock once.
+        """
+        c_names = (ctypes.c_char_p * len(tensors))()
+        c_tensors = (_CFormatAITData * len(tensors))()
+        ait_tensors = {
+            name.encode("utf-8"): self._convert_single_param_to_c_format(tensor)
+            for name, tensor in tensors.items()
+        }
+        for i, (name_bytes, tensor) in enumerate(ait_tensors.items()):
+            c_names[i] = ctypes.c_char_p(name_bytes)
+            c_tensors[i] = tensor
+
+        num_tensors = ctypes.c_size_t(len(tensors))
+        self.DLL.AITemplateModelContainerSetManyDoubleBufferConstants(
+            self.handle, c_names, c_tensors, num_tensors
+        )
+
     def set_many_constants_with_tensors(self, tensors: Dict[str, AITData]):
         ait_tensors = {}
         for name, tensor in tensors.items():
@@ -769,6 +803,28 @@ class Model(object):
             self.torch_constant_tensors[name] = tensor
             ait_tensors[name] = torch_to_ait_data(tensor)
         self.set_many_constants(ait_tensors)
+
+    def set_double_buffer_constant_with_tensor(self, name: str, tensor: TorchTensor):
+        """
+        Set a constant with a PyTorch tensor.
+        Model will store a reference to the given tensor in
+        torch_constant_tensors until it is explicitly deleted or replaced.
+        """
+        if not tensor.is_contiguous() or not tensor.is_cuda:
+            raise ValueError(f"Constant {name} must be contiguous and on the GPU.")
+        self.torch_constant_tensors[name] = tensor
+        self.set_double_buffer_constant(name, torch_to_ait_data(tensor))
+
+    def set_many_double_buffer_constants_with_tensors(
+        self, tensors: Dict[str, AITData]
+    ):
+        ait_tensors = {}
+        for name, tensor in tensors.items():
+            if not tensor.is_contiguous() or not tensor.is_cuda:
+                raise ValueError(f"Constant {name} must be contiguous and on the GPU.")
+            self.torch_constant_tensors[name] = tensor
+            ait_tensors[name] = torch_to_ait_data(tensor)
+        self.set_many_double_buffer_constants(ait_tensors)
 
     def set_constant_with_tensor(self, name: str, tensor: TorchTensor):
         """
@@ -936,10 +992,21 @@ class Model(object):
         )
         return arr
 
-    def fold_constants(self, stream_ptr: Optional[int] = None, sync: bool = True):
+    def fold_constants(
+        self,
+        stream_ptr: Optional[int] = None,
+        sync: bool = True,
+        double_buffer: bool = False,
+    ):
         self.DLL.AITemplateModelContainerFoldConstants(
-            self.handle, ctypes.c_void_p(stream_ptr), ctypes.c_bool(sync)
+            self.handle,
+            ctypes.c_void_p(stream_ptr),
+            ctypes.c_bool(sync),
+            ctypes.c_bool(double_buffer),
         )
+
+    def swap_constants(self):
+        self.DLL.AITemplateModelContainerSwapConstants(self.handle)
 
     def _get_constant_names_impl(
         self, unbound_constants_only: bool, constant_folding_only: bool

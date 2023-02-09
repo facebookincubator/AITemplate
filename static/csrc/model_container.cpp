@@ -17,6 +17,25 @@
 #include "device_functions-generated.h"
 #include "raii_wrapper.h"
 
+namespace {
+std::string GetEnumString(AITemplateDtype dtype) {
+  switch (dtype) {
+    case AITemplateDtype::kUnset:
+      return "kUnset";
+    case AITemplateDtype::kHalf:
+      return "kHalf";
+    case AITemplateDtype::kFloat:
+      return "kFloat";
+    case AITemplateDtype::kInt:
+      return "kInt";
+    case AITemplateDtype::kLong:
+      return "kLong";
+    default:
+      return "unknown";
+  }
+}
+} // namespace
+
 namespace ait {
 
 ModelContainer::ModelContainer(
@@ -342,29 +361,61 @@ float ModelContainer::Benchmark(
   return max_time / total_num_iters;
 }
 
-void ModelContainer::SetConstantImpl(const char* name, const AITData& tensor) {
-  auto it = unbound_constant_name_to_idx_.find(name);
-  if (it == unbound_constant_name_to_idx_.end()) {
-    return;
-  }
-  auto constant_idx = it->second + num_inputs_ + num_outputs_;
-  ValidateDtype(tensor.dtype, constant_idx);
+void ModelContainer::SetConstantImpl(
+    const char* name,
+    const AITData& tensor,
+    bool double_buffer) {
+  set_constants_flag_ = true;
 
-  CHECK_VECTOR_ACCESS(max_param_storage_bytes_, constant_idx)
-  auto expected_num_bytes = max_param_storage_bytes_[constant_idx];
-  auto actual_num_bytes =
-      tensor.shape.Numel() * AITemplateDtypeSizeBytes(tensor.dtype);
-  if (expected_num_bytes != actual_num_bytes) {
-    throw std::runtime_error(
-        std::string(
-            "SetConstant did not receive correct number of bytes for constant ") +
-        name + ": expected " + std::to_string(expected_num_bytes) +
-        " but got " + std::to_string(actual_num_bytes) +
-        ". Check that the provided tensor's shape is correct.");
+  auto it = unbound_constant_name_to_idx_.find(name);
+  auto it1 = bound_constant_name_to_idx_.find(name);
+  if (it != unbound_constant_name_to_idx_.end()) {
+    auto constant_idx = it->second + num_inputs_ + num_outputs_;
+    ValidateParamDtype(tensor.dtype, constant_idx);
+
+    CHECK_VECTOR_ACCESS(max_param_storage_bytes_, constant_idx)
+    auto expected_num_bytes = max_param_storage_bytes_[constant_idx];
+    auto actual_num_bytes =
+        tensor.shape.Numel() * AITemplateDtypeSizeBytes(tensor.dtype);
+    if (expected_num_bytes != actual_num_bytes) {
+      throw std::runtime_error(
+          std::string(
+              "SetConstant did not receive correct number of bytes for unbound constant ") +
+          name + ": expected " + std::to_string(expected_num_bytes) +
+          " but got " + std::to_string(actual_num_bytes) +
+          ". Check that the provided tensor's shape is correct.");
+    }
+  } else if (it1 != bound_constant_name_to_idx_.end()) {
+    auto constant_idx = it1->second;
+    ValidateBoundConstantDtype(tensor.dtype, constant_idx);
+
+    CHECK_VECTOR_ACCESS(bound_constant_size_, constant_idx)
+    auto expected_num_bytes = bound_constant_size_[constant_idx];
+    auto actual_num_bytes =
+        tensor.shape.Numel() * AITemplateDtypeSizeBytes(tensor.dtype);
+    if (expected_num_bytes != actual_num_bytes) {
+      throw std::runtime_error(
+          std::string(
+              "SetConstant did not receive correct number of bytes for bound constant ") +
+          name + ": expected " + std::to_string(expected_num_bytes) +
+          " but got " + std::to_string(actual_num_bytes) +
+          ". Check that the provided tensor's shape is correct.");
+    }
+  } else {
+    LOG(WARNING) << "Called SetConstant on " << name
+                 << " but can't find in either bound or unbound constant set";
   }
 
   auto* src = tensor.ptr;
-  if (constant_folding_inputs_.find(name) == constant_folding_inputs_.end()) {
+  bool is_constant_folder_ =
+      constant_folding_inputs_.find(name) != constant_folding_inputs_.end() ||
+      constant_folding_optional_inputs_.find(name) !=
+          constant_folding_optional_inputs_.end();
+  if (!is_constant_folder_) {
+    if (double_buffer) {
+      model_constants[std::string(name)] = src;
+      return;
+    }
     for (auto& model : models_) {
       model->SetConstant(name, src);
     }
@@ -401,6 +452,52 @@ void ModelContainer::SetManyConstants(
     }
     const auto& tensor = tensors[i];
     SetConstantImpl(names[i], tensor);
+  }
+}
+
+void ModelContainer::SetConstantFolderBuffer() {
+  uint8_t* constants_ptr{nullptr};
+  if (constants_flag_) {
+    if (constants_1_ == nullptr) {
+      constants_1_ = RAII_DeviceMalloc(constants_size_, allocator_);
+    }
+    constants_ptr = static_cast<uint8_t*>(constants_1_.get());
+  } else {
+    constants_ptr = static_cast<uint8_t*>(constants_.get());
+  }
+  size_t constant_idx = 0;
+  for (auto offset : constant_folding_outputs_offsets_) {
+    constant_folder_->SetOutput(constants_ptr + offset, constant_idx++);
+  }
+}
+
+void ModelContainer::SetDoubleBufferConstant(
+    const char* name,
+    const AITData& tensor) {
+  std::lock_guard lk(constants_double_buffer_mutex_);
+  SetConstantImpl(name, tensor, /* double_buffer */ true);
+}
+
+void ModelContainer::SetManyDoubleBufferConstants(
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors) {
+  if (num_tensors == 0) {
+    return;
+  }
+
+  if (tensors == nullptr) {
+    throw std::runtime_error("Tensor array cannot be null");
+  }
+
+  std::lock_guard lk(constants_double_buffer_mutex_);
+  for (size_t i = 0; i < num_tensors; ++i) {
+    const char* name = names[i];
+    if (name == nullptr) {
+      throw std::runtime_error("Constant name cannot be null");
+    }
+    const auto& tensor = tensors[i];
+    SetConstantImpl(names[i], tensor, /* double_buffer */ true);
   }
 }
 
@@ -485,12 +582,18 @@ void ModelContainer::WaitForAllModels(bool include_constant_folder) {
   }
 }
 
-void ModelContainer::FoldConstantsImpl(StreamType stream) {
-  // NB: No need to acquire models_mutex_ here. We're guaranteed that nothing
-  // will be concurrently messing with the Model vectors while we hold the
-  // constants_sync_mutex_ in unique mode. See model_container.h for the full
-  // explanation.
-  WaitForAllModels();
+void ModelContainer::FoldConstantsImpl(StreamType stream, bool double_buffer) {
+  fold_constants_flag_ = true;
+
+  if (double_buffer) {
+    SetConstantFolderBuffer();
+  } else {
+    // NB: No need to acquire models_mutex_ here. We're guaranteed that nothing
+    //     will be concurrently messing with the Model vectors while we hold
+    //     the constants_sync_mutex_ in unique mode. See model_container.h for
+    //     the full explanation.
+    WaitForAllModels();
+  }
   // We might have already started constant folding, make sure it finishes
   // first. It's OK if we throw here, there's no state to restore.
   // We just won't finish the folding and will need to do it again.
@@ -499,12 +602,49 @@ void ModelContainer::FoldConstantsImpl(StreamType stream) {
   constant_folded_once_ = true;
 }
 
-void ModelContainer::FoldConstants(StreamType stream, bool sync) {
-  std::lock_guard constant_folding_lk(constants_sync_mutex_);
-  FoldConstantsImpl(stream);
+void ModelContainer::FoldConstants(
+    StreamType stream,
+    bool sync,
+    bool double_buffer) {
+  if (double_buffer) {
+    FoldConstantsImpl(stream, double_buffer);
+  } else {
+    std::lock_guard constant_folding_lk(constants_sync_mutex_);
+    FoldConstantsImpl(stream);
+  }
   if (sync) {
     DEVICE_CHECK(StreamSynchronize(stream));
   }
+}
+
+void ModelContainer::SwapConstants() {
+  if (!set_constants_flag_) {
+    LOG(WARNING) << "Called SwapConstants without any constants being set.";
+    return;
+  } else if (!fold_constants_flag_) {
+    LOG(WARNING) << "Called SwapConstants without calling FoldConstants().";
+    return;
+  }
+  std::unique_lock constants_unique_lk(constants_double_buffer_mutex_);
+  uint8_t* constants_ptr{nullptr};
+  if (constants_flag_) {
+    constants_ptr = static_cast<uint8_t*>(constants_1_.get());
+  } else {
+    constants_ptr = static_cast<uint8_t*>(constants_.get());
+  }
+  constants_flag_ = !constants_flag_;
+  for (auto& model : models_) {
+    model->ResetConstants(constants_ptr);
+  }
+
+  for (auto& [name, src] : model_constants) {
+    for (auto& model : models_) {
+      model->SetConstant(name.c_str(), src);
+    }
+  }
+  model_constants.clear();
+  set_constants_flag_ = false;
+  fold_constants_flag_ = false;
 }
 
 size_t ModelContainer::GetNumConstants(bool unbound_constants_only) const {
@@ -578,13 +718,13 @@ void ModelContainer::PrepareForRun(
   }
   for (size_t i = 0; i < num_inputs_; ++i) {
     auto& input = inputs[i];
-    ValidateDtype(input.dtype, i);
+    ValidateParamDtype(input.dtype, i);
     model->SetInput(input.ptr, input.shape, i);
   }
 
   for (size_t i = 0; i < num_outputs_; ++i) {
     auto& output = outputs[i];
-    ValidateDtype(output.dtype, i + num_inputs_);
+    ValidateParamDtype(output.dtype, i + num_inputs_);
     model->SetOutput(output.ptr, i);
   }
 }
@@ -631,28 +771,25 @@ void ModelContainer::ReclaimFinishedModels(std::unique_lock<std::mutex>& lk) {
   available_models_.push_back(model);
 }
 
-void ModelContainer::ValidateDtype(AITemplateDtype dtype, size_t idx) const {
+void ModelContainer::ValidateParamDtype(AITemplateDtype dtype, size_t idx)
+    const {
   CHECK_VECTOR_ACCESS(param_dtypes_, idx)
   if (dtype != param_dtypes_[idx]) {
-    auto GetEnumString = [](auto dtype) {
-      switch (dtype) {
-        case AITemplateDtype::kUnset:
-          return "kUnset";
-        case AITemplateDtype::kHalf:
-          return "kHalf";
-        case AITemplateDtype::kFloat:
-          return "kFloat";
-        case AITemplateDtype::kInt:
-          return "kInt";
-        case AITemplateDtype::kLong:
-          return "kLong";
-        default:
-          return "unknown";
-      }
-    };
     throw std::runtime_error(
         "Got wrong dtype for param " + std::to_string(idx) + "; expected " +
         GetEnumString(param_dtypes_[idx]) + ", got " + GetEnumString(dtype));
+  }
+}
+
+void ModelContainer::ValidateBoundConstantDtype(
+    AITemplateDtype dtype,
+    size_t idx) const {
+  CHECK_VECTOR_ACCESS(bound_constant_dtypes_, idx)
+  if (dtype != bound_constant_dtypes_[idx]) {
+    throw std::runtime_error(
+        "Got wrong dtype for param " + std::to_string(idx) + "; expected " +
+        GetEnumString(bound_constant_dtypes_[idx]) + ", got " +
+        GetEnumString(dtype));
   }
 }
 

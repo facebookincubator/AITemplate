@@ -79,6 +79,10 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
         {{ set_inputs }}
     }
 
+    void ResetConstants(uint8_t* constants) {
+        {{ reset_constants }}
+    }
+
     void DeviceToDeviceCopies(StreamType stream) {
   {{ device_to_device_copies }}
     }
@@ -174,7 +178,12 @@ ModelContainerBase::ModelContainerBase(
     size_t num_unbound_constants,
     size_t params_size,
     AITemplateAllocator& allocator)
-    : constants_(RAII_DeviceMalloc(params_size, allocator)),
+    : constants_size_(params_size),
+      constants_(RAII_DeviceMalloc(constants_size_, allocator)),
+      constants_1_(nullptr),
+      constants_flag_(true),
+      set_constants_flag_(false),
+      fold_constants_flag_(false),
       bound_constant_size_(num_bound_constants),
       bound_constant_dtypes_(num_bound_constants),
       num_params_(num_inputs + num_outputs + num_unbound_constants),
