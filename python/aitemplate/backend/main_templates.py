@@ -170,10 +170,13 @@ constexpr std::array<ConstantInfo, {{ num_constants }}> owned_constants = {
 ModelContainerBase::ModelContainerBase(
     size_t num_inputs,
     size_t num_outputs,
+    size_t num_bound_constants,
     size_t num_unbound_constants,
     size_t params_size,
     AITemplateAllocator& allocator)
     : constants_(RAII_DeviceMalloc(params_size, allocator)),
+      bound_constant_size_(num_bound_constants),
+      bound_constant_dtypes_(num_bound_constants),
       num_params_(num_inputs + num_outputs + num_unbound_constants),
       param_names_(num_params_),
       param_dtypes_(num_params_),
@@ -183,6 +186,8 @@ ModelContainerBase::ModelContainerBase(
 {{ set_up_constant_names }}
 {{ set_up_param_names }}
 {{ set_up_param_dtypes }}
+{{ set_up_bound_constant_dtypes }}
+{{ set_up_bound_constant_size }}
 {{ set_up_output_shapes }}
   for (size_t i = 0; i < num_params_; ++i) {
     max_param_numel_[i] = std::accumulate(
@@ -209,7 +214,7 @@ ModelContainerBase::ModelContainerBase(
 
 ModelContainer* CreateModelContainer(size_t num_runtimes, AITemplateAllocator& allocator) {
   // num_runtimes, blob_size, workspace_size, num_inputs, num_outputs, num_unbound_constants, param_size, allocator
-  return new ModelContainer(num_runtimes, {{num_inputs}}, {{num_outputs}}, {{num_unbound_constants}}, {{param_size}}, allocator);
+  return new ModelContainer(num_runtimes, {{num_inputs}}, {{num_outputs}}, {{num_bound_constants}}, {{num_unbound_constants}}, {{param_size}}, allocator);
 }
 } // namespace ait
 """
