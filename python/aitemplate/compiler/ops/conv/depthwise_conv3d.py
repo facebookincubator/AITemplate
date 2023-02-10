@@ -266,8 +266,6 @@ class depthwise_conv3d(Operator):
         self._attrs["inputs"] = [x, w]
         if bias:
             self._attrs["inputs"].append(bias)
-        elif self._attrs["bias"]:
-            self._attrs["inputs"].append(self._attrs["bias"])
         self._set_depth()
         output_shape = self._infer_shapes(x, w)
         self._extract_exec_path(x)
