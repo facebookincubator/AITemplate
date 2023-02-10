@@ -60,7 +60,7 @@ def _try_merge_split_cat(first_op: Operator, cat: Operator) -> bool:
     #     y = cat(y1, y2)
     # In such a case, we cannot merge those two concat ops.
     if not all(
-        accessor.stride_dim is None for accessor in cat._attrs["input_accessors"]
+        accessor.actual_shapes is None for accessor in cat._attrs["input_accessors"]
     ):
         return False
     first_op_inputs = first_op._attrs["inputs"]
