@@ -1181,8 +1181,8 @@ def _choose_conv3d_op(
 
     if bias is not None:
         assert (
-            groups == weight._attrs["shape"][0]
-        ), "Currently only support channel == groups"
+            groups == weight._attrs["shape"][0].value()
+        ), f"Currently only support channel == groups, but got channel: {weight._attrs['shape'][0].value()} and groups: {groups}"
         return depthwise_conv3d(
             stride=stride, pad=pad, dilate=dilate, group=groups, bias=True
         )(x, weight, bias)
@@ -1210,13 +1210,9 @@ def acc_ops_conv3d(
     bias = kwargs["bias"]
     assert bias is None or isinstance(bias, AITTensor)
 
-    stride = identical_elem_tuple_to_int(kwargs["stride"])
-    padding = identical_elem_tuple_to_int(kwargs["padding"])
-    dilation = identical_elem_tuple_to_int(kwargs["dilation"])
-
-    assert all(
-        isinstance(x, int) for x in [stride, padding, dilation]
-    ), "Expected int stride, padding, and dilation"
+    stride = kwargs["stride"]
+    padding = kwargs["padding"]
+    dilation = kwargs["dilation"]
 
     groups = kwargs["groups"]
 
