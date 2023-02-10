@@ -37,6 +37,7 @@ class Conv3dTestCase(unittest.TestCase):
         stride=(1, 1, 1),
         pad=(1, 1, 1),
         batch=4,
+        has_bias=False,
         test_name="conv3d",
         dtype="float16",
     ):
@@ -54,19 +55,38 @@ class Conv3dTestCase(unittest.TestCase):
             name="input_1",
             is_input=True,
         )
-        OP = ops.conv3d(stride=stride, pad=pad, dilate=1)
-        Y = OP(X, W)
+        if has_bias:
+            B = Tensor(
+                shape=[co],
+                dtype=dtype,
+                name="input_2",
+                is_input=True,
+            )
+
+        if has_bias:
+            OP = ops.conv3d_bias(stride=stride, pad=pad, dilate=1)
+            Y = OP(X, W, B)
+        else:
+            OP = ops.conv3d(stride=stride, pad=pad, dilate=1)
+            Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{has_bias}")
 
         X_pt = get_random_torch_tensor([batch, ci, tt, hh, ww], dtype=dtype)
         W_pt = get_random_torch_tensor([co, ci, kt, kh, kw], dtype=dtype)
-        Y_pt = torch.nn.functional.conv3d(X_pt, W_pt, stride=stride, padding=pad)
+        B_pt = get_random_torch_tensor([co], dtype=dtype) if has_bias else None
+
+        Y_pt = torch.nn.functional.conv3d(
+            X_pt, W_pt, bias=B_pt, stride=stride, padding=pad
+        )
         x = X_pt.permute((0, 2, 3, 4, 1)).contiguous()
         w = W_pt.permute((0, 2, 3, 4, 1)).contiguous()
         y = torch.empty_like(Y_pt).permute((0, 2, 3, 4, 1)).contiguous()
-        module.run_with_tensors({"input_0": x, "input_1": w}, [y])
+        inputs = {"input_0": x, "input_1": w}
+        if has_bias:
+            inputs["input_2"] = B_pt
+        module.run_with_tensors(inputs, [y])
         y_transpose = y.permute((0, 4, 1, 2, 3))
 
         if dtype == "float32":
@@ -75,20 +95,22 @@ class Conv3dTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
     def test_fp16(self):
-        self._test_conv3d(
-            4,
-            224,
-            224,
-            8,
-            96,
-            3,
-            5,
-            5,
-            stride=(2, 4, 4),
-            pad=(1, 2, 2),
-            test_name="conv3d_fp16_1",
-            dtype="float16",
-        )
+        for has_bias in [True, False]:
+            self._test_conv3d(
+                4,
+                224,
+                224,
+                8,
+                96,
+                3,
+                5,
+                5,
+                stride=(2, 4, 4),
+                pad=(1, 2, 2),
+                test_name="conv3d_fp16_1",
+                dtype="float16",
+                has_bias=has_bias,
+            )
         self._test_conv3d(
             56,
             56,
