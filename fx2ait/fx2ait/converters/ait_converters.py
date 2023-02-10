@@ -1453,3 +1453,14 @@ def math_sqrt(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
     return create_unary_op(FuncEnum.SQRT, args, kwargs, name)
+
+
+@ait_converter(acc_ops.neg)
+def acc_ops_neg(
+    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+    neg_one = AITTensor(shape=[], dtype="float16", name="neg_one", value=-1.0)
+    return elementwise(FuncEnum.MUL)(input_val, neg_one)
