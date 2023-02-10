@@ -81,7 +81,7 @@ def detect_target(**kwargs):
             return CUDA(arch=FLAG, **kwargs)
         else:
             return ROCM(arch=FLAG, **kwargs)
-    doc_flag = os.getenv("BUILD_DOCS", None)
+    doc_flag = os.getenv("AIT_BUILD_DOCS", None)
     if doc_flag is not None:
         return CUDA(arch="80", **kwargs)
     flag = _detect_cuda()

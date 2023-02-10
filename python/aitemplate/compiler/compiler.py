@@ -141,7 +141,7 @@ def compile_model(
     if constants is None:
         constants = {}
 
-    recompile = os.getenv("RECOMPILE", "1")
+    recompile = os.getenv("AIT_RECOMPILE", "1")
     graph = None
     # Super important: we cannot have commas in the test name.
     # We want to add a -Iworkdir/test_name flag to nvcc, but
