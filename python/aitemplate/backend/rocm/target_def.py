@@ -27,6 +27,8 @@ from typing import List
 
 from aitemplate.backend.target import AIT_STATIC_FILES_PATH
 
+from ...utils import environ
+
 from .. import registry
 from ..target import COMPOSABLE_KERNEL_PATH, Target
 
@@ -154,7 +156,7 @@ class ROCM(Target):
 
         ck_paths = self._get_ck_paths()
         options = [
-            "-O3",
+            environ.get_compiler_opt_level(),
             "-fPIC",
             "-fvisibility=hidden",
             "-std=c++17",
@@ -329,7 +331,7 @@ class FBROCM(ROCM):
 
         ck_paths = self._get_ck_paths()
         options = self.hipcc_options_json["args"] + [
-            "-O3",
+            environ.get_compiler_opt_level(),
             "-fPIC",
             "-fvisibility=hidden",
             "-std=c++17",
