@@ -1223,6 +1223,82 @@ def acc_ops_conv3d(
     return _choose_conv3d_op(stride, padding, dilation, input_val, weight, bias, groups)
 
 
+@ait_converter(acc_ops.max_pool3d)
+def acc_ops_max_pool3d(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+
+    if (
+        isinstance(kwargs["kernel_size"], tuple)
+        and isinstance(kwargs["stride"], tuple)
+        and isinstance(kwargs["padding"], tuple)
+    ):
+        kernel_size_tuple = kwargs["kernel_size"]
+        stride_tuple = kwargs["stride"]
+        padding_tuple = kwargs["padding"]
+
+        assert kernel_size_tuple[0] == 1, "max_pool3d only supports kT == 1 currently"
+        assert stride_tuple[0] == 1, "max_pool3d only supports sT == 1 currently"
+        assert (
+            padding_tuple[0] == 0
+        ), "max_pool3d only supports T_padding == 0 currently"
+
+        kernel_size = identical_elem_tuple_to_int(kernel_size_tuple[1:])
+        stride = identical_elem_tuple_to_int(stride_tuple[1:])
+        padding = identical_elem_tuple_to_int(padding_tuple[1:])
+    elif (
+        isinstance(kwargs["kernel_size"], int)
+        and isinstance(kwargs["stride"], int)
+        and isinstance(kwargs["padding"], int)
+    ):
+        kernel_size = kwargs["kernel_size"]
+        stride = kwargs["stride"]
+        padding = kwargs["padding"]
+    else:
+        raise RuntimeError("Only int or tuple types are supported")
+
+    ceil_mode = kwargs["ceil_mode"]
+    return_indices = kwargs["return_indices"]
+    if ceil_mode or return_indices:
+        raise RuntimeError(
+            "Non-default ceil_mode/count_include_pad/divisor_override not supported yet"
+        )
+
+    N = input_val.shape()[0].value()
+    C = input_val.shape()[1].value()
+    D = input_val.shape()[2].value()
+    H = input_val.shape()[3].value()
+    W = input_val.shape()[4].value()
+
+    reshape_op_0 = reshape()
+    shape_0 = (N, C * D, H, W)
+    input_val = reshape_op_0(input_val, shape_0)
+
+    permute_op_0 = permute()
+    permutation_0 = [0, 2, 3, 1]
+    input_val = permute_op_0(input_val, permutation_0)
+
+    output = max_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
+
+    permute_op_1 = permute()
+    permutation_1 = [0, 3, 1, 2]
+    output = permute_op_1(output, permutation_1)
+
+    H_o = output.shape()[2].value()
+    W_o = output.shape()[3].value()
+    reshape_op_1 = reshape()
+    shape_1 = (N, C, D, H_o, W_o)
+
+    output = reshape_op_1(output, shape_1)
+    return output
+
+
 @ait_converter(acc_ops.max_pool2d)
 def acc_ops_max_pool2d(
     target: Target,
