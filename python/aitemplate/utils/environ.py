@@ -13,17 +13,17 @@
 #  limitations under the License.
 #
 
-# flake8: noqa
+import os
 
-from . import (
-    alignment,
-    environ,
-    graph_utils,
-    import_path,
-    markdown_table,
-    misc,
-    shape_utils,
-    tensor_utils,
-    torch_utils,
-    visualization,
-)
+
+def get_compiler_opt_level() -> str:
+    # The reason: it is typical in our situation that an option
+    # --optimize <level> (-Ox) is for a HOST compiler. And -O3 does
+    # literally nothing except for the enormous compilation time.
+    #
+    # So, it is safe to allow users to override this option in order
+    # to significantly speedup the computations / testing, especially
+    # for very large models.
+    compiler_opt = os.getenv("AIT_COMPILER_OPT", "-O3")
+
+    return compiler_opt
