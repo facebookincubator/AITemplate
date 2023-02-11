@@ -299,7 +299,20 @@ class _TorchConstantTensorData(_ConstantTensorData):
         self.tensor = tensor
 
     def to_bytes(self) -> bytes:
-        return self.tensor.cpu().detach().numpy().tobytes()
+        if self.size() == 0:
+            return b""
+
+        import ctypes
+
+        t = self.tensor.contiguous().cpu().detach()
+        # We used to do tensor().numpy().tobytes() here,
+        # but numpy doesn't support bfloat16 natively,
+        # so we obtain the underlying C array.
+        # Results are flaky when tensor is not bound to a local variable.
+        raw_array = ctypes.cast(
+            t.data_ptr(), ctypes.POINTER(ctypes.c_ubyte * self.size())
+        )
+        return bytes(raw_array.contents)
 
     def size(self) -> int:
         """

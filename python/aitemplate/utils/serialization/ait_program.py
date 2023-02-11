@@ -23,6 +23,7 @@ from aitemplate.compiler.base import (
     _TorchConstantTensorData,
 )
 from aitemplate.frontend import IntVar, Tensor
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 def convert_to_ait_const(const):
@@ -79,7 +80,7 @@ class AITBasicProgram:
         const_infos = self.get_constants()
         for k, v in const_infos.items():
             getattr(self, k)._bind_data(
-                _NumpyConstantTensorData(np.random.randn(*v).astype(dtype))
+                _TorchConstantTensorData(get_random_torch_tensor(v, dtype))
             )
 
     def model(self) -> Union[Tensor, Tuple[Tensor]]:
