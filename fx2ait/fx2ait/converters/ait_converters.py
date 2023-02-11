@@ -38,6 +38,7 @@ from aitemplate.compiler.public import (
     gemm_rcr,
     gemm_rrr,
     getitem,
+    group_norm,
     IntImm,
     IntVar,
     IntVarTensor,
@@ -460,6 +461,32 @@ def acc_ops_size(
     return size()(input_val)
 
 
+@ait_converter(acc_ops.unbind)
+def acc_ops_unbind(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    dim = kwargs["dim"]
+    shape = input_val.shape()
+    res = []
+    for cnt in range(shape[dim].value()):
+        idx = []
+        for i in range(len(shape)):
+            if i != dim:
+                idx.append(slice(None, None, None))
+            else:
+                idx.append(cnt)
+        kwargs_new = {
+            "input": input_val,
+            "idx": tuple(idx),
+        }
+        res.append(acc_ops_getitem(target, args, kwargs_new, name))
+    return res
+
+
 @ait_converter(acc_ops.getitem)
 def acc_ops_getitem(
     target: Target,
@@ -824,6 +851,25 @@ def acc_ops_nan_to_num(
         AITTensor(value=posinf, shape=[], name="posinf", dtype=input_dtype),
         AITTensor(value=neginf, shape=[], name="neginf", dtype=input_dtype),
     )
+
+
+@ait_converter(acc_ops.group_norm)
+def acc_ops_group_norm(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    num_groups = kwargs["num_groups"]
+    weight_val = kwargs["weight"]
+    bias_val = kwargs["bias"]
+    eps_val = kwargs["eps"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+    num_channels = input_val.shape()[-1].value()
+    op = group_norm(num_groups, num_channels)
+    return op(input_val, weight_val, bias_val, eps_val)
 
 
 @ait_converter(acc_ops.layer_norm)
