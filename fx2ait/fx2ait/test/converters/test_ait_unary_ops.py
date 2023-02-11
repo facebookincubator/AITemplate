@@ -30,6 +30,7 @@ unary_ops = [
     (torch.cos, acc_ops.cos),
     (torch.sqrt, acc_ops.sqrt),
     (torch.clone, acc_ops.clone),
+    (torch.neg, acc_ops.neg),
 ]
 
 
