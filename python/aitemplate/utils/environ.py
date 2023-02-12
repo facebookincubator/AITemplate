@@ -12,9 +12,18 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-"""
-CUDA conv3d module init
-"""
-from . import conv3d, conv3d_bias, depthwise_conv3d, depthwise_conv3d_bias
 
-__all__ = ["conv3d", "conv3d_bias", "depthwise_conv3d", "depthwise_conv3d_bias"]
+import os
+
+
+def get_compiler_opt_level() -> str:
+    # The reason: it is typical in our situation that an option
+    # --optimize <level> (-Ox) is for a HOST compiler. And -O3 does
+    # literally nothing except for the enormous compilation time.
+    #
+    # So, it is safe to allow users to override this option in order
+    # to significantly speedup the computations / testing, especially
+    # for very large models.
+    compiler_opt = os.getenv("AIT_COMPILER_OPT", "-O3")
+
+    return compiler_opt

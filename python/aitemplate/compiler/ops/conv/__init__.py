@@ -30,6 +30,7 @@ from .conv2d_bias_sigmoid import conv2d_bias_sigmoid
 from .conv2d_depthwise import conv2d_depthwise
 from .conv2d_depthwise_bias import conv2d_depthwise_bias
 from .conv3d import conv3d
+from .conv3d_bias import conv3d_bias
 from .depthwise_conv3d import depthwise_conv3d
 from .transposed_conv2d import transposed_conv2d
 from .transposed_conv2d_bias import transposed_conv2d_bias

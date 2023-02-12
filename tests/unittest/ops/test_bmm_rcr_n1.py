@@ -28,6 +28,10 @@ from aitemplate.utils import shape_utils
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMRcrN1TestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.test_count = 0

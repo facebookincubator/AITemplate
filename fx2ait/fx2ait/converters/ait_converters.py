@@ -38,6 +38,7 @@ from aitemplate.compiler.public import (
     gemm_rcr,
     gemm_rrr,
     getitem,
+    group_norm,
     IntImm,
     IntVar,
     IntVarTensor,
@@ -460,6 +461,32 @@ def acc_ops_size(
     return size()(input_val)
 
 
+@ait_converter(acc_ops.unbind)
+def acc_ops_unbind(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    dim = kwargs["dim"]
+    shape = input_val.shape()
+    res = []
+    for cnt in range(shape[dim].value()):
+        idx = []
+        for i in range(len(shape)):
+            if i != dim:
+                idx.append(slice(None, None, None))
+            else:
+                idx.append(cnt)
+        kwargs_new = {
+            "input": input_val,
+            "idx": tuple(idx),
+        }
+        res.append(acc_ops_getitem(target, args, kwargs_new, name))
+    return res
+
+
 @ait_converter(acc_ops.getitem)
 def acc_ops_getitem(
     target: Target,
@@ -826,6 +853,25 @@ def acc_ops_nan_to_num(
     )
 
 
+@ait_converter(acc_ops.group_norm)
+def acc_ops_group_norm(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    num_groups = kwargs["num_groups"]
+    weight_val = kwargs["weight"]
+    bias_val = kwargs["bias"]
+    eps_val = kwargs["eps"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+    num_channels = input_val.shape()[-1].value()
+    op = group_norm(num_groups, num_channels)
+    return op(input_val, weight_val, bias_val, eps_val)
+
+
 @ait_converter(acc_ops.layer_norm)
 def acc_ops_layer_norm(
     target: Target,
@@ -1181,11 +1227,11 @@ def _choose_conv3d_op(
 
     if bias is not None:
         assert (
-            groups == weight._attrs["shape"][0]
-        ), "Currently only support channel == groups"
+            groups == weight._attrs["shape"][0].value()
+        ), f"Currently only support channel == groups, but got channel: {weight._attrs['shape'][0].value()} and groups: {groups}"
         return depthwise_conv3d(
-            stride=stride, pad=pad, dilate=dilate, group=groups, bias=bias
-        )(x, weight)
+            stride=stride, pad=pad, dilate=dilate, group=groups, bias=True
+        )(x, weight, bias)
     else:
         assert (
             groups is None or groups == 1
@@ -1210,17 +1256,89 @@ def acc_ops_conv3d(
     bias = kwargs["bias"]
     assert bias is None or isinstance(bias, AITTensor)
 
-    stride = identical_elem_tuple_to_int(kwargs["stride"])
-    padding = identical_elem_tuple_to_int(kwargs["padding"])
-    dilation = identical_elem_tuple_to_int(kwargs["dilation"])
-
-    assert all(
-        isinstance(x, int) for x in [stride, padding, dilation]
-    ), "Expected int stride, padding, and dilation"
+    stride = kwargs["stride"]
+    padding = kwargs["padding"]
+    dilation = kwargs["dilation"]
 
     groups = kwargs["groups"]
 
     return _choose_conv3d_op(stride, padding, dilation, input_val, weight, bias, groups)
+
+
+@ait_converter(acc_ops.max_pool3d)
+def acc_ops_max_pool3d(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+
+    if (
+        isinstance(kwargs["kernel_size"], tuple)
+        and isinstance(kwargs["stride"], tuple)
+        and isinstance(kwargs["padding"], tuple)
+    ):
+        kernel_size_tuple = kwargs["kernel_size"]
+        stride_tuple = kwargs["stride"]
+        padding_tuple = kwargs["padding"]
+
+        assert kernel_size_tuple[0] == 1, "max_pool3d only supports kT == 1 currently"
+        assert stride_tuple[0] == 1, "max_pool3d only supports sT == 1 currently"
+        assert (
+            padding_tuple[0] == 0
+        ), "max_pool3d only supports T_padding == 0 currently"
+
+        kernel_size = identical_elem_tuple_to_int(kernel_size_tuple[1:])
+        stride = identical_elem_tuple_to_int(stride_tuple[1:])
+        padding = identical_elem_tuple_to_int(padding_tuple[1:])
+    elif (
+        isinstance(kwargs["kernel_size"], int)
+        and isinstance(kwargs["stride"], int)
+        and isinstance(kwargs["padding"], int)
+    ):
+        kernel_size = kwargs["kernel_size"]
+        stride = kwargs["stride"]
+        padding = kwargs["padding"]
+    else:
+        raise RuntimeError("Only int or tuple types are supported")
+
+    ceil_mode = kwargs["ceil_mode"]
+    return_indices = kwargs["return_indices"]
+    if ceil_mode or return_indices:
+        raise RuntimeError(
+            "Non-default ceil_mode/count_include_pad/divisor_override not supported yet"
+        )
+
+    N = input_val.shape()[0].value()
+    C = input_val.shape()[1].value()
+    D = input_val.shape()[2].value()
+    H = input_val.shape()[3].value()
+    W = input_val.shape()[4].value()
+
+    reshape_op_0 = reshape()
+    shape_0 = (N, C * D, H, W)
+    input_val = reshape_op_0(input_val, shape_0)
+
+    permute_op_0 = permute()
+    permutation_0 = [0, 2, 3, 1]
+    input_val = permute_op_0(input_val, permutation_0)
+
+    output = max_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
+
+    permute_op_1 = permute()
+    permutation_1 = [0, 3, 1, 2]
+    output = permute_op_1(output, permutation_1)
+
+    H_o = output.shape()[2].value()
+    W_o = output.shape()[3].value()
+    reshape_op_1 = reshape()
+    shape_1 = (N, C, D, H_o, W_o)
+
+    output = reshape_op_1(output, shape_1)
+    return output
 
 
 @ait_converter(acc_ops.max_pool2d)
@@ -1381,3 +1499,14 @@ def math_sqrt(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
     return create_unary_op(FuncEnum.SQRT, args, kwargs, name)
+
+
+@ait_converter(acc_ops.neg)
+def acc_ops_neg(
+    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+    neg_one = AITTensor(shape=[], dtype="float16", name="neg_one", value=-1.0)
+    return elementwise(FuncEnum.MUL)(input_val, neg_one)

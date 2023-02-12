@@ -16,6 +16,7 @@
 Unittests for fused_elementwise Operator.
 """
 
+import itertools
 import unittest
 from typing import List
 
@@ -34,6 +35,7 @@ from aitemplate.testing.test_utils import (
     get_torch_full_tensor,
 )
 from aitemplate.utils import shape_utils
+from parameterized import parameterized
 
 ait_dtype_to_pytorch = {"float16": torch.float16}
 if detect_target().name() != "rocm":
@@ -43,6 +45,10 @@ if detect_target().name() != "rocm":
 
 
 class FusedElementwiseTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def _test_fused_elementwise_constructor(self, ait_dtype):
         BATCH_SIZE = 1024
         M = 256
@@ -350,31 +356,47 @@ class FusedElementwiseTestCase(unittest.TestCase):
         # t, _, _ = module.benchmark_with_tensors([x1_pt], [x2], count=1000)
         # bw = input_size[0] * input_size[1] * 2 * 2 / (t * 1e9 * 1e-3)
         # print(f"BW: {bw} GB/s")
-        self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2, equal_nan=True))
+        torch.testing.assert_close(x2, x2_pt, atol=1e-3, rtol=1e-3, equal_nan=True)
 
-    def test_power(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            for i, exp in enumerate(
-                [0.0, 1.0, 2.0, 3.0, -2.0, 0.5, -0.5, -1.0, 2.5, -2.5]
-            ):
-                input_sizes = [1024, 22400]
-                self._test_power(
-                    input_sizes,
-                    exp,
-                    f"pow_{input_sizes[0]}_{input_sizes[1]}_{i}_{ait_dtype}",
-                    ait_dtype,
-                )
+    @parameterized.expand(
+        itertools.product(
+            (0, 1, -1, 0.5, -0.5, 2, -2, 1.4, 3),
+            ([1024, 1024], [1025, 1025]),
+        )
+    )
+    def test_power_float16(self, exp, shape):
+        dtype = "float16"
+        self._test_power(
+            shape,
+            exp,
+            f"pow_{shape[0]}_{shape[1]}_{exp}_{dtype}",
+            dtype,
+        )
 
-            for i, exp in enumerate(
-                [0.0, 1.0, 2.0, 3.0, -2.0, 0.5, -0.5, -1.0, 2.5, -2.5]
-            ):
-                input_sizes = [1025, 22401]
-                self._test_power(
-                    input_sizes,
-                    exp,
-                    f"pow_{input_sizes[0]}_{input_sizes[1]}_{i}_{ait_dtype}",
-                    ait_dtype,
-                )
+    @unittest.skipIf(
+        detect_target().name() != "cuda", "float32 dtype only supported in CUDA"
+    )
+    def test_power_float32(self):
+        self._test_power(
+            (1024, 1024),
+            2.5,
+            "pow_float32",
+            "float32",
+        )
+
+    @unittest.skipIf(
+        detect_target().name() != "cuda", "bfloat16 dtype only supported in CUDA"
+    )
+    @unittest.skipIf(
+        int(detect_target()._arch) < 80, "bfloat16 dtype only supported in CUDA sm80+"
+    )
+    def test_power_bfloat16(self):
+        self._test_power(
+            (1024, 1024),
+            1.2,
+            "pow_bfloat16",
+            "bfloat16",
+        )
 
     def _test_min_max(
         self,

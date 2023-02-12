@@ -12,9 +12,26 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-"""
-CUDA conv3d module init
-"""
-from . import conv3d, conv3d_bias, depthwise_conv3d, depthwise_conv3d_bias
+import torch
+from fx2ait.tools.common_fx2ait import AITTestCase
+from torch import nn
 
-__all__ = ["conv3d", "conv3d_bias", "depthwise_conv3d", "depthwise_conv3d_bias"]
+
+class TestUnbindTensor(AITTestCase):
+    def test_unbind(self):
+        class GetItem(nn.Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, x):
+                y = torch.unbind(x, dim=2)
+                z = y[0]
+                return z
+
+        mod = GetItem().half().cuda()
+        inputs = [torch.randn(2, 3, 4).half().cuda()]
+        self.run_test(
+            mod,
+            inputs,
+            expected_ops={},
+        )

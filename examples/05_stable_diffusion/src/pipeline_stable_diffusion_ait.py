@@ -293,6 +293,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
                 uncond_tokens,
                 padding="max_length",
                 max_length=max_length,
+                truncation=True,
                 return_tensors="pt",
             )
             uncond_embeddings = self.clip_inference(
