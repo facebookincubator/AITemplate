@@ -3226,6 +3226,29 @@ def clone(*, input):
     return torch.clone(input)
 
 
+@register_acc_op_mapping(op_and_target=("call_function", torch.unbind))
+@register_acc_op
+def unbind(*, input, dim=0):
+    return torch.unbind(input, dim=dim)
+
+
+@register_acc_op_mapping(
+    op_and_target=("call_function", torch.nn.functional.group_norm),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("num_groups", "num_groups"),
+        ("weight", "weight"),
+        ("bias", "bias"),
+        ("eps", "eps"),
+    ],
+)
+@register_acc_op
+def group_norm(*, input, num_groups, weight=None, bias=None, eps=1e-05):
+    return torch.nn.functional.group_norm(
+        input, num_groups, weight=weight, bias=bias, eps=eps
+    )
+
+
 ###############################################################################
 
 # Set ops as side-effectul, this prevents them from being optimized away or
