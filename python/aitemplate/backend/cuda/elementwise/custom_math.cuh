@@ -920,4 +920,32 @@ __device__ bfloat16_2 h2elu(const bfloat16_2 op_input, const bfloat16_2 alpha) {
 #endif
 }
 
+__device__ half hsoftsign(const half a) {
+  return __hdiv(a, __hadd(CUDA_FP16_ONE, __habs(a)));
+}
+
+__device__ half2 h2softsign(const half2 a) {
+  return __h2div(a, __hadd2(half2(1.0, 1.0), __habs2(a)));
+}
+
+__device__ float fsoftsign(const float a) {
+  return a / (1.0f + fabsf(a));
+}
+
+__device__ bfloat16 hsoftsign(const bfloat16 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return __hdiv(a, __hadd(CUDA_BF16_ONE, __habs(a)));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ bfloat16_2 h2softsign(const bfloat16_2 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return __h2div(a, __hadd2(bfloat16_2(1.0, 1.0), __habs2(a)));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
 #endif

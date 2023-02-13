@@ -258,6 +258,13 @@ class GPUBackendSpec(BackendSpec):
                 "bfloat16": "helu",
                 "float": "felu",
             },
+            FuncEnum.SOFTSIGN: {
+                "float": "fsoftsign",
+                "half": "hsoftsign",
+                "half2": "h2softsign",
+                "bfloat16": "hsoftsign",
+                "bfloat16_2": "h2softsign",
+            },
         }
     )
 
