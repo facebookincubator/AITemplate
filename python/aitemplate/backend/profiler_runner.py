@@ -236,16 +236,16 @@ class ProfilerRunner:
     however, the results are empirically better compared to the previous runner.
     """
 
-    def __init__(self, devices: List[str], timeout: int, postprocessing_delegate):
+    def __init__(self, devices: List[str], postprocessing_delegate, timeout: int = 300):
         """
         Parameters
         ----------
         devices : List[str]
             device identifiers (contents of {CUDA,HIP}_VISIBLE_DEVICES)
-        timeout : int
-            timeout to wait for all profilers completion in seconds
         postprocessing_delegate :
             object responsible for postprocessing results after futures completion
+        timeout : int
+            timeout to wait for all profilers completion in seconds
         """
         if devices is None:
             devices = [0]
