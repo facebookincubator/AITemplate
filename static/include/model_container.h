@@ -39,11 +39,18 @@ class ModelContainerBase {
   ModelContainerBase(
       size_t num_inputs,
       size_t num_outputs,
+      size_t num_bound_constants,
       size_t num_unbound_constants,
       size_t params_size,
       AITemplateAllocator& allocator);
 
  protected:
+  // The set of bounded constants/weights/parameters. These are constants which
+  // have value during compile time. We maintain it's size, and unlike unbound
+  // constants, we do not need to check whether they are set via SetConstant
+  // prior to inference.
+  std::unordered_map<std::string, size_t> bound_constant_name_to_idx_;
+
   // The set of unbound constants/weights/parameters. These are constants which
   // have no value at compile time and do not participate in constant folding.
   // They must be set via SetConstant prior to inference.
@@ -51,7 +58,10 @@ class ModelContainerBase {
 
   // The names of all tensors that are required for constant folding, but are
   // not necessarily in the final graph.
+  // constant_folding_optional_inputs_ are those that has initial value during
+  // compile time.
   std::unordered_set<std::string> constant_folding_inputs_;
+  std::unordered_set<std::string> constant_folding_optional_inputs_;
 
   // Offsets here correspond to the offsets of constants that were the outputs
   // of constant folding. The indices are guaranteed to map to the correct
@@ -69,6 +79,10 @@ class ModelContainerBase {
   std::vector<const char*> param_names_;
   std::vector<std::vector<int64_t>> max_param_shapes_;
   std::vector<AITemplateDtype> param_dtypes_;
+
+  // These are entries used for bound constants.
+  std::vector<size_t> bound_constant_size_;
+  std::vector<AITemplateDtype> bound_constant_dtypes_;
 
   // NB: technically these could be derived from both the max shape and
   // the dytpe, but it's easier to just cache them.
@@ -122,6 +136,7 @@ class ModelContainer : ModelContainerBase {
       size_t num_models,
       size_t num_inputs,
       size_t num_outputs,
+      size_t num_bound_constants,
       size_t num_unbound_constants,
       size_t params_size,
       AITemplateAllocator& allocator);
@@ -192,8 +207,8 @@ class ModelContainer : ModelContainerBase {
 
   void FoldConstants(StreamType stream, bool sync);
 
-  size_t GetNumConstants() const;
-  size_t GetNumConstantFoldingInputs() const;
+  size_t GetNumConstants(bool unbound_constants_only = true) const;
+  size_t GetNumConstantFoldingInputs(bool unbound_constants_only = true) const;
 
   // Write all constant names to the array pointed to by names_out.
   // This function assumes that names_out has enough space to hold
@@ -201,6 +216,7 @@ class ModelContainer : ModelContainerBase {
   // are guaranteed to live as long as their owning ModelContainer.
   void WriteAllConstantNamesTo(
       const char** names_out,
+      bool unbound_constants_only,
       bool constant_folding_inputs_only) const;
 
  private:

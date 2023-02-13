@@ -125,6 +125,7 @@ AIT_EXPORT AITemplateError AITemplateModelContainerSetManyConstants(
 
 AITemplateError AITemplateModelContainerGetNumConstants(
     AITemplateModelHandle handle,
+    bool unbound_constants_only,
     bool constant_folding_inputs_only,
     size_t* num_constants_out) {
   RETURN_ERROR_IF_NULL(handle)
@@ -132,15 +133,17 @@ AITemplateError AITemplateModelContainerGetNumConstants(
   auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
   CONVERT_EXCEPTION_TO_ERROR_CODE({
     if (constant_folding_inputs_only) {
-      *num_constants_out = m->GetNumConstantFoldingInputs();
+      *num_constants_out =
+          m->GetNumConstantFoldingInputs(unbound_constants_only);
     } else {
-      *num_constants_out = m->GetNumConstants();
+      *num_constants_out = m->GetNumConstants(unbound_constants_only);
     }
   })
 }
 
 AITemplateError AITemplateModelContainerGetConstantNames(
     AITemplateModelHandle handle,
+    bool unbound_constants_only,
     bool constant_folding_inputs_only,
     const char** constant_names_out) {
   RETURN_ERROR_IF_NULL(handle)
@@ -149,7 +152,9 @@ AITemplateError AITemplateModelContainerGetConstantNames(
   auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
   CONVERT_EXCEPTION_TO_ERROR_CODE({
     m->WriteAllConstantNamesTo(
-        constant_names_out, constant_folding_inputs_only);
+        constant_names_out,
+        unbound_constants_only,
+        constant_folding_inputs_only);
   })
 }
 
