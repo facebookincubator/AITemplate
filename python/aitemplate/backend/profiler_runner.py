@@ -313,9 +313,6 @@ class ProfilerRunner:
         done, not_done = concurrent.futures.wait(self._futures, self._timeout)
         for f in not_done:
             f.cancel()
-        # block until each done_callback completes,
-        # or raise Empty exception after 3 minutes of waiting
-        block_timeout = 3 * 60
         for _ in self._futures:
-            self._done_queue.get(timeout=block_timeout)
+            self._done_queue.get(timeout=self._timeout)
         self._postprocessing_delegate.postprocess_results()
