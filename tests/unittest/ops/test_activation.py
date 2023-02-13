@@ -255,6 +255,38 @@ class FusedElementwiseTestCase(unittest.TestCase):
             module.run_with_tensors([x1_pt], [x2])
             self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
 
+    def _test_softsign(
+        self,
+        input_shape,
+        test_name="softsign",
+        copy_op=False,
+    ):
+        for torch_dtype in TORCH_FP_DTYPES:
+            dtype = torch_dtype_to_string(torch_dtype)
+            X1 = Tensor(
+                shape=[IntImm(dim) for dim in input_shape],
+                dtype=dtype,
+                name="input",
+                is_input=True,
+            )
+            X2_op = ops.elementwise(FuncEnum.SOFTSIGN)
+            if copy_op:
+                X2_op = ops.elementwise(**X2_op._get_op_attributes())
+            X2 = X2_op(X1)
+            X2._attrs["is_output"] = True
+            X2._attrs["name"] = "output"
+
+            target = detect_target()
+            module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+
+            x1_pt = torch.randn(input_shape, dtype=torch_dtype).cuda()
+            OP_pt = torch.nn.Softsign()
+            x2_pt = OP_pt(x1_pt)
+
+            x2 = torch.empty_like(x2_pt)
+            module.run_with_tensors([x1_pt], [x2])
+            self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+
     def test_lrelu(self):
         self._test_leaky_relu([512, 512], test_name="leaky_relu_1")
         self._test_leaky_relu(
@@ -365,6 +397,12 @@ class FusedElementwiseTestCase(unittest.TestCase):
             test_name="elu_3_copy_op",
             copy_op=True,
         )
+
+    def test_softsign(self):
+        self._test_softsign([61], test_name="softsign_1")
+        self._test_softsign([128], test_name="softsign_2")
+        self._test_softsign([128], test_name="softsign_3", copy_op=True)
+        self._test_softsign([121, 128], test_name="softsign_4")
 
 
 if __name__ == "__main__":

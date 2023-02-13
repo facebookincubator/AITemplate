@@ -105,3 +105,7 @@ def softplus(tensor: Any) -> Tensor:
 
 def elu(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("ELU")(tensor)
+
+
+def softsign(tensor: Any) -> Tensor:
+    return OP_REGISTRY.get("SOFTSIGN")(tensor)
