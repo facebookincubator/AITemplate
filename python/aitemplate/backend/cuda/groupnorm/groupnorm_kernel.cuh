@@ -894,7 +894,6 @@ void GroupNormForwardGpu(
     ComputeType* mean,
     ComputeType* inv_variance,
     bool channels_first) {
-  // using ComputeType = typename layer_norm::DefaultComputeType<T>::type;
   if (channels_first) {
     layer_norm::DirectLoad<T, ComputeType> load(x_ptr, norm_size);
     AffineStore<ComputeType, T, affine, FuseSwish> store(
@@ -950,7 +949,7 @@ void DispatchGroupNormForwardGpu(
     T2* mean,
     T2* inv_variance,
     bool channels_first) {
-  using ComputeType = typename layer_norm::DefaultComputeType<T>::type;
+  using ComputeType = T2;
   if (gamma_ptr != nullptr && beta_ptr != nullptr) {
     GroupNormForwardGpu<T, ComputeType, true, FuseSwish>(
         stream,

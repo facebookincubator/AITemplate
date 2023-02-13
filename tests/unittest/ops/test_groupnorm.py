@@ -118,7 +118,7 @@ class GroupnormTestCase(unittest.TestCase):
         )
         self.test_count += 1
 
-    def test_groupnorm(self):
+    def test_groupnorm_float16(self):
         self._test_groupnorm()
         self._test_groupnorm(x_shape=[3, 3, 1, 4], num_groups=2, eps=1e-5)
         self._test_groupnorm(x_shape=[7, 13, 9, 12], num_groups=4, eps=1e-5)
@@ -165,7 +165,7 @@ class GroupnormTestCase(unittest.TestCase):
             )
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    def test_float32(self):
+    def test_groupnorm_float32(self):
         # H % 8 != 0
         self._test_groupnorm(
             x_shape=[7, 13, 9, 12],
