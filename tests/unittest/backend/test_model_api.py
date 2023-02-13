@@ -1546,6 +1546,7 @@ class ModelAPITestCase(unittest.TestCase):
         module.run_with_tensors([input_0_pt], [output_ait])
 
         self.assertTrue(torch.equal(output_pt, output_ait))
+        self.assertTrue(torch.equal(output_pt, output_ait))
 
 
 if __name__ == "__main__":
