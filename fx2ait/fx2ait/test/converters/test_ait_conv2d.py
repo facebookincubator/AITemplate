@@ -59,6 +59,4 @@ class TestConv2dConverter(AITTestCase):
             model,
             inputs,
             expected_ops={acc_ops.conv2d},
-            permute_inputs=[0, 2, 3, 1],
-            permute_outputs=[0, 3, 1, 2],
         )

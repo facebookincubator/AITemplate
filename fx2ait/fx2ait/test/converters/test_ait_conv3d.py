@@ -173,6 +173,4 @@ class TestAitConv3d(AITTestCase):
             model,
             inputs,
             expected_ops={acc_ops.conv3d},
-            permute_inputs=[0, 2, 3, 4, 1],  # inputs should be NDHWC
-            permute_outputs=[0, 4, 1, 2, 3],
         )
