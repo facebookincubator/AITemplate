@@ -155,6 +155,19 @@ AIT_EXPORT AITemplateError AITemplateModelContainerSetManyConstants(
     const AITData* tensors,
     size_t num_tensors);
 
+AIT_EXPORT AITemplateError AITemplateModelContainerSetDoubleBufferConstant(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    const char* name,
+    const AITData* tensor);
+
+AIT_EXPORT AITemplateError AITemplateModelContainerSetManyDoubleBufferConstants(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors);
+
 AIT_EXPORT AITemplateError AITemplateModelContainerGetNumConstants(
     AITemplateModelHandle handle,
     bool unbound_constants_only,
@@ -263,6 +276,14 @@ AIT_EXPORT AITemplateError AITemplateModelContainerFoldConstants(
     AITemplateModelHandle handle,
     AITemplateStreamHandle stream_handle,
     bool sync);
+
+AIT_EXPORT AITemplateError AITemplateModelContainerFoldConstantsInDoubleBuffer(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    bool sync);
+
+AIT_EXPORT AITemplateError
+AITemplateModelContainerSwapConstants(AITemplateModelHandle handle);
 
 AIT_EXPORT AITemplateError AITemplateAllocatorCreate(
     AITemplateAllocator** allocator_out,
