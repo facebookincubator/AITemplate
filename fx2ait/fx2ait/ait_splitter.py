@@ -153,7 +153,8 @@ class AITSplitter(splitter_base._SplitterBase):
                 torch.float16,
                 torch.float,
                 1,  # num_runtimes
-            )
+            ),
+            interpreter_result,
         )
 
     # TODO add _find_culprit once minimizer completed
