@@ -257,10 +257,10 @@ class Detectron2Verification(unittest.TestCase):
         if not os.path.exists(checkpoint_path):
             os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
             if ManifoldClient is not None:
-                with ManifoldClient.get_client("aitemplate") as client:
+                with ManifoldClient.get_client("glow_test_data") as client:
                     await_sync(
                         client.get(
-                            f"tree/detectron2/pickles/{config}_FPN_3x.pkl",
+                            f"tree/aitemplate/detectron2/pickles/{config}_FPN_3x.pkl",
                             checkpoint_path,
                         )
                     )

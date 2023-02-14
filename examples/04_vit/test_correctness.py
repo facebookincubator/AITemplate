@@ -93,7 +93,7 @@ class VITVerification(unittest.TestCase):
             num_heads = 12
             global_pool = "token"
             vit_pt_def = vit_base_patch16_224
-            path = "tree/vit-pt/vit_base_patch16_224.pt"
+            path = "tree/aitemplate/vit-pt/vit_base_patch16_224.pt"
 
         elif model_name == "vit_large_patch16_384":
             img_size = 384
@@ -101,12 +101,12 @@ class VITVerification(unittest.TestCase):
             embed_dim = 1024
             num_heads = 16
             vit_pt_def = vit_large_patch16_384
-            path = "tree/vit-pt/vit_large_patch16_384.pt"
+            path = "tree/aitemplate/vit-pt/vit_large_patch16_384.pt"
         if ManifoldClient is None:
             vit_pt = vit_pt_def(pretrained=True)
         else:
             stream = io.BytesIO()
-            with ManifoldClient.get_client(bucket="aitemplate") as client:
+            with ManifoldClient.get_client(bucket="glow_test_data") as client:
                 await_sync(
                     client.get(
                         path,
