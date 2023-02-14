@@ -22,7 +22,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
-_DEFAULT_BATCH_SIZE = [1, 16]
+_DEFAULT_BATCH_SIZE = [1, 3]
 
 
 class UpsamplingAddTestCase(unittest.TestCase):
