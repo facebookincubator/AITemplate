@@ -89,6 +89,46 @@ class FusedElementwiseTestCase(unittest.TestCase):
             module.run_with_tensors([x1_pt], [x2])
             self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
 
+    def _test_floor_div(
+        self,
+        input_size,
+        test_name="floor_div",
+        dividend=2,
+        copy_op=False,
+    ):
+        for torch_dtype in TORCH_FP_DTYPES:
+            dtype = torch_dtype_to_string(torch_dtype)
+            assert len(input_size) == 2
+            X1 = Tensor(
+                shape=[IntImm(input_size[0]), IntImm(input_size[1])],
+                dtype=dtype,
+                name="input0",
+                is_input=True,
+            )
+            slope = Tensor(
+                shape=[],
+                dtype=dtype,
+                name="input1",
+                value=dividend,
+            )
+            X2_op = ops.elementwise(FuncEnum.FLOOR_DIV)
+
+            if copy_op:
+                X2_op = ops.elementwise(**X2_op._get_op_attributes())
+            X2 = X2_op(X1, slope)
+            X2._attrs["is_output"] = True
+            X2._attrs["name"] = "output0"
+
+            target = detect_target()
+            module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+
+            x1_pt = torch.randn(input_size, dtype=torch_dtype).cuda()
+            x2_pt = torch.floor_divide(x1_pt, dividend)
+
+            x2 = torch.empty_like(x2_pt)
+            module.run_with_tensors([x1_pt], [x2])
+            self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+
     def _test_hardtanh(
         self,
         input_size,
@@ -404,6 +444,14 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self._test_softsign([128], test_name="softsign_3", copy_op=True)
         self._test_softsign([121, 128], test_name="softsign_4")
 
+    def test_floor_div(self):
+        self._test_floor_div([512, 512], test_name="floor_div_1")
+        self._test_floor_div(
+            [1024, 1024],
+            dividend=3,
+            test_name="test_floor_div_2_copy_op",
+            copy_op=True,
+        )
 
 if __name__ == "__main__":
     unittest.main()
