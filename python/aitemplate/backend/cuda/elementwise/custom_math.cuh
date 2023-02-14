@@ -949,19 +949,16 @@ __device__ bfloat16_2 h2softsign(const bfloat16_2 a) {
 }
 
 __device__ float floor_div(const float a, const float b) {
-  int quotient = a / b;
-  return static_cast<float>(quotient);
+  return floor(a / b);
 }
 
 __device__ half floor_div(const half a, const half b) {
-  float quotient = floor_div(__half2float(a), __half2float(b));
-  return __float2half_rn(quotient);
+  return hfloor(__hdiv(a, b));
 }
 
 __device__ bfloat16 floor_div(const bfloat16 a, const bfloat16 b) {
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
-  float quotient = floor_div(__bfloat162float(a), __bfloat162float(b));
-  return bfloat16(quotient);
+  return hfloor(__hdiv(a, b));
 #else
   NOT_IMPLEMENTED();
 #endif
