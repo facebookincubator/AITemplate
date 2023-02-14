@@ -123,7 +123,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
             module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
 
             x1_pt = torch.randn(input_size, dtype=torch_dtype).cuda()
-            x2_pt = torch.div(x1_pt, dividend, rounding_mode='floor')
+            x2_pt = torch.div(x1_pt, dividend, rounding_mode="floor")
 
             x2 = torch.empty_like(x2_pt)
             module.run_with_tensors([x1_pt], [x2])
