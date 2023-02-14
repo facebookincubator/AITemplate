@@ -537,8 +537,10 @@ void ModelContainer::PrepareForRun(
     size_t num_inputs,
     AITData* outputs,
     size_t num_outputs) {
-  if (num_inputs != num_inputs_) {
-    auto msg = "Got wrong number of inputs; expected " +
+  if (num_inputs < num_inputs_) {
+    // num_inputs is fed by python, after optimization, AIT's num_inputs_ can
+    // be less than python's num_inputs
+    auto msg = "Got wrong number of inputs; expected equal or more than " +
         std::to_string(num_inputs_) + ", got " + std::to_string(num_inputs);
     throw std::runtime_error(std::move(msg));
   }
