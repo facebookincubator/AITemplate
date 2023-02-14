@@ -70,6 +70,12 @@ from torch.fx.node import Argument, Target
 from .converter_registry import ait_converter
 
 from .utils import (
+    ait_ncdhw2ndhwc,
+    ait_nchw2nhwc,
+    ait_ncl2nlc,
+    ait_ndhwc2ncdhw,
+    ait_nhwc2nchw,
+    ait_nlc2ncl,
     create_binary_op,
     create_reduce_op,
     create_unary_op,
@@ -78,6 +84,8 @@ from .utils import (
     ncdhw2ndhwc,
     nchw2nhwc,
     unify_dynamic_shape_name,
+    weight_ncdhw2ndhwc,
+    weight_nchw2nhwc,
 )
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -716,13 +724,13 @@ def acc_ops_conv_transpose2d(
     output_padding = identical_elem_tuple_to_int(kwargs["output_padding"])
     assert output_padding == 0, "output_padding is not 0!"
 
-    input_val = kwargs["input"]
+    input_val = ait_nchw2nhwc(kwargs["input"])
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
     weight = kwargs["weight"]
     assert isinstance(weight, AITTensor)
-    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 1)
+    weight = weight_nchw2nhwc(weight)
     weight._attrs["shape"] = nchw2nhwc(weight._attrs["shape"])
     w_last_dim = weight._attrs["data"].tensor.shape[-1]
 
@@ -817,7 +825,7 @@ def acc_ops_conv_transpose2d(
         ]
         result = concatenate()(conv_groups, dim=3)
 
-    return result
+    return ait_nhwc2nchw(result)
 
 
 @ait_converter(acc_ops.nan_to_num)
@@ -1055,10 +1063,21 @@ def acc_ops_batch_norm(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    # TODO @qxy11: Update channels-last assumption once AIT backend is updated
     input_val = kwargs["input"]
+    input_shape = input_val._attrs["shape"]
+    input_rank = len(input_shape)
+    assert 2 <= input_rank <= 5, f"expected {input_rank=} to be within [2, 5]"
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+    if input_rank == 3:
+        # BatchNorm1d
+        input_val = ait_ncl2nlc(input_val)
+    elif input_rank == 4:
+        # BatchNorm2d
+        input_val = ait_nchw2nhwc(input_val)
+    elif input_rank == 5:
+        # BatchNorm3d
+        input_val = ait_ncdhw2ndhwc(input_val)
 
     scale = elementwise(FuncEnum.DIV)(
         kwargs["weight"],
@@ -1068,8 +1087,30 @@ def acc_ops_batch_norm(
         ),
     )
     bias = elementwise(FuncEnum.SUB)(kwargs["bias"], kwargs["running_mean"])
-    matmul_result = elementwise(FuncEnum.MUL)(input_val, scale)
-    result = elementwise(FuncEnum.ADD)(matmul_result, bias)
+
+    scale_dim_val = scale._attrs["shape"][0].value()
+
+    # input is channel-last after permute
+    input_shape = input_val._attrs["shape"]
+    channel_dim = -1
+    assert isinstance(
+        input_shape[channel_dim], IntImm
+    ), f"expected channel at {channel_dim=} in {input_shape=} to be static"
+    channel_dim_val = input_shape[channel_dim].value()
+    assert (
+        channel_dim_val == scale_dim_val
+    ), f"expected {channel_dim_val=} to be the same as {scale_dim_val=}"
+    mul_result = elementwise(FuncEnum.MUL)(input_val, scale)
+    result = elementwise(FuncEnum.ADD)(mul_result, bias)
+    if input_rank == 3:
+        # BatchNorm1d
+        result = ait_nlc2ncl(result)
+    elif input_rank == 4:
+        # BatchNorm2d
+        result = ait_nhwc2nchw(result)
+    elif input_rank == 5:
+        # BatchNorm3d
+        result = ait_ndhwc2ncdhw(result)
     return result
 
 
@@ -1120,14 +1161,13 @@ def acc_ops_conv2d(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    # TODO: qxy11: Update once channels-first format is supported
-    input_val = kwargs["input"]
+    input_val = ait_nchw2nhwc(kwargs["input"])
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
     weight = kwargs["weight"]
     assert isinstance(weight, AITTensor)
-    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 1)
+    weight = weight_nchw2nhwc(weight)
     weight._attrs["shape"] = nchw2nhwc(weight._attrs["shape"])
 
     bias = kwargs["bias"]
@@ -1206,6 +1246,7 @@ def acc_ops_conv2d(
         ]
         result = concatenate()(conv_groups, dim=3)
 
+    result = ait_nhwc2nchw(result)
     return result
 
 
@@ -1222,9 +1263,6 @@ def _choose_conv3d_op(
     Helper to choose conv3d vs. depthwise_conv3d op based on existence of bias
     and groups
     """
-    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 4, 1)
-    weight._attrs["shape"] = ncdhw2ndhwc(weight._attrs["shape"])
-
     if bias is not None:
         assert (
             groups == weight._attrs["shape"][0].value()
@@ -1246,12 +1284,14 @@ def acc_ops_conv3d(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    input_val = kwargs["input"]
+    input_val = ait_ncdhw2ndhwc(kwargs["input"])
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
     weight = kwargs["weight"]
     assert isinstance(weight, AITTensor)
+    weight = weight_ncdhw2ndhwc(weight)
+    weight._attrs["shape"] = ncdhw2ndhwc(weight._attrs["shape"])
 
     bias = kwargs["bias"]
     assert bias is None or isinstance(bias, AITTensor)
@@ -1262,7 +1302,10 @@ def acc_ops_conv3d(
 
     groups = kwargs["groups"]
 
-    return _choose_conv3d_op(stride, padding, dilation, input_val, weight, bias, groups)
+    result = _choose_conv3d_op(
+        stride, padding, dilation, input_val, weight, bias, groups
+    )
+    return ait_ndhwc2ncdhw(result)
 
 
 @ait_converter(acc_ops.max_pool3d)
@@ -1322,15 +1365,11 @@ def acc_ops_max_pool3d(
     shape_0 = (N, C * D, H, W)
     input_val = reshape_op_0(input_val, shape_0)
 
-    permute_op_0 = permute()
-    permutation_0 = [0, 2, 3, 1]
-    input_val = permute_op_0(input_val, permutation_0)
+    input_val = ait_nchw2nhwc(input_val)
 
     output = max_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
 
-    permute_op_1 = permute()
-    permutation_1 = [0, 3, 1, 2]
-    output = permute_op_1(output, permutation_1)
+    output = ait_nhwc2nchw(output)
 
     H_o = output.shape()[2].value()
     W_o = output.shape()[3].value()
@@ -1348,8 +1387,7 @@ def acc_ops_max_pool2d(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    # TODO: @qxy11 Update once NCHW supported
-    input_val = kwargs["input"]
+    input_val = ait_nchw2nhwc(kwargs["input"])
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
@@ -1362,7 +1400,8 @@ def acc_ops_max_pool2d(
         raise RuntimeError(
             "Non-default ceil_mode/count_include_pad/divisor_override not supported yet"
         )
-    return max_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
+    result = max_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
+    return ait_nhwc2nchw(result)
 
 
 @ait_converter(acc_ops.avg_pool2d)
@@ -1372,8 +1411,7 @@ def acc_ops_avg_pool2d(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    # TODO: @qxy11 Update once NCHW supported
-    input_val = kwargs["input"]
+    input_val = ait_nchw2nhwc(kwargs["input"])
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
@@ -1387,7 +1425,8 @@ def acc_ops_avg_pool2d(
         raise RuntimeError(
             "Non-default ceil_mode/count_include_pad/divisor_override not supported yet"
         )
-    return avg_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
+    result = avg_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
+    return ait_nhwc2nchw(result)
 
 
 @ait_converter(acc_ops.adaptive_avg_pool2d)
@@ -1397,8 +1436,7 @@ def acc_ops_adaptive_avg_pool2d(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    # TODO: @qxy11 Update once NCHW supported
-    input_val = kwargs["input"]
+    input_val = ait_nchw2nhwc(kwargs["input"])
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     output_size = identical_elem_tuple_to_int(kwargs["output_size"])
@@ -1416,7 +1454,8 @@ def acc_ops_adaptive_avg_pool2d(
     stride = HI // output_size
     kernel_size = HI - (output_size - 1) * stride
 
-    return avg_pool2d(kernel_size=kernel_size, stride=stride, pad=0)(input_val)
+    result = avg_pool2d(kernel_size=kernel_size, stride=stride, pad=0)(input_val)
+    return ait_nhwc2nchw(result)
 
 
 @ait_converter(acc_ops.contiguous)
