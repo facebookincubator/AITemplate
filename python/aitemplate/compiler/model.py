@@ -941,20 +941,32 @@ class Model(object):
             self.handle, ctypes.c_void_p(stream_ptr), ctypes.c_bool(sync)
         )
 
-    def _get_constant_names_impl(self, constant_folding_only: bool) -> List[str]:
+    def _get_constant_names_impl(
+        self, unbound_constants_only: bool, constant_folding_only: bool
+    ) -> List[str]:
         num_constants = ctypes.c_size_t()
         constant_folding_inputs_only = ctypes.c_bool(constant_folding_only)
+        unbound_constants_only_ = ctypes.c_bool(unbound_constants_only)
         self.DLL.AITemplateModelContainerGetNumConstants(
-            self.handle, constant_folding_inputs_only, ctypes.byref(num_constants)
+            self.handle,
+            unbound_constants_only_,
+            constant_folding_inputs_only,
+            ctypes.byref(num_constants),
         )
         names = (ctypes.c_char_p * num_constants.value)()
         self.DLL.AITemplateModelContainerGetConstantNames(
-            self.handle, constant_folding_inputs_only, names
+            self.handle, unbound_constants_only_, constant_folding_inputs_only, names
         )
         return [name.decode("utf-8") for name in names]
 
-    def get_constant_names(self) -> List[str]:
-        return self._get_constant_names_impl(False)
+    def get_constant_names(
+        self, unbound_constants_only: bool = True, constant_folding_only: bool = False
+    ) -> List[str]:
+        return self._get_constant_names_impl(
+            unbound_constants_only, constant_folding_only
+        )
 
-    def get_constant_folding_input_names(self) -> List[str]:
-        return self._get_constant_names_impl(True)
+    def get_constant_folding_input_names(
+        self, unbound_constants_only: bool = True
+    ) -> List[str]:
+        return self._get_constant_names_impl(unbound_constants_only, True)

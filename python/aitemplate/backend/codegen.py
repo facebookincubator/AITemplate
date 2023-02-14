@@ -320,6 +320,8 @@ class ModelContainerGenerator:
         self.set_up_constants = []
         self.set_up_param_names = []
         self.set_up_param_dtypes = []
+        self.set_up_bound_constant_dtypes = []
+        self.set_up_bound_constant_size = []
         self.set_up_output_shapes = []
         self.set_up_param_dynamic_shapes = []
         self.state_record = set()
@@ -335,6 +337,7 @@ class ModelContainerGenerator:
         self.set_up_constant_folding_outputs_offsets = []
 
         self.input_idx = 0
+        self.bound_constant_idx = 0
         self.unbound_constant_idx = 0
         self.output_name_to_idx = _construct_output_name_to_index_map(
             graph, output_tensors
@@ -432,6 +435,28 @@ class ModelContainerGenerator:
         self.constants_data_size += num_bytes
         self.num_constants += 1
 
+    def _codegen_bound_constant(self, tensor: Tensor) -> None:
+        name = tensor._attrs["name"]
+        self.set_up_constant_names.append(
+            set_value(
+                f'bound_constant_name_to_idx_["{name}"]',
+                self.bound_constant_idx,
+            )
+        )
+        self.set_up_bound_constant_dtypes.append(
+            set_value(
+                f"bound_constant_dtypes_[{self.bound_constant_idx}]",
+                dtype_to_enumerator(tensor.dtype()),
+            )
+        )
+        self.set_up_bound_constant_size.append(
+            set_value(
+                f"bound_constant_size_[{self.bound_constant_idx}]",
+                len(tensor._attrs["data"]),
+            )
+        )
+        self.bound_constant_idx += 1
+
     def _codegen_param_setup(
         self,
         tensor: Tensor,
@@ -444,6 +469,8 @@ class ModelContainerGenerator:
         if data is not None:
             # Owned constant. Set up logic for copying the constant in from *.so.
             self.set_up_constants.append(self._tensor_slice_func(tensor, "constants"))
+            self._codegen_bound_constant(tensor)
+            self.bound_constant_idx += 1
             if self.constants_data_file is not None:
                 self._add_owned_constant(tensor)
 
@@ -783,9 +810,12 @@ constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
             param_size=self.max_constant_blob_size + self.extra_owned_constant_size,
             set_up_constant_names="\n".join(self.set_up_constant_names),
             set_up_param_dtypes="\n".join(self.set_up_param_dtypes),
+            set_up_bound_constant_dtypes="\n".join(self.set_up_bound_constant_dtypes),
+            set_up_bound_constant_size="\n".join(self.set_up_bound_constant_size),
             set_up_output_shapes="\n".join(self.set_up_output_shapes),
             set_up_param_names="\n".join(self.set_up_param_names),
             num_constants=self.num_constants,
+            num_bound_constants=self.bound_constant_idx,
             num_unbound_constants=self.unbound_constant_idx,
             owned_constants_init=",".join(self.owned_constants_init),
             set_up_constant_folding_outputs_offsets=self._create_set_up_constant_folding_outputs_offsets(),
@@ -821,6 +851,10 @@ constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
             )
         else:
             self._add_owned_constant(tensor)
+            self._codegen_bound_constant(tensor)
+            self.set_up_constant_folding_inputs.append(
+                f'constant_folding_optional_inputs_.insert("{name}");'
+            )
 
         self._process_dims_for_tensor(tensor)
 
