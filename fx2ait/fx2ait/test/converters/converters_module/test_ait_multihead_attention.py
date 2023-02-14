@@ -35,7 +35,7 @@ class TestMultiHeadAttentionConverter(AITTestCase):
 
                 return self.attn(query=unsqueeze, key=layer_norm, value=layer_norm)
 
-        seq_len_q, dim, nheads = 4, 16, 2
+        seq_len_q, dim, nheads = 4, 256, 16
         model = TestModule(dim, nheads).half().cuda()
         input_q = torch.randn(128, seq_len_q, dim).cuda().half()
         self.run_test(
