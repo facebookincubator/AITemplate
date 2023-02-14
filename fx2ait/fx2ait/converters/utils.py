@@ -18,7 +18,12 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor
 
-from aitemplate.compiler.public import elementwise, FuncEnum, Tensor as AITTensor
+from aitemplate.compiler.public import (
+    elementwise,
+    FuncEnum,
+    permute,
+    Tensor as AITTensor,
+)
 from torch.fx.node import Argument
 
 
@@ -140,6 +145,40 @@ def nchw2nhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
 
 def ncdhw2ndhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
     return [shape[0], shape[2], shape[3], shape[4], shape[1]]
+
+
+def weight_nchw2nhwc(weight: AITTensor) -> None:
+    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 1)
+    return weight
+
+
+def weight_ncdhw2ndhwc(weight: AITTensor) -> None:
+    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 4, 1)
+    return weight
+
+
+def ait_ncl2nlc(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 2, 1])
+
+
+def ait_nlc2ncl(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 2, 1])
+
+
+def ait_nchw2nhwc(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 2, 3, 1])
+
+
+def ait_nhwc2nchw(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 3, 1, 2])
+
+
+def ait_ncdhw2ndhwc(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 2, 3, 4, 1])
+
+
+def ait_ndhwc2ncdhw(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 4, 1, 2, 3])
 
 
 # TODO:  This is a hack to workaround AIT's dynamic shape requirement.

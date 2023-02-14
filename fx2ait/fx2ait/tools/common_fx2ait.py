@@ -81,21 +81,18 @@ class AITTestCase(TestCase):
         precision: LowerPrecision = LowerPrecision.FP16,
         permute_inputs: Optional[List[int]] = None,
         permute_outputs: Optional[List[int]] = None,
+        transformer_mode: Optional[bool] = False,
         passes: List[Callable] = [],  # noqa: B006
-        leaf_module: Callable = None,  # one leaf module
     ):
         # TODO: add precision to interpreter once AIT supports multiple precision level
         # TODO: @qxy11 remove permute options once AIT supports channels-first format
         mod.eval()
-
-        leaf_module_list = []
-        if leaf_module:
-            leaf_module_list.append(leaf_module)
-
         mod = acc_tracer.trace(
             mod,
             inputs,
-            leaf_module_list=leaf_module_list,
+            leaf_module_list=[
+                torch.nn.MultiheadAttention if transformer_mode else None
+            ],
         )
         for p in passes:
             mod = p(mod, inputs)
@@ -134,7 +131,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
             else:
                 ait_mod = AITModule(
@@ -145,7 +143,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
 
             ref_outputs = mod(*original_inputs)
@@ -158,9 +157,10 @@ class AITTestCase(TestCase):
             end_event.record()
             torch.cuda.synchronize()
             print("AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3))
+
             # PyTorch Transformer model would yield 2 output tensors, of which the second one is
             # not useful. AIT model only output 1 output tensor, alter ref_output to match this.
-            if leaf_module == torch.nn.MultiheadAttention:
+            if transformer_mode:
                 ref_outputs = ref_outputs[0]
             if isinstance(outputs, torch.Tensor):
                 ref_outputs = [ref_outputs]
@@ -235,7 +235,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
             else:
                 ait_mod = AITModule(
@@ -246,7 +247,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
 
             ref_outputs = mod(*original_inputs)
@@ -360,7 +362,8 @@ def benchmark_function(
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
-            )
+            ),
+            interp_result,
         )
         # Benchmark Pytorch Eager
         # warmup

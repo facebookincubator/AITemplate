@@ -65,8 +65,6 @@ class TestConvtTranspose2dConverter(AITTestCase):
             model,
             inputs,
             expected_ops={acc_ops.conv_transpose2d},
-            permute_inputs=[0, 2, 3, 1],
-            permute_outputs=[0, 3, 1, 2],
         )
 
     # only works when in_ch == out_ch
@@ -105,6 +103,4 @@ class TestConvtTranspose2dConverter(AITTestCase):
             model,
             inputs,
             expected_ops={acc_ops.conv_transpose2d},
-            permute_inputs=[0, 2, 3, 1],
-            permute_outputs=[0, 3, 1, 2],
         )

@@ -37,10 +37,10 @@ class BertBaseUncasedTest(unittest.TestCase):
         if ManifoldClient is not None:
             model_path = "/tmp/aitemplate_bert/bert-base-uncased"
             os.makedirs(model_path, exist_ok=True)
-            with ManifoldClient.get_client(bucket="aitemplate") as client:
+            with ManifoldClient.get_client(bucket="glow_test_data") as client:
                 await_sync(
                     client.getRecursive(
-                        manifold_path="tree/bert/bert-base-uncased",
+                        manifold_path="tree/aitemplate/bert/bert-base-uncased",
                         local_path=model_path,
                     )
                 )

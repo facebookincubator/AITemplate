@@ -965,15 +965,13 @@ __device__ bfloat16 floor_div(const bfloat16 a, const bfloat16 b) {
 }
 
 __device__ half2 floor_div(const half2 a, const half2 b) {
-  return half2(
-      floor_div(a.x, b.x), floor_div(a.y, b.y));
+  return half2(floor_div(a.x, b.x), floor_div(a.y, b.y));
 }
 
-__device__ bfloat16_2
-floor_div(const bfloat16_2 a, const bfloat16_2 b) {
+__device__ bfloat16_2 floor_div(const bfloat16_2 a, const bfloat16_2 b) {
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
-  return bfloat16_2(
-      floor_div(a.x, b.x), floor_div(a.y, b.y));
+  return bfloat16_2(floor_div(a.x, b.x), floor_div(a.y, b.y));
+
 #else
   NOT_IMPLEMENTED();
 #endif
