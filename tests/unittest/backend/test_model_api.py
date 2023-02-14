@@ -28,6 +28,7 @@ import torch
 from aitemplate.compiler import AIT_DEFAULT_NUM_RUNTIMES, compile_model, ops
 from aitemplate.compiler.base import (
     _ConstantTensorData,
+    _create_host_zero_tensor,
     _HostConstantTensorData,
     _NumpyConstantTensorData,
     _TorchConstantTensorData,
@@ -1493,6 +1494,49 @@ class ModelAPITestCase(unittest.TestCase):
 
         names_5 = module.get_constant_folding_input_names(unbound_constants_only=False)
         self.assertEqual(set(names_5), {"constant_2", "constant_3", "constant_4"})
+
+    def test_get_constant_names_with_ait_generated(self):
+        target = detect_target()
+
+        input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
+        constant_0 = Tensor(shape=[1, 2], dtype="float16", name="constant_0")
+        constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
+        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
+        constant_3 = _create_host_zero_tensor(
+            shape=[1, 2], name="constant_3", dtype="float16"
+        )
+        constant_4 = Tensor(shape=[1, 2], dtype="float16", name="constant_4")
+        constants = {}
+
+        # constant 0 and constant 1 are not folded.
+        # constant 0 is unbounded, constant 1 is bounded.
+        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_0)
+        x1 = ops.concatenate()([x, x, constant_1])
+        constants["constant_1"] = get_random_torch_tensor((1, 2), "float16")
+
+        # constants 2 and 3 and 4 are folded.
+        # constants 2 and 4 are unbounded, constants 3 is bounded.
+        y = ops.concatenate()([constant_2, constant_3, constant_4])
+
+        output = ops.elementwise(FuncEnum.MUL)(x1, y)
+        output._attrs["name"] = "output"
+        output._attrs["is_output"] = True
+
+        module = compile_model(
+            output,
+            target,
+            "./tmp",
+            "test_get_constant_names_with_ait_generated",
+            constants=constants,
+        )
+
+        names = module.get_constant_names(
+            unbound_constants_only=False, constant_folding_only=False
+        )
+        self.assertEqual(
+            set(names),
+            {"constant_0", "constant_1", "constant_2", "constant_4"},
+        )
 
     def test_set_many_constants(self):
         target = detect_target()
