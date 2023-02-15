@@ -166,6 +166,23 @@ AITModelImpl::AITModelImpl(
       "AITemplateModelContainerGetMaximumOutputShape");
   LOAD_SYMBOL(getOutputDtypeFunc_, "AITemplateModelContainerGetOutputDtype");
 
+  // It's possible that these functions are not loaded in .so file.
+  // Making these function possible to load as nullptr and check when using.
+  // Once all relevant packages have been updated, we can just use
+  // LOAD_SYMBOL.
+  LOAD_SYMBOL_WARN(
+      setManyConstantsDoubleBufferFunc_,
+      "AITemplateModelContainerSetManyDoubleBufferConstants");
+  LOAD_SYMBOL_WARN(foldConstantsFunc_, "AITemplateModelContainerFoldConstants");
+  LOAD_SYMBOL_WARN(
+      getConstantNamesFunc_, "AITemplateModelContainerGetConstantNames");
+  LOAD_SYMBOL_WARN(
+      getNumConstantsFunc_, "AITemplateModelContainerGetNumConstants");
+  LOAD_SYMBOL_WARN(swapConstantsFunc_, "AITemplateModelContainerSwapConstants");
+  LOAD_SYMBOL_WARN(
+      foldConstantsDoubleBufferFunc_,
+      "AITemplateModelContainerFoldConstantsInDoubleBuffer");
+
   // It's possible that we have new field added in AITemplateModelContainer,
   // But we can be using a new AITModel to load an old AITemplateModelContainer.
   // The newly added method are usually non-critical, so we issue warning
@@ -183,17 +200,14 @@ AITModelImpl::AITModelImpl(
   LOAD_SYMBOL(getNumInputsFunc, "AITemplateModelContainerGetNumInputs");
   LOAD_SYMBOL(getNumOutputsFunc, "AITemplateModelContainerGetNumOutputs");
 #undef LOAD_SYMBOL
-  // TODO: this load is optional so we don't break backwards comptability.
-  // Once all relevant packages have been updated, we can just use
-  // LOAD_SYMBOL.
-  auto* foldConstantsFunc =
-      reinterpret_cast<decltype(&AITemplateModelContainerFoldConstants)>(
-          dlsym(handle_.get(), "AITemplateModelContainerFoldConstants"));
 
   AITCallCreate(createFunc, &model_handle_, num_runtimes, &allocator_);
 
-  if (foldConstantsFunc != nullptr) {
-    AIT_CHECK(foldConstantsFunc(
+  // TODO: this check is optional so we don't break backwards comptability.
+  // Once all relevant packages have been updated, we can just use
+  // LOAD_SYMBOL.
+  if (foldConstantsFunc_ != nullptr) {
+    AIT_CHECK(foldConstantsFunc_(
         model_handle_,
         /*stream=*/reinterpret_cast<AITemplateStreamOpaque*>(creation_stream),
         /*sync=*/true));
@@ -250,6 +264,14 @@ AITemplateDtype TorchDtypeToAITemplateDtype(at::ScalarType torch_dtype) {
       TORCH_CHECK(false, "Unknown or unsupported torch dtype");
   }
 }
+
+AITData torchToAitData(const torch::Tensor& tensor) {
+  return AITData{
+      tensor.data_ptr(),
+      AITemplateParamShape{tensor.sizes().data(), tensor.sizes().size()},
+      TorchDtypeToAITemplateDtype(tensor.scalar_type())};
+}
+
 } // namespace
 
 void AITModelImpl::allocateOutputs(
@@ -481,6 +503,8 @@ void AITModelImpl::profile(
 thread_local std::unordered_map<std::string, std::string>
     AITModelImpl::name_to_path_map_;
 
+thread_local bool AITModelImpl::deserialize_pickled_model_{true};
+
 void AITModelImpl::registerLibraryNameToPathMap(
     std::unordered_map<std::string, std::string> map) {
   std::ostringstream ss;
@@ -518,5 +542,92 @@ const std::string& AITModelImpl::getFullPathForLibraryName(
       ". available paths: ",
       ss.str());
   return *path;
+}
+
+bool AITModelImpl::getDeserializePickledModel() {
+  return deserialize_pickled_model_;
+}
+
+// Set thread local boolean to disable real loading from .so file
+// for reusing the same module later on
+void AITModelImpl::setDeserializePickledModel(bool deserializePickledModel) {
+  deserialize_pickled_model_ = deserializePickledModel;
+}
+
+// Function to update constants in place with double buffering as well as fold
+// constants. The weights supplied must be the exact same number of the current
+// contants loaded in the AITModel. This call should only set the unused buffer
+// in the model for both direct used constants and folded constants. The weights
+// will not take effect until swapConstants is being called
+void AITModelImpl::updateConstantsWithWeights(
+    const std::unordered_map<std::string, torch::Tensor>& weights) {
+  TORCH_CHECK(
+      getNumConstantsFunc_,
+      "getNumConstantsFunc_ not loaded, can not do in place update");
+  TORCH_CHECK(
+      getConstantNamesFunc_,
+      "getConstantNamesFunc_ not loaded, can not do in place update");
+  TORCH_CHECK(
+      setManyConstantsDoubleBufferFunc_,
+      "setManyConstantsDoubleBufferFunc_ not loaded, can not do in place update");
+  TORCH_CHECK(
+      foldConstantsDoubleBufferFunc_,
+      "foldConstantsDoubleBufferFunc_ not loaded, can not do in place update");
+  VLOG(1) << "AITModelImpl in place update for weights";
+  const auto numConstants =
+      AITCall(getNumConstantsFunc_, model_handle_, false, false);
+  TORCH_CHECK(
+      numConstants == weights.size(),
+      "Number of constants loaded ",
+      numConstants,
+      " mismatched with number of new constants provided ",
+      weights.size());
+  std::vector<const char*> constantNames(numConstants, nullptr);
+  AIT_CHECK(
+      getConstantNamesFunc_(model_handle_, false, false, constantNames.data()));
+  std::vector<AITData> constants;
+  // TODO: Add check from caller side to make sure the weights are matched with
+  // loaded constants for sizes and shapes
+  for (const auto& name : constantNames) {
+    auto it = weights.find(name);
+    TORCH_CHECK(
+        it != weights.end(),
+        "could not find the constant named ",
+        name,
+        " in predictor supplied weights, ",
+        "failing this round of weight update");
+    constants.emplace_back(torchToAitData(it->second));
+  }
+  cudaStream_t constants_stream;
+  TORCH_CHECK(
+      cudaStreamCreateWithFlags(&constants_stream, cudaStreamNonBlocking) ==
+      cudaSuccess);
+
+  using StreamGuard = std::unique_ptr<
+      std::remove_pointer_t<cudaStream_t>,
+      decltype(&cudaStreamDestroy)>;
+  StreamGuard constants_stream_guard{constants_stream, cudaStreamDestroy};
+  AIT_CHECK(setManyConstantsDoubleBufferFunc_(
+      model_handle_,
+      /*stream=*/reinterpret_cast<AITemplateStreamOpaque*>(constants_stream),
+      constantNames.data(),
+      constants.data(),
+      numConstants));
+  VLOG(1) << "Completed on setting constants in double buffers";
+  AIT_CHECK(foldConstantsDoubleBufferFunc_(
+      model_handle_,
+      /*stream=*/reinterpret_cast<AITemplateStreamOpaque*>(constants_stream),
+      /*sync=*/true));
+  VLOG(1) << "Completed the constants folding process in double buffering";
+}
+
+// Swap the constants stored in the double bufferings for both model level and
+// folded constants, this will take effect immediately to make this AITModel run
+// with new weights
+void AITModelImpl::swapConstants() {
+  TORCH_CHECK(
+      swapConstantsFunc_,
+      "swapConstantsFunc_ not loaded, can not do in place update");
+  AIT_CHECK(swapConstantsFunc_(model_handle_));
 }
 } // namespace torch::aitemplate
