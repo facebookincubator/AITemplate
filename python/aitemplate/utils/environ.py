@@ -12,8 +12,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-
+"""
+A common place for holding AIT-related env control variables
+"""
+import logging
 import os
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def get_compiler_opt_level() -> str:
@@ -27,3 +33,19 @@ def get_compiler_opt_level() -> str:
     compiler_opt = os.getenv("AIT_COMPILER_OPT", "-O3")
 
     return compiler_opt
+
+
+def force_profiler_cache() -> bool:
+    """
+    Force the profiler to use the cached results. The profiler will throw
+    a runtime exception if it cannot find cached results. This env may be
+    useful to capture any cache misses due to cache version updates or
+    other relevant code changes.
+    """
+    force_cache = os.environ.get("AIT_FORCE_PROFILER_CACHE", None) == "1"
+    if force_cache:
+        assert (
+            os.environ.get("FORCE_PROFILE", None) != "1"
+        ), "cannot specify both AIT_FORCE_PROFILER_CACHE and FORCE_PROFILE"
+    _LOGGER.info(f"{force_cache=}")
+    return force_cache
