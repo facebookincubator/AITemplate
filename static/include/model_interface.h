@@ -157,11 +157,13 @@ AIT_EXPORT AITemplateError AITemplateModelContainerSetManyConstants(
 
 AIT_EXPORT AITemplateError AITemplateModelContainerGetNumConstants(
     AITemplateModelHandle handle,
+    bool unbound_constants_only,
     bool constant_folding_inputs_only,
     size_t* num_constants_out);
 
 AIT_EXPORT AITemplateError AITemplateModelContainerGetConstantNames(
     AITemplateModelHandle handle,
+    bool unbound_constants_only,
     bool constant_folding_inputs_only,
     const char** constant_names_out);
 
