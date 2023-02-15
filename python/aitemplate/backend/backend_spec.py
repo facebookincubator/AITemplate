@@ -265,6 +265,13 @@ class GPUBackendSpec(BackendSpec):
                 "bfloat16": "hsoftsign",
                 "bfloat16_2": "h2softsign",
             },
+            FuncEnum.FLOOR_DIV: {
+                "float": "floor_div",
+                "half": "floor_div",
+                "half2": "floor_div",
+                "bfloat16": "floor_div",
+                "bfloat16_2": "floor_div",
+            },
         }
     )
 
