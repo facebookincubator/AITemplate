@@ -15,9 +15,10 @@
 """
 Padding ops module init.
 """
+from .ndhwc3to8 import ndhwc3to8
 from .nhwc3to4 import nhwc3to4
 from .nhwc3to8 import nhwc3to8
 from .pad_last_dim import pad_last_dim
 
 
-__all__ = ["nhwc3to8", "nhwc3to4", "pad_last_dim"]
+__all__ = ["ndhwc3to8", "nhwc3to8", "nhwc3to4", "pad_last_dim"]
