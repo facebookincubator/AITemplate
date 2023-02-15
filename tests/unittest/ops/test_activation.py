@@ -340,9 +340,10 @@ class FusedElementwiseTestCase(unittest.TestCase):
             test_name="leaky_relu_2_copy_op",
             copy_op=True,
         )
+        self._test_leaky_relu([63, 63], test_name="leaky_relu_3")
 
     def test_htanh(self):
-        self._test_hardtanh([512, 512], test_name="hard_tanh_1")
+        self._test_hardtanh([511, 511], test_name="hard_tanh_1")
         self._test_hardtanh(
             [1024, 1024], min_val=-2, max_val=2, test_name="hard_tanh_2"
         )
@@ -355,7 +356,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     def test_softplus(self):
-        self._test_softplus([64, 64], test_name="softplus_1")
+        self._test_softplus([63, 63], test_name="softplus_1")
         self._test_softplus([128, 128], beta=1.0, threshold=1.5, test_name="softplus_2")
         self._test_softplus([128, 256], beta=2.0, threshold=0.5, test_name="softplus_3")
         self._test_softplus(
@@ -367,13 +368,13 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     def test_cos(self):
-        self._test_simple_function([512, 512], FuncEnum.COS, test_name="cos_1")
+        self._test_simple_function([511, 511], FuncEnum.COS, test_name="cos_1")
         self._test_simple_function(
             [512, 512], FuncEnum.COS, test_name="cos_1_copy_op", copy_op=True
         )
 
     def test_sin(self):
-        self._test_simple_function([512, 512], FuncEnum.SIN, test_name="sin_1")
+        self._test_simple_function([511, 511], FuncEnum.SIN, test_name="sin_1")
         self._test_simple_function(
             [512, 512], FuncEnum.SIN, test_name="sin_1_copy_op", copy_op=True
         )
@@ -386,49 +387,49 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     def test_sign(self):
-        self._test_simple_function([512, 512], FuncEnum.SIGN, test_name="sign_1")
+        self._test_simple_function([511, 511], FuncEnum.SIGN, test_name="sign_1")
         self._test_simple_function(
             [512, 512], FuncEnum.SIGN, test_name="sign_1_copy_op", copy_op=True
         )
 
     def test_abs(self):
-        self._test_simple_function([512, 512], FuncEnum.ABS, test_name="abs_1")
+        self._test_simple_function([511, 511], FuncEnum.ABS, test_name="abs_1")
         self._test_simple_function(
             [512, 512], FuncEnum.ABS, test_name="abs_1_copy_op", copy_op=True
         )
 
     def test_loge(self):
-        self._test_simple_function([512, 512], FuncEnum.LOGE, test_name="loge_1")
+        self._test_simple_function([511, 511], FuncEnum.LOGE, test_name="loge_1")
         self._test_simple_function(
             [512, 512], FuncEnum.LOGE, test_name="loge_1_copy_op", copy_op=True
         )
 
     def test_exp(self):
-        self._test_simple_function([512, 512], FuncEnum.EXP, test_name="exp_1")
+        self._test_simple_function([511, 511], FuncEnum.EXP, test_name="exp_1")
         self._test_simple_function(
             [512, 512], FuncEnum.EXP, test_name="exp_1_copy_op", copy_op=True
         )
 
     def test_sqrt(self):
-        self._test_simple_function([512, 512], FuncEnum.SQRT, test_name="sqrt_1")
+        self._test_simple_function([511, 511], FuncEnum.SQRT, test_name="sqrt_1")
         self._test_simple_function(
             [512, 512], FuncEnum.SQRT, test_name="sqrt_1_copy_op", copy_op=True
         )
 
     def test_sigmoid(self):
-        self._test_simple_function([512, 512], FuncEnum.SIGMOID, test_name="sigmoid_1")
+        self._test_simple_function([511, 511], FuncEnum.SIGMOID, test_name="sigmoid_1")
         self._test_simple_function(
             [512, 512], FuncEnum.SIGMOID, test_name="sigmoid_1_copy_op", copy_op=True
         )
 
     def test_relu(self):
-        self._test_simple_function([512, 512], FuncEnum.RELU, test_name="relu_1")
+        self._test_simple_function([511, 511], FuncEnum.RELU, test_name="relu_1")
         self._test_simple_function(
             [512, 512], FuncEnum.RELU, test_name="relu_1_copy_op", copy_op=True
         )
 
     def test_elu(self):
-        self._test_elu([64, 64], test_name="elu_1")
+        self._test_elu([63, 63], test_name="elu_1")
         self._test_elu([128, 128], alpha=4.0, test_name="elu_2")
         self._test_elu([128, 256], alpha=0.4, test_name="elu_3")
         self._test_elu(
@@ -439,13 +440,13 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     def test_softsign(self):
-        self._test_softsign([61], test_name="softsign_1")
+        self._test_softsign([63, 63], test_name="softsign_1")
         self._test_softsign([128], test_name="softsign_2")
         self._test_softsign([128], test_name="softsign_3", copy_op=True)
         self._test_softsign([121, 128], test_name="softsign_4")
 
     def test_floor_div(self):
-        self._test_floor_div([512, 512], test_name="floor_div_1")
+        self._test_floor_div([511, 511], test_name="floor_div_1")
         self._test_floor_div(
             [1024, 1024],
             dividend=3,
