@@ -79,6 +79,14 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
         {{ set_inputs }}
     }
 
+    void ResetConstants(uint8_t* constants) {
+        /*
+         * This can be called if we want to use a different piece of memory
+         * for the constants to be consumed.
+         */
+        {{ reset_constants }}
+    }
+
     void DeviceToDeviceCopies(StreamType stream) {
   {{ device_to_device_copies }}
     }
@@ -174,7 +182,11 @@ ModelContainerBase::ModelContainerBase(
     size_t num_unbound_constants,
     size_t params_size,
     AITemplateAllocator& allocator)
-    : constants_(RAII_DeviceMalloc(params_size, allocator)),
+    : constants_size_(params_size),
+      constants_primary_(RAII_DeviceMalloc(constants_size_, allocator)),
+      constants_secondary_(nullptr),
+      use_primary_flag_(true),
+      buffer_state_(BufferState::CLEAN),
       bound_constant_size_(num_bound_constants),
       bound_constant_dtypes_(num_bound_constants),
       num_params_(num_inputs + num_outputs + num_unbound_constants),
@@ -198,10 +210,10 @@ ModelContainerBase::ModelContainerBase(
     );
     max_param_storage_bytes_[i] = max_param_numel_[i] * AITemplateDtypeSizeBytes(param_dtypes_[i]);
   }
-{{ set_up_constant_folding_outputs_offsets }}
+{{ set_up_constant_offsets }}
 {{ set_up_constant_folding_inputs }}
 
-  auto* constants_ptr = static_cast<uint8_t*>(constants_.get());
+  auto* constants_ptr = static_cast<uint8_t*>(constants_primary_.get());
   const auto binary_constants_bin_size = static_cast<size_t>(_binary_constants_bin_end - _binary_constants_bin_start);
   for (auto& constant_info : owned_constants) {
     auto* dst = constants_ptr + constant_info.internal_offset;
