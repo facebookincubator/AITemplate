@@ -24,6 +24,68 @@ from aitemplate.testing.test_utils import get_random_torch_tensor
 
 @unittest.skipIf(detect_target()._arch == "75", "Conv3d not supported on sm75.")
 class Conv3dTestCase(unittest.TestCase):
+    def test_conv3d_bias_padding(
+        self,
+    ):
+        target = detect_target()
+        tt = 4
+        hh = 224
+        ww = 224
+        ci = 3
+        co = 96
+        kt = 3
+        kh = 5
+        kw = 5
+        stride = (2, 4, 4)
+        pad = (1, 2, 2)
+        dtype = "float16"
+
+        X = Tensor(
+            shape=[IntImm(4), tt, hh, ww, ci],
+            dtype=dtype,
+            name="input_0",
+            is_input=True,
+        )
+        W = Tensor(
+            shape=[co, kt, kh, kw, ci],
+            dtype=dtype,
+            name="input_1",
+            is_input=True,
+        )
+
+        B = Tensor(
+            shape=[co],
+            dtype=dtype,
+            name="input_2",
+            is_input=True,
+        )
+
+        Y = ops.conv3d_bias(stride=stride, pad=pad, dilate=1)(
+            ops.ndhwc3to8()(X), ops.ndhwc3to8()(W), B
+        )
+
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+        module = compile_model(Y, target, "./tmp", "conv3d_has_bias")
+
+        X_pt = get_random_torch_tensor([4, ci, tt, hh, ww], dtype=dtype)
+        W_pt = get_random_torch_tensor([co, ci, kt, kh, kw], dtype=dtype)
+        B_pt = get_random_torch_tensor([co], dtype=dtype)
+
+        Y_pt = torch.nn.functional.conv3d(
+            X_pt, W_pt, bias=B_pt, stride=stride, padding=pad
+        )
+        x = X_pt.permute((0, 2, 3, 4, 1)).contiguous()
+        w = W_pt.permute((0, 2, 3, 4, 1)).contiguous()
+        y = torch.empty_like(Y_pt).permute((0, 2, 3, 4, 1)).contiguous()
+        inputs = {"input_0": x, "input_1": w}
+        inputs["input_2"] = B_pt
+
+        module.run_with_tensors(inputs, [y])
+        y_transpose = y.permute((0, 4, 1, 2, 3))
+
+        self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
+
     def _test_conv3d(
         self,
         tt,
