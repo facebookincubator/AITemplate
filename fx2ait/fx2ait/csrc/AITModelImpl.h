@@ -57,6 +57,10 @@ class AITModelImpl {
 
   static const std::string& getFullPathForLibraryName(const std::string& name);
 
+  static bool getDeserializePickledModel();
+
+  static void setDeserializePickledModel(bool deserializePickledModel);
+
   /*
    * Returns a path to .so file (either relative or absolute).
    */
@@ -92,10 +96,16 @@ class AITModelImpl {
     return floating_point_output_dtype_;
   }
 
+  void updateConstantsWithWeights(
+      const std::unordered_map<std::string, torch::Tensor>& weights);
+
+  void swapConstants();
+
  private:
   // @lint-ignore CLANGTIDY facebook-hte-NonPodStaticDeclaration
   static thread_local std::unordered_map<std::string, std::string>
       name_to_path_map_;
+  static thread_local bool deserialize_pickled_model_;
 
   struct DlcloseDeleter {
     void operator()(void* p) const {
@@ -133,6 +143,16 @@ class AITModelImpl {
       getMaximumOutputShapeFunc_ = nullptr;
   decltype(&AITemplateModelContainerGetOutputDtype) getOutputDtypeFunc_ =
       nullptr;
+  decltype(&AITemplateModelContainerSetManyDoubleBufferConstants)
+      setManyConstantsDoubleBufferFunc_ = nullptr;
+  decltype(&AITemplateModelContainerFoldConstants) foldConstantsFunc_ = nullptr;
+  decltype(&AITemplateModelContainerGetConstantNames) getConstantNamesFunc_ =
+      nullptr;
+  decltype(&AITemplateModelContainerGetNumConstants) getNumConstantsFunc_ =
+      nullptr;
+  decltype(&AITemplateModelContainerSwapConstants) swapConstantsFunc_ = nullptr;
+  decltype(&AITemplateModelContainerFoldConstantsInDoubleBuffer)
+      foldConstantsDoubleBufferFunc_ = nullptr;
 
   const std::string library_basename_;
   const std::string library_path_;

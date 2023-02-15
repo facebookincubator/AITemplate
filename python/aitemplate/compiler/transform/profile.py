@@ -107,7 +107,6 @@ def profile(
         )
     profiler_runner = ProfilerRunner(
         devices,
-        timeout=240,
         postprocessing_delegate=GemmProfilerPostprocessingDelegate(),
     )
     for f in gemms:

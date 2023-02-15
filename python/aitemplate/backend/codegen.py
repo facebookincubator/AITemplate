@@ -320,6 +320,8 @@ class ModelContainerGenerator:
         self.set_up_constants = []
         self.set_up_param_names = []
         self.set_up_param_dtypes = []
+        self.set_up_bound_constant_dtypes = []
+        self.set_up_bound_constant_size = []
         self.set_up_output_shapes = []
         self.set_up_param_dynamic_shapes = []
         self.state_record = set()
@@ -331,10 +333,13 @@ class ModelContainerGenerator:
         self.num_constants = 0
         self.constants_data_size = 0
         self.owned_constants_init = []
+        self.reset_constants = []
 
+        self.set_up_bound_constant_offsets = []
         self.set_up_constant_folding_outputs_offsets = []
 
         self.input_idx = 0
+        self.bound_constant_idx = 0
         self.unbound_constant_idx = 0
         self.output_name_to_idx = _construct_output_name_to_index_map(
             graph, output_tensors
@@ -432,6 +437,37 @@ class ModelContainerGenerator:
         self.constants_data_size += num_bytes
         self.num_constants += 1
 
+    def _codegen_bound_constant(self, tensor: Tensor) -> None:
+        if tensor._attrs.get("is_internal_constant", False):
+            return
+
+        name = tensor._attrs["name"]
+        self.set_up_constant_names.append(
+            set_value(
+                f'bound_constant_name_to_idx_["{name}"]',
+                self.bound_constant_idx,
+            )
+        )
+        self.set_up_bound_constant_dtypes.append(
+            set_value(
+                f"bound_constant_dtypes_[{self.bound_constant_idx}]",
+                dtype_to_enumerator(tensor.dtype()),
+            )
+        )
+        self.set_up_bound_constant_size.append(
+            set_value(
+                f"bound_constant_size_[{self.bound_constant_idx}]",
+                len(tensor._attrs["data"]),
+            )
+        )
+        self.set_up_bound_constant_offsets.append(
+            set_value(
+                f"bound_constant_offsets_[{self.bound_constant_idx}]",
+                tensor._attrs["offset"],
+            )
+        )
+        self.bound_constant_idx += 1
+
     def _codegen_param_setup(
         self,
         tensor: Tensor,
@@ -441,12 +477,20 @@ class ModelContainerGenerator:
         """
         name = tensor._attrs["name"]
         data = tensor._attrs["data"]
+        const_slice = self._tensor_slice_func(tensor, "constants")
         if data is not None:
             # Owned constant. Set up logic for copying the constant in from *.so.
-            self.set_up_constants.append(self._tensor_slice_func(tensor, "constants"))
+            self.set_up_constants.append(const_slice)
+            self.set_up_constants.append(
+                set_value(
+                    f'constant_name_to_ptr_["{name}"]',
+                    f"const_cast<const void**>(reinterpret_cast<void**>(&{name}))",
+                )
+            )
+            self._codegen_bound_constant(tensor)
+            self.reset_constants.append(const_slice)
             if self.constants_data_file is not None:
                 self._add_owned_constant(tensor)
-
         elif tensor._attrs["constant_folding_output_idx"] is not None:
             self.set_up_constant_folding_outputs_offsets.append(
                 set_value(
@@ -454,8 +498,8 @@ class ModelContainerGenerator:
                     tensor._attrs["offset"],
                 )
             )
-            self.tensor_slice.append(self._tensor_slice_func(tensor, "constants"))
-
+            self.tensor_slice.append(const_slice)
+            self.reset_constants.append(const_slice)
         elif not isinstance(tensor, IntVarTensor):
             # Unbound constant. We will expect the user to set this via SetConstant.
             self.set_up_constant_names.append(
@@ -736,31 +780,47 @@ class ModelContainerGenerator:
             num_outputs=self.num_outputs,
             param_size=self.max_constant_blob_size + self.extra_owned_constant_size,
             num_unbound_constants=self.unbound_constant_idx,
+            reset_constants="\n".join(self.reset_constants),
             profiler_annotation=self.debug_settings.gen_profiler_annotation,
         )
 
-    def _create_set_up_constant_folding_outputs_offsets(self) -> str:
+    def _create_set_up_constant_offsets(self) -> str:
         """
+        bound_constant_offsets_ stores a map for each constant to the offset in constant buffer,
         constant_folding_outputs_offsets_ stores a map from each output of constant folding
         to its offset inside the constant buffer.
+
 
         When the model is loaded, we use these offsets to wire up the constant folding output
         pointers to the outputs of the constant folder.
         """
-        if not self.set_up_constant_folding_outputs_offsets:
-            return ""
-
-        return jinja2.Template(
-            """
-constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
-{{set_up_statements}}
-"""
-        ).render(
-            num_constant_folding_outputs=len(
-                self.set_up_constant_folding_outputs_offsets
-            ),
-            set_up_statements="\n".join(self.set_up_constant_folding_outputs_offsets),
-        )
+        constant_offsets = ""
+        if self.set_up_constant_folding_outputs_offsets:
+            constant_offsets = jinja2.Template(
+                """
+    constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
+    {{set_up_statements}}
+    """
+            ).render(
+                num_constant_folding_outputs=len(
+                    self.set_up_constant_folding_outputs_offsets
+                ),
+                set_up_statements="\n".join(
+                    self.set_up_constant_folding_outputs_offsets
+                ),
+            )
+            constant_offsets += "\n"
+        if self.set_up_bound_constant_offsets:
+            constant_offsets += jinja2.Template(
+                """
+    bound_constant_offsets_.resize({{num_bound_constant_offsets}});
+    {{set_up_statements}}
+    """
+            ).render(
+                num_bound_constant_offsets=len(self.set_up_bound_constant_offsets),
+                set_up_statements="\n".join(self.set_up_bound_constant_offsets),
+            )
+        return constant_offsets
 
     def generate_source(self) -> Dict[str, str]:
         """
@@ -783,12 +843,15 @@ constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
             param_size=self.max_constant_blob_size + self.extra_owned_constant_size,
             set_up_constant_names="\n".join(self.set_up_constant_names),
             set_up_param_dtypes="\n".join(self.set_up_param_dtypes),
+            set_up_bound_constant_dtypes="\n".join(self.set_up_bound_constant_dtypes),
+            set_up_bound_constant_size="\n".join(self.set_up_bound_constant_size),
             set_up_output_shapes="\n".join(self.set_up_output_shapes),
             set_up_param_names="\n".join(self.set_up_param_names),
             num_constants=self.num_constants,
+            num_bound_constants=self.bound_constant_idx,
             num_unbound_constants=self.unbound_constant_idx,
             owned_constants_init=",".join(self.owned_constants_init),
-            set_up_constant_folding_outputs_offsets=self._create_set_up_constant_folding_outputs_offsets(),
+            set_up_constant_offsets=self._create_set_up_constant_offsets(),
             set_up_constant_folding_inputs="\n".join(
                 self.set_up_constant_folding_inputs
             ),
@@ -821,6 +884,10 @@ constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
             )
         else:
             self._add_owned_constant(tensor)
+            self._codegen_bound_constant(tensor)
+            self.set_up_constant_folding_inputs.append(
+                f'constant_folding_optional_inputs_.insert("{name}");'
+            )
 
         self._process_dims_for_tensor(tensor)
 

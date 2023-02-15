@@ -134,7 +134,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
             else:
                 ait_mod = AITModule(
@@ -145,7 +146,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
 
             ref_outputs = mod(*original_inputs)
@@ -235,7 +237,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
             else:
                 ait_mod = AITModule(
@@ -246,7 +249,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
 
             ref_outputs = mod(*original_inputs)
@@ -360,7 +364,8 @@ def benchmark_function(
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
-            )
+            ),
+            interp_result,
         )
         # Benchmark Pytorch Eager
         # warmup

@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import itertools
 import unittest
 
 import torch
@@ -497,6 +498,141 @@ class ConstantFoldingTestCase(unittest.TestCase):
 
         mod.set_many_constants_with_tensors({"x": x_pt, "y": y_pt})
         mod.run_with_tensors([], {"x2": x2_ait, "x3": x3_ait, "x4": x4_ait})
+
+    @parameterized.expand(
+        list(
+            itertools.product(
+                [True, False],
+                [True, False],
+                [True, False],
+                [True, False],
+                [True, False],
+            )
+        )
+    )
+    def test_constant_folding_with_update(
+        self,
+        update_model_bound: bool = False,
+        update_model_unbound: bool = False,
+        update_const_folder_bound: bool = False,
+        update_const_folder_unbound: bool = False,
+        double_buffer: bool = False,
+    ):
+        input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
+        constant_0 = Tensor(shape=[1, 2], dtype="float16", name="constant_0")
+        constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
+        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
+        constant_3 = Tensor(shape=[1, 2], dtype="float16", name="constant_3")
+        constant_4 = Tensor(shape=[1, 2], dtype="float16", name="constant_4")
+        constant_5 = Tensor(shape=[1, 2], dtype="float16", name="constant_5")
+        constant_6 = Tensor(shape=[1, 2], dtype="float16", name="constant_6")
+        model_constants = {}
+        model_unbound_constants = {}
+        const_folder_constants = {}
+        const_folder_unbound_constants = {}
+
+        # constant 0/1/2 are not folded.
+        # constant 0 is unbounded, constant 1/2 is bounded.
+        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_0)
+        x1 = ops.concatenate()([x, constant_1, constant_2])
+        model_constants["constant_1"] = get_random_torch_tensor((1, 2), "float16")
+        model_constants["constant_2"] = get_random_torch_tensor((1, 2), "float16")
+        model_unbound_constants["constant_0"] = get_random_torch_tensor(
+            (1, 2), "float16"
+        )
+
+        # constants 3/4/5/6 are folded.
+        # constants 3/4 are unbounded, constants 5/6 is bounded.
+        y = ops.elementwise(FuncEnum.MUL)(constant_3, constant_4)
+        y1 = ops.concatenate()([y, constant_5, constant_6])
+        const_folder_unbound_constants["constant_3"] = get_random_torch_tensor(
+            (1, 2), "float16"
+        )
+        const_folder_unbound_constants["constant_4"] = get_random_torch_tensor(
+            (1, 2), "float16"
+        )
+        const_folder_constants["constant_5"] = get_random_torch_tensor(
+            (1, 2), "float16"
+        )
+        const_folder_constants["constant_6"] = get_random_torch_tensor(
+            (1, 2), "float16"
+        )
+
+        output = ops.elementwise(FuncEnum.MUL)(x1, y1)
+        output._attrs["name"] = "output"
+        output._attrs["is_output"] = True
+
+        bound_constants = dict(model_constants, **const_folder_constants)
+        unbound_constants = dict(
+            model_unbound_constants, **const_folder_unbound_constants
+        )
+        mod = compile_model(
+            output,
+            detect_target(),
+            "./tmp",
+            f"test_constant_folding_{update_model_bound}_{update_model_unbound}_{update_const_folder_bound}_{update_const_folder_unbound}_{double_buffer}",
+            constants=bound_constants,
+        )
+
+        inp0_pt = get_random_torch_tensor((1, 2), "float16")
+
+        def _get_output(new_bound_constants, new_unbound_constants):
+            x_pt = inp0_pt * new_unbound_constants["constant_0"]
+            x1_pt = torch.cat(
+                (
+                    x_pt,
+                    new_bound_constants["constant_1"],
+                    new_bound_constants["constant_2"],
+                )
+            )
+            y = (
+                new_unbound_constants["constant_3"]
+                * new_unbound_constants["constant_4"]
+            )
+            y1_pt = torch.cat(
+                (
+                    y,
+                    new_bound_constants["constant_5"],
+                    new_bound_constants["constant_6"],
+                )
+            )
+            output_pt = x1_pt * y1_pt
+            return output_pt
+
+        output_pt = _get_output(bound_constants, unbound_constants)
+        output_ait = torch.empty_like(output_pt)
+        mod.set_many_constants_with_tensors(unbound_constants)
+        mod.run_with_tensors({"input_0": inp0_pt}, {"output": output_ait})
+        self.assertTrue(torch.equal(output_pt, output_ait))
+
+        new_bound_constants = bound_constants
+        new_unbound_constants = unbound_constants
+        if update_model_bound:
+            for k in model_constants.keys():
+                new_bound_constants[k] = get_random_torch_tensor((1, 2), "float16")
+        if update_model_unbound:
+            for k in model_unbound_constants.keys():
+                new_unbound_constants[k] = get_random_torch_tensor((1, 2), "float16")
+
+        if update_const_folder_bound:
+            for k in const_folder_constants.keys():
+                new_bound_constants[k] = get_random_torch_tensor((1, 2), "float16")
+        if update_const_folder_unbound:
+            for k in const_folder_unbound_constants.keys():
+                new_unbound_constants[k] = get_random_torch_tensor((1, 2), "float16")
+
+        if double_buffer:
+            mod.set_many_double_buffer_constants_with_tensors(new_bound_constants)
+            mod.set_many_double_buffer_constants_with_tensors(new_unbound_constants)
+        else:
+            mod.set_many_constants_with_tensors(new_bound_constants)
+            mod.set_many_constants_with_tensors(new_unbound_constants)
+        mod.fold_constants(double_buffer=double_buffer)
+        if double_buffer:
+            mod.swap_constants()
+        mod.run_with_tensors({"input_0": inp0_pt}, {"output": output_ait})
+        output_pt = _get_output(new_bound_constants, new_unbound_constants)
+        self.assertTrue(torch.equal(output_pt, output_ait))
 
 
 if __name__ == "__main__":

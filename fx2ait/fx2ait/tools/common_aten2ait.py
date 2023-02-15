@@ -150,7 +150,8 @@ class DispatchTestCase(TestCase):
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
-            )
+            ),
+            interp_result,
         )
 
         # Inference run and results comparison
@@ -242,7 +243,8 @@ class DispatchTestCase(TestCase):
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
-            )
+            ),
+            interp_result,
         )
 
         for inputs in inputs_list:
@@ -360,7 +362,8 @@ class DispatchTestCase(TestCase):
                     torch.float16,
                     torch.float,
                     1,  #  num_runtimes
-                )
+                ),
+                interp_result,
             )
             # Benchmark Pytorch Eager
             # warmup

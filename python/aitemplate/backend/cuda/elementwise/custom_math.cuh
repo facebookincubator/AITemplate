@@ -920,4 +920,61 @@ __device__ bfloat16_2 h2elu(const bfloat16_2 op_input, const bfloat16_2 alpha) {
 #endif
 }
 
+__device__ half hsoftsign(const half a) {
+  return __hdiv(a, __hadd(CUDA_FP16_ONE, __habs(a)));
+}
+
+__device__ half2 h2softsign(const half2 a) {
+  return __h2div(a, __hadd2(half2(1.0, 1.0), __habs2(a)));
+}
+
+__device__ float fsoftsign(const float a) {
+  return a / (1.0f + fabsf(a));
+}
+
+__device__ bfloat16 hsoftsign(const bfloat16 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return __hdiv(a, __hadd(CUDA_BF16_ONE, __habs(a)));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ bfloat16_2 h2softsign(const bfloat16_2 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return __h2div(a, __hadd2(bfloat16_2(1.0, 1.0), __habs2(a)));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ float floor_div(const float a, const float b) {
+  return floor(a / b);
+}
+
+__device__ half floor_div(const half a, const half b) {
+  return hfloor(__hdiv(a, b));
+}
+
+__device__ bfloat16 floor_div(const bfloat16 a, const bfloat16 b) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return hfloor(__hdiv(a, b));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ half2 floor_div(const half2 a, const half2 b) {
+  return half2(floor_div(a.x, b.x), floor_div(a.y, b.y));
+}
+
+__device__ bfloat16_2 floor_div(const bfloat16_2 a, const bfloat16_2 b) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return bfloat16_2(floor_div(a.x, b.x), floor_div(a.y, b.y));
+
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
 #endif
