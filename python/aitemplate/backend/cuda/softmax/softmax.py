@@ -299,7 +299,7 @@ def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
     k = shapes[dim].value()
 
     backend_spec = CUDASpec()
-    elem_input_type = backend_spec.dtype_to_lib_type(
+    elem_input_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][0]._attrs["dtype"]
     )
     return FUNC_TEMPLATE.render(
