@@ -377,7 +377,7 @@ def _get_types_and_sizes(
                     input_shape, output_shape
                 )
             )
-        num_rightmost_non_broadcast_elements = len(input_shape)
+        num_rightmost_non_broadcast_elements = len(output_shape)
         extended_input_shape = list(input_shape)
         if input_shape == output_shape:
             input_broadcast_sizes.append(None)
