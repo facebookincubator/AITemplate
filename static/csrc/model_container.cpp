@@ -23,12 +23,14 @@ ModelContainer::ModelContainer(
     size_t num_models,
     size_t num_inputs,
     size_t num_outputs,
+    size_t num_bound_constants,
     size_t num_unbound_constants,
     size_t params_size,
     AITemplateAllocator& allocator)
     : ModelContainerBase(
           num_inputs,
           num_outputs,
+          num_bound_constants,
           num_unbound_constants,
           params_size,
           allocator),
@@ -505,20 +507,32 @@ void ModelContainer::FoldConstants(StreamType stream, bool sync) {
   }
 }
 
-size_t ModelContainer::GetNumConstants() const {
-  return unbound_constant_name_to_idx_.size();
+size_t ModelContainer::GetNumConstants(bool unbound_constants_only) const {
+  if (unbound_constants_only) {
+    return unbound_constant_name_to_idx_.size();
+  } else {
+    return unbound_constant_name_to_idx_.size() +
+        bound_constant_name_to_idx_.size();
+  }
 }
 
-size_t ModelContainer::GetNumConstantFoldingInputs() const {
-  return constant_folding_inputs_.size();
+size_t ModelContainer::GetNumConstantFoldingInputs(
+    bool unbound_constants_only) const {
+  if (unbound_constants_only) {
+    return constant_folding_inputs_.size();
+  } else {
+    return constant_folding_inputs_.size() +
+        constant_folding_optional_inputs_.size();
+  }
 }
 
 void ModelContainer::WriteAllConstantNamesTo(
     const char** constant_names_out,
+    bool unbound_constants_only,
     bool constant_folding_inputs_only) const {
   size_t num_to_write = constant_folding_inputs_only
-      ? GetNumConstants()
-      : GetNumConstantFoldingInputs();
+      ? GetNumConstants(unbound_constants_only)
+      : GetNumConstantFoldingInputs(unbound_constants_only);
   if (constant_names_out == nullptr && num_to_write != 0) {
     throw std::runtime_error("constant_names_out cannot be nullptr.");
   }
@@ -527,6 +541,15 @@ void ModelContainer::WriteAllConstantNamesTo(
     if (!constant_folding_inputs_only ||
         constant_folding_inputs_.find(name) != constant_folding_inputs_.end()) {
       constant_names_out[idx++] = name.c_str();
+    }
+  }
+  if (!unbound_constants_only) {
+    for (auto& [name, _] : bound_constant_name_to_idx_) {
+      if (!constant_folding_inputs_only ||
+          constant_folding_optional_inputs_.find(name) !=
+              constant_folding_optional_inputs_.end()) {
+        constant_names_out[idx++] = name.c_str();
+      }
     }
   }
 }
