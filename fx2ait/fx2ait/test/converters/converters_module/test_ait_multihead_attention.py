@@ -47,7 +47,7 @@ class TestMultiHeadAttentionConverter(AITTestCase):
                 acc_ops.unsqueeze,
                 acc_ops.getitem,
             },
-            transformer_mode=True,
+            leaf_module=torch.nn.MultiheadAttention,
         )
 
     def test_multihead_attention(self):
@@ -75,5 +75,5 @@ class TestMultiHeadAttentionConverter(AITTestCase):
             model,
             [x],
             expected_ops={torch.nn.MultiheadAttention},
-            transformer_mode=True,
+            leaf_module=torch.nn.MultiheadAttention,
         )
