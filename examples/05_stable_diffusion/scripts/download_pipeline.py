@@ -26,7 +26,7 @@ from diffusers import StableDiffusionPipeline
 )
 def download_pipeline_files(token, save_directory) -> None:
     StableDiffusionPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-2",
+        "stabilityai/stable-diffusion-2-1-base",
         revision="fp16",
         torch_dtype=torch.float16,
         # use provided token or the one generated with `huggingface-cli login``
