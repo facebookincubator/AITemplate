@@ -303,7 +303,7 @@ class conv3d_bias(Operator):
         entry for this gemm instance, we update this gemm op's
         relevant attributes with the cached result and return False.
         """
-        force_cache = environ.force_to_use_cache()
+        force_cache = environ.force_profiler_cache()
         if self._has_dynamic_input_dims():
             if force_cache:
                 raise RuntimeError(
@@ -579,7 +579,7 @@ class conv3d_bias(Operator):
             func = registry.get(func_key)
             func(self._attrs, dtype=self._attrs["inputs"][0]._attrs["dtype"])
 
-        force_cache = environ.force_to_use_cache()
+        force_cache = environ.force_profiler_cache()
         for wkl in workloads:
             _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),

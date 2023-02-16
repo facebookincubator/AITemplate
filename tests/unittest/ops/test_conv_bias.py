@@ -23,6 +23,10 @@ from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 class ConvBiasTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(1)
+
     def _test_conv_bias(
         self,
         batch=4,
