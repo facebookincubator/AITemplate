@@ -482,4 +482,5 @@ def transform_strided_ops(
         ]
     for func in funcs:
         sorted_graph = func(sorted_graph)
+        graph_utils.dump_graph_debug_str_to_file(sorted_graph, workdir, func.__name__)
     return sorted_graph

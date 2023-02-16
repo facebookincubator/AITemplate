@@ -70,7 +70,10 @@ def sorted_op_pseudo_code(ops, with_shape=True) -> str:
 def dump_graph_debug_str_to_file(tensors, workdir, name):
     if is_debug():
         # Dump graph and pseudo code for debug only
-        prefix = os.path.join(workdir, name)
+        debug_path = workdir + "/debug"
+        if not os.path.exists(debug_path):
+            os.makedirs(debug_path)
+        prefix = os.path.join(debug_path, name)
         graph_path = prefix + "_graph.txt"
         pseudo_code_path = prefix + "_pseudo_code.txt"
         graph_visual_path = prefix + "_graph_vis.html"
