@@ -301,7 +301,6 @@ class MultiScaleAttention(Module):
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
-
         self.has_cls_embed = has_cls_embed
         self.residual_pool = residual_pool
         self.separate_qkv = separate_qkv
@@ -533,26 +532,12 @@ class MultiScaleAttention(Module):
             )
 
         # attention
-        # q, k, v shape: B, num_heads, seqlen, head_dim
-        q_shape, k_shape, v_shape = get_shape(q), get_shape(k), get_shape(v)
-
-        q = ops.reshape()(q, [q_shape[0], -1, q_shape[-1]])
-        k = ops.reshape()(k, [k_shape[0], -1, k_shape[-1]])
-        v = ops.reshape()(v, [v_shape[0], -1, v_shape[-1]])
-        qk = ops.bmm_rcr()(q, k)
-        attn = ops.elementwise(FuncEnum.MUL)(qk, self.scale)
-        attn = ops.softmax()(attn, -1)
-        score = ops.bmm_rrr()(attn, v)
+        B, num_heads, seqlen, head_dim = get_shape(q)
+        score = ops.mem_eff_attention(causal=False)(q, k, v)
+        score = ops.reshape()(score, [B, seqlen, -1])
 
         if self.residual_pool:
             score = ops.elementwise(FuncEnum.ADD)(score, q)
-
-        score = ops.reshape()(
-            ops.permute()(
-                ops.reshape()(score, [B, self.num_heads, q_shape[-2], -1]), [0, 2, 1, 3]
-            ),
-            [B, q_shape[-2], -1],
-        )
 
         score = self.proj(score)
         assert self.dropout_rate == 0.0
@@ -703,11 +688,6 @@ class MultiScaleBlock(Module):
             thw_shape (List): The shape of the input tensor (before flattening).
         """
 
-        x = ops.permute021()(x)
-
-        # TODO: ADD/Fuse batchnorm1d
-
-        x = ops.permute021()(x)
         x_block, thw_shape_new = self.attn(x, thw_shape)
 
         x_res, _ = self._attention_pool(x, thw_shape)
