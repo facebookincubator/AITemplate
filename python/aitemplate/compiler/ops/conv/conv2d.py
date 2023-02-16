@@ -466,7 +466,7 @@ class conv2d(Operator):
             )
         if target.name() == "rocm":
             runner = backend.profiler_runner.Runner(
-                devices, self._attrs["name"], timeout=None
+                devices, self._attrs["name"], timeout=1800
             )
             op_type = self._attrs["op"]
             all_op_names = list(self._attrs["op_instance"].keys())

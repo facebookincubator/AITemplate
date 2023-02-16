@@ -106,7 +106,7 @@ def profile(
             workdir=profiler_dir,
             devices=devices,
         )
-    timeout = None if Target.current().name() == "rocm" else 240
+    timeout = 2400 if Target.current().name() == "rocm" else 240
     profiler_runner = ProfilerRunner(
         devices,
         timeout=timeout,

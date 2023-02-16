@@ -307,7 +307,7 @@ class ProfilerRunner:
                     )
             finally:
                 # unblock one future in `join()`
-                if stdout is not None:
+                if not err:
                     self._done_queue.put(stdout)
 
         future.add_done_callback(callback_when_done)
@@ -322,7 +322,8 @@ class ProfilerRunner:
             f.cancel()
         # block until each done_callback completes,
         # or raise Empty exception after 3 minutes of waiting
-        block_timeout = None if Target.current().name() == "rocm" else 180
+        block_timeout = self._timeout if Target.current().name() == "rocm" else 180
         for _ in self._futures:
-            self._done_queue.get(timeout=block_timeout)
+            if not self._done_queue.empty():
+                self._done_queue.get(timeout=block_timeout)
         self._postprocessing_delegate.postprocess_results()
