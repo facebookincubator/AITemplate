@@ -28,6 +28,7 @@ from .upsample import *
 from .view_ops import *
 from .attention import CrossAttention, FlashAttention, MultiheadAttention
 from .identity import Identity
+from .multiscale_attention import MultiScaleBlock
 from .vanilla_attention import (
     vanilla_attention,
     VanillaCrossAttention,
