@@ -24,7 +24,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
-class ArgmaxTestCase(unittest.TestCase):
+class ArgmaxSM80TestCase(unittest.TestCase):
     def _test_argmax(
         self,
         batch_size=1,
@@ -43,8 +43,6 @@ class ArgmaxTestCase(unittest.TestCase):
             is_input=True,
         )
         X4_op = ops.argmax(dim=dim)
-        if copy_op:
-            X4_op = ops.argmax(**X4_op._get_op_attributes())
         X4 = X4_op(X1)
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
@@ -58,37 +56,19 @@ class ArgmaxTestCase(unittest.TestCase):
 
         module.run_with_tensors([scores], [y])
         y_reshape = y.reshape(o_shape)
-        self.assertTrue(torch.allclose(y_pt, y_reshape, atol=1e-2, rtol=1e-2))
+        torch.testing.assert_close(y_pt, y_reshape, atol=0, rtol=0)
 
-    def test_fp16(self):
+    @unittest.skipIf(detect_target().name() == "rocm", "bfloat16 not supported in ROCm")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "bfloat16 is not supported by CUDA < SM80.",
+    )
+    def test_argmax_bf16(self):
         self._test_argmax(
             shape=(300, 80),
             dim=1,
-            test_name="argmax_fp16",
-            dtype="float16",
-        )
-        self._test_argmax(
-            shape=(300, 80),
-            dim=1,
-            test_name="argmax_fp16_copy_op",
-            copy_op=True,
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "float32 not supported in ROCm")
-    def test_fp32(self):
-        self._test_argmax(
-            shape=(300, 80),
-            dim=1,
-            test_name="argmax_fp32",
-            dtype="float32",
-        )
-        self._test_argmax(
-            shape=(300, 80),
-            dim=1,
-            test_name="argmax_fp32_copy_op",
-            copy_op=True,
-            dtype="float32",
+            test_name="argmax_bf16",
+            dtype="bfloat16",
         )
 
 
