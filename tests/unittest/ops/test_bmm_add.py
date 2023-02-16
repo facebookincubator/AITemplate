@@ -27,6 +27,10 @@ from aitemplate.testing.test_utils import (
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMAddTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super(BMMAddTestCase, self).__init__(*args, **kwargs)
         self.test_count = 0
