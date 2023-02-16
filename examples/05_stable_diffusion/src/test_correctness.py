@@ -31,6 +31,10 @@ from .compile_lib.compile_vae import compile_vae
 
 
 class StableDiffusionVerification(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super(StableDiffusionVerification, self).__init__(*args, **kwargs)
 
