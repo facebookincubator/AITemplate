@@ -348,7 +348,9 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
             # check if the scheduler accepts generator
-        accepts_generator = "generator" in set(inspect.signature(self.scheduler.step).parameters.keys())
+        accepts_generator = "generator" in set(
+            inspect.signature(self.scheduler.step).parameters.keys()
+        )
         if accepts_generator:
             extra_step_kwargs["generator"] = generator
 

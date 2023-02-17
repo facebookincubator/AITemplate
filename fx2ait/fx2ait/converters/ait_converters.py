@@ -29,7 +29,6 @@ from aitemplate.compiler.public import (
     conv2d,
     conv2d_bias,
     conv3d,
-    conv3d_bias,
     depthwise_conv3d,
     dynamic_slice,
     elementwise,
@@ -45,7 +44,6 @@ from aitemplate.compiler.public import (
     IntVarTensor,
     layernorm,
     max_pool2d,
-    ndhwc3to8,
     nhwc3to8,
     pad_last_dim,
     permute,
@@ -1265,34 +1263,18 @@ def _choose_conv3d_op(
     Helper to choose conv3d vs. depthwise_conv3d op based on existence of bias
     and groups
     """
-    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 4, 1)
-    weight._attrs["shape"] = ncdhw2ndhwc(weight._attrs["shape"])
-
-    if groups is None or groups == 1:
-        if bias is not None:
-            C_in = x.shape()[-1].value()
-
-            if 3 == C_in:
-                x = ndhwc3to8()(x)
-                weight = ndhwc3to8()(weight)
-            elif 8 != C_in:
-                raise RuntimeError(
-                    "When having bias, conv3d currently only supports C_in == 3 or C_in == 8"
-                )
-
-            return conv3d_bias(stride=stride, pad=pad, dilate=dilate, group=groups)(
-                x, weight, bias
-            )
-        else:
-            return conv3d(stride=stride, pad=pad, dilate=dilate)(x, weight)
-    elif groups == weight._attrs["shape"][0].value():
+    if bias is not None:
+        assert (
+            groups == weight._attrs["shape"][0].value()
+        ), f"Currently only support channel == groups, but got channel: {weight._attrs['shape'][0].value()} and groups: {groups}"
         return depthwise_conv3d(
             stride=stride, pad=pad, dilate=dilate, group=groups, bias=True
         )(x, weight, bias)
     else:
-        raise RuntimeError(
-            "When having bias, currently either support channel == groups or groups == 1"
-        )
+        assert (
+            groups is None or groups == 1
+        ), "Currently only support non-bias conv3d without groups"
+        return conv3d(stride=stride, pad=pad, dilate=dilate)(x, weight)
 
 
 @ait_converter(acc_ops.conv3d)
