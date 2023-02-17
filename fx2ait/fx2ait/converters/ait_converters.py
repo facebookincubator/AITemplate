@@ -924,6 +924,25 @@ def acc_ops_flatten(
     return flatten(start_dim=start_dim, end_dim=end_dim)(input_val)
 
 
+def acc_ops_bmm(name: str, lhs: AITTensor, rhs: AITTensor) -> ConverterOutput:
+    lhs_shape = lhs.shape()
+    rhs_shape = rhs.shape()
+    if (
+        lhs_shape[0] == rhs_shape[0]
+        and lhs_shape[0]._attrs["name"] is None
+        and rhs_shape[0]._attrs["name"] is None
+    ):
+        lhs_shape[0]._attrs["name"] = f"acc_{name}_batch_size"
+        rhs_shape[0]._attrs["name"] = f"acc_{name}_batch_size"
+    elif lhs_shape[0] != rhs_shape[0]:
+        if lhs_shape[0]._attrs["values"] == rhs_shape[0]._attrs["values"]:
+            if lhs_shape[0]._attrs["name"] is None:
+                lhs_shape[0] = rhs_shape[0]
+            else:
+                rhs_shape[0] = lhs_shape[0]
+    return bmm_rrr()(lhs, rhs)
+
+
 @ait_converter(acc_ops.matmul)
 def acc_ops_matmul(
     target: Target,
@@ -950,30 +969,41 @@ def acc_ops_matmul(
     if len(rhs_shape) == 2:
         return gemm_rrr()(lhs, rhs)
     elif len(lhs_shape) <= 3 and len(rhs_shape) <= 3:
-        return bmm_rrr()(lhs, rhs)
+        return acc_ops_bmm(name, lhs, rhs)
     elif len(lhs_shape) == 4 and len(rhs_shape) == 4 and lhs_shape[1] == rhs_shape[1]:
-        assert all(isinstance(i, IntImm) for i in lhs_shape)
-        assert all(isinstance(i, IntImm) for i in rhs_shape)
+        assert all(isinstance(i, IntImm) for i in lhs_shape[1:])
+        assert all(isinstance(i, IntImm) for i in rhs_shape[1:])
         # Current AIT bmm only supports 3-dim. Use reshape to workaround.
-        reshape_op_0 = reshape()
-        batch_size = lhs_shape[0].value()
+        channel = lhs_shape[1].value()
         M = lhs_shape[2].value()
         K = lhs_shape[3].value()
-        channel = lhs_shape[1].value()
-        shape_0 = (batch_size * channel, M, K)
-        reshape_op_1 = reshape()
         N = rhs_shape[3].value()
         if K != rhs_shape[2].value():
             raise ValueError(
                 f"K dim mismatch on matmaul. Expected: [N, K] X [K, M]. Found: : [{M}, {K}] X [{rhs_shape[2].value()}, {N}]"
             )
-
-        shape_1 = (batch_size * channel, K, N)
-        reshape_op_2 = reshape()
-        shape_2 = (batch_size, channel, M, N)
-        return reshape_op_2(
-            bmm_rrr()(reshape_op_0(lhs, shape_0), reshape_op_1(rhs, shape_1)), shape_2
-        )
+        if isinstance(lhs_shape[0], IntImm) and (rhs_shape[0], IntImm):
+            batch_size = lhs_shape[0].value()
+            shape_0 = (batch_size * channel, M, K)
+            shape_1 = (batch_size * channel, K, N)
+            shape_2 = (batch_size, channel, M, N)
+        elif isinstance(lhs_shape[0], IntVar) and isinstance(rhs_shape[0], IntVar):
+            if lhs_shape[0]._attrs["values"] != rhs_shape[0]._attrs["values"]:
+                raise ValueError(
+                    f"Batch size mismatch on matmul. Expected: {lhs_shape[0]} == {rhs_shape[0]}"
+                )
+            lhs_size = size()(lhs)
+            new_size = getitem()(lhs_size, 0) * getitem()(lhs_size, 1)
+            shape_0 = (new_size, M, K)
+            shape_1 = (new_size, K, N)
+            shape_2 = (getitem()(lhs_size, 0), channel, M, N)
+        else:
+            raise NotImplementedError(
+                f"Expected all dimension except for the batch dim to be static. Got {lhs_shape} vs. {rhs_shape}"
+            )
+        reshape_op_0 = reshape()(lhs, shape_0)
+        reshape_op_1 = reshape()(rhs, shape_1)
+        return reshape()(acc_ops_bmm(name, reshape_op_0, reshape_op_1), shape_2)
     else:
         raise NotImplementedError(
             f"This case is unsupported in {name}: {len(lhs_shape)} and {len(rhs_shape)}"
