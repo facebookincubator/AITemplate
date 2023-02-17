@@ -221,6 +221,7 @@ def replace_aten_op_with_indices(module: torch.fx.GraphModule) -> torch.fx.Graph
             torch.ops.aten.max_pool3d_with_indices.default,
             torch.ops.aten.native_batch_norm.default,
             torch.ops.aten._native_batch_norm_legit.default,
+            torch.ops.aten._native_batch_norm_legit_no_training.default,
         ):
             modified = True
             if len(n.users) != 1:
@@ -240,6 +241,16 @@ def replace_aten_op_with_indices(module: torch.fx.GraphModule) -> torch.fx.Graph
                 new_op = torch.ops.aten.batch_norm
                 new_args = list(n.args)
                 new_args.append(False)
+                new_args = tuple(new_args)
+            elif (
+                n.target == torch.ops.aten._native_batch_norm_legit_no_training.default
+            ):
+                new_op = torch.ops.aten.batch_norm
+                new_args = list(n.args)
+                new_args.append(False)
+                # _native_batch_norm_legit_no_training doesn't take in a training arg (assumed to be false)
+                # but batchnorm takes in a training arg at position 5.
+                new_args.insert(5, False)
                 new_args = tuple(new_args)
 
             getitem_node = next(iter(n.users))
