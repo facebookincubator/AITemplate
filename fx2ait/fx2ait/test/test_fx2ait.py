@@ -40,14 +40,24 @@ class TestAITModule(unittest.TestCase):
         torch.manual_seed(0)
 
     def _test_fx2ait_impl(self, test_serialization=False, test_cuda_graph=False):
-        class TestModule(torch.nn.Module):
-            def forward(self, x, y):
-                add = x + y
-                mul = add * add
-                return mul
-
-        inputs = [torch.randn(2, 2).half().cuda(), torch.randn(2, 2).half().cuda()]
-        mod = TestModule().half().cuda()
+        mod = (
+            torch.nn.Sequential(
+                torch.nn.Linear(3, 4),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+                torch.nn.ReLU(),
+            )
+            .half()
+            .cuda()
+        )
+        inputs = [torch.randn(5, 3).half().cuda()]
         ref_output = mod(*inputs)
 
         traced = acc_tracer.trace(mod, inputs)
@@ -85,6 +95,19 @@ class TestAITModule(unittest.TestCase):
             ait_mod = torch.jit.load(buf)
         ait_output = ait_mod(*inputs)
         torch.testing.assert_close(ait_output, ref_output, atol=0.1, rtol=0.1)
+        if not OSS_AIT_MODEL:
+            weights = {
+                "_0_weight": torch.ones(3, 4).cuda().half(),
+                "_0_bias": torch.randn(4).cuda().half(),
+            }
+            ait_mod.engine.update_constants_with_weights(weights)
+            ait_output = ait_mod(*inputs)
+            torch.testing.assert_close(ait_output, ref_output, atol=1e-2, rtol=1e-2)
+            ait_mod.engine.swap_constants()
+            ait_output = ait_mod(*inputs)
+            self.assertFalse(
+                torch.allclose(ait_output, ref_output, atol=1e-2, rtol=1e-2)
+            )
 
     def test_fx2ait(self):
         self._test_fx2ait_impl(test_serialization=False)
