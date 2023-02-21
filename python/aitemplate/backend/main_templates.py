@@ -119,19 +119,27 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
       {% for func_name, func, input_sizes, output_sizes in per_op_profiler_seq %}
       {
         std::cout << "Profiling: " << "{{ func_name }}" << " (" << iters << " iterations)" << std::endl;
-        EventType start, stop;
-        CreateEvent(&start);
-        CreateEvent(&stop);
-        EventRecord(start, stream);
-        for (size_t i = 0; i < iters; ++i) {
+        std::vector<std::pair<EventType, EventType>> call_events(iters);
+        for (auto& [call_start, call_end] : call_events) {
+          CreateEvent(&call_start);
+          CreateEvent(&call_end);
+        }
+        for (auto& [call_start, call_end]: call_events) {
           DeviceMemset(L2CacheSlab, 0x73, L2SizeInBytes);
+          EventRecord(call_start, stream);
             {{ func }}
+          EventRecord(call_end, stream);
           DeviceCheckLastError(__FILE__, __LINE__);
         }
-        EventRecord(stop, stream);
-        EventSynchronize(stop);
+        EventSynchronize(std::get<1>(call_events.back()));
         float milliseconds = 0.0;
-        EventElapsedTime(&milliseconds, start, stop);
+        for (auto& [call_start, call_end] : call_events) {
+          float call_milliseconds = 0.0;
+          EventElapsedTime(&call_milliseconds, call_start, call_end);
+          DestroyEvent(call_start);
+          DestroyEvent(call_end);
+          milliseconds += call_milliseconds;
+        }
         ss << "\\"" << "{{ func_name }}" << "\\": { \\"ms_per_iter\\": "
            << std::setprecision(4) << (milliseconds/iters)
            << ", \\"qps\\": " << 1000 * iters / milliseconds
