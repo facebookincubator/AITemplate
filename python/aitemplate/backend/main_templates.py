@@ -107,23 +107,33 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
       if (!ss) {
         throw std::runtime_error(std::string("Could not open file ") + filename);
       }
+
+      int deviceId;
+      char* L2CacheSlab = nullptr;
+      DevicePropertyType deviceProperties;
+      GetDevice(&deviceId);
+      GetDeviceProperties(&deviceProperties, deviceId);
+      const size_t L2SizeInBytes = deviceProperties.l2CacheSize;
+      DeviceMalloc((void**) &L2CacheSlab, L2SizeInBytes);
+
       ss << "{\\n";
       {% for func_name, func in function_pair_seq %}
       {
         std::cout << "Profiling: " << "{{ func_name }}" << " (" << iters << " iterations)" << std::endl;
-        cudaEvent_t start, stop;
-        cudaEventCreate(&start);
-        cudaEventCreate(&stop);
-        cudaEventRecord(start);
+        EventType start, stop;
+        CreateEvent(&start);
+        CreateEvent(&stop);
+        EventRecord(start, stream);
         for (size_t i = 0; i < iters; ++i) {
+          DeviceMemset(L2CacheSlab, 0x73, L2SizeInBytes);
             {{ func }}
           DeviceCheckLastError(__FILE__, __LINE__);
         }
-        cudaEventRecord(stop);
-        cudaEventSynchronize(stop);
+        EventRecord(stop, stream);
+        EventSynchronize(stop);
         float milliseconds = 0.0;
-        cudaEventElapsedTime(&milliseconds, start, stop);
-        ss << "\\"" << "{{ func_name }}" << "\\": " <<  (milliseconds/iters);
+        EventElapsedTime(&milliseconds, start, stop);
+        ss << "\\"" << "{{ func_name }}" << "\\": " << std::setprecision(4) << (milliseconds/iters);
         {% if loop.last %}
           ss << "\\n";
         {% else %}
@@ -135,6 +145,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
 
       DeviceToDeviceCopies(stream);
       std::cout << "AIT per op profiling finished." << std::endl;
+      FreeDeviceMemory(L2CacheSlab);
     }
 
     static std::unique_ptr<{{model_name}}> Create(
