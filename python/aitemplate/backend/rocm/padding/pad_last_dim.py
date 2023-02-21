@@ -18,7 +18,7 @@ Codegen functions for pad_last_dim.
 import jinja2
 
 from ... import registry
-from ...backend_spec import CUDASpec
+from ...backend_spec import ROCMSpec
 
 # pylint: disable=C0301,W0613,W0612
 
@@ -200,7 +200,7 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
         [description]
     """
     func_name = func_attrs["name"]
-    backend_spec = CUDASpec()
+    backend_spec = ROCMSpec()
     elem_input_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][0]._attrs["dtype"]
     )
