@@ -40,11 +40,6 @@ def multi_head_attention_module(
     value = kwargs["value"] if "value" in kwargs else args[2]
     bsz, seq_len_q, dim = query.shape()
     _, seq_len, _ = key.shape()
-    # TODO update check condition once AIT backend ease kAlignment check condition
-    if submod.num_heads % 8 != 0:
-        raise ValueError(
-            f"The number of heads for MHA module is not supported:{submod.num_heads}"
-        )
     attn = nn.CrossAttention(
         dim=submod.embed_dim,
         seq_len=seq_len_q.value(),

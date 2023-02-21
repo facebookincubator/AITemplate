@@ -574,11 +574,32 @@ class attentionTestCase(unittest.TestCase):
                 test_name=f"mem_eff_attention_fp16_{use_perm}_causal",
                 dtype="float16",
             )
+            self._test_mem_eff_attention(
+                batch_size=16,
+                nheads=4,
+                seqlen=8,
+                n=80,
+                use_perm=use_perm,
+                test_name="mem_eff_attention_fp16_nheads_20",
+                dtype="float16",
+            )
             # self._test_mem_eff_attention(batch_size=1, nheads=8, seqlen=8, n=64, use_perm=use_perm, test_name="mem_eff_attention1")
             # self._test_mem_eff_attention(batch_size=16, nheads=8, seqlen=8, n=512, use_perm=use_perm, test_name="mem_eff_attention2")
             # self._test_mem_eff_attention(batch_size=16, nheads=8, seqlen=8, n=1024, use_perm=use_perm, test_name="mem_eff_attention3")
             # self._test_mem_eff_attention(batch_size=16, nheads=8, seqlen=16, n=1024, use_perm=use_perm, test_name="mem_eff_attention4")
             # self._test_mem_eff_attention(batch_size=1, nheads=8, seqlen=16, n=64, use_perm=use_perm, test_name="mem_eff_attention5")
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.expectedFailure
+    def test_mem_eff_attention_invalid_head_size_fp16(self):
+        self._test_mem_eff_attention(
+            batch_size=16,
+            nheads=8,
+            seqlen=8,
+            n=80,
+            test_name="mem_eff_attention_fp16_invalid_head_size",
+            dtype="float16",
+        )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     @unittest.skipIf(
