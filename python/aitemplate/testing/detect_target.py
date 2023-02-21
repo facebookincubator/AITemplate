@@ -41,7 +41,7 @@ def _detect_cuda():
         stdout = stdout.decode("utf-8")
         if "H100" in stdout:
             return "90"
-        if "A100" in stdout or "RTX 30" in stdout or "A30" in stdout:
+        if any(a in stdout for a in ["A100", "A10G", "RTX 30", "A30"]):
             return "80"
         if "V100" in stdout:
             return "70"
