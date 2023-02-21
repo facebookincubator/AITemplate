@@ -528,10 +528,10 @@ class ModelAPITestCase(unittest.TestCase):
                 profile_name,
             )
             with open(profile_name) as f:
-                report = json.loads(f.read())
+                report = json.load(f)
                 self.assertTrue(len(report), 1)
                 for _, elapsed in report.items():
-                    self.assertGreater(elapsed, 0)
+                    self.assertGreater(elapsed["ms_per_iter"], 0)
 
     def test_get_output_dtype(self):
         module, inputs, output_np = self._get_simple_graph_and_output(
