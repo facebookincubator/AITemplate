@@ -17,7 +17,6 @@ This file contains class definitions used in the generated main.cu file.
 """
 import jinja2
 
-
 MODEL_TEMPLATE = jinja2.Template(
     """
 #pragma once
@@ -117,7 +116,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
       DeviceMalloc((void**) &L2CacheSlab, L2SizeInBytes);
 
       ss << "{\\n";
-      {% for func_name, func in function_pair_seq %}
+      {% for func_name, func, input_sizes, output_sizes in per_op_profiler_seq %}
       {
         std::cout << "Profiling: " << "{{ func_name }}" << " (" << iters << " iterations)" << std::endl;
         EventType start, stop;
@@ -133,7 +132,12 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
         EventSynchronize(stop);
         float milliseconds = 0.0;
         EventElapsedTime(&milliseconds, start, stop);
-        ss << "\\"" << "{{ func_name }}" << "\\": " << std::setprecision(4) << (milliseconds/iters);
+        ss << "\\"" << "{{ func_name }}" << "\\": { \\"ms_per_iter\\": "
+           << std::setprecision(4) << (milliseconds/iters)
+           << ", \\"qps\\": " << 1000 * iters / milliseconds
+           << ", \\"input_sizes\\": " << "{{ input_sizes | replace("'", '\\\\"') }}"
+           << ", \\"output_sizes\\": " << "{{ output_sizes | replace("'", '\\\\"') }}"
+           << " } ";
         {% if loop.last %}
           ss << "\\n";
         {% else %}

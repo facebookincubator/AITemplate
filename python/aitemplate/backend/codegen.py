@@ -313,6 +313,8 @@ class ModelContainerGenerator:
         self.set_inputs = []
         self.func_name_seq = []
         self.func_seq = []
+        self._input_shape_seq = []
+        self._output_shape_seq = []
         self.tensor_decl = []
         self.dim_decl = []
         self.device_to_device_copies = []
@@ -666,6 +668,50 @@ class ModelContainerGenerator:
                     seq = f'  {{\n  RAII_ProfilerRange _raiiOpProfilerRange("{func._attrs["outputs"][0]._attrs["name"]}");\n{seq}\n  }}'
                 self.func_name_seq.append(func._attrs["original_name"])
                 self.func_seq.append(seq)
+
+                if "input_accessors" in func._attrs:
+                    self._input_shape_seq.append(
+                        [
+                            [
+                                v.pseudo_code()
+                                for v in (
+                                    acc.actual_shapes
+                                    if acc.actual_shapes is not None
+                                    else acc.original_shapes
+                                )
+                            ]
+                            for acc in func._attrs["input_accessors"]
+                        ]
+                    )
+                else:
+                    self._input_shape_seq.append(
+                        [
+                            [v.pseudo_code() for v in t.shape()]
+                            for t in func._attrs["inputs"]
+                        ]
+                    )
+
+                if "output_accessors" in func._attrs:
+                    self._output_shape_seq.append(
+                        [
+                            [
+                                v.pseudo_code()
+                                for v in (
+                                    acc.actual_shapes
+                                    if acc.actual_shapes is not None
+                                    else acc.original_shapes
+                                )
+                            ]
+                            for acc in func._attrs["output_accessors"]
+                        ]
+                    )
+                else:
+                    self._output_shape_seq.append(
+                        [
+                            [v.pseudo_code() for v in t.shape()]
+                            for t in func._attrs["outputs"]
+                        ]
+                    )
             if "int_state_flag" in func._attrs:
                 if func._attrs["name"] not in self.state_record:
                     self.function_state.append(
@@ -756,7 +802,12 @@ class ModelContainerGenerator:
         # are not supported
         target_has_graph_mode = "true" if self.target.name() == "cuda" else "false"
 
-        func_pair_seq = zip(self.func_name_seq, self.func_seq)
+        per_op_profiler_seq = zip(
+            self.func_name_seq,
+            self.func_seq,
+            self._input_shape_seq,
+            self._output_shape_seq,
+        )
         return MODEL_TEMPLATE.render(
             model_name=self.model_name,
             function_decl="\n".join(self.func_decl),
@@ -767,7 +818,7 @@ class ModelContainerGenerator:
             device_to_device_copies="\n".join(self.device_to_device_copies),
             set_up_param_dynamic_shapes="\n".join(self.set_up_param_dynamic_shapes),
             function_seq=self.func_seq,
-            function_pair_seq=func_pair_seq,
+            per_op_profiler_seq=per_op_profiler_seq,
             tensor_decl="\n".join(self.tensor_decl),
             dim_decl="\n".join(self.dim_decl),
             function_state="\n".join(self.function_state),
