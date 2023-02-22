@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import copy
 import logging
 import math
 import operator
@@ -44,7 +43,6 @@ from aitemplate.compiler.public import (
     IntVarTensor,
     layernorm,
     max_pool2d,
-    nhwc3to8,
     pad_last_dim,
     permute,
     reduce_mean,
