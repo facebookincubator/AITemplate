@@ -71,13 +71,15 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
 
   // The value 1 is used to force ptr_max_sz to be non-zero
   int64_t ptr_max_sz = std::max<int64_t>({1, a_ptr_sz, b0_ptr_sz, c_ptr_sz});
-  // TODO: special pool size for A100 L2 cache 40M
-  // need to tune it for other devices
-  int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
+  size_t one_copy_sz = a_ptr_sz + b0_ptr_sz + c_ptr_sz;
+{% if has_bias %}
+  one_copy_sz += b1_ptr_sz;
+{%endif%}
+  int64_t mem_pool_sz = memory_pool->ComputeMemPoolSize(one_copy_sz, ptr_max_sz);
 
   memory_pool->AllocateTensor(a_ptr_sz, mem_pool_sz);  // a_ptr: index 0
   memory_pool->AllocateTensor(b0_ptr_sz, mem_pool_sz);  // b_ptr: index 1
-  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz);  // c_ptr: index 2
+  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz, /*is_output*/true);  // c_ptr: index 2
 
 {% if has_bias %}
   memory_pool->AllocateTensor(b1_ptr_sz, mem_pool_sz);  // b_ptr: index 3

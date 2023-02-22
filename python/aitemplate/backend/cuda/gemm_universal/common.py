@@ -353,18 +353,20 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
 
   // The value 1 is used to force ptr_max_sz to be non-zero
   int64_t ptr_max_sz = std::max<int64_t>({1, a_ptr_sz, b_ptr_sz, c_ptr_sz});
-  // TODO: special pool size for A100 L2 cache 40M
-  // need to tune it for other devices
-  int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
+
+  size_t one_copy_sz = a_ptr_sz + b_ptr_sz + c_ptr_sz;
+{% if has_bias %}
+  one_copy_sz += c_dim1;
+{%endif%}
+  int64_t mem_pool_sz = memory_pool->ComputeMemPoolSize(one_copy_sz, ptr_max_sz);
 
   memory_pool->AllocateTensor(a_ptr_sz, mem_pool_sz);  // a_ptr: index 0
   memory_pool->AllocateTensor(b_ptr_sz, mem_pool_sz);  // b_ptr: index 1
-  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz);  // c_ptr: index 2
+  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz, /*is_output*/true);  // c_ptr: index 2
 
 {% if has_bias %}
   memory_pool->AllocateTensor(c_dim1, mem_pool_sz);  // bias_ptr: index 3
 {% endif %}
-
 """
 )
 
@@ -467,7 +469,7 @@ int benchmark_{{function_name}} (
 
 template <typename DType>
 struct ProfilerMemoryPool {
-  ProfilerMemoryPool() {
+  ProfilerMemoryPool() : shared_input_tensor(false) {
     std::random_device rd;
     gen = std::mt19937(rd());
     uniform_dist = std::uniform_int_distribution<int64_t>(1, 48964896);
@@ -478,6 +480,50 @@ struct ProfilerMemoryPool {
     blobs.reserve(512);
   }
   ~ProfilerMemoryPool() {}
+
+  int64_t ComputeMemPoolSize(size_t one_copy_sz, size_t ptr_max_sz) {
+    // TODO: special pool size for A100 L2 cache 40M
+    // need to tune it for other devices
+    int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
+    size_t free_global_mem = 0;
+    size_t total_global_mem = 0;
+    cudaError_t cuda_error = cudaMemGetInfo(&free_global_mem, &total_global_mem);
+    if (cuda_error != cudaSuccess) {
+      auto error_msg = std::string("Failed to invoke cudaMemGetInfo: ") +
+          cudaGetErrorName(cuda_error) + ", at " + __FILE__;
+      throw std::runtime_error(error_msg);
+    }
+    size_t single_copy_nbytes = one_copy_sz * sizeof(DType);
+    while (mem_pool_sz > 0) {
+      size_t nbytes = single_copy_nbytes * mem_pool_sz;
+      if (nbytes < free_global_mem) {
+        break;
+      }
+      mem_pool_sz--;
+    }
+
+    if (mem_pool_sz <= 1) {
+      size_t minimal_required_nbytes = ptr_max_sz * sizeof(DType);
+      if (minimal_required_nbytes > free_global_mem) {
+        // We absolutely run out of memory
+        auto error_msg = std::string("no enough GPU memory: requested ") +
+            std::to_string(minimal_required_nbytes) + ", available: " +
+            std::to_string(free_global_mem) + ", ptr_max_sz: " +
+            std::to_string(ptr_max_sz) + ", at " + __FILE__;
+        throw std::runtime_error(error_msg);
+      } else {
+        // Let's try to allocate a single blob that is large enough to hold
+        // all input tensors. Note that this is still an approximation, because
+        // we may still hit cudaErrorMemoryAllocation error while allocating
+        // memory for the output. We will rely on cudaMalloc to throw out
+        // an exception in such a case.
+        shared_input_tensor = true;
+        AllocateGaussianTensor(ptr_max_sz);
+      }
+      return 1;
+    }
+    return mem_pool_sz;
+  }
 
   DType* AllocateGaussianTensor(int64_t size) {
     size_t length = size * sizeof(DType);
@@ -494,12 +540,16 @@ struct ProfilerMemoryPool {
     return ptr;
   }
 
-
-  int AllocateTensor(int64_t size, int64_t copy) {
+  int AllocateTensor(int64_t size, int64_t copy, bool is_output = false) {
     offsets.push_back(0);
     strides.push_back(size);
     copies.push_back(copy);
-    auto ptr = AllocateGaussianTensor(size * copy);
+    DType *ptr;
+    if (!is_output && shared_input_tensor) {
+      ptr = reinterpret_cast<DType*>(blobs.back().get());
+    } else {
+      ptr = AllocateGaussianTensor(size * copy);
+    }
     ptrs.push_back(reinterpret_cast<void*>(ptr));
     return ptrs.size() - 1;
   }
@@ -525,6 +575,9 @@ struct ProfilerMemoryPool {
   std::vector<cutlass::DeviceAllocation<uint8_t> > blobs;
   std::mt19937 gen;
   std::uniform_int_distribution<int64_t> uniform_dist;
+  // make a shared blob to hold all inputs in cases we do not have
+  // enough GPU memory
+  bool shared_input_tensor;
 };
 
 
