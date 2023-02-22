@@ -15,4 +15,4 @@
 from .ait_converters import *  # noqa: F401 F403
 from .aten2ait_converters import *  # noqa: F401 F403
 from .ait_module_converters import *  # noqa: F401 F403
-from .utils import set_tensor_layout_policy
+from .utils import set_tensor_layout_policy  # noqa: F401
