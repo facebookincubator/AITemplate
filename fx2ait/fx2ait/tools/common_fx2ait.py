@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import copy
 import time
 import unittest
 
@@ -83,6 +84,7 @@ class AITTestCase(TestCase):
         permute_outputs: Optional[List[int]] = None,
         passes: List[Callable] = [],  # noqa: B006
         leaf_module: Callable = None,  # one leaf module
+        apply_passes_to_lowered_module_only=False,
     ):
         # TODO: add precision to interpreter once AIT supports multiple precision level
         # TODO: @qxy11 remove permute options once AIT supports channels-first format
@@ -92,6 +94,7 @@ class AITTestCase(TestCase):
         if leaf_module:
             leaf_module_list.append(leaf_module)
 
+        orig_mod = copy.deepcopy(mod)
         mod = acc_tracer.trace(
             mod,
             inputs,
@@ -102,7 +105,7 @@ class AITTestCase(TestCase):
 
         print(mod.graph)
 
-        original_inputs = inputs
+        original_inputs = copy.deepcopy(inputs)
         if permute_inputs:
             inputs = [inp.permute(*permute_inputs).contiguous() for inp in inputs]
         interp = AITInterpreter(
@@ -117,6 +120,10 @@ class AITTestCase(TestCase):
                 cuda_inputs.append(i.cuda())
 
             mod.eval()
+            if apply_passes_to_lowered_module_only:
+                ref_outputs = orig_mod(*original_inputs)
+            else:
+                ref_outputs = mod(*original_inputs)
             if len(expected_ops):
                 self.assert_has_op(mod, expected_ops)
             if unexpected_ops:
@@ -149,8 +156,6 @@ class AITTestCase(TestCase):
                     ),
                     interp_result,
                 )
-
-            ref_outputs = mod(*original_inputs)
 
             torch.cuda.synchronize()
             start_event = torch.cuda.Event(enable_timing=True)

@@ -207,9 +207,11 @@ def acc_ops_clone(
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
-    res = copy.deepcopy(input_val)
-    res._attrs["dst_ops"].clear()
-    return res
+    # deepcopy results with an error. replace with Idnetity multiplication by 1.
+    # TODO: implement __deepcopy__ / clone for AITTensor.
+    one_const = AITTensor(shape=[], dtype="float16", name="one_const", value=1.0)
+    identity_mul_result = elementwise(FuncEnum.MUL)(input_val, one_const)
+    return identity_mul_result
 
 
 @ait_converter(acc_ops.sum)
@@ -642,6 +644,10 @@ def acc_ops_slice(
 
     output = op(input_val, start, end)
     for dim, squeeze_func in reversed(squeezable_indices):
+        # TODO: fix None for a more general case.
+        # unsqueeze(dim=-1) to unsqueeze the most inner dimension
+        if dim > rank and squeeze_func == unsqueeze:
+            dim = -1
         output = squeeze_func(dim)(output)
     return output
 
@@ -1180,10 +1186,6 @@ def _choose_conv2d_op(
     if last_dim < 4:
         weight = pad_last_dim(len(weight._attrs["shape"]), 4)(weight)
         x = pad_last_dim(len(x._attrs["shape"]), 4)(x)
-    elif last_dim in range(5, 8):
-        to_8 = nhwc3to8()
-        weight = to_8(weight)
-        x = to_8(x)
     elif last_dim % 2 != 0:
         return RuntimeError(
             f"Conv2d is not implemented for input channel dim {last_dim}: it needs to be aligned to a multiple of 2/4/8"
