@@ -2254,6 +2254,7 @@ def embedding_bag_4bit_rowwise_offsets(
 
 @register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)
 @register_acc_op_mapping(op_and_target=("call_function", torch.sin))
+@register_acc_op_mapping(op_and_target=("call_method", "sin"))
 @register_acc_op
 def sin(*, input):
     return torch.sin(input=input)
@@ -2261,6 +2262,7 @@ def sin(*, input):
 
 @register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)
 @register_acc_op_mapping(op_and_target=("call_function", torch.cos))
+@register_acc_op_mapping(op_and_target=("call_method", "cos"))
 @register_acc_op
 def cos(*, input):
     return torch.cos(input=input)
@@ -3221,6 +3223,7 @@ def baddbmm_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
 
 
 @register_acc_op_mapping(op_and_target=("call_function", torch.clone))
+@register_acc_op_mapping(op_and_target=("call_method", "clone"))
 @register_acc_op
 def clone(*, input):
     return torch.clone(input)

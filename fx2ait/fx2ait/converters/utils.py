@@ -26,6 +26,13 @@ from aitemplate.compiler.public import (
 )
 from torch.fx.node import Argument
 
+OPS_FOLLOW_PT_TENSOR_LAYOUT = True
+
+
+def set_tensor_layout_policy(follow_pt_layout: bool):
+    global OPS_FOLLOW_PT_TENSOR_LAYOUT
+    OPS_FOLLOW_PT_TENSOR_LAYOUT = follow_pt_layout
+
 
 def get_positive_dim(dim: int, dim_size: int) -> int:
     if dim < 0:
@@ -168,11 +175,17 @@ def ait_nlc2ncl(ait_tensor: AITTensor) -> AITTensor:
 
 
 def ait_nchw2nhwc(ait_tensor: AITTensor) -> AITTensor:
-    return permute()(ait_tensor, [0, 2, 3, 1])
+    if OPS_FOLLOW_PT_TENSOR_LAYOUT:
+        return permute()(ait_tensor, [0, 2, 3, 1])
+    else:
+        return ait_tensor
 
 
 def ait_nhwc2nchw(ait_tensor: AITTensor) -> AITTensor:
-    return permute()(ait_tensor, [0, 3, 1, 2])
+    if OPS_FOLLOW_PT_TENSOR_LAYOUT:
+        return permute()(ait_tensor, [0, 3, 1, 2])
+    else:
+        return ait_tensor
 
 
 def ait_ncdhw2ndhwc(ait_tensor: AITTensor) -> AITTensor:
