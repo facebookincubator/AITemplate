@@ -28,6 +28,7 @@ from aitemplate.compiler.public import (
     conv2d,
     conv2d_bias,
     conv3d,
+    conv3d_bias,
     depthwise_conv3d,
     dynamic_slice,
     elementwise,
@@ -43,6 +44,7 @@ from aitemplate.compiler.public import (
     IntVarTensor,
     layernorm,
     max_pool2d,
+    ndhwc3to8,
     pad_last_dim,
     permute,
     reduce_mean,
@@ -1303,18 +1305,32 @@ def _choose_conv3d_op(
     Helper to choose conv3d vs. depthwise_conv3d op based on existence of bias
     and groups
     """
-    if bias is not None:
-        assert (
-            groups == weight._attrs["shape"][0].value()
-        ), f"Currently only support channel == groups, but got channel: {weight._attrs['shape'][0].value()} and groups: {groups}"
+    has_bias = bias is not None
+    if groups is None or groups == 1:
+        if has_bias:
+            C_in = x.shape()[-1].value()
+
+            if 3 == C_in:
+                x = ndhwc3to8()(x)
+                weight = ndhwc3to8()(weight)
+            elif 8 != C_in:
+                raise RuntimeError(
+                    f"When having bias, conv3d currently only supports C_in == 3 or C_in == 8, but got C_in: {C_in}"
+                )
+
+            return conv3d_bias(stride=stride, pad=pad, dilate=dilate, group=1)(
+                x, weight, bias
+            )
+        else:
+            return conv3d(stride=stride, pad=pad, dilate=dilate, group=1)(x, weight)
+    elif groups == weight._attrs["shape"][0].value():
         return depthwise_conv3d(
-            stride=stride, pad=pad, dilate=dilate, group=groups, bias=True
+            stride=stride, pad=pad, dilate=dilate, group=groups, bias=has_bias
         )(x, weight, bias)
     else:
-        assert (
-            groups is None or groups == 1
-        ), "Currently only support non-bias conv3d without groups"
-        return conv3d(stride=stride, pad=pad, dilate=dilate)(x, weight)
+        raise RuntimeError(
+            f"Currently NOT support groups != channels when groups enabled. Got C_in: {C_in} | groups: {groups} | has bias: {has_bias}"
+        )
 
 
 @ait_converter(acc_ops.conv3d)
