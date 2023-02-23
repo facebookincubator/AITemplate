@@ -18,6 +18,7 @@ AIT implementation for MViT:
 https://github.com/facebookresearch/pytorchvideo/blob/main/pytorchvideo/models/vision_transformers.py
 """
 
+import logging
 from typing import List, Optional, Tuple
 
 import numpy
@@ -30,6 +31,8 @@ from .dropout import Dropout, DropPath
 from .identity import Identity
 from .linear import Linear
 from .module import Module
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def get_shape(x):
@@ -83,7 +86,9 @@ class Mlp(Module):
         # TODO fc1 bias is set to zeros; unset if bias_on is True
 
         self.fc1 = Linear(
-            in_features, hidden_features, bias=True, specialization=act_layer
+            in_features,
+            hidden_features,
+            bias=bias_on,
         )
         self.fc2 = Linear(hidden_features, out_features, bias=bias_on)
 
@@ -103,6 +108,8 @@ class Mlp(Module):
 
         if self.dropout_rate > 0.0:
             x = self.dropout(x)
+
+        x = ops.elementwise(FuncEnum.GELU)(x)
 
         x = self.fc2(x)
 
@@ -182,7 +189,7 @@ class _AttentionPool(Module):
         B, N, L, C = get_shape(tensor)
         T, H, W = thw_shape
         tensor = ops.permute()(
-            ops.reshape()(tensor, [B * N, T, H, W, C]), [0, 4, 1, 2, 3]
+            ops.reshape()(tensor, [B * N, -1, H, W, C]), [0, 4, 1, 2, 3]
         )
 
         if self.norm_before_pool:
@@ -190,10 +197,8 @@ class _AttentionPool(Module):
             # # If use BN, we apply norm before pooling instead of after pooling.
             # tensor = self.norm(tensor)
             # # We also empirically find that adding a GELU here is beneficial.
-            # tensor = nn.functional.gelu(tensor)
-            raise NotImplementedError(
-                f"Unsupport batchnorm3d when {self.norm_before_pool}"
-            )
+            tensor = ops.elementwise(FuncEnum.GELU)(tensor)
+            _LOGGER.warning(f"Unsupport batchnorm3d when {self.norm_before_pool}")
 
         tensor = self.pool(ops.permute()(tensor, [0, 2, 3, 4, 1]))
 
@@ -202,13 +207,11 @@ class _AttentionPool(Module):
         L_pooled = shape[1] * shape[2] * shape[3]
         tensor = ops.reshape()(tensor, [B, N, L_pooled, C])
 
-        assert self.norm_before_pool
         if self.has_norm and not self.norm_before_pool:
 
             # TODO: add support for norm before pool
             # tensor = self.norm(tensor)
-
-            raise NotImplementedError("Unsupport norm before pool")
+            _LOGGER.warning(f"Unsupport norm before pool")
 
         return tensor, thw_shape
 
