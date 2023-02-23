@@ -119,32 +119,65 @@ inline size_t GetAlignedSize(size_t size) {
 }
 
 template <typename T>
-T GetZeroVal() {
-  return static_cast<T>(0);
-}
+struct NumericTraits;
 
-template <typename T>
-T GetOneVal() {
-  return static_cast<T>(1);
-}
+template<>
+struct NumericTraits<half> {
+  __host__ __device__
+  static half zero() {
+    return 0;
+  }
 
-template <typename T>
-T GetMinVal() {
-  uint16_t ret = 0xfbff;
-  return *(T*)&ret;
-}
+  __host__ __device__
+  static half one() {
+    uint16_t ret = 0x3c00;
+    return *reinterpret_cast<half*>(&ret);
+  }
 
-template <typename T>
-T GetMaxVal() {
-  uint16_t ret = 0x7bff;
-  return *(T*)&ret;
-}
+  __host__ __device__
+  static half min() {
+    uint16_t ret = 0xfbff;
+    return *reinterpret_cast<half*>(&ret);
+  }
+
+  __host__ __device__
+  static half max() {
+    uint16_t ret = 0x7bff;
+    return *reinterpret_cast<half*>(&ret);
+  }
+};
+
+template<>
+struct NumericTraits<float> {
+
+  __host__ __device__
+  static float zero() {
+    return 0.0;
+  }
+
+  __host__ __device__
+  static float one() {
+    return 1.0;
+  }
+
+  __host__ __device__
+  static float min() {
+    uint32_t ret = 0xff7fffff;
+    return *reinterpret_cast<float*>(&ret);
+  }
+
+  __host__ __device__
+  static float max() {
+    uint32_t ret = 0x7f7fffff;
+    return *reinterpret_cast<float*>(&ret);
+  }
+};
 
 template <typename T>
 T PowOf2Floor(T val, int64_t max_power) {
   T max_floor = static_cast<T>(std::pow(2, max_power));
   val = std::min(val, max_floor);
-  T ret = GetOneVal<T>();
+  T ret = (T) 1;
   while (true) {
     ret *= 2;
     if (ret >= val) {
@@ -157,7 +190,7 @@ template <typename T>
 T PowOf2Ceil(T val, int64_t max_power) {
   T max_ceil = static_cast<T>(std::pow(2, max_power));
   val = std::min(val, max_ceil);
-  T ret = GetOneVal<T>();
+  T ret = (T) 1;
   while (true) {
     ret *= 2;
     if (ret >= val) {
@@ -558,8 +591,8 @@ void topk_launcher(
             instance_size,
             k,
             heap_size,
-            GetMaxVal<int64_t>(),
-            GetMinVal<T>(),
+            std::numeric_limits<int64_t>::max(),
+            NumericTraits<T>::min(),
             (int64_t*)output);
 
   } else {
