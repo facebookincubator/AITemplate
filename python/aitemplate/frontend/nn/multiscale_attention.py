@@ -211,7 +211,7 @@ class _AttentionPool(Module):
 
             # TODO: add support for norm before pool
             # tensor = self.norm(tensor)
-            _LOGGER.warning(f"Unsupport norm before pool")
+            _LOGGER.warning("Unsupport norm before pool")
 
         return tensor, thw_shape
 
