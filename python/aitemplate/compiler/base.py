@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
 from pprint import pformat
-from typing import Any, Dict, List, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 
@@ -204,6 +204,228 @@ class IntImm(IntVar):
 
     def pseudo_code(self, with_shape=False) -> str:
         return str(self.value())
+
+
+class JaggedDim(Node):
+    """
+    A class representing a single jagged dimension encoded within a JaggedIntVar.
+    Each instance contains the min and max value for the variable-length jagged
+    dimension. It is also associated with the rank-1 offsets Tensor representing
+    the layout of the jagged dimension within the JaggedIntVar. The offsets are
+    associated with the JaggedDim instances after creation, while creating
+    a jagged tensor with the make_jagged op.
+
+    See the docstring of the JaggedIntVar class for details.
+    """
+
+    def __init__(
+        self,
+        min_value: int,
+        max_value: int,
+    ):
+        """Initializes a JaggedDim.
+
+        Parameters
+        ----------
+        min_value : int
+            Minimum possible value of the jagged dimension.
+        max_value : int
+            Maximum possible value of the jagged dimension.
+        """
+        if min_value < 0:
+            raise ValueError(f"{min_value=}, but must be non-negative.")
+        if min_value > max_value:
+            raise ValueError(f"{min_value=} can't be larger than {max_value=}.")
+
+        super().__init__()
+
+        self._attrs["values"] = [min_value, max_value]
+        self._attrs["offsets"] = None
+
+    def __eq__(self, another: JaggedDim) -> bool:
+        return (
+            isinstance(another, JaggedDim)
+            and self.min_value() == another.min_value()
+            and self.max_value() == another.max_value()
+            and self.offsets() == another.offsets()
+        )
+
+    def __str__(self) -> str:
+        attrs = dict(self._attrs)
+        if self._attrs["offsets"] is not None:
+            attrs["offsets"] = {"name": self._attrs["offsets"]._attrs["name"]}
+        return str(attrs)
+
+    def min_value(self) -> int:
+        """The minimum possible value of the JaggedDim."""
+        return self._attrs["values"][0]
+
+    def max_value(self) -> int:
+        """The maximum possible value of the JaggedDim."""
+        return self._attrs["values"][1]
+
+    def offsets(self) -> Optional[Tensor]:
+        """The rank-1 offsets Tensor associated with the JaggedDim"""
+        return self._attrs["offsets"]
+
+    def pseudo_code(self, with_shape=False) -> str:
+        return f"JaggedDim({str(self._attrs['values'])})"
+
+
+class JaggedIntVar(IntVar):
+    """
+    JaggedIntVar is a specific case of IntVar that encodes one or more jagged
+    dimensions within itself. JaggedIntVar is used as the first dimension in
+    jagged Tensors' shape (this is, basically, what makes a Tensor jagged).
+    E.g., a JaggedIntVar with a single JaggedDim represents a single dynamic
+    dimension encoding a batch of variable sequence length. For the batch
+    size of B, in some sources this is indicated as sum_B(N_B): the sum of
+    individual sequence lengths: N_1, N_2, ..., N_B of B sequences. This sum
+    is represented as a single dynamic dimension: total_length, with B being
+    defined by the batch_dim.
+
+    Because JaggedIntVar is an IntVar, it can be treated so by the AIT ops
+    that are unaware of the jagged Tensor semantics. But the ops that are
+    aware can interpet the JaggedIntVar as the first dimension of the jagged
+    Tensor by specifically processing the underlying batch_dim and jagged_dims.
+
+    If there is more than one JaggedDim in a JaggedIntVar, those jagged dimensions
+    are nested within the single dynamic dimension. E.g., if there are two JaggedDims,
+    the JaggedIntVar represents a batch of B (batch_dim) variable-length sequences,
+    each in turn consisting of variable-length sequences. In principle, the nesting
+    can be arbitrarily deep, but in practice it's usually just a single JaggedDim.
+
+    JaggedIntVar should not be created directly. Please use the make_jagged op
+    for creating a jagged Tensor from a normal Tensor, the offsets, and the
+    metadata (like batch_dim and jagged_dims). The make_jagged op creates the
+    corresponding JaggedIntVar under the hood.
+    """
+
+    def __init__(
+        self,
+        total_length: IntVar,
+        batch_dim: IntVar,
+        jagged_dims: List[JaggedDim],
+    ):
+        """Initializes a JaggedIntVar.
+
+        Parameters
+        ----------
+        total_length : IntVar
+            The existing IntVar defining the total length sum_B(N_B) of the
+            JaggedIntVar. The "name" and "values" attributes of the JaggedIntVar
+            are the same as those of the total_length. This allows transparent
+            treatment of the jagged Tensor as dense by non-jagged-aware ops.
+            Must be a dynamic dim (IntVar, not IntImm).
+        batch_dim : IntVar
+            The batch dimension B in the sum_B(N_B) representation of the
+            JaggedIntVar. Specifies the number of (outermost) variable-length
+            sequences encoded within the JaggedIntVar. Must be a dynamic dim
+            (IntVar, not IntImm).
+        jagged_dims : List[JaggedDim]
+            One or more jagged dimension encoded in the JaggedIntVar. Each
+            JaggedDim specifies the bounds of one level of nested jaggedness
+            of the JaggedIntVar. See the class docstring for details.
+            The list must contain at least one JaggedDim. All JaggedDims
+            in the list must have their offsets already set to the
+            corresponding rank-1 Tensors.
+        """
+        if total_length is None or type(total_length) != IntVar:
+            raise TypeError(
+                "total_length must be dynamic (IntVar), "
+                f"but given {type(total_length).__name__}."
+            )
+        if batch_dim is None or type(batch_dim) != IntVar:
+            raise TypeError(
+                "batch_dim must be dynamic (IntVar), "
+                f"but given {type(batch_dim).__name__}."
+            )
+        if not jagged_dims or not all(
+            isinstance(dim, JaggedDim) for dim in jagged_dims
+        ):
+            raise TypeError(
+                "jagged_dims must be a non-empty list of JaggedDims, "
+                f"but given {jagged_dims}."
+            )
+        offsets_types = set()
+        for i, dim in enumerate(jagged_dims):
+            if dim.offsets() is None:
+                raise ValueError(
+                    f"JaggedDim {i} in the jagged_dims list has no associated offsets. "
+                    "This probably means that the JaggedIntVar is instantiated directly. "
+                    "Instead, jagged Tensor must be created by calling the make_jagged op."
+                )
+            else:
+                offsets_type = dim.offsets()._attrs["dtype"]
+                if offsets_type not in ["int32", "int64"]:
+                    raise TypeError(
+                        "The offsets Tensors can be either int32 or int64, "
+                        f"but given the Tensor of type {offsets_type}."
+                    )
+                offsets_types.add(offsets_type)
+        if len(offsets_types) > 1:
+            raise TypeError(
+                "All offsets Tensors must be of the same type,"
+                f" but given the Tensors of different types: {offsets_types}."
+            )
+
+        super().__init__(
+            values=total_length._attrs["values"],
+            name=total_length._attrs["name"],
+        )
+
+        self._attrs["batch_dim"] = batch_dim
+        self._attrs["jagged_dims"] = jagged_dims
+        self._attrs["offsets_type"] = f"{offsets_types.pop()}_t"
+        self._total_length = total_length
+
+    def __eq__(self, another: JaggedIntVar) -> bool:
+        return (
+            isinstance(another, JaggedIntVar)
+            and self.total_length() == another.total_length()
+            and self.batch_dim() == another.batch_dim()
+            and self.jagged_dims() == another.jagged_dims()
+        )
+
+    def total_length(self) -> IntVar:
+        """The total_length dimension the JaggedIntVar is based on."""
+        return self._total_length
+
+    def batch_dim(self) -> IntVar:
+        """The batch_dim of the JaggedIntVar."""
+        return self._attrs["batch_dim"]
+
+    def jagged_dims(self) -> List[JaggedDim]:
+        """The jagged_dims of the JaggedIntVar."""
+        return self._attrs["jagged_dims"]
+
+    def offsets_type(self) -> str:
+        """The type of the offsets of the JaggedIntVar's jagged_dims."""
+        return self._attrs["offsets_type"]
+
+    def offsets_var_name(self) -> str:
+        """The name of the offsets struct variable in runtime."""
+        name = self._attrs["name"]
+        if name is None:
+            raise RuntimeError("The JaggedIntVar is not named yet")
+        return f"{name}_jagged_offsets"
+
+    def offsets_struct_type(self) -> str:
+        """The type of the offsets struct variable used in runtime."""
+        num_jagged_dims = len(self.jagged_dims())
+        return f"ait::JaggedOffsets<{self.offsets_type()}, {num_jagged_dims}>"
+
+    def get_max_dense_shape(self) -> List[IntVar]:
+        """
+        Returns a list of IntVars representing the maximum dense shape
+        (rectangular volume) that the JaggedIntVar can correspond to.
+        The result has the batch_dim as the first item and the IntImm
+        with the max_value of each JaggedDim that follows.
+        """
+        result = [self.batch_dim()]
+        for dim in self.jagged_dims():
+            result.append(IntImm(dim.max_value()))
+        return result
 
 
 def get_aligned_size(shape: List[IntVar], dtype: str, alignment: int = 64) -> int:
@@ -495,6 +717,12 @@ class Tensor(Node):
     def is_a_const_num(self) -> bool:
         """Returns whether this Tensor represents a constant number."""
         return len(self._attrs["shape"]) == 0 and self._attrs["value"] is not None
+
+    def is_jagged(self) -> bool:
+        """Whether the Tensor is jagged (the first dim is JaggedIntVar)."""
+        return len(self._attrs["shape"]) > 0 and isinstance(
+            self._attrs["shape"][0], JaggedIntVar
+        )
 
     def size_bytes(self, alignment: int = 1) -> int:
         """Returns acutal size (in bytes) of this Tensor."""
