@@ -29,6 +29,7 @@ MODEL_TEMPLATE = jinja2.Template(
 #include "raii_wrapper.h"
 #include "model.h"
 #include "macros.h"
+#include "jagged.h"
 #include <algorithm>
 #include <deque>
 #include <fstream>
@@ -179,6 +180,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
   private:
 {{ tensor_decl }}
 {{ dim_decl }}
+{{ jagged_decl }}
 {{ function_state }}
 };
 } // namespace ait

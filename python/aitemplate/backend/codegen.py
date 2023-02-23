@@ -341,6 +341,7 @@ class ModelContainerGenerator:
         self._output_shape_seq = []
         self.tensor_decl = []
         self.dim_decl = []
+        self.jagged_decl = []
         self.device_to_device_copies = []
         self.function_state = []
         self.set_up_constants = []
@@ -651,6 +652,37 @@ class ModelContainerGenerator:
             self.dim_decl.append(self.f_var_decl(dim._attrs["name"], intimm))
             self.visited_dims.add(dim._attrs["name"])
 
+    def _process_jagged_dims(self, node: Tensor) -> None:
+        # JaggedIntVars are processed separately here (besides being processed
+        # like normal IntVars in _process_dims above), as they require adding
+        # the offset structure declaration into the Model codegen, as well as
+        # the batch_dim if it's not set when processing other tensors that
+        # directly contain the batch_dim it in their shapes
+        jagged_int_var = node._attrs["shape"][0]
+        name = jagged_int_var._attrs["name"]
+
+        # we use the key with a prefix here, as the JaggedIntVar's name
+        # is identical to the name of the total_length it is based on,
+        # which might have been traversed already
+        key = f"jagged_int_var_{name}"
+        if key not in self.visited_dims:
+            for i, jagged_dim in enumerate(jagged_int_var.jagged_dims()):
+                if jagged_dim.offsets() is None:
+                    raise RuntimeError(
+                        f"No offsets Tensor is associated with the JaggedDim {i} in "
+                        f"the JaggedIntVar {name}: can't generate offset-related code."
+                    )
+            self.jagged_decl.append(
+                f"   {jagged_int_var.offsets_struct_type()} "
+                f"{jagged_int_var.offsets_var_name()};"
+            )
+            self.visited_dims.add(key)
+
+        batch_dim_name = jagged_int_var.batch_dim()._attrs["name"]
+        if batch_dim_name not in self.visited_dims:
+            self.dim_decl.append(self.f_var_decl(batch_dim_name, 0))
+            self.visited_dims.add(batch_dim_name)
+
     def _process_dims_for_tensor(self, node: Tensor) -> None:
         self._process_dims(node._attrs["shape"])
 
@@ -781,6 +813,9 @@ class ModelContainerGenerator:
         self._process_dims_for_tensor(node)
         self._process_src_ops(node)
 
+        if node.is_jagged():
+            self._process_jagged_dims(node)
+
     def generate_model(self) -> str:
         # Disable graph mode on ROCM because the updating operations
         # are not supported
@@ -805,6 +840,7 @@ class ModelContainerGenerator:
             per_op_profiler_seq=per_op_profiler_seq,
             tensor_decl="\n".join(self.tensor_decl),
             dim_decl="\n".join(self.dim_decl),
+            jagged_decl="\n".join(self.jagged_decl),
             function_state="\n".join(self.function_state),
             target_has_graph_mode=target_has_graph_mode,
             unique_workspace_size=self.workspace.unique_size,
