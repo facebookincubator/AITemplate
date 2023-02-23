@@ -117,3 +117,37 @@ class TestTensorSpec(unittest.TestCase):
             ),
             specs[2],
         )
+
+    def test_input_with_no_bs_tensor(self):
+        inputs = [
+            torch.empty([2, 10, 4], dtype=torch.float16),
+            torch.empty([20], dtype=torch.int32),
+            torch.empty([7, 10, 9], dtype=torch.float16),
+            torch.empty([20, 7, 10, 9], dtype=torch.float16),
+        ]
+
+        specs = TensorSpec.from_input_list_with_batch_size(inputs, 32, 1)
+        self.assertEqual(4, len(specs))
+        self.assertEqual(
+            TensorSpec(
+                [IntImm(2), IntVar([1, 32], "batch_size"), IntImm(4)], torch.float16
+            ),
+            specs[0],
+        )
+        self.assertEqual(
+            TensorSpec([IntImm(20)], torch.int32),
+            specs[1],
+        )
+        self.assertEqual(
+            TensorSpec(
+                [IntImm(7), IntVar([1, 32], "batch_size"), IntImm(9)], torch.float16
+            ),
+            specs[2],
+        )
+        self.assertEqual(
+            TensorSpec(
+                [IntImm(20), IntImm(7), IntVar([1, 32], "batch_size"), IntImm(9)],
+                torch.float16,
+            ),
+            specs[3],
+        )

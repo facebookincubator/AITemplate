@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from functools import reduce
 from typing import Any, List
 
 import torch
@@ -195,20 +194,28 @@ class TensorSpec:
         if isinstance(inputs, torch.Tensor) or len(inputs) <= 1:
             return [0]
         shapes = [i.shape for i in inputs]
-        batch_size = list(reduce(lambda i, j: i & j, (set(x) for x in shapes)))
-        if len(batch_size) != 1:
-            # Unable to find unified batch_size value among input tensors, default batch_size dim=0
-            return [0] * len(inputs)
+        frequency_map = {}
+        for shape in shapes:
+            if len(shape) < 2:
+                # By pass for rank-1 tensors. MRS model has rank-1 tensor carry no batch_size info
+                continue
+            # Dedup shape value for single tensor
+            shape = set(shape)
+            for i in shape:
+                frequency_map[i] = frequency_map.get(i, 0) + 1
+        sorted_frequency = sorted(frequency_map.items(), key=lambda x: -x[1])
+        batch_size = sorted_frequency[0][0]
 
         bs_dim = []
         for i in inputs:
-            # Default batch size dim = 0
-            dim = 0
+            # Default batch size dim = -1, indicate no batch_size
+            dim = -1
             for index, val in enumerate(i.shape):
-                if val == batch_size[0]:
+                if val == batch_size:
                     dim = index
                     break
             bs_dim.append(dim)
+
         return bs_dim
 
     @classmethod
