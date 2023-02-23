@@ -28,7 +28,7 @@ inline int GET_BLOCKS(const int N, const int num_threads = THREADS_PER_BLOCK) {
 int64_t* alignPtr(int64_t* ptr, uintptr_t to) {
   uintptr_t addr = (uintptr_t)ptr;
   if (addr % to) {
-    addr += to - addr % to;
+    addr = addr + to - (addr % to);
   }
   return (int64_t*)addr;
 }
@@ -55,16 +55,16 @@ __device__ inline bool devIoU(
     T const* const b,
     const int offset_,
     const float threshold) {
-  T offset = __float2half_rn(float(offset_));
-  T left = hmax(a[0], b[0]), right = hmin(a[2], b[2]);
-  T top = hmax(a[1], b[1]), bottom = hmin(a[3], b[3]);
-  T width = hmax(right - left + offset, 0.f),
-    height = hmax(bottom - top + offset, 0.f);
-  float interS = __half2float(width) * __half2float(height);
+  T offset = float(offset_);
+  T left = fmaxf(a[0], b[0]), right = fminf(a[2], b[2]);
+  T top = fmaxf(a[1], b[1]), bottom = fminf(a[3], b[3]);
+  T width = fmaxf(right - left + offset, 0.f),
+    height = fmaxf(bottom - top + offset, 0.f);
+  float interS = (width) * (height);
   float Sa =
-      __half2float(a[2] - a[0] + offset) * __half2float(a[3] - a[1] + offset);
+      (a[2] - a[0] + offset) * (a[3] - a[1] + offset);
   float Sb =
-      __half2float(b[2] - b[0] + offset) * __half2float(b[3] - b[1] + offset);
+      (b[2] - b[0] + offset) * (b[3] - b[1] + offset);
 
   return interS > threshold * (Sa + Sb - interS);
 }

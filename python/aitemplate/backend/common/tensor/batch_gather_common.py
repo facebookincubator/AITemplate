@@ -95,6 +95,19 @@ __device__ int64_t GetInOffset(
       out_offset % (indices_num * instance_size) / instance_size;
   const int64_t inner_idx = out_offset % instance_size;
   const int64_t idx = indices[batch_idx * indices_num + indices_idx];
+  if (idx >= gather_dim_size) {
+    printf("idx: %ld, "
+           "gather_dim_size: %ld, "
+           "indices_idx: %ld, "
+           "indices_num: %ld, "
+           "batch_idx: %ld, "
+           "\\n",
+           idx,
+           gather_dim_size,
+           indices_idx,
+           indices_num,
+           batch_idx);
+  }
   assert(idx >= 0 && idx < gather_dim_size);
   return batch_idx * gather_dim_size * instance_size + idx * instance_size +
       inner_idx;
