@@ -47,7 +47,7 @@ def _detect_cuda():
             return "80"
         return None
     except Exception:
-        return None
+        return "80"
 
 
 def _detect_rocm():
