@@ -178,6 +178,7 @@ class Conv3dDepthwiseTestCase(unittest.TestCase):
         self._test_mvit_shape(128, 2, 56, 56, 96, 96, 96, (3, 3, 3), (1, 4, 4), "5")
         self._test_mvit_shape(128, 2, 56, 56, 96, 96, 96, (3, 3, 3), (2, 8, 8), "6")
         self._test_mvit_shape(128, 2, 56, 56, 96, 96, 96, (1, 3, 3), (2, 8, 8), "7")
+        self._test_mvit_shape(128, 2, 56, 56, 3, 3, 3, (1, 3, 3), (2, 8, 8), "7")
 
 
 if __name__ == "__main__":
