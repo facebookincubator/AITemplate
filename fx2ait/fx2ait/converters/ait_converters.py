@@ -490,6 +490,8 @@ def acc_ops_unbind(
     dim = kwargs["dim"]
     shape = input_val.shape()
     res = []
+    if dim < 0:
+        dim = len(shape) + dim
     for cnt in range(shape[dim].value()):
         idx = []
         for i in range(len(shape)):
@@ -1508,6 +1510,16 @@ def acc_ops_contiguous(
     return kwargs["input"]
 
 
+@ait_converter(acc_ops.to_dtype)
+def acc_ops_to_dtype(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    return kwargs["input"]
+
+
 @ait_converter(acc_ops.gelu)
 def acc_ops_gelu(
     target: Target,
@@ -1587,5 +1599,13 @@ def acc_ops_neg(
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
-    neg_one = AITTensor(shape=[], dtype="float16", name="neg_one", value=-1.0)
-    return elementwise(FuncEnum.MUL)(input_val, neg_one)
+    new_kwargs = kwargs.copy()
+    dt = new_kwargs["input"]._attrs["dtype"]
+    if dt == "float16" or dt == "float32":
+        new_kwargs["other"] = float(-1)
+    elif dt == "int32" or dt == "int64":
+        new_kwargs["other"] = int(-1)
+    else:
+        raise ValueError(f"Unexpected input dtype {dt}")
+
+    return create_binary_op(FuncEnum.MUL, args, new_kwargs, name)

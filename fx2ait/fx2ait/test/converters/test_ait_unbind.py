@@ -14,17 +14,24 @@
 #
 import torch
 from fx2ait.tools.common_fx2ait import AITTestCase
+from parameterized import parameterized
 from torch import nn
 
 
 class TestUnbindTensor(AITTestCase):
-    def test_unbind(self):
+    @parameterized.expand(
+        [
+            ("positive_dim", 2),
+            ("negative_dim", -1),
+        ]
+    )
+    def test_unbind(self, name, dim):
         class GetItem(nn.Module):
             def __init__(self):
                 super().__init__()
 
             def forward(self, x):
-                y = torch.unbind(x, dim=2)
+                y = torch.unbind(x, dim=dim)
                 z = y[0]
                 return z
 

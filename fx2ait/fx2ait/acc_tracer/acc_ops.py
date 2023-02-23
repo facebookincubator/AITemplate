@@ -377,9 +377,10 @@ def custom_getattr_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
             getitem_node.meta = node.meta.copy()
             return getitem_node
 
-    assert (
-        input_obj_type == torch.Tensor
-    ), f"Expected torch.Tensor type for {input_obj_type}"
+    assert input_obj_type in [
+        torch.Tensor,
+        torch.nn.parameter.Parameter,
+    ], f"Expected torch.Tensor type for {input_obj_type}"
     assert (
         attr_name == "shape" or attr_name == "device" or attr_name == "dtype"
     ), f"Only supporting shape, device and dtype getattr for now, not {attr_name}"
@@ -430,7 +431,10 @@ def tensor_size_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
 @register_acc_op_mapping(op_and_target=("call_method", "add"))
 @register_acc_op
 def add(*, input, other):
-    return input + other
+    if not (isinstance(input, torch.Tensor) or isinstance(other, torch.Tensor)):
+        return operator.add(input, other)
+    else:
+        return input + other
 
 
 @register_acc_op_properties(AccOpProperty.unary)
@@ -1040,7 +1044,10 @@ def rescale_quantize_per_channel(*, input, acc_out_ty=None):
 @register_acc_op_mapping(op_and_target=("call_method", "sub"))
 @register_acc_op
 def sub(*, input, other):
-    return input - other
+    if not (isinstance(input, torch.Tensor) or isinstance(other, torch.Tensor)):
+        return operator.sub(input, other)
+    else:
+        return input - other
 
 
 @register_acc_op_properties(AccOpProperty.pointwise)
@@ -1746,7 +1753,10 @@ def abs(*, input):
 @register_acc_op_mapping(op_and_target=("call_function", torch.neg))
 @register_acc_op
 def neg(*, input):
-    return torch.neg(input=input)
+    if not isinstance(input, torch.Tensor):
+        return operator.neg(input)
+    else:
+        return torch.neg(input=input)
 
 
 @register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)
@@ -3250,6 +3260,12 @@ def group_norm(*, input, num_groups, weight=None, bias=None, eps=1e-05):
     return torch.nn.functional.group_norm(
         input, num_groups, weight=weight, bias=bias, eps=eps
     )
+
+
+@register_acc_op_mapping(op_and_target=("call_method", "long"))
+@register_acc_op
+def long(*, input):
+    return input.long()
 
 
 ###############################################################################
