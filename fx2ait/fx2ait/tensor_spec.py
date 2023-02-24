@@ -12,10 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 from typing import Any, List
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class TensorSpec:
@@ -186,6 +189,55 @@ class TensorSpec:
                     shape.append(IntImm(d))
             result.append(TensorSpec(shape, t.dtype))
 
+        return result
+
+    @classmethod
+    def from_input_list_with_batch_size_jagged_tensor(
+        cls,
+        inputs: List[torch.Tensor],
+        max_batch_size: int,
+        max_batch_size_jagged_tensor: int,
+        tag_val=None,
+    ) -> List["TensorSpec"]:
+        """
+        Most of the recommendation models will work fine using this function.
+
+        We make an assumption that inferred lowerable subgraph inputs will have
+        a single batch dimension with the same max batch size.
+        """
+        result: List = []
+        result_unsorted: List = []
+        left_inputs: List = []
+        left_inputs_ind: List = []
+        for ind, t in enumerate(inputs):
+            if t.shape[0] == tag_val:
+                shape: List[IntVar] = []
+                for i, d in enumerate(t.shape):
+                    if i == 0:
+                        shape.append(
+                            IntVar(
+                                [1, max_batch_size_jagged_tensor],
+                                "batch_size_jagged_tensor",
+                            )
+                        )
+                    else:
+                        shape.append(IntImm(d))
+                result_unsorted.append((ind, TensorSpec(shape, t.dtype)))
+            else:
+                left_inputs.append(t)
+                left_inputs_ind.append(ind)
+
+        bs_dim = cls.find_batch_size_dim(left_inputs)
+        for index, t in enumerate(left_inputs):
+            shape: List[IntVar] = []
+            for i, d in enumerate(t.shape):
+                if i == bs_dim[index]:
+                    shape.append(IntVar([1, max_batch_size], "batch_size"))
+                else:
+                    shape.append(IntImm(d))
+            result_unsorted.append((left_inputs_ind[index], TensorSpec(shape, t.dtype)))
+        result = sorted(result_unsorted, key=lambda num: num[0])
+        result = [r[1] for r in result]
         return result
 
     @classmethod
