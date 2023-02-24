@@ -45,8 +45,10 @@ def _detect_cuda():
         elif "NVIDIA" in stdout:
             # default to "80" if unknown NVIDIA device
             return "80"
-        return None
+        print("Fall back to 80...")
+        return "80"
     except Exception:
+        print("Fall back to 80...")
         return "80"
 
 
