@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-  <title>ait_sample_net</title>
+  <title>ait_model</title>
 </head>
 
 <style>
@@ -83,7 +83,7 @@ input[type=submit] {
 
 <nav id="nav_bar" class="navbar fixed-top bg-light">
   <div class="container-fluid">
-    <a onclick="back_to_head()" class="navbar-brand">ait_sample_net</a>
+    <a onclick="back_to_head()" class="navbar-brand">ait_model</a>
     <div class="navbar-right">
         <div class="autocomplete" style="width:300px;">
         <input id="name_input" class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
@@ -98,7 +98,7 @@ input[type=submit] {
   src="https://code.jquery.com/jquery-3.6.0.js"
   integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
   crossorigin="anonymous"></script>
-  
+
   <script src="https://cdn.jsdelivr.net/npm/popper.js@1.12.9/dist/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.0.0/dist/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
   <script src="https://d3js.org/d3.v5.min.js"></script>
@@ -108,7 +108,7 @@ input[type=submit] {
 
 
   <div id="graph" style="text-align: center;"></div>
-  
+
 <div class="modal fade" id="X_modal" tabindex="-1" role="dialog" aria-labelledby="X_label" aria-hidden="true">
   <div class="modal-dialog" role="document">
     <div class="modal-content">
@@ -119,7 +119,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -162,7 +162,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -193,7 +193,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -224,7 +224,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -267,7 +267,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -310,7 +310,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -353,7 +353,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -396,7 +396,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -439,7 +439,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -482,7 +482,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -513,7 +513,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -556,7 +556,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -599,7 +599,7 @@ input[type=submit] {
         </button>
       </div>
       <div class="modal-body">
-        
+
 <table class="table">
   <thead class="thead-dark">
     <tr>
@@ -631,7 +631,7 @@ input[type=submit] {
     </div>
   </div>
 </div>
-  
+
 
   <script>
   items = ["X", "gemm_rcr_bias_fast_gelu_0", "gemm_rcr_bias_add_4", "dense1_weight", "dense1_bias", "gemm_rcr_bias_fast_gelu_0_0", "dense2_weight", "dense2_bias", "elementwise_2_0", "layernorm_3", "layernorm_weight", "layernorm_bias", "Y"];
@@ -798,7 +798,7 @@ Y [color=violetred, id=Y, shape=note];
 layernorm_3 -> Y;
 }
 `;
-    var popover_data = {"X": "shape: [512, 1024]", "gemm_rcr_bias_fast_gelu_0": "op: gemm_rcr_bias_fast_gelu", "gemm_rcr_bias_add_4": "op: gemm_rcr_bias_add", "dense1_weight": "shape: [4096, 1024]", "dense1_bias": "shape: [4096]", "gemm_rcr_bias_fast_gelu_0_0": "shape: [512, 4096]", "dense2_weight": "shape: [1024, 4096]", "dense2_bias": "shape: [1024]", "elementwise_2_0": "shape: [512, 1024]", "layernorm_3": "op: layernorm", "layernorm_weight": "shape: [1024]", "layernorm_bias": "shape: [1024]", "Y": "shape: [512, 1024]"};
+    var popover_data = {"X": "shape: [512, 1024]", "gemm_rcr_bias_fast_gelu_0": "op_type: gemm_rcr_bias_fast_gelu", "gemm_rcr_bias_add_4": "op_type: gemm_rcr_bias_add", "dense1_weight": "shape: [4096, 1024]", "dense1_bias": "shape: [4096]", "gemm_rcr_bias_fast_gelu_0_0": "shape: [512, 4096]", "dense2_weight": "shape: [1024, 4096]", "dense2_bias": "shape: [1024]", "elementwise_2_0": "shape: [512, 1024]", "layernorm_3": "op_type: layernorm", "layernorm_weight": "shape: [1024]", "layernorm_bias": "shape: [1024]", "Y": "shape: [512, 1024]"};
     var graphviz = d3.select("#graph").graphviz();
     var pop_finish = 0;
     // var dotSrcLines;
@@ -815,7 +815,7 @@ layernorm_3 -> Y;
         obj.popover();
       }
     }
-  
+
 
     function render() {
       // console.log('DOT source =', dotSrc);
@@ -849,7 +849,7 @@ layernorm_3 -> Y;
         var shape = obj.find("polygon:first");
         var color = shape.attr("stroke");
         shape.attr("fill", color);
-        
+
       });
       nodes.on("mouseout", function() {
         var id = d3.select(this).attr("id");
@@ -862,5 +862,5 @@ layernorm_3 -> Y;
     }
     render(dotSrc);
   </script>
-  
+
 </body>

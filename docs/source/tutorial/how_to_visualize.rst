@@ -76,7 +76,7 @@ The following code will generate a visualization of our first example.
 .. code-block:: python
 
   # Plot the graph
-  plot_graph(graph, file_path="ait_model.html", network_name="ait_sample_net")
+  plot_graph(graph, file_path="ait_model.html")
 
 The visualization will be generated in the "ait_model.html" file. This file can be opened in Chrome without any web server.
 
