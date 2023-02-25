@@ -71,4 +71,4 @@ Then build the Python wheel package and install it:
 
         cd python
         python setup.py bdist_wheel
-        pip install dist/aitemplate-0.0.1-py3-none-any.whl
+        pip install dist/aitemplate-*.whl
