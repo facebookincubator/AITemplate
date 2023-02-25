@@ -32,22 +32,21 @@ FLAG = ""
 
 def _detect_cuda():
     try:
-        proc = Popen(
-            ["nvidia-smi", "--query-gpu=gpu_name", "--format=csv"],
-            stdout=PIPE,
-            stderr=PIPE,
-        )
-        stdout, stderr = proc.communicate()
-        stdout = stdout.decode("utf-8")
-        if "H100" in stdout:
+        import pycuda.driver as drv
+
+        drv.init()
+        major, minor = drv.Device(0).compute_capability()
+        comp_cap = major * 10 + minor
+        if comp_cap >= 90:
             return "90"
-        if any(a in stdout for a in ["A100", "A10G", "RTX 30", "A30", "RTX 40"]):
+        elif comp_cap >= 80:
             return "80"
-        if "V100" in stdout:
-            return "70"
-        if "T4" in stdout:
+        elif comp_cap >= 75:
             return "75"
-        return None
+        elif comp_cap >= 70:
+            return "70"
+        else:
+            return None
     except Exception:
         return None
 
