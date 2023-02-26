@@ -27,14 +27,39 @@ class TestAdaptiveAvgPool2dConverter(DispatchTestCase):
                 self.bn = torch.nn.BatchNorm2d(3)
 
             def forward(self, x):
-                return self.bn(x)
+                y = self.bn(x)
+                y = y.mul(1)
+                return y
 
         model = TestModule().half().cuda()
         inputs = [torch.randn(1, 3, 244, 244).cuda().half()]
         self.run_test(
             model,
             inputs,
-            expected_ops={torch.ops.aten.batch_norm},
+            expected_ops={},
+            permute_inputs=[0, 2, 3, 1],
+            permute_outputs=[0, 3, 1, 2],
+        )
+
+    def test_batch_norm_2layers(self):
+        class TestModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.bn = torch.nn.BatchNorm2d(3)
+                self.bn2 = torch.nn.BatchNorm2d(3)
+
+            def forward(self, x):
+                y = self.bn(x)
+                y = y.mul(1)
+                y = self.bn2(y)
+                return y
+
+        model = TestModule().half().cuda()
+        inputs = [torch.randn(1, 3, 244, 244).cuda().half()]
+        self.run_test(
+            model,
+            inputs,
+            expected_ops={},
             permute_inputs=[0, 2, 3, 1],
             permute_outputs=[0, 3, 1, 2],
         )

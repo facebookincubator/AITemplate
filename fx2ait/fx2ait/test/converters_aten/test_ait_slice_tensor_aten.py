@@ -47,7 +47,7 @@ class TestSliceTensor(DispatchTestCase):
                 "slice_basic",
                 (slice(None, None, None), slice(0, 3, 1)),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
@@ -76,7 +76,7 @@ class TestSliceTensor(DispatchTestCase):
                     slice(None, None, None),
                 ),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
@@ -88,7 +88,7 @@ class TestSliceTensor(DispatchTestCase):
                     slice(None, 2, 1),
                 ),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
@@ -97,7 +97,7 @@ class TestSliceTensor(DispatchTestCase):
                 "slice_end_none",
                 (slice(None, None, None), slice(1, None, 1)),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
@@ -109,7 +109,7 @@ class TestSliceTensor(DispatchTestCase):
                     slice(0, 3, None),
                 ),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
@@ -127,7 +127,7 @@ class TestSliceTensor(DispatchTestCase):
                 "slice_neg_slice",
                 (slice(None, None, None), slice(-8, -2, 1)),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
@@ -145,7 +145,7 @@ class TestSliceTensor(DispatchTestCase):
                 "slice_multi_dim",
                 (slice(None, None, None), slice(0, 3, 1), slice(1, -1, 1)),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
@@ -172,7 +172,7 @@ class TestSliceTensor(DispatchTestCase):
                 "slice_zero_slice",
                 (slice(None, None, None), slice(None, None, None), slice(0, 0, None)),
                 {
-                    torch.ops.aten.slice.Tensor,
+                    aten_compose_getitem_slice,
                     torch.ops.aten.add.Tensor,
                 },
                 None,
