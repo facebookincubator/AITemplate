@@ -41,6 +41,9 @@ SRC_TEMPLATE = jinja2.Template(
 #include "jagged.h"
 
 
+#define THREADS_PER_BLOCK 128
+
+
 namespace {
 
 struct OffsetBounds {
@@ -53,57 +56,72 @@ __global__ void check_offsets(
   {{offsets_struct_type}} offsets,
   OffsetBounds bounds
 ) {
-  int64_t length = offsets.lengths[blockIdx.x];
-  const {{offsets_type}}* data = offsets.data[blockIdx.x];
+  int64_t dim_id = blockIdx.y;
+  int64_t offset_id = blockIdx.x * THREADS_PER_BLOCK + threadIdx.x;
 
-  if (threadIdx.x >= length - 1) {
+  int64_t length = offsets.lengths[dim_id];
+  const {{offsets_type}}* data = offsets.data[dim_id];
+
+  if (offset_id >= length - 1) {
     // out of bounds of the offset array
     return;
   }
 
-  {{offsets_type}} group_size = data[threadIdx.x + 1] - data[threadIdx.x];
-  if (group_size < bounds.min_values[blockIdx.x] || group_size > bounds.max_values[blockIdx.x]) {
+  {{offsets_type}} group_size = data[offset_id + 1] - data[offset_id];
+  if (group_size < bounds.min_values[dim_id] || group_size > bounds.max_values[dim_id]) {
     printf(
-      "\\n[func name: {{func_name}}, blockIdx.x: %d, threadIdx.x: %d]: "
+      "\\n[func name: {{func_name}}, block: [%d, %d, %d], thread: [%d, %d, %d]]: "
       "Error: the offset difference %d is out of bounds of the jagged dimension %d (min: %d, max: %d).",
       (int32_t)blockIdx.x,
+      (int32_t)blockIdx.y,
+      (int32_t)blockIdx.z,
       (int32_t)threadIdx.x,
+      (int32_t)threadIdx.y,
+      (int32_t)threadIdx.z,
       (int32_t)group_size,
-      (int32_t)blockIdx.x,
-      (int32_t)bounds.min_values[blockIdx.x],
-      (int32_t)bounds.max_values[blockIdx.x]
+      (int32_t)dim_id,
+      (int32_t)bounds.min_values[dim_id],
+      (int32_t)bounds.max_values[dim_id]
     );
     __trap();
   }
 
-  if (threadIdx.x == 0) {
+  if (offset_id == 0) {
     {{offsets_type}} first_offset = data[0];
     if (first_offset != 0)
     {
       printf(
-        "\\n[func name: {{func_name}}, blockIdx.x: %d, threadIdx.x: %d]: "
+      "\\n[func name: {{func_name}}, block: [%d, %d, %d], thread: [%d, %d, %d]]: "
         "Error: the first offset of the jagged dimension %d is non-zero: %d.",
         (int32_t)blockIdx.x,
+        (int32_t)blockIdx.y,
+        (int32_t)blockIdx.z,
         (int32_t)threadIdx.x,
-        (int32_t)blockIdx.x,
+        (int32_t)threadIdx.y,
+        (int32_t)threadIdx.z,
+        (int32_t)dim_id,
         (int32_t)first_offset
       );
       __trap();
     }
   }
 
-  if (threadIdx.x == length - 2) {
+  if (offset_id == length - 2) {
     {{offsets_type}} last_offset = data[length - 1];
-    if (last_offset != bounds.last_values[blockIdx.x])
+    if (last_offset != bounds.last_values[dim_id])
     {
       printf(
-        "\\n[func name: {{func_name}}, blockIdx.x: %d, threadIdx.x: %d]: "
+      "\\n[func name: {{func_name}}, block: [%d, %d, %d], thread: [%d, %d, %d]]: "
         "Error: the last offset of the jagged dimension %d is incorrect: %d (must be %d).",
         (int32_t)blockIdx.x,
+        (int32_t)blockIdx.y,
+        (int32_t)blockIdx.z,
         (int32_t)threadIdx.x,
-        (int32_t)blockIdx.x,
+        (int32_t)threadIdx.y,
+        (int32_t)threadIdx.z,
+        (int32_t)dim_id,
         (int32_t)last_offset,
-        (int32_t)bounds.last_values[blockIdx.x]
+        (int32_t)bounds.last_values[dim_id]
       );
       __trap();
     }
@@ -120,7 +138,8 @@ void {{func_name}}(
 {% endfor %}
   {{offsets_struct_type}}& offsets,
   int64_t* batch_dim,
-  int64_t total_length
+  int64_t total_length,
+  cudaStream_t stream
 ) {
 {% for idx in range(num_offsets) %}
     offsets.lengths[{{idx}}] = offsets_length_{{idx}};
@@ -154,7 +173,8 @@ void {{func_name}}(
     bounds.last_values[{{idx}}] = {{ "offsets.lengths[" + ((idx + 1) | string) + "] - 1" if idx < num_offsets - 1 else "total_length" }};
 {% endfor %}
 
-    check_offsets<<<{{num_offsets}}, max_offset_length - 1, 0, 0>>>(offsets, bounds);
+    dim3 grid_size((max_offset_length - 1 + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK, {{num_offsets}});
+    check_offsets<<<grid_size, THREADS_PER_BLOCK, 0, stream>>>(offsets, bounds);
 }
 """,
     trim_blocks=True,
@@ -170,7 +190,8 @@ void {{func_name}}(
 {% endfor %}
   {{offsets_struct_type}}&,
   int64_t*,
-  int64_t
+  int64_t,
+  cudaStream_t
 );
 """,
     trim_blocks=True,
@@ -186,7 +207,8 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {% endfor %}
 {{indent}}  {{offsets_var_name}},
 {{indent}}  &{{batch_dim_name}},
-{{indent}}  {{source_first_dim_name}}
+{{indent}}  {{source_first_dim_name}},
+{{indent}}  stream
 {{indent}});
 """,
     trim_blocks=True,
