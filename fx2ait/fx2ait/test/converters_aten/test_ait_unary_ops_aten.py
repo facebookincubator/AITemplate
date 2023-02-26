@@ -31,8 +31,8 @@ unary_ops = [
     (torch.sqrt, torch.ops.aten.sqrt.default),
     (
         torch.clone,
-        torch.ops.aten.clone.default,
-    ),  # clone op can not be the output directly
+        torch.ops.aten.mul.Tensor,
+    ),  # clone op can not be the output directly so expected is the op after it(aten.mul)
 ]
 
 
