@@ -14,6 +14,7 @@
 #
 import torch
 from fx2ait.fx2ait import TensorSpec
+from fx2ait.passes.lower_basic_pass_aten import aten_compose_chunk
 from fx2ait.tools.common_aten2ait import DispatchTestCase
 from parameterized import param, parameterized
 
@@ -40,7 +41,7 @@ class TestChunkConverter(DispatchTestCase):
 
         model = TestModule().cuda().half()
         inputs = [torch.randn(shape).half().cuda()]
-        self.run_test(model, inputs, expected_ops={})
+        self.run_test(model, inputs, expected_ops={aten_compose_chunk})
 
     def test_chunk_dynamic(self):
         class TestModule(torch.nn.Module):
@@ -57,4 +58,6 @@ class TestChunkConverter(DispatchTestCase):
             ],
         )
 
-        self.run_test_with_dynamic_shape(model, inputs_spec, expected_ops={})
+        self.run_test_with_dynamic_shape(
+            model, inputs_spec, expected_ops={aten_compose_chunk}
+        )

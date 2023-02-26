@@ -67,6 +67,7 @@ from fx2ait.passes.lower_basic_pass_aten import (
     aten_compose_bmm_3d,
     aten_compose_chunk,
     aten_compose_getitem_slice,
+    aten_compose_mm_2d,
     aten_operator_getitem,
 )
 from torch.fx.node import Argument, Target
@@ -555,6 +556,7 @@ def aten_ops_max_pool2d(
     return max_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
 
 
+@ait_converter(aten_compose_mm_2d)
 @ait_converter(aten_compose_bmm_3d)
 @ait_converter(aten_compose_bmm_2d)
 @ait_converter(torch.ops.aten.addmm.default)
