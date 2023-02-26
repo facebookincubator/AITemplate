@@ -48,7 +48,7 @@ class FlashAttention(Module):
         causal=False,
         dtype="float16",
     ):
-        """Initilize attention module, create a tensor for seqlen"""
+        """Initialize attention module, create a tensor for seqlen"""
         super().__init__()
         self.cu_length = Parameter(shape=[batch_size + 1], dtype="int32")
         self.op = flash_attention(
@@ -79,7 +79,7 @@ class MultiheadAttention(Module):
     where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
 
     Args:
-        dim: toal dimension of the model
+        dim: total dimension of the model
         batch_size: batch size
         seq_len: sequence length
         num_heads: Number of parallel attention heads. Default: 8
@@ -166,7 +166,7 @@ class MultiheadAttention(Module):
                 )
         else:
             # on ROCM ck attention (bmm_softmax_bmm) takes three inputs (Q, K, V)
-            # here we generate packed QKV for spliting
+            # here we generate packed QKV for splitting
             # input: (B, seqlen, dim) -> (B*seqlen, dim)
             # gemm: (B*seqlen, 3*dim)
             # reshape to: (B, seqlen, 3, num_heads, head_dim)
@@ -218,7 +218,7 @@ class MultiheadAttention(Module):
                 ops.reshape()(v, [b, -1, seqlen, d]),
             )
         else:
-            # intput(q/k/v): (B*num_heads, seqlen, head_dim)
+            # input(q/k/v): (B*num_heads, seqlen, head_dim)
             # attn = (B, S, H) * (B, S, H) = (B, S, S) #RCR
             # softmax on dim -1 (B, S, S)
             # attn@v: (B, S, S) * (B, S, H) = (B, S, H) #RRR
@@ -296,7 +296,7 @@ class CrossAttention(Module):
     where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
 
     Args:
-        dim: toal dimension of the model
+        dim: total dimension of the model
         batch_size: batch size
         seq_len: sequence length
         num_heads: Number of parallel attention heads. Default: 8
