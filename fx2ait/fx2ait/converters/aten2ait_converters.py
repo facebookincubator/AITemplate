@@ -745,8 +745,29 @@ def aten_ops_reshape(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
     shape = args[1]
+    new_shape = []
+    for s in shape:
+        if isinstance(s, IntVarTensor) or s == -1:
+            new_shape.append(s)
+        elif isinstance(s, int):
+            new_shape.append(IntVarTensor(IntImm(s)))
+        else:
+            raise RuntimeError(f"Unexpected shape type for {name}: {s} in {shape}")
 
-    return reshape()(input_val, shape)
+    if new_shape.count(-1):
+        assert new_shape.count(-1) == 1
+        input_shape = size()(input_val)
+        unkown_dim = input_shape[0]
+        for i in range(1, len(input_shape)):
+            unkown_dim = unkown_dim * input_shape[i]
+        idx = new_shape.index(-1)
+
+        for s in new_shape:
+            if s != -1:
+                unkown_dim = unkown_dim / s
+        new_shape[idx] = unkown_dim
+
+    return reshape()(input_val, new_shape)
 
 
 @ait_converter(torch.ops.aten.sym_size)
