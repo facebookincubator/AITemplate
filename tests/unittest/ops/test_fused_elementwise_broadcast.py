@@ -30,13 +30,22 @@ from aitemplate.utils import graph_utils, shape_utils
 
 
 class FusedElementwiseBroadcastTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
+    def _get_sorted_read_ts(self, op):
+        read_ts = list(op._attrs["read_ts"])
+        return [t for _, t in sorted(read_ts, key=lambda x: x[0])]
+
     def _test_different_dim(
         self,
         batch_sizes,
         ms,
         ks,
         test_name,
-        expected_read_t,
+        expected_max_read_t,
+        expected_read_ts,
         expected_op_t,
         expected_data_t,
         dtype="float16",
@@ -74,7 +83,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
         self.assertEqual(sorted_ops[0]._attrs["op"], "fused_elementwise")
-        self.assertEqual(sorted_ops[0]._attrs["read_t"], expected_read_t)
+        self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
+        self.assertEqual(self._get_sorted_read_ts(sorted_ops[0]), expected_read_ts)
         self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
@@ -97,7 +107,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[256],
             ks=[128],
             test_name="fused_elementwise_different_dim_fp16_static_shapes",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
@@ -107,7 +118,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[256],
             ks=[128],
             test_name="fused_elementwise_different_dim_fp16_dynamic_bs",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
@@ -117,7 +129,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[34, 67, 256],
             ks=[128],
             test_name="fused_elementwise_different_dim_fp16_dynamic_ms",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
@@ -127,7 +140,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[256],
             ks=[34, 87, 128],
             test_name="fused_elementwise_different_dim_fp16_dynamic_ks",
-            expected_read_t="half",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half"],
             expected_op_t="half",
             expected_data_t="half",
             dtype="float16",
@@ -137,7 +151,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[13, 256],
             ks=[34, 128],
             test_name="fused_elementwise_different_dim_fp16_dynamic_all",
-            expected_read_t="half",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half"],
             expected_op_t="half",
             expected_data_t="half",
             dtype="float16",
@@ -150,7 +165,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[256],
             ks=[128],
             test_name="fused_elementwise_different_dim_fp32_static_shapes",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -160,7 +176,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[256],
             ks=[128],
             test_name="fused_elementwise_different_dim_fp32_dynamic_bs",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -170,7 +187,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[34, 67, 256],
             ks=[128],
             test_name="fused_elementwise_different_dim_fp32_dynamic_ms",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -180,7 +198,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[256],
             ks=[34, 87, 128],
             test_name="fused_elementwise_different_dim_fp32_dynamic_ks",
-            expected_read_t="float",
+            expected_max_read_t="float",
+            expected_read_ts=["float", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -190,7 +209,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ms=[13, 256],
             ks=[34, 128],
             test_name="fused_elementwise_different_dim_fp32_dynamic_all",
-            expected_read_t="float",
+            expected_max_read_t="float",
+            expected_read_ts=["float", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -203,7 +223,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         ns,
         ks,
         test_name,
-        expected_read_t,
+        expected_max_read_t,
+        expected_read_ts,
         expected_op_t,
         expected_data_t,
         dtype="float16",
@@ -244,7 +265,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
         self.assertEqual(sorted_ops[0]._attrs["op"], "fused_elementwise")
-        self.assertEqual(sorted_ops[0]._attrs["read_t"], expected_read_t)
+        self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
+        self.assertEqual(self._get_sorted_read_ts(sorted_ops[0]), expected_read_ts)
         self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
@@ -264,8 +286,9 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp16_static_shapes",
-            expected_read_t="half",
-            expected_op_t="half",
+            expected_max_read_t="uint4",
+            expected_read_ts=["half", "uint4"],
+            expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
         )
@@ -275,8 +298,9 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp16_dynamic_bs",
-            expected_read_t="half",
-            expected_op_t="half",
+            expected_max_read_t="uint4",
+            expected_read_ts=["half", "uint4"],
+            expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
         )
@@ -286,7 +310,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp16_dynamic_ms",
-            expected_read_t="half",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half"],
             expected_op_t="half",
             expected_data_t="half",
             dtype="float16",
@@ -297,8 +322,9 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[1, 3, 4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp16_dynamic_ns",
-            expected_read_t="half",
-            expected_op_t="half",
+            expected_max_read_t="uint4",
+            expected_read_ts=["half", "uint4"],
+            expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
         )
@@ -308,8 +334,9 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[1, 4, 7, 16],
             test_name="fused_elementwise_test_1_fp16_dynamic_ks",
-            expected_read_t="half",
-            expected_op_t="half",
+            expected_max_read_t="uint4",
+            expected_read_ts=["half", "uint4"],
+            expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
         )
@@ -319,7 +346,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[3, 4],
             ks=[1, 16],
             test_name="fused_elementwise_test_1_fp16_dynamic_all",
-            expected_read_t="half",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half"],
             expected_op_t="half",
             expected_data_t="half",
             dtype="float16",
@@ -333,7 +361,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp32_static_shapes",
-            expected_read_t="float",
+            expected_max_read_t="uint4",
+            expected_read_ts=["float", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -344,7 +373,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp32_dynamic_bs",
-            expected_read_t="float",
+            expected_max_read_t="uint4",
+            expected_read_ts=["float", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -355,7 +385,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp32_dynamic_ms",
-            expected_read_t="float",
+            expected_max_read_t="float",
+            expected_read_ts=["float", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -366,7 +397,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[1, 3, 4],
             ks=[16],
             test_name="fused_elementwise_test_1_fp32_dynamic_ns",
-            expected_read_t="float",
+            expected_max_read_t="uint4",
+            expected_read_ts=["float", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -377,7 +409,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[1, 4, 7, 16],
             test_name="fused_elementwise_test_1_fp32_dynamic_ks",
-            expected_read_t="float",
+            expected_max_read_t="uint4",
+            expected_read_ts=["float", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -388,7 +421,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[3, 4],
             ks=[1, 16],
             test_name="fused_elementwise_test_1_fp32_dynamic_all",
-            expected_read_t="float",
+            expected_max_read_t="float",
+            expected_read_ts=["float", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -401,7 +435,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         ns,
         ks,
         test_name,
-        expected_read_t,
+        expected_max_read_t,
+        expected_read_ts,
         expected_op_t,
         expected_data_t,
         dtype="float16",
@@ -447,7 +482,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
         self.assertEqual(sorted_ops[0]._attrs["op"], "fused_elementwise")
-        self.assertEqual(sorted_ops[0]._attrs["read_t"], expected_read_t)
+        self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
+        self.assertEqual(self._get_sorted_read_ts(sorted_ops[0]), expected_read_ts)
         self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
@@ -468,7 +504,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp16_static_shapes",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4", "uint4"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
@@ -479,7 +516,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp16_dynamic_bs",
-            expected_read_t="uint",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint", "uint", "uint4"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
@@ -490,7 +528,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp16_dynamic_ms",
-            expected_read_t="half",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half", "half"],
             expected_op_t="half",
             expected_data_t="half",
             dtype="float16",
@@ -501,7 +540,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[1, 3, 4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp16_dynamic_ns",
-            expected_read_t="uint2",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint2", "uint2", "uint4"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
@@ -512,7 +552,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[1, 4, 7, 16],
             test_name="fused_elementwise_chained_broadcasts_fp16_dynamic_ks",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4", "uint4"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
@@ -523,7 +564,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[3, 4],
             ks=[1, 16],
             test_name="fused_elementwise_chained_broadcasts_fp16_dynamic_all",
-            expected_read_t="half",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half", "half"],
             expected_op_t="half",
             expected_data_t="half",
             dtype="float16",
@@ -537,7 +579,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp32_static_shapes",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -548,7 +591,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp32_dynamic_bs",
-            expected_read_t="uint2",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint2", "uint2", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -559,7 +603,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp32_dynamic_ms",
-            expected_read_t="float",
+            expected_max_read_t="float",
+            expected_read_ts=["float", "float", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -570,7 +615,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[1, 3, 4],
             ks=[16],
             test_name="fused_elementwise_chained_broadcasts_fp32_dynamic_ns",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -581,7 +627,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[4],
             ks=[1, 4, 7, 16],
             test_name="fused_elementwise_chained_broadcasts_fp32_dynamic_ks",
-            expected_read_t="uint4",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4", "uint4"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -592,7 +639,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             ns=[3, 4],
             ks=[1, 16],
             test_name="fused_elementwise_chained_broadcasts_fp32_dynamic_all",
-            expected_read_t="float",
+            expected_max_read_t="float",
+            expected_read_ts=["float", "float", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -602,7 +650,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self,
         ks,
         test_name,
-        expected_read_t,
+        expected_max_read_t,
+        expected_read_ts,
         expected_op_t,
         expected_data_t,
         dtype="float16",
@@ -637,7 +686,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
         self.assertEqual(sorted_ops[0]._attrs["op"], "fused_elementwise")
-        self.assertEqual(sorted_ops[0]._attrs["read_t"], expected_read_t)
+        self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
+        self.assertEqual(self._get_sorted_read_ts(sorted_ops[0]), expected_read_ts)
         self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
@@ -654,15 +704,17 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self._test_consecutive_1s_broadcast(
             ks=[32],
             test_name="fused_elementwise_consecutive_1s_broadcast_fp16_static_shapes",
-            expected_read_t="half",
-            expected_op_t="half",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "half"],
+            expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",
         )
         self._test_consecutive_1s_broadcast(
             ks=[1, 5, 7, 32],
             test_name="fused_elementwise_consecutive_1s_broadcast_fp16_dynamic_shapes",
-            expected_read_t="half",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half"],
             expected_op_t="half",
             expected_data_t="half",
             dtype="float16",
@@ -673,7 +725,8 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self._test_consecutive_1s_broadcast(
             ks=[32],
             test_name="fused_elementwise_consecutive_1s_broadcast_fp32_static_shapes",
-            expected_read_t="float",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
@@ -681,10 +734,167 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self._test_consecutive_1s_broadcast(
             ks=[1, 5, 7, 32],
             test_name="fused_elementwise_consecutive_1s_broadcast_fp32_dynamic_shapes",
-            expected_read_t="float",
+            expected_max_read_t="float",
+            expected_read_ts=["float", "float"],
             expected_op_t="float",
             expected_data_t="float",
             dtype="float32",
+        )
+
+    def _test_vectorization(
+        self,
+        batch_sizes,
+        ms,
+        ks,
+        test_name,
+        expected_max_read_t,
+        expected_read_ts,
+        expected_op_t,
+        expected_data_t,
+        dtype="float16",
+    ):
+        """
+        Test add(add(X0(B, M0, K0), X1(B, M1, K1)), X2(B, M2, K2))
+        """
+
+        batch_dim = shape_utils.gen_int_var_min_max(batch_sizes, name="batch_dim")
+
+        X0 = Tensor(
+            shape=[batch_dim, IntImm(ms[0]), IntImm(ks[0])],
+            dtype=dtype,
+            name="input0",
+            is_input=True,
+        )
+        X1 = Tensor(
+            shape=[batch_dim, IntImm(ms[1]), IntImm(ks[1])],
+            dtype=dtype,
+            name="input1",
+            is_input=True,
+        )
+        X2 = Tensor(
+            shape=[batch_dim, IntImm(ms[2]), IntImm(ks[2])],
+            dtype=dtype,
+            name="input2",
+            is_input=True,
+        )
+        add_1 = ops.elementwise(FuncEnum.ADD)(X0, X1)
+        output = ops.elementwise(FuncEnum.ADD)(add_1, X2)
+        output._attrs["name"] = "output0"
+        output._attrs["is_output"] = True
+
+        target = detect_target()
+        module = compile_model(output, target, "./tmp", test_name)
+
+        debug_sorted_graph = module.debug_sorted_graph
+        sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
+        self.assertEqual(len(sorted_ops), 1)
+        self.assertEqual(sorted_ops[0]._attrs["op"], "fused_elementwise")
+        self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
+        self.assertEqual(self._get_sorted_read_ts(sorted_ops[0]), expected_read_ts)
+        self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
+        self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
+
+        for batch_size in batch_sizes:
+            x0_pt = get_random_torch_tensor([batch_size, ms[0], ks[0]], dtype=dtype)
+            x1_pt = get_random_torch_tensor([batch_size, ms[1], ks[1]], dtype=dtype)
+            x2_pt = get_random_torch_tensor([batch_size, ms[2], ks[2]], dtype=dtype)
+            output_pt = (x0_pt + x1_pt) + x2_pt
+            inputs = {"input0": x0_pt, "input1": x1_pt, "input2": x2_pt}
+            output = torch.empty_like(output_pt)
+            module.run_with_tensors(inputs, [output])
+            self.assertTrue(torch.allclose(output, output_pt, atol=1e-2, rtol=1e-2))
+
+    def test_vectorization_fp16(self):
+        self._test_vectorization(
+            batch_sizes=[1],
+            ms=[2, 1, 2],
+            ks=[2, 2, 1],
+            test_name="fused_elementwise_vectorization_fp16_1",
+            expected_max_read_t="uint",
+            expected_read_ts=["uint", "uint", "half"],
+            expected_op_t="half2",
+            expected_data_t="half",
+            dtype="float16",
+        )
+        self._test_vectorization(
+            batch_sizes=[4, 1024],
+            ms=[1, 15, 1],
+            ks=[4, 4, 1],
+            test_name="fused_elementwise_vectorization_fp16_2",
+            expected_max_read_t="uint2",
+            expected_read_ts=["uint2", "uint2", "half"],
+            expected_op_t="half2",
+            expected_data_t="half",
+            dtype="float16",
+        )
+        self._test_vectorization(
+            batch_sizes=[10, 12],
+            ms=[1, 1, 1],
+            ks=[16, 1, 16],
+            test_name="fused_elementwise_vectorization_fp16_3",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "half", "uint4"],
+            expected_op_t="half2",
+            expected_data_t="half",
+            dtype="float16",
+        )
+        self._test_vectorization(
+            batch_sizes=[8],
+            ms=[8, 1, 8],
+            ks=[127, 127, 1],
+            test_name="fused_elementwise_vectorization_fp16_4",
+            expected_max_read_t="half",
+            expected_read_ts=["half", "half", "half"],
+            expected_op_t="half",
+            expected_data_t="half",
+            dtype="float16",
+        )
+        self._test_vectorization(
+            batch_sizes=[8],
+            ms=[8, 1, 8],
+            ks=[1, 1, 1],
+            test_name="fused_elementwise_vectorization_fp16_5",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "half", "uint4"],
+            expected_op_t="half2",
+            expected_data_t="half",
+            dtype="float16",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_vectorization_fp32(self):
+        self._test_vectorization(
+            batch_sizes=[1],
+            ms=[2, 1, 2],
+            ks=[4, 1, 1],
+            test_name="fused_elementwise_vectorization_fp32_1",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "float", "float"],
+            expected_op_t="float",
+            expected_data_t="float",
+            dtype="float",
+        )
+        self._test_vectorization(
+            batch_sizes=[1, 128],
+            ms=[2, 1, 1],
+            ks=[2, 2, 1],
+            test_name="fused_elementwise_vectorization_fp32_2",
+            expected_max_read_t="uint2",
+            expected_read_ts=["uint2", "uint2", "float"],
+            expected_op_t="float",
+            expected_data_t="float",
+            dtype="float",
+        )
+        self._test_vectorization(
+            batch_sizes=[1],
+            ms=[2, 2, 2],
+            ks=[8, 8, 8],
+            test_name="fused_elementwise_vectorization_fp32_3",
+            expected_max_read_t="uint4",
+            expected_read_ts=["uint4", "uint4", "uint4"],
+            expected_op_t="float",
+            expected_data_t="float",
+            dtype="float",
         )
 
 
