@@ -479,21 +479,21 @@ class MultiScaleAttention(Module):
             p *= dim
         return p
 
-        def _reshape_qkv_to_seq(
-            self,
-            q: Tensor,
-            k: Tensor,
-            v: Tensor,
-            q_N: int,
-            v_N: int,
-            k_N: int,
-            B: int,
-            C: int,
-        ) -> Tuple[Tensor, Tensor, Tensor]:
-            q = q.permute(0, 2, 1, 3).reshape(B, q_N, C)
-            v = v.permute(0, 2, 1, 3).reshape(B, v_N, C)
-            k = k.permute(0, 2, 1, 3).reshape(B, k_N, C)
-            return q, k, v
+    def _reshape_qkv_to_seq(
+        self,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        q_N: int,
+        v_N: int,
+        k_N: int,
+        B: int,
+        C: int,
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        q = q.permute(0, 2, 1, 3).reshape(B, q_N, C)
+        v = v.permute(0, 2, 1, 3).reshape(B, v_N, C)
+        k = k.permute(0, 2, 1, 3).reshape(B, k_N, C)
+        return q, k, v
 
     def forward(self, x: Tensor, thw_shape: List[int]) -> Tuple[Tensor, List[int]]:
         """
