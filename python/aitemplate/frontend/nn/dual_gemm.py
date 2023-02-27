@@ -33,7 +33,7 @@ class DualGemm(Module):
         fast_gelu=True,
         dtype="float16",
     ):
-        """Initilize dual gemm module, create a tensor for weights"""
+        """Initialize dual gemm module, create a tensor for weights"""
         super().__init__()
         self.w1 = Parameter(shape=[out_channels, in_channels], dtype=dtype)
         self.w2 = Parameter(shape=[out_channels, in_channels], dtype=dtype)

@@ -220,7 +220,7 @@ AIT_EXPORT AITemplateError AITemplateModelContainerBenchmark(
     AITemplateModelHandle handle,
     const AITData* inputs,
     size_t num_inputs,
-    AITData* ouputs,
+    AITData* outputs,
     size_t num_outputs,
     AITemplateStreamHandle stream_handle,
     bool graph_mode,

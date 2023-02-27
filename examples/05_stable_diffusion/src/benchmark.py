@@ -93,8 +93,8 @@ def benchmark_unet(
     }
 
     ys = []
-    num_ouputs = len(exe_module.get_output_name_to_index_map())
-    for i in range(num_ouputs):
+    num_outputs = len(exe_module.get_output_name_to_index_map())
+    for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)
@@ -172,8 +172,8 @@ def benchmark_clip(
         "input1": position_ids,
     }
     ys = []
-    num_ouputs = len(exe_module.get_output_name_to_index_map())
-    for i in range(num_ouputs):
+    num_outputs = len(exe_module.get_output_name_to_index_map())
+    for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)

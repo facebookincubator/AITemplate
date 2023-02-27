@@ -140,8 +140,8 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             "input2": encoder_hidden_states.cuda().half(),
         }
         ys = []
-        num_ouputs = len(exe_module.get_output_name_to_index_map())
-        for i in range(num_ouputs):
+        num_outputs = len(exe_module.get_output_name_to_index_map())
+        for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
@@ -157,8 +157,8 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             "input1": position_ids,
         }
         ys = []
-        num_ouputs = len(exe_module.get_output_name_to_index_map())
-        for i in range(num_ouputs):
+        num_outputs = len(exe_module.get_output_name_to_index_map())
+        for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
@@ -168,8 +168,8 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         exe_module = self.vae_ait_exe
         inputs = [torch.permute(vae_input, (0, 2, 3, 1)).contiguous().cuda().half()]
         ys = []
-        num_ouputs = len(exe_module.get_output_name_to_index_map())
-        for i in range(num_ouputs):
+        num_outputs = len(exe_module.get_output_name_to_index_map())
+        for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
