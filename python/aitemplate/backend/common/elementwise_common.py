@@ -25,7 +25,7 @@ from aitemplate.backend.backend_spec import BackendSpec
 
 from ...compiler.base import IntImm, IntVar, Operator, Tensor
 from ...compiler.tensor_accessor import TensorAccessor
-from ...utils import shape_utils
+from ...utils import alignment as alignment_utils, shape_utils
 from . import tensor_accessor_codegen
 
 CONSTANT_TEMPLATE = jinja2.Template(
@@ -431,6 +431,7 @@ def _get_types_and_sizes(
     max_input_accessor_alignment = None
     # We track alignment for each input
     alignments = []
+    non_broadcast_alignments = []
     for (
         extended_input_shape,
         input_broadcast_sz,
@@ -448,6 +449,8 @@ def _get_types_and_sizes(
         num_elements_for_alignments = shape_utils.get_num_rightmost_static_elements(
             extended_input_shape, num_rightmost_non_br_dims
         )
+        if num_elements_for_alignments > 1 or input_broadcast_sz is None:
+            non_broadcast_alignments.append(num_elements_for_alignments)
         alignment = tensor_accessor_codegen.find_max_alignment(
             num_elements_for_alignments, dtype, output_accessors
         )
@@ -465,6 +468,17 @@ def _get_types_and_sizes(
         # experiments later to determine if we want to chase more perf gains.
         alignment = min(alignment, input_alignment)
         alignments.append(alignment)
+    max_non_broadcast_alignment = None
+    if len(non_broadcast_alignments) > 1:
+        max_non_broadcast_alignment = alignment_utils.find_max_alignment_from(
+            non_broadcast_alignments, dtype
+        )
+    alignments = [
+        align
+        if align == 1 or max_non_broadcast_alignment is None
+        else max_non_broadcast_alignment
+        for align in alignments
+    ]
     # all alignments are capped by the max_input_accessor_alignment
     alignments = [
         align if align <= max_input_accessor_alignment else max_input_accessor_alignment
@@ -590,11 +604,9 @@ def _gen_input_broadcast_calculator_str(
 def _gen_input_broadcast_size_str(
     input_broadcast_sizes: List[List[IntVar]],
     output_shape: List[IntVar],
-    read_ts: List[str],
-    max_read_t: str,
 ) -> List[str]:
     res = []
-    for input_broadcast_size, read_t in zip(input_broadcast_sizes, read_ts):
+    for input_broadcast_size in input_broadcast_sizes:
         if input_broadcast_size is None:
             res.append("")
         else:
@@ -719,8 +731,6 @@ def _gen_kernel_function(
     broadcast_sizes = _gen_input_broadcast_size_str(
         fused_elementwise_metadata.input_broadcast_sizes,
         fused_elementwise_metadata.output_accessors[0].original_shapes,
-        fused_elementwise_metadata.read_ts,
-        fused_elementwise_metadata.max_read_t,
     )
     read_inputs_str = _gen_read_inputs_str(fused_elementwise_metadata, broadcast_sizes)
 

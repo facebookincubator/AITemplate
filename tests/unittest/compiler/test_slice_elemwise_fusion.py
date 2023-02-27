@@ -34,7 +34,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         self.test_count = 0
 
     def _get_read_ts(self, op):
-        return list(set([t for _, t in op._attrs["read_ts"]]))
+        return list(set(t for _, t in op._attrs["read_ts"]))
 
     def _test_slice_elemwise_fusion(
         self,
