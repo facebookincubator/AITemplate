@@ -286,13 +286,11 @@ class FBCUDA(CUDA):
                 options.append("-DNDEBUG")
             FBCUDA.compile_options_ = " ".join(options)
         compile_options = FBCUDA.compile_options_
-        _LOGGER.debug(f"The compile options are: {compile_options}")
+        _LOGGER.info(f"The compile options are: {compile_options}")
         return compile_options
 
     def __exit__(self, ptype, value, trace):
         super().__exit__(ptype, value, trace)
-        if not is_debug() and self._include_path:
-            shutil.rmtree(self._include_path)
 
     def binary_compile_cmd(self):
         """
