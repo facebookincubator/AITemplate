@@ -53,6 +53,10 @@ def _augment_for_trace(cmd):
     ).format(cmd)
 
 
+def _time_cmd(cmd):
+    return f"exec time -f 'exit_status=%x elapsed_sec=%e argv=\"%C\"' {cmd}"
+
+
 def _log_error_context(
     stderr,
     build_dir,
@@ -328,6 +332,7 @@ class Builder(object):
             else:
                 cmd = cc_cmd.format(target=target, src=src)
 
+            cmd = _time_cmd(cmd)
             _LOGGER.debug(f"The cmd for building {target} is : {cmd}")
             self._runner.push(idx, cmd, target)
         self._runner.join()
@@ -356,6 +361,7 @@ class Builder(object):
             + compile_options
             + " -o {target} {objs}".format(target=target, objs=" ".join(objs))
         )
+        cmd = _time_cmd(cmd)
         _LOGGER.debug(f"The cmd for building {target} is {cmd}")
         self._runner.push(0, cmd, target)
         self._runner.join()
@@ -435,8 +441,12 @@ clean_constants:
             cfile_cmd = _augment_for_trace(cfile_cmd)
             bfile_cmd = _augment_for_trace(bfile_cmd)
             build_so_cmd = _augment_for_trace(build_so_cmd)
+        else:
+            cfile_cmd = _time_cmd(cfile_cmd)
+            bfile_cmd = _time_cmd(bfile_cmd)
+            build_so_cmd = _time_cmd(build_so_cmd)
 
-        build_exe_cmd = "$(CC) $(CFLAGS) -o $@ $(obj_files)"
+        build_exe_cmd = _time_cmd("$(CC) $(CFLAGS) -o $@ $(obj_files)")
         targets = f"{dll_name}"
 
         build_standalone_rules = ""
@@ -733,6 +743,8 @@ clean:
             )
             if self._do_trace:
                 cmd_line = _augment_for_trace(cmd_line)
+            else:
+                cmd_line = _time_cmd(cmd_line)
 
             command = f"{dep_line}\n\t{cmd_line}\n"
             commands.append(command)

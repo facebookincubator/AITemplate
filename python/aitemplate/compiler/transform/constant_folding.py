@@ -14,37 +14,111 @@
 #
 import logging
 import os
-from typing import Dict, List
-
-import numpy as np
+from typing import Dict, List, Tuple
 
 from aitemplate import backend, compiler
 
-from aitemplate.compiler.base import _NumpyConstantTensorData, IntVarTensor, Tensor
-from aitemplate.compiler.dtype import normalize_dtype
-from aitemplate.compiler.model import AITData, Model
+from aitemplate.compiler.base import IntVarTensor, Tensor
+from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.compiler.transform.transform_utils import replace_tensor
+from aitemplate.utils import graph_utils
 
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _output_from_tensor(tensor: Tensor) -> Tensor:
+def _create_dummy_constant_folder():
+    model_container_generator = backend.codegen.ModelContainerGenerator(
+        max_blob_size=0,
+        max_constant_blob_size=0,
+        workspace=Workspace(0, 0),
+        constants_data_file=None,
+        graph=[],
+        output_tensors=[],
+        model_name=backend.codegen.CONSTANT_FOLDER_MODEL_NAME,
+    )
+    return model_container_generator.generate_model()
+
+
+def _make_op_names_unique(graph: List[Tensor]) -> Dict[str, str]:
+    """
+    To avoid ODR issues, we rename all ops in the constant folding subgraph.
+    ODR issues can arise if two ops end up sharing the same name & implementation (which
+    can actualy happen, e.g. in the proposal op).
+    """
+    new_name_to_old = {}
+    for tensor in graph:
+        for op in tensor._attrs["src_ops"]:
+            if op._attrs["name"] not in new_name_to_old:
+                new_name = f"{op._attrs['name']}_constant_folding"
+                new_name_to_old[new_name] = op._attrs["name"]
+                op._attrs["name"] = new_name
+    return new_name_to_old
+
+
+def _rename_ops(graph: List[Tensor], new_name_to_old: Dict[str, str]) -> None:
+    for tensor in graph:
+        for op in tensor._attrs["src_ops"]:
+            if op._attrs["name"] in new_name_to_old:
+                op._attrs["name"] = new_name_to_old[op._attrs["name"]]
+
+
+def _non_output_from_tensor(tensor: Tensor) -> Tensor:
     new_tensor = Tensor(
         shape=tensor._attrs["shape"],
         name=tensor._attrs["name"],
         src_ops=tensor._attrs["src_ops"].copy(),
         dst_ops=tensor._attrs["dst_ops"].copy(),
         dtype=tensor._attrs["dtype"],
-        is_output=True,
         is_view_of=tensor._attrs["is_view_of"],
+        is_internal_constant=tensor._attrs["is_internal_constant"],
     )
-    if new_tensor._attrs["is_view_of"] is not None:
-        # If this tensor is a view, we need to set external_tensor
-        # so codegen handles the "output is view of output" case
-        # correctly.
-        new_tensor._attrs["external_tensor"] = new_tensor._attrs["is_view_of"]
+    new_tensor._attrs["is_param"] = tensor._attrs["is_param"]
+    new_tensor._attrs["data"] = tensor._attrs["data"]
+    new_tensor._attrs["external_tensor"] = tensor._attrs["external_tensor"]
     return new_tensor
+
+
+def _output_from_tensor(tensor: Tensor) -> Tensor:
+    new_tensor = _non_output_from_tensor(tensor)
+    new_tensor._attrs["is_output"] = True
+    return new_tensor
+
+
+def _fix_op_inputs_outputs(
+    subgraph: List[Tensor], name_to_new_tensor: Dict[str, Tensor]
+) -> None:
+    """
+    This is an unfortunate hack made necessary by the following:
+
+    1) When constructing the constant folding subgraph, the most understandable
+       thing to do is create *new* tensors so we can modify their attributes without
+       affecting the original graph.
+    2) However, the inputs of each tensor's src and dst ops need to be wired up to
+       the new tensors since the memory planning pass will traverse the graph through those attributes.
+
+    So, we store the mapping from tensor name to its corresponding subgraph tensor and the tensor in
+    original graph.
+
+    Before we do memory planning for constant folding, we call:
+      _fix_op_inputs_outputs(subgraph, name_to_constant_folding_tensor)
+
+    And then afterwards we restore everything with:
+      _fix_op_inputs_outputs(subgraph, name_to_original_tensor)
+
+    It would be nice if we could deep copy the src and dst ops when we create new tensors so we can
+    skip the restoration step. But this is not implemented and not trivial. Thankfully, this function
+    is not too hard to understand once the rationale behind it is understood.
+    """
+    ops = graph_utils.get_sorted_ops(subgraph)
+    for op in ops:
+        op._attrs["inputs"] = [
+            name_to_new_tensor[tensor._attrs["name"]] for tensor in op._attrs["inputs"]
+        ]
+
+        op._attrs["outputs"] = [
+            name_to_new_tensor[tensor._attrs["name"]] for tensor in op._attrs["outputs"]
+        ]
 
 
 def _extract_foldable_subgraph(
@@ -65,6 +139,7 @@ def _extract_foldable_subgraph(
     back into the final graph.
     """
     foldable_node_names = set()
+    foldable_ops = set()
     subgraph = []
 
     for tensor in sorted_graph:
@@ -72,12 +147,9 @@ def _extract_foldable_subgraph(
             continue
 
         name = tensor._attrs["name"]
-        if tensor._attrs["data"] is not None:
+        if tensor._attrs["data"] is not None or tensor._attrs["is_param"]:
             foldable_node_names.add(name)
             subgraph.append(tensor)
-            continue
-        elif tensor._attrs["is_param"]:
-            # Params that do not have bound data cannot be folded.
             continue
         elif isinstance(tensor, IntVarTensor):
             continue
@@ -89,14 +161,61 @@ def _extract_foldable_subgraph(
 
         if foldable:
             foldable_node_names.add(name)
-            subgraph.append(_output_from_tensor(tensor))
+            subgraph.append(tensor)
+            for op in tensor._attrs["src_ops"]:
+                foldable_ops.add(op)
 
-    return subgraph
+    def _is_used_by_non_foldable_op(tensor: Tensor) -> bool:
+        for op in tensor._attrs["dst_ops"]:
+            if op not in foldable_ops:
+                return True
+        return False
+
+    def _is_used_by_foldable_op(tensor: Tensor) -> bool:
+        for op in tensor._attrs["dst_ops"]:
+            if op in foldable_ops:
+                return True
+        return False
+
+    # Now figure out which tensors can be marked as outputs.
+    filtered_subgraph = []
+    name_to_new_tensor = {}
+    name_to_old_tensor = {}
+    constant_folding_inputs = []
+
+    for tensor in subgraph:
+        name = tensor._attrs["name"]
+        new_tensor = None
+
+        if not tensor._attrs["is_param"] and (
+            _is_used_by_non_foldable_op(tensor) or tensor._attrs["is_output"]
+        ):
+            # Tensor is required outside of the subgraph, make it an output.
+            # Parameters don't need to be marked as outputs in the
+            # subgraph, we already know their values.
+            new_tensor = _output_from_tensor(tensor)
+
+        elif _is_used_by_foldable_op(tensor):
+            # No need to append constants that are not used by any foldable ops.
+            new_tensor = _non_output_from_tensor(tensor)
+            if new_tensor._attrs["is_param"]:
+                constant_folding_inputs.append(new_tensor)
+
+        if new_tensor is not None:
+            name_to_new_tensor[name] = new_tensor
+            name_to_old_tensor[name] = tensor
+            filtered_subgraph.append(new_tensor)
+
+    _fix_op_inputs_outputs(filtered_subgraph, name_to_new_tensor)
+    return filtered_subgraph, name_to_old_tensor, constant_folding_inputs
 
 
 def _constant_folding_impl(
-    sorted_graph: List[Tensor], workdir: str
-) -> Dict[str, Tensor]:
+    sorted_graph: List[Tensor],
+    workdir: str,
+    model_name: str,
+) -> Tuple[Dict[str, Tensor], List[Tuple[str, str]], List[Tensor]]:
+    model_dir = os.path.join(workdir, model_name)
 
     # Collect the set of output names before we do any transformations. We'll need this
     # if we end up turning outputs into constants. _extract_foldable_subgraph marks *all*
@@ -106,56 +225,63 @@ def _constant_folding_impl(
         tensor._attrs["name"] for tensor in sorted_graph if tensor._attrs["is_output"]
     }
 
-    subgraph = _extract_foldable_subgraph(sorted_graph)
+    (
+        subgraph,
+        name_to_old_tensor,
+        constant_folding_inputs,
+    ) = _extract_foldable_subgraph(sorted_graph)
     output_tensors = [tensor for tensor in subgraph if tensor._attrs["is_output"]]
     if not output_tensors:
         _LOGGER.info("No constants to fold, skipping constant folding.")
-        return {}
+        # Write a dummy constant folder so everything still compiles.
+        with open(os.path.join(model_dir, "constant_folder-generated.h"), "w") as f:
+            f.write(_create_dummy_constant_folder())
+        _fix_op_inputs_outputs(subgraph, name_to_old_tensor)
+        return {}, [], []
 
     blob, constant_blob, workspace = compiler.transform.memory_planning(subgraph)
-
-    constant_folding_workdir = os.path.join(workdir, "constant_folding")
-    os.makedirs(constant_folding_workdir, exist_ok=True)
-    file_pairs = backend.codegen.gen_function_src(subgraph, workdir, "constant_folding")
-    main_pairs = backend.codegen.gen_library_src(
-        subgraph,
+    new_name_to_old = _make_op_names_unique(subgraph)
+    file_pairs = backend.codegen.gen_function_src(subgraph, workdir, model_name)
+    model_container_generator = backend.codegen.ModelContainerGenerator(
         blob,
         constant_blob,
         workspace,
-        workdir,
-        output_tensors,
-        "constant_folding",
+        constants_data_file=None,
+        graph=subgraph,
+        output_tensors=output_tensors,
+        model_name=backend.codegen.CONSTANT_FOLDER_MODEL_NAME,
     )
-    file_pairs.extend(main_pairs)
-    compile_engine = backend.builder.Builder()
-    so_name = os.path.join(constant_folding_workdir, "constant_folding.so")
-    compile_engine.make(file_pairs, "constant_folding.so", workdir, "constant_folding")
-    module = Model(so_name, num_runtimes=1)
+    model_container_generator.append_all_tensors()
+    constant_folding_model_def = model_container_generator.generate_model()
+    with open(os.path.join(model_dir, "constant_folder-generated.h"), "w") as f:
+        f.write(constant_folding_model_def)
 
-    outputs = {}
+    _fix_op_inputs_outputs(subgraph, name_to_old_tensor)
+    _rename_ops(subgraph, new_name_to_old)
     new_tensors = {}
     for tensor in subgraph:
-        if tensor._attrs["data"] is None:
+        if not tensor._attrs["is_param"]:
             name = tensor._attrs["name"]
-            shape = module.get_output_maximum_shape(tensor._attrs["name"])
-            arr = np.empty(shape, dtype=normalize_dtype(tensor._attrs["dtype"]))
             new_tensor = Tensor(
                 shape=tensor._attrs["shape"],
                 name=name,
-                # copy dst_ops so we can modify the original tensor without affecting this one.
-                dst_ops=tensor._attrs["dst_ops"].copy(),
                 dtype=tensor._attrs["dtype"],
                 is_output=name in original_output_tensors,
             )
-            new_tensor._bind_data(_NumpyConstantTensorData(arr))
+            if name in model_container_generator.output_name_to_idx:
+                new_tensor._attrs[
+                    "constant_folding_output_idx"
+                ] = model_container_generator.output_name_to_idx[name]
             new_tensors[name] = new_tensor
-            outputs[name] = AITData(arr.ctypes.data, shape, tensor._attrs["dtype"])
 
-    module._run_with_outputs_on_host({}, outputs)
-    return new_tensors
+    return new_tensors, file_pairs, constant_folding_inputs
 
 
-def constant_folding(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
+def constant_folding(
+    sorted_graph: List[Tensor],
+    workdir: str,
+    model_name: str,
+) -> Tuple[List[Tensor], Tuple[str, str]]:
     """
     Fold and propagate constants.
 
@@ -168,13 +294,9 @@ def constant_folding(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
     aborted and the graph is returned unchanged. All generated code
     is stored in workdir/constant_folding.
     """
-    try:
-        new_constants = _constant_folding_impl(sorted_graph, workdir)
-    except Exception as e:
-        _LOGGER.warning(
-            f"Constant folding encountered an error: {e}. The graph will not be modified.",
-        )
-        return sorted_graph
+    new_constants, file_pairs, constant_folding_inputs = _constant_folding_impl(
+        sorted_graph, workdir, model_name
+    )
 
     # Replace ops with their folded values.
     for idx, tensor in enumerate(sorted_graph):
@@ -186,4 +308,8 @@ def constant_folding(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
 
     # Eliminate constants that are no longer used
     compiler.transform.remove_unused_ops(sorted_graph)
-    return compiler.transform.transform_utils.sanitize_sorted_graph(sorted_graph)
+    return (
+        compiler.transform.transform_utils.sanitize_sorted_graph(sorted_graph),
+        file_pairs,
+        constant_folding_inputs,
+    )

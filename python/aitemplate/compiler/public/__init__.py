@@ -57,12 +57,18 @@ from aitemplate.compiler.ops.common.view_ops import flatten, reshape, squeeze, u
 from aitemplate.compiler.ops.conv.conv2d import conv2d
 from aitemplate.compiler.ops.conv.conv2d_bias import conv2d_bias
 from aitemplate.compiler.ops.conv.conv2d_bias_relu import conv2d_bias_relu
+from aitemplate.compiler.ops.conv.conv3d import conv3d
+from aitemplate.compiler.ops.conv.conv3d_bias import conv3d_bias
+from aitemplate.compiler.ops.conv.depthwise_conv3d import depthwise_conv3d
+from aitemplate.compiler.ops.conv.transposed_conv2d import transposed_conv2d
+from aitemplate.compiler.ops.conv.transposed_conv2d_bias import transposed_conv2d_bias
+from aitemplate.compiler.ops.groupnorm.groupnorm import group_norm
 from aitemplate.compiler.ops.layernorm.group_layernorm import group_layernorm
 from aitemplate.compiler.ops.layernorm.group_layernorm_sigmoid_mul import (
     group_layernorm_sigmoid_mul,
 )
 from aitemplate.compiler.ops.layernorm.layernorm import layernorm
-from aitemplate.compiler.ops.padding import nhwc3to8, pad_last_dim
+from aitemplate.compiler.ops.padding import ndhwc3to8, nhwc3to8, pad_last_dim
 from aitemplate.compiler.ops.pool.avg_pool2d import avg_pool2d
 from aitemplate.compiler.ops.pool.max_pool2d import max_pool2d
 from aitemplate.compiler.ops.softmax.softmax import softmax

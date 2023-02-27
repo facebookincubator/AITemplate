@@ -310,6 +310,10 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
             self.test_count += 1
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_slice_elemwise_fusion_dynamic(self):
         self._test_slice_elemwise_fusion_dynamic(
             slice_input_shape=([5, 16], 10),
@@ -339,6 +343,10 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             expected_data_t="half",
         )
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_slice_elemwise_fusion_dynamic_broadcast(self):
         # slice_output broadcasts to input_x2
         self._test_slice_elemwise_fusion_dynamic(

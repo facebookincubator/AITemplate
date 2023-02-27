@@ -239,6 +239,7 @@ slice_scatter_kernel(
 
 enum class LoadVecType {
   VT_HALF = 0,
+  VT_BFLOAT16 = 0,
   VT_FLOAT,
   VT_FLOAT2,
   VT_FLOAT4
@@ -262,6 +263,8 @@ static inline LoadVecType get_vec_type(int64_t dim_size) {
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
   if constexpr (std::is_same_v<ELEM_T, half>) {
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+  } else if constexpr (std::is_same_v<ELEM_T, bfloat16>) {
+    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_BFLOAT16, bfloat16)
   }
 
 #undef HANDLE_ONE_VEC_TYPE
@@ -366,6 +369,7 @@ template <typename ELEM_T, {{index_type}}  Rank, {{index_type}}  NumInputs,
           {{index_type}}  ElemsPerThread, {{index_type}}  ThreadsPerBlock>
 void slice_scatter_kernel_launcher(
     ELEM_T *output,
+    {{index_type}} output_offset,
     const int64_t *output_shape,
     const ELEM_T *inputs[],
     const int64_t *input_shapes[],
@@ -397,7 +401,7 @@ void slice_scatter_kernel_launcher(
     scatter_dim_offset += slice_meta_data.dim_sizes[i];
   }
 
-  LoadVecType min_vec_type = LoadVecType::VT_FLOAT4;
+  LoadVecType min_vec_type = get_vec_type<ELEM_T>(output_offset);
   for ({{index_type}}  i = 0; i < NumInputs; i++) {
     LoadVecType vec_type = get_input_vec_type<ELEM_T, Rank>(
         scatter_meta_data.output_strides,
@@ -432,7 +436,7 @@ void slice_scatter_kernel_launcher(
       }                                                                       \\
       slice_scatter_kernel<vec_type, ELEM_T, Rank, NumInputs, ElemsPerThread> \\
         <<<grid_config, ThreadsPerBlock, 0, stream>>>(                        \\
-            output,                                                           \\
+            output + output_offset,                                           \\
             slice_meta_data,                                                  \\
             scatter_meta_data);                                               \\
       LAUNCH_CHECK_SLICE();                                                   \\
@@ -444,6 +448,8 @@ void slice_scatter_kernel_launcher(
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
     if constexpr (std::is_same_v<ELEM_T, half>) {
       HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+    } else if constexpr (std::is_same_v<ELEM_T, bfloat16>) {
+      HANDLE_ONE_VEC_TYPE(LoadVecType::VT_BFLOAT16, bfloat16)
     }
 
   throw std::runtime_error("Invalid LoadVecType\\n");
@@ -511,7 +517,8 @@ EXEC_COND_TEMPLATE = jinja2.Template(
 {{indent}}                                {{num_inputs}}/*NumInputs*/,
 {{indent}}                                {{elems_per_thread}}/*ElemsPerThread*/,
 {{indent}}                                {{threads_per_block}}/*ThreadsPerBlock*/>(
-{{indent}}      static_cast<{{elem_type}}*>(output), local_output_shape, reinterpret_cast<const {{elem_type}}**>(inputs), input_shapes,
+{{indent}}      static_cast<{{elem_type}}*>(output), {{output_offset}}, local_output_shape,
+{{indent}}      reinterpret_cast<const {{elem_type}}**>(inputs), input_shapes,
 {{indent}}      slice_start_indices, slice_end_indices, scatter_dim, stream);
 {{indent}}  return;
 {{indent}}}
@@ -693,6 +700,7 @@ def gen_function(
     func_attrs,
     backend_spec,
     elems_per_thread=8,
+    output_offset=0,
     update_output_shape=True,
     element_func=None,
     element_func_def=None,
@@ -743,6 +751,7 @@ def gen_function(
         elem_type=input_type,
         elems_per_thread=elems_per_thread,
         threads_per_block=128,
+        output_offset=output_offset,
     )
 
     shape_func = SHAPE_UPDATE_FUNC.render(

@@ -15,6 +15,6 @@
 """
 CUDA conv3d module init
 """
-from . import conv3d, depthwise_conv3d
+from . import conv3d, conv3d_bias, depthwise_conv3d, depthwise_conv3d_bias
 
-__all__ = ["conv3d", "depthwise_conv3d"]
+__all__ = ["conv3d", "conv3d_bias", "depthwise_conv3d", "depthwise_conv3d_bias"]

@@ -65,14 +65,15 @@ class group_norm(Operator):
     def check_shapes(x_shapes, gamma_shapes, beta_shapes, num_groups):
         # check last dim can be divided by num_groups
         # minimal group: 8
-        if len(gamma_shapes) != len(beta_shapes):
-            raise RuntimeError(
-                f"Gamma and beta must have the same number of dimensions, but got {len(gamma_shapes)} and {len(beta_shapes)}"
-            )
-        if x_shapes[-1].value() != gamma_shapes[0].value():
-            raise RuntimeError(
-                f"Input last dim {x_shapes[-1]} must be equal to gamma dim {gamma_shapes[0]}"
-            )
+        if gamma_shapes is not None and beta_shapes is not None:
+            if len(gamma_shapes) != len(beta_shapes):
+                raise RuntimeError(
+                    f"Gamma and beta must have the same number of dimensions, but got {len(gamma_shapes)} and {len(beta_shapes)}"
+                )
+            if x_shapes[-1].value() != gamma_shapes[0].value():
+                raise RuntimeError(
+                    f"Input last dim {x_shapes[-1]} must be equal to gamma dim {gamma_shapes[0]}"
+                )
         if x_shapes[-1].value() % num_groups != 0:
             raise RuntimeError(
                 f"Channel dim {gamma_shapes[0]} must be divisible by num_groups {num_groups}"

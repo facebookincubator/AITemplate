@@ -94,7 +94,7 @@ EXEC_COND_TEMPLATE = jinja2.Template(
 class depthwise_conv3d(Operator):
     r"""depthwise_conv3d"""
 
-    def __init__(self, stride, pad, dilate=1, group=1) -> None:
+    def __init__(self, stride, pad, dilate=1, group=1, bias=False) -> None:
         """Conv3d constructor.
 
         Parameters
@@ -110,7 +110,7 @@ class depthwise_conv3d(Operator):
             channels to output channels, by default 1
         """
         super().__init__()
-        self._attrs["op"] = "depthwise_conv3d"
+        self._attrs["op"] = "depthwise_conv3d_bias" if bias else "depthwise_conv3d"
         self._attrs["stride"] = stride
         if isinstance(stride, int):
             self._attrs["stride"] = (stride, stride, stride)
@@ -126,6 +126,7 @@ class depthwise_conv3d(Operator):
         self._attrs["epilogue"] = "LinearCombination"
         self._attrs["workspace"] = 0
         self._attrs["split_k"] = None
+        self._attrs["bias"] = bias
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
         self.shape_save_template = SHAPE_ASSIGNMENT_TEMPLATE
         self.exec_key_template = EXEC_KEY_TEMPLATE
@@ -247,7 +248,7 @@ class depthwise_conv3d(Operator):
         elif shape % 2 == 0:
             self._attrs["epilogue_alignment"] = 2
 
-    def __call__(self, x: Tensor, w: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor, w: Tensor, bias: Tensor = None) -> List[Tensor]:
         """Call depthwise_conv3d with tensors x, w
 
         Parameters
@@ -263,6 +264,8 @@ class depthwise_conv3d(Operator):
             includes the output tensor in shape (N, T_out, H_out, W_out, C_out)
         """
         self._attrs["inputs"] = [x, w]
+        if bias:
+            self._attrs["inputs"].append(bias)
         self._set_depth()
         output_shape = self._infer_shapes(x, w)
         self._extract_exec_path(x)
@@ -272,7 +275,7 @@ class depthwise_conv3d(Operator):
         return output
 
     def _get_op_attributes(self) -> Dict[str, Any]:
-        target_attrs = ["dilate", "group", "pad", "stride"]
+        target_attrs = ["dilate", "group", "pad", "stride", "bias"]
         attr = {}
 
         for target_attr in target_attrs:

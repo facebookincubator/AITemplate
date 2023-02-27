@@ -16,13 +16,14 @@ import click
 
 import torch
 
-from benchmark_ait import compile_module
-from modeling.torch_model import BertBaseUncased as BertPt
 from transformers import BertTokenizer
 
+from .benchmark_ait import compile_module
+from .modeling.torch_model import BertBaseUncased as BertPt
 
-def prepare_data(prompt: str):
-    tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+
+def prepare_data(prompt: str, model_path: str):
+    tokenizer = BertTokenizer.from_pretrained(model_path)
     result = tokenizer(prompt, return_attention_mask=False, return_tensors="pt")
     target_size = result["input_ids"].size()
     if target_size[1] > 512:
@@ -38,13 +39,18 @@ def prepare_data(prompt: str):
 
 
 def run_model(
-    prompt: str, activation: str, graph_mode: bool, use_fp16_acc: bool, verify: bool
+    prompt: str,
+    activation: str,
+    graph_mode: bool,
+    use_fp16_acc: bool,
+    verify: bool,
+    model_path="bert-base-uncased",
 ):
-    inputs = prepare_data(prompt)
+    inputs = prepare_data(prompt, model_path)
     inputs_pt = {name: data.cuda() for name, data in inputs.items()}
     batch_size, seq_len = inputs["input_ids"].size()
 
-    pt_model = BertPt(pretrained=True)._model
+    pt_model = BertPt(model_path=model_path, pretrained=True)._model
     pt_model.eval()
     hidden_size = pt_model.config.hidden_size
 

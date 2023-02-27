@@ -1,7 +1,22 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import logging
 import torch  # isort:skip
+import copy
 import operator
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy
 
@@ -36,6 +51,8 @@ from aitemplate.compiler.public import (
     split,
     squeeze,
     Tensor as AITTensor,
+    transposed_conv2d,
+    transposed_conv2d_bias,
     unsqueeze,
 )
 from fx2ait.converters.utils import (
@@ -50,6 +67,7 @@ from fx2ait.passes.lower_basic_pass_aten import (
     aten_compose_bmm_3d,
     aten_compose_chunk,
     aten_compose_getitem_slice,
+    aten_compose_mm_2d,
     aten_operator_getitem,
 )
 from torch.fx.node import Argument, Target
@@ -225,12 +243,21 @@ def _choose_conv2d_op(
     dilate: int,
     x: AITTensor,
     weight: AITTensor,
-    bias: Optional[AITTensor],
+    bias: [AITTensor],
+    transposed: [bool] = False,
 ) -> ConverterOutput:
     """
     Helper to choose conv2d vs. conv2d_bias op based on existence of bias
     and pad channel input dim to 4/8
     """
+    if transposed:
+        if bias:
+            return transposed_conv2d_bias(stride=stride, pad=pad, dilate=dilate)(
+                x, weight, bias
+            )
+        else:
+            return transposed_conv2d(stride=stride, pad=pad, dilate=dilate)(x, weight)
+
     last_dim = x._attrs["shape"][-1]._attrs["values"][0]
     # CUDA conv channel dim weights need to align w/ a multiple of 2/4/8
     # if CI < 4, pad to 4; if 5 < CI < 8, pad to 8;
@@ -278,7 +305,8 @@ def aten_ops_conv2d(
     padding = identical_elem_tuple_to_int(padding)
     dilation = args[5]
     dilation = identical_elem_tuple_to_int(dilation)
-    # TODO transposed=args[6], output_padding=args[7]
+    transposed = args[6]
+    # output_padding = args[7]
     groups = args[8]
 
     assert all(
@@ -286,10 +314,21 @@ def aten_ops_conv2d(
     ), "Expected int stride, padding, and dilation"
 
     if groups is None or groups == 1:
-        result = _choose_conv2d_op(stride, padding, dilation, input_val, weight, bias)
+        if transposed:
+            if bias:
+                result = transposed_conv2d_bias(
+                    stride=stride, pad=padding, dilate=dilation
+                )(input_val, weight, bias)
+            else:
+                result = transposed_conv2d(stride=stride, pad=padding, dilate=dilation)(
+                    input_val, weight
+                )
+        else:
+            result = _choose_conv2d_op(
+                stride, padding, dilation, input_val, weight, bias, transposed
+            )
     else:
         # Grouped conv doesn't currently work on AIT CUDA, manually map
-        # groups = kwargs["groups"]
         group_size = input_val.shape()[3]._attrs["values"][0] // groups
         w_group_size = weight.shape()[0]._attrs["values"][0] // groups
 
@@ -338,12 +377,37 @@ def aten_ops_conv2d(
                     1,
                     f"{name}.bias.slice_{i}",
                 ),
+                transposed=transposed,
             )
             for i in range(groups)
         ]
         result = concatenate()(conv_groups, dim=3)
 
     return result
+
+
+@ait_converter(torch.ops.aten.clone.default)
+def aten_unary_ops_clone(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    res = copy.deepcopy(input_val)
+    res._attrs["dst_ops"].clear()
+    return res
+
+
+@ait_converter(torch.ops.aten.cos.default)
+def aten_unary_ops_cos(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    return elementwise(FuncEnum.COS)(input_val)
 
 
 @ait_converter(aten_compose_chunk)
@@ -492,6 +556,7 @@ def aten_ops_max_pool2d(
     return max_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
 
 
+@ait_converter(aten_compose_mm_2d)
 @ait_converter(aten_compose_bmm_3d)
 @ait_converter(aten_compose_bmm_2d)
 @ait_converter(torch.ops.aten.addmm.default)
@@ -682,8 +747,29 @@ def aten_ops_reshape(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
     shape = args[1]
+    new_shape = []
+    for s in shape:
+        if isinstance(s, IntVarTensor) or s == -1:
+            new_shape.append(s)
+        elif isinstance(s, int):
+            new_shape.append(IntVarTensor(IntImm(s)))
+        else:
+            raise RuntimeError(f"Unexpected shape type for {name}: {s} in {shape}")
 
-    return reshape()(input_val, shape)
+    if new_shape.count(-1):
+        assert new_shape.count(-1) == 1
+        input_shape = size()(input_val)
+        unkown_dim = input_shape[0]
+        for i in range(1, len(input_shape)):
+            unkown_dim = unkown_dim * input_shape[i]
+        idx = new_shape.index(-1)
+
+        for s in new_shape:
+            if s != -1:
+                unkown_dim = unkown_dim / s
+        new_shape[idx] = unkown_dim
+
+    return reshape()(input_val, new_shape)
 
 
 @ait_converter(torch.ops.aten.sym_size)
@@ -854,7 +940,7 @@ def aten_ops_hardtanh(
     input_val = args[0]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
-    result = elementwise(FuncEnum.TANH)(input_val)
+    result = input_val
     minimal = args[1] if len(args) > 1 else -1
     maximum = args[2] if len(args) > 2 else 1
     if minimal is not None:
@@ -1068,6 +1154,28 @@ def aten_unary_ops_sign(
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
 
     return elementwise(FuncEnum.SIGN)(input_val)
+
+
+@ait_converter(torch.ops.aten.sin.default)
+def aten_unary_ops_sin(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    return elementwise(FuncEnum.SIN)(input_val)
+
+
+@ait_converter(torch.ops.aten.sqrt.default)
+def aten_unary_ops_sqrt(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0]
+    return elementwise(FuncEnum.SQRT)(input_val)
 
 
 @ait_converter(torch.ops.aten.tanh.default)

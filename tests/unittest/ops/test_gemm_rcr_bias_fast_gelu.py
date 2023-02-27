@@ -29,7 +29,13 @@ from aitemplate.utils import shape_utils
 
 
 class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
-    def _test_rcr(self, Ms, test_name, use_fast_gelu=True, dtype="float16"):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
+    def _test_rcr(
+        self, Ms, test_name, use_fast_gelu=True, dtype="float16", atol=1e-1, rtol=1e-1
+    ):
         K = 1024
         N = 64
         target = detect_target()
@@ -67,7 +73,7 @@ class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
                 {"input_0": X_pt, "input_1": W_pt, "input_2": B_pt},
                 [y],
             )
-            self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+            torch.testing.assert_close(Y_pt, y, atol=atol, rtol=rtol)
 
     def test_rcr(self):
         self._test_rcr([128], "static", use_fast_gelu=True)
@@ -87,6 +93,24 @@ class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
         )
         self._test_rcr(
             [1, 7, 64, 127], "dynamic_m_float", use_fast_gelu=False, dtype="float"
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_gemm_rcr_bias_fast_gelu_bfloat16(self):
+        self._test_rcr(
+            [1, 7, 64, 127],
+            "fast_dynamic_m_bfloat16",
+            use_fast_gelu=True,
+            dtype="bfloat16",
+            atol=2e-1,
+            rtol=2e-1,
+        )
+        self._test_rcr(
+            [1, 7, 64, 127], "dynamic_m_bfloat16", use_fast_gelu=False, dtype="bfloat16"
         )
 
 

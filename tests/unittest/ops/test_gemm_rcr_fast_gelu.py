@@ -50,7 +50,13 @@ class NewGELUActivation(torch.nn.Module):
 
 
 class GEMMRcrFastGeluTestCase(unittest.TestCase):
-    def _test_rcr(self, Ms, test_name, use_fast_gelu=True, dtype="float16"):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(10)
+
+    def _test_rcr(
+        self, Ms, test_name, use_fast_gelu=True, atol=1e-1, rtol=1e-1, dtype="float16"
+    ):
         K = 1024
         N = 64
         target = detect_target()
@@ -79,7 +85,7 @@ class GEMMRcrFastGeluTestCase(unittest.TestCase):
                 {"input_0": X_pt, "input_1": W_pt},
                 [y],
             )
-            self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+            torch.testing.assert_close(Y_pt, y, atol=atol, rtol=rtol)
 
     def test_rcr(self):
         self._test_rcr([128], "static", use_fast_gelu=True)
@@ -93,10 +99,28 @@ class GEMMRcrFastGeluTestCase(unittest.TestCase):
         detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
         "Not supported by CUDA < SM80.",
     )
-    def test_rcr_float(self):
+    def test_gemm_rcr_fast_gelu_float(self):
         self._test_rcr([128], "static_float", use_fast_gelu=True, dtype="float")
         self._test_rcr(
             [1, 7, 64, 127], "dynamic_m_float", use_fast_gelu=True, dtype="float"
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_gemm_rcr_fast_gelu_bfloat16(self):
+        self._test_rcr(
+            [128],
+            "static_float",
+            use_fast_gelu=True,
+            atol=3e-1,
+            rtol=3e-1,
+            dtype="bfloat16",
+        )
+        self._test_rcr(
+            [1, 7, 64, 127], "dynamic_m_float", use_fast_gelu=True, dtype="bfloat16"
         )
 
 

@@ -33,45 +33,102 @@ constexpr uint32_t kFinalMask = 0xffffffff;
 #define GROUP_NORM_CUDA_CHECK_LAUNCH() GROUP_NORM_CUDA_CHECK(cudaGetLastError())
 #endif
 
+#ifndef __HALF_TO_US
+#define __HALF_TO_US(var) *(reinterpret_cast<unsigned short*>(&(var)))
+#endif
+
+#define NOT_IMPLEMENTED() assert(0 && __PRETTY_FUNCTION__)
+
 __device__ half fast_tanh(half x) {
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
+    (__CUDA_ARCH__ >= 750)
+
+  asm volatile("tanh.approx.f16 %0, %1;"
+               : "=h"(__HALF_TO_US(x))
+               : "h"(__HALF_TO_US(x)));
+  return x;
+
+#else
   return half(cutlass::fast_tanh(float(x)));
+#endif
 }
 
-__inline__ __device__ float sigmoid(float val) {
-  return (cutlass::fast_tanh(val * 0.5f) + 1.0f) * 0.5f;
+__device__ bfloat16 fast_tanh(bfloat16 x) {
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
+    (__CUDA_ARCH__ >= 900)
+  asm volatile("tanh.approx.bf16 %0, %1;"
+               : "=h"(__HALF_TO_US(x))
+               : "h"(__HALF_TO_US(x)));
+  return x;
+
+#elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return cutlass::fast_tanh(float(x));
+#else
+  NOT_IMPLEMENTED();
+#endif
 }
 
-__inline__ __device__ half constant_half() {
-  const uint16_t bits = 0x3800u;
-  return reinterpret_cast<half const&>(bits);
+#define CUDA_FP16_ONE_HALF \
+  __half_raw {             \
+    0x3800u                \
+  }
+#define CUDA_FP16_ONE \
+  __half_raw {        \
+    0x3c00u           \
+  }
+#define CUDA_BF16_ONE_HALF \
+  __nv_bfloat16_raw {      \
+    0x3f00u                \
+  }
+#define CUDA_BF16_ONE \
+  __nv_bfloat16_raw { \
+    0x3f80u           \
+  }
+
+__device__ float sigmoid(const float a) {
+  return (cutlass::fast_tanh(a * 0.5f) + 1.0f) * 0.5f;
 }
 
-__inline__ __device__ half one() {
-  const uint16_t bits = 0x3c00u;
-  return reinterpret_cast<half const&>(bits);
+__device__ half hsigmoid(const half a) {
+  return __hmul(
+      (__hadd(fast_tanh(__hmul(a, CUDA_FP16_ONE_HALF)), CUDA_FP16_ONE)),
+      CUDA_FP16_ONE_HALF);
 }
 
-__inline__ __device__ half hsigmoid(half a) {
-  const half half_val = constant_half();
-  const half one_val = one();
-  return __hmul((__hadd(fast_tanh(__hmul(a, half_val)), one_val)), half_val);
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
+    (__CUDA_ARCH__ >= 800)
+__device__ bfloat16 bf16sigmoid(const bfloat16 a) {
+  return __hmul(
+      (__hadd(fast_tanh(__hmul(a, CUDA_BF16_ONE_HALF)), CUDA_BF16_ONE)),
+      CUDA_BF16_ONE_HALF);
 }
+#endif
 
 template <typename T>
 struct FSigmoid {
-  __inline__ __device__ T operator()(T input);
+  __inline__ __device__ T operator()(const T input) const;
 };
 
 template <>
 struct FSigmoid<half> {
-  __inline__ __device__ half operator()(half a) {
+  __inline__ __device__ half operator()(const half a) const {
     return hsigmoid(a);
   }
 };
 
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
+    (__CUDA_ARCH__ >= 800)
+template <>
+struct FSigmoid<bfloat16> {
+  __inline__ __device__ bfloat16 operator()(const bfloat16 a) const {
+    return bf16sigmoid(a);
+  }
+};
+#endif
+
 template <>
 struct FSigmoid<float> {
-  __inline__ __device__ float operator()(float a) {
+  __inline__ __device__ float operator()(const float a) const {
     return sigmoid(a);
   }
 };
@@ -128,6 +185,14 @@ template <>
 __forceinline__ __device__ half Rsqrt<half>(half x) {
   return hrsqrt(x);
 }
+
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
+    (__CUDA_ARCH__ >= 800)
+template <>
+__forceinline__ __device__ bfloat16 Rsqrt<bfloat16>(bfloat16 x) {
+  return hrsqrt(x);
+}
+#endif
 
 #undef __AIT_GN_USE_FAST_MATH
 
@@ -392,6 +457,20 @@ struct TInputHelper<float> {
     return a;
   }
 };
+
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
+    (__CUDA_ARCH__ >= 800)
+template <>
+struct TInputHelper<bfloat16> {
+  typedef bfloat16_2 vec2_type;
+  static __inline__ __device__ float2 to_float2(vec2_type a) {
+    return __bfloat1622float2(a);
+  }
+  static __inline__ __device__ vec2_type to_vec2(float2 a) {
+    return __float22bfloat162_rn(a);
+  }
+};
+#endif
 
 } // namespace detail
 
@@ -815,7 +894,6 @@ void GroupNormForwardGpu(
     ComputeType* mean,
     ComputeType* inv_variance,
     bool channels_first) {
-  // using ComputeType = typename layer_norm::DefaultComputeType<T>::type;
   if (channels_first) {
     layer_norm::DirectLoad<T, ComputeType> load(x_ptr, norm_size);
     AffineStore<ComputeType, T, affine, FuseSwish> store(
@@ -871,7 +949,7 @@ void DispatchGroupNormForwardGpu(
     T2* mean,
     T2* inv_variance,
     bool channels_first) {
-  using ComputeType = typename layer_norm::DefaultComputeType<T>::type;
+  using ComputeType = T2;
   if (gamma_ptr != nullptr && beta_ptr != nullptr) {
     GroupNormForwardGpu<T, ComputeType, true, FuseSwish>(
         stream,

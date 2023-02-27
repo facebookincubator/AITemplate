@@ -29,6 +29,7 @@ from .fuse_ops import fuse_ops
 from .fuse_parallel_gemms import fuse_parallel_gemms
 from .fuse_permute_bmm_and_gemm import fuse_permute_bmm_and_gemm
 from .split_large_concat_ops import split_large_concat_ops
+from .split_large_slice_scatter_ops import split_large_slice_scatter_ops
 from .split_large_split_ops import split_large_split_ops
 from .transform_memory_ops import transform_memory_ops
 from .transform_odd_alignment import transform_odd_alignment
@@ -82,6 +83,7 @@ def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
         transform_special_ops,
         apply_padding,
         transform_strided_ops,
+        split_large_slice_scatter_ops,
         split_large_concat_ops,
         split_large_split_ops,
         transform_memory_ops,

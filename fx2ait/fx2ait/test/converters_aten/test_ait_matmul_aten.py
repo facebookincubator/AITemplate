@@ -1,4 +1,19 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import torch
+from fx2ait.passes.lower_basic_pass_aten import aten_compose_bmm_3d, aten_compose_mm_2d
 from fx2ait.tensor_spec import TensorSpec
 from fx2ait.tools.common_aten2ait import DispatchTestCase
 
@@ -9,14 +24,21 @@ class TestMatMulConverter(DispatchTestCase):
     @parameterized.expand(
         [
             [[2, 3], [3, 4], torch.ops.aten.mm.default],
-            [[2, 3, 4], [4, 6], torch.ops.aten.mm.default],
-            [[2, 3, 4], [2, 4, 6], torch.ops.aten.bmm.default],
+            # TODO check again in future since there is a diff about not decompose https://fburl.com/nysuuf7q
+            [
+                [2, 3, 4],
+                [4, 6],
+                aten_compose_mm_2d,
+            ],
+            [[2, 3, 4], [2, 4, 6], aten_compose_bmm_3d],
             [[2, 2, 2, 3, 4], [4, 6], torch.ops.aten.mm.default],
         ]
     )
     def test_simple(self, lhs_shape, rhs_shape, op):
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+                x = x.mul(1)
+                y = y.mul(1)
                 return torch.matmul(x, y)
 
         model = TestModule().cuda()
@@ -42,11 +64,11 @@ class TestMatMulConverter(DispatchTestCase):
         [
             # Only M can be dynamic: https://github.com/fairinternal/AITemplate/blob/main/tests/unittest/ops/test_gemm.py
             [[[2, 3], [3, 3], [6, 6]], torch.ops.aten.mm.default],
-            [[[2, 3], [2, 3], [3, 3], [6, 6]], torch.ops.aten.mm.default],
+            [[[2, 3], [2, 3], [3, 3], [6, 6]], aten_compose_mm_2d],
             [[[1, 3], [2, 3], [6, 8], [3, 3], [6, 6]], torch.ops.aten.mm.default],
             # FIXME: batch_size cannot be dynamic because the permutation of shape change the names: P544607056
             # b, m, k, n
-            [[[2, 2], [6, 8], [3, 3], [6, 6]], torch.ops.aten.bmm.default, True],
+            [[[2, 2], [6, 8], [3, 3], [6, 6]], aten_compose_bmm_3d, True],
         ]
     )
     def test_dynamic(self, shape, op, bmm=False):

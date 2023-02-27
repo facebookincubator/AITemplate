@@ -25,8 +25,8 @@ from aitemplate.compiler import compile_model, Model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
-from modeling.bert import BertBaseEncodersOnly, BertBaseUncased
-from modeling.torch_model import BertBaseUncased as BertPt
+from .modeling.bert import BertBaseEncodersOnly, BertBaseUncased
+from .modeling.torch_model import BertBaseUncased as BertPt
 
 
 def mark_output(y: Tensor) -> None:
@@ -223,8 +223,8 @@ def compile_module(
 
     mod = compile_model(y, target, "./tmp", model_name)
 
-    for k, v in params.items():
-        mod.set_constant_with_tensor(k, v)
+    mod.set_many_constants_with_tensors(params)
+    mod.fold_constants(sync=True)
 
     return mod
 

@@ -1,10 +1,25 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import logging
 import operator
 from typing import Any, NamedTuple
 
 import torch
 import torch.fx
-from fx2ait.acc_tracer import acc_ops
+from fx2ait.tools.ait_subgraph_rewriter import replace_pattern
+
 from torch.fx.experimental.const_fold import split_const_subgraphs
 from torch.fx.passes.infra.pass_base import PassResult
 from torch.fx.passes.shape_prop import TensorMetadata
@@ -14,6 +29,34 @@ _LOGGER = logging.getLogger(__name__)
 # Create an alias for module input type to avoid littering pyre-ignore for Any
 # throughout the file.
 Input = Any
+
+from fx2ait.acc_tracer import acc_ops
+from torch.fx import symbolic_trace
+
+
+def replacement_pattern_abstract(replacement):
+    """
+    Replace the pattern graph by a node of call_function of this `replacement`
+    """
+    traced = symbolic_trace(replacement)
+    replacement_placeholders = [
+        node for node in traced.graph.nodes if node.op == "placeholder"
+    ]
+    for n in traced.graph.nodes:
+        if n.op == "output":
+            before_output = n.all_input_nodes[0]
+            with traced.graph.inserting_after(before_output):
+                new_args = tuple(replacement_placeholders)
+                new_node = traced.graph.create_node(
+                    "call_function",
+                    replacement,
+                    args=new_args,
+                    kwargs=None,
+                )
+                before_output.replace_all_uses_with(new_node)
+    traced.graph.eliminate_dead_code()
+    traced.recompile()
+    return traced
 
 
 def run_const_fold(traced_mod: torch.fx.GraphModule) -> torch.fx.GraphModule:
@@ -85,6 +128,7 @@ def nchw2nhwc_pass(
     return PassResult(module, modified)
 
 
+# TODO: delete in future
 def replace_inplace_ops(
     module: torch.fx.GraphModule,
 ) -> torch.fx.GraphModule:
@@ -199,6 +243,49 @@ def replace_transpose_mm_op_with_linear(
     return PassResult(module, modified)
 
 
+def replace_batch_norm(module: torch.fx.GraphModule) -> torch.fx.GraphModule:
+    """
+    Current exir.capture enable_aot and it captures bwd needed nodes in output P619801318
+    This pass removes those unused node and replace with classic aten.batch_norm
+    """
+    batch_node_list = []
+    for n in module.graph.nodes:
+        if n.target == torch.ops.aten._native_batch_norm_legit_functional.default:
+            batch_node_list.append(n)
+        if n.target == "output":
+            output_node = n
+
+    if len(batch_node_list) > 0:
+        modified = True
+    else:
+        modified = False
+    for n in batch_node_list:
+        new_op = torch.ops.aten.batch_norm
+        new_args = list(n.args)
+        new_args.append(False)
+        new_args = tuple(new_args)
+        user_list = [x for x in n.users]
+        user_list_copy_node = []
+        user_list_copy_node.append(next(iter(user_list[1].users)))
+        user_list_copy_node.append(next(iter(user_list[2].users)))
+        getitem_node = user_list[0]
+        with module.graph.inserting_after(getitem_node):
+            new_node = module.graph.create_node(
+                "call_function",
+                new_op,
+                args=new_args,
+                kwargs=n.kwargs,
+            )
+            getitem_node.replace_all_uses_with(new_node)
+
+        output_args = output_node.args[0]
+        new_output_args = [x for x in output_args if x not in user_list_copy_node]
+        output_node.args = (new_output_args,)
+        module.graph.eliminate_dead_code()
+        module.recompile()
+    return PassResult(module, modified)
+
+
 def replace_aten_op_with_indices(module: torch.fx.GraphModule) -> torch.fx.GraphModule:
     modified = False
     for n in module.graph.nodes:
@@ -207,6 +294,7 @@ def replace_aten_op_with_indices(module: torch.fx.GraphModule) -> torch.fx.Graph
             torch.ops.aten.max_pool3d_with_indices.default,
             torch.ops.aten.native_batch_norm.default,
             torch.ops.aten._native_batch_norm_legit.default,
+            torch.ops.aten._native_batch_norm_legit_no_training.default,
         ):
             modified = True
             if len(n.users) != 1:
@@ -226,6 +314,16 @@ def replace_aten_op_with_indices(module: torch.fx.GraphModule) -> torch.fx.Graph
                 new_op = torch.ops.aten.batch_norm
                 new_args = list(n.args)
                 new_args.append(False)
+                new_args = tuple(new_args)
+            elif (
+                n.target == torch.ops.aten._native_batch_norm_legit_no_training.default
+            ):
+                new_op = torch.ops.aten.batch_norm
+                new_args = list(n.args)
+                new_args.append(False)
+                # _native_batch_norm_legit_no_training doesn't take in a training arg (assumed to be false)
+                # but batchnorm takes in a training arg at position 5.
+                new_args.insert(5, False)
                 new_args = tuple(new_args)
 
             getitem_node = next(iter(n.users))
@@ -391,17 +489,35 @@ def compose_getitem_slice(
         if node.op == "call_function" and node.target == torch.ops.aten.slice.Tensor:
             holder = []
             holder.append(node)
-            while (
-                len(node.users.keys()) == 1
-                and next(iter(node.users)).target == torch.ops.aten.slice.Tensor
-                and node.args[1] + 1 == next(iter(node.users)).args[1]
-            ):
-                node = next(iter(node.users))
-                holder.append(node)
+            qualified = True
+            user_change_input = []
+
+            while qualified:
+                next_user = None
+                for user in node.users:
+                    if (
+                        user.target == torch.ops.aten.slice.Tensor
+                        and node.args[1] + 1 == user.args[1]
+                    ):
+                        next_user = user
+                    elif (
+                        user.target == torch.ops.aten.sym_size
+                        and user.args[1] == node.args[1]
+                    ):
+                        user_change_input.append(user)
+                    else:
+                        qualified = False
+                        break
+                if qualified and next_user:
+                    node = next_user
+                    holder.append(node)
+                else:
+                    qualified = False
+
             if len(holder) == 1:
                 return (False,)
             else:
-                return (True, holder)
+                return (True, holder, user_change_input)
         return (False,)
 
     modified = False
@@ -410,6 +526,7 @@ def compose_getitem_slice(
         if res[0]:
             modified = True
             holder = res[1]
+            user_change_input = res[2]
             input_n = holder[0].args[0]
             last_n = holder[-1]
             list_args = []
@@ -421,13 +538,30 @@ def compose_getitem_slice(
                 new_node = module.graph.create_node(
                     "call_function",
                     aten_compose_getitem_slice,
-                    args=new_args,
+                    args=tuple(new_args),
                     kwargs=None,
                 )
             last_n.replace_all_uses_with(new_node)
+            for n in user_change_input:
+                new_args = list(n.args)
+                new_args[0] = new_node
+                n.args = tuple(new_args)
+
     module.graph.eliminate_dead_code()
     module.recompile()
     return PassResult(module, modified)
+
+
+def aten_compose_mm_2d(arg0_1, arg1_1):
+    sym_size = torch.ops.aten.sym_size(arg0_1, 0)
+    sym_size_1 = torch.ops.aten.sym_size(arg0_1, 1)
+    mul = sym_size * sym_size_1
+    sym_size_2 = torch.ops.aten.sym_size(arg0_1, 2)
+    view = torch.ops.aten.view.default(arg0_1, [mul, sym_size_2])
+    mm = torch.ops.aten.mm.default(view, arg1_1)
+    sym_size_3 = torch.ops.aten.sym_size(arg1_1, 1)
+    view_1 = torch.ops.aten.view.default(mm, [sym_size, sym_size_1, sym_size_3])
+    return view_1
 
 
 def aten_compose_bmm_2d(flat_args_1, flat_args_2):
@@ -475,48 +609,49 @@ def compose_bmm(
     combine decomposed bmm (matmul)
     """
     modified = False
-    for n in module.graph.nodes:
-        if n.op == "call_function" and n.target in (torch.ops.aten.bmm.default,):
-            modified = True
-            node = n
-            input_n = node.all_input_nodes[0]
-            other_n = node.all_input_nodes[1]
-            output = next(iter(node.users))
-            input_input_n = input_n.all_input_nodes[0]
-            if (
-                input_input_n.target != torch.ops.aten.expand.default
-                and input_n.target != torch.ops.aten.view.default
-            ):
-                raise RuntimeError(
-                    "Bmm is addressed in fixed pattern. A new pattern is met!"
-                )
-            real_input = input_input_n.all_input_nodes[0]
-            input_other_n = other_n.all_input_nodes[0]
-            if (
-                input_other_n.target != torch.ops.aten.expand.default
-                and other_n.target != torch.ops.aten.view.default
-            ):
-                raise RuntimeError(
-                    "Bmm is addressed in fixed pattern. A new pattern is met!"
-                )
-            real_other = input_other_n.all_input_nodes[0]
-            if len(real_other.meta["val"].size()) == 2:
-                new_func = aten_compose_bmm_2d
-            if len(real_other.meta["val"].size()) == 3:
-                new_func = aten_compose_bmm_3d
+    # pattern replacement for aten_compose_mm_2d
+    _LOGGER.info("compose_bmm: pattern matching for aten_compose_mm_2d...")
+    aten_compose_mm_2d_replacement = replacement_pattern_abstract(aten_compose_mm_2d)
+    res = replace_pattern(module, aten_compose_mm_2d, aten_compose_mm_2d_replacement)
+    if len(res) > 0:
+        modified = True
+    # pattern replacement for aten_compose_bmm_2d
+    _LOGGER.info("compose_bmm: pattern matching for aten_compose_bmm_3d...")
 
-            with module.graph.inserting_after(node):
-                new_args = (real_input, real_other)
-                new_node = module.graph.create_node(
-                    "call_function",
-                    new_func,
-                    args=new_args,
-                    kwargs=None,
-                )
-            output.replace_all_uses_with(new_node)
+    def match_filter_aten_compose_bmm_2d(match, original_graph, pattern_graph):
+        if len(match.placeholder_nodes[1].meta["val"].shape) == 2:
+            return True
+        else:
+            return False
 
-    module.graph.eliminate_dead_code()
-    module.recompile()
+    aten_compose_bmm_2d_replacement = replacement_pattern_abstract(aten_compose_bmm_2d)
+    res = replace_pattern(
+        module,
+        aten_compose_bmm_2d,
+        aten_compose_bmm_2d_replacement,
+        [match_filter_aten_compose_bmm_2d],
+    )
+    if len(res) > 0:
+        modified = True
+    # pattern replacement for aten_compose_bmm_3d
+    _LOGGER.info("compose_bmm: pattern matching for aten_compose_bmm_2d...")
+
+    def match_filter_aten_compose_bmm_3d(match, original_graph, pattern_graph):
+        if len(match.placeholder_nodes[1].meta["val"].shape) == 3:
+            return True
+        else:
+            return False
+
+    aten_compose_bmm_3d_replacement = replacement_pattern_abstract(aten_compose_bmm_3d)
+    res = replace_pattern(
+        module,
+        aten_compose_bmm_3d,
+        aten_compose_bmm_3d_replacement,
+        [match_filter_aten_compose_bmm_3d],
+    )
+    if len(res) > 0:
+        modified = True
+
     return PassResult(module, modified)
 
 
@@ -590,12 +725,12 @@ def compose_chunk(
     return PassResult(module, modified)
 
 
+## TODO: we will remove this pass once dynamo fixed the bug
 def acc_replace_mul_ops(
     module: torch.fx.GraphModule,
 ) -> torch.fx.GraphModule:
     """
     Put constant at the end of multiplicaiton, i.e change 15*x.size(1) to x.size(1)*15.
-    TODO: we will remove this pass once dynamo fixed the bug
     """
     for n in module.graph.nodes:
         if n.op == "call_function" and n.target == acc_ops.mul:

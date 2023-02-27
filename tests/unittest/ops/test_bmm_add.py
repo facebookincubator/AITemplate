@@ -26,6 +26,10 @@ from aitemplate.testing.test_utils import (
 
 
 class BMMAddTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super(BMMAddTestCase, self).__init__(*args, **kwargs)
         self.test_count = 0
@@ -151,6 +155,17 @@ class BMMAddTestCase(unittest.TestCase):
             B=8, M=32, N=64, K=16, test_name="bmm_ccr_add_float", dtype="float"
         )
         self._test_crr(B=8, M=32, K=16, N=64, dtype="float")
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_add_bfloat16(self):
+        self._test_rrr(B=8, M=32, K=8, N=64, dtype="bfloat16")
+        self._test_ccr(
+            B=8, M=32, N=64, K=16, test_name="bmm_ccr_add_bfloat16", dtype="bfloat16"
+        )
+        self._test_crr(B=8, M=32, K=16, N=64, dtype="bfloat16")
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -309,7 +324,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
         "Not supported by CUDA < SM80.",
     )
-    def test_bmm_broadcast_float(self):
+    def test_bmm_add_broadcast_float(self):
         self._test_crr(
             [1, 8, 16],
             [2, 8, 32],
@@ -321,15 +336,42 @@ class BMMBroadcastTestCase(unittest.TestCase):
             [1, 16, 8],
             [2, 8, 32],
             bias_shape=[1, 32],
-            test_name="broadcastable_bias1d_2",
+            test_name="broadcastable_bias1d_2_float",
             dtype="float",
         )
         self._test_ccr(
             [1, 8, 16],
             [2, 32, 8],
             bias_shape=[1, 16, 32],
-            test_name="broadcastable_bias3d",
+            test_name="broadcastable_bias3d_float",
             dtype="float",
+        )
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_add_broadcast_bfloat16(self):
+        self._test_crr(
+            [1, 8, 16],
+            [2, 8, 32],
+            bias_shape=[16, 32],
+            test_name="broadcastable_bias2d_bfloat16",
+            dtype="bfloat16",
+        )
+        self._test_rrr(
+            [1, 16, 8],
+            [2, 8, 32],
+            bias_shape=[1, 32],
+            test_name="broadcastable_bias1d_2_bfloat16",
+            dtype="bfloat16",
+        )
+        self._test_ccr(
+            [1, 8, 16],
+            [2, 32, 8],
+            bias_shape=[1, 16, 32],
+            test_name="broadcastable_bias3d_bfloat16",
+            dtype="bfloat16",
         )
 
 

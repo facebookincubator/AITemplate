@@ -141,7 +141,7 @@ def compile_model(
     if constants is None:
         constants = {}
 
-    recompile = os.getenv("RECOMPILE", "1")
+    recompile = os.getenv("AIT_RECOMPILE", "1")
     graph = None
     # Super important: we cannot have commas in the test name.
     # We want to add a -Iworkdir/test_name flag to nvcc, but
@@ -205,21 +205,26 @@ def compile_model(
             start_t = datetime.now()
             constant_folding_workdir = os.path.join(workdir, test_name)
             os.makedirs(constant_folding_workdir, exist_ok=True)
-            graph = compiler.transform.constant_folding(graph, constant_folding_workdir)
+            (
+                graph,
+                constant_folding_file_pairs,
+                constant_folding_inputs,
+            ) = compiler.transform.constant_folding(graph, workdir, test_name)
             graph_utils.dump_graph_debug_str_to_file(
                 graph, test_dir, "constant_folding"
             )
             _LOGGER.info(f"folded constants elapsed time: {elapsed_dt_sec(start_t)}")
 
-            _verify_outputs_still_in_graph(graph, output_tensors)
             (
                 max_blob,
                 max_constant_blob,
                 workspace,
             ) = compiler.transform.memory_planning(graph)
+            _verify_outputs_still_in_graph(graph, output_tensors)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "memory_planning")
 
             file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
+            file_pairs.extend(constant_folding_file_pairs)
 
             # It's possible that the original output tensor has been replaced with a new tensor.
             # Preserve original output tensors' orders but use the new tensors.
@@ -242,7 +247,8 @@ def compile_model(
                 workdir,
                 output_tensors,
                 test_name,
-                debug_settings,
+                additional_unbound_constants=constant_folding_inputs,
+                debug_settings=debug_settings,
             )
             file_pairs.extend(main_pairs)
 

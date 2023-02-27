@@ -24,7 +24,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
-class argmaxTestCase(unittest.TestCase):
+class ArgmaxTestCase(unittest.TestCase):
     def _test_argmax(
         self,
         batch_size=1,

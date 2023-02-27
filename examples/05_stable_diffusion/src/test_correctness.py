@@ -31,6 +31,10 @@ from .compile_lib.compile_vae import compile_vae
 
 
 class StableDiffusionVerification(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super(StableDiffusionVerification, self).__init__(*args, **kwargs)
 
@@ -43,10 +47,10 @@ class StableDiffusionVerification(unittest.TestCase):
             ).to("cuda")
         except OSError:
             if ManifoldClient is not None:
-                with ManifoldClient.get_client(bucket="aitemplate") as client:
+                with ManifoldClient.get_client(bucket="glow_test_data") as client:
                     await_sync(
                         client.getRecursive(
-                            manifold_path="tree/stable_diffusion/v2",
+                            manifold_path="tree/aitemplate/stable_diffusion/v2",
                             local_path=self.local_path,
                         )
                     )
@@ -77,9 +81,13 @@ class StableDiffusionVerification(unittest.TestCase):
         self.unet_config = {
             "batch_size": 2,
             "dim": 320,
-            "hidden_dim": 1024,
+            "hidden_dim": pipe.unet.config.cross_attention_dim,
             "width": 64,
             "height": 64,
+        }
+
+        self.unet_compile_extra_config = {
+            "attention_head_dim": pipe.unet.config.attention_head_dim,
         }
 
         self.clip_config = {
@@ -88,8 +96,10 @@ class StableDiffusionVerification(unittest.TestCase):
         }
 
         self.clip_compile_extra_config = {
-            "dim": 1024,
-            "num_heads": 16,
+            "depth": pipe.text_encoder.config.num_hidden_layers,
+            "num_heads": pipe.text_encoder.config.num_attention_heads,
+            "dim": pipe.text_encoder.config.hidden_size,
+            "act_layer": pipe.text_encoder.config.hidden_act,
         }
 
     def test_vae(self):
@@ -112,6 +122,7 @@ class StableDiffusionVerification(unittest.TestCase):
             use_fp16_acc=False,
             convert_conv_to_gemm=True,
             **self.unet_config,
+            **self.unet_compile_extra_config,
         )
         benchmark_unet(
             self.pt_unet,

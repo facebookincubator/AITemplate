@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import dataclasses as dc
 import datetime
 import logging
@@ -48,7 +62,6 @@ class AitLowerInterpreter:
         mod: fx.GraphModule,
         inputs: List[torch.Tensor],
     ) -> AITInterpreterResult:
-
         (additional_inputs,) = self.lower_settings.additional_inputs
         if additional_inputs is None:
             input_specs = TensorSpec.from_input_list_with_batch_size(
@@ -118,6 +131,7 @@ def default_lower_pass(
                 _precision_to_torch_type(lower_settings.output_precision),
                 1,  # num_runtimes
             ),
+            interp_res,
             lower_settings.trace_ait_module,
             *input,
         )

@@ -24,6 +24,7 @@ from .concatenate_tanh import concatenate_tanh
 from .dynamic_slice import dynamic_slice
 from .expand import expand
 from .gather import gather
+from .masked_select import masked_select
 from .permute import permute
 from .permute021 import permute021
 from .permute0213 import permute0213

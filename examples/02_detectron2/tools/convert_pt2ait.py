@@ -33,7 +33,7 @@ class detectron2_export:
     def __init__(self, model_name):
         self.model_name = model_name
 
-    def export_model(self, model):
+    def export_model(self, model, ait_param_map=None):
         fuse_model = {}
         bn_keys = set()
         for k, _ in model.items():
@@ -55,12 +55,13 @@ class detectron2_export:
         if detect_target().name() == "cuda":
             self.export_conv0(ait_model, fuse_model)
 
-        self.check_model(ait_model)
+        self.check_model(ait_model, ait_param_map)
         return ait_model
 
-    def check_model(self, ait_model):
-        with open(os.path.join("./tmp", self.model_name, "params.json")) as fi:
-            param_map = json.load(fi)
+    def check_model(self, ait_model, param_map=None):
+        if param_map is None:
+            with open(os.path.join("./tmp", self.model_name, "params.json")) as fi:
+                param_map = json.load(fi)
         for name, shape in param_map:
             assert ait_model[name].shape == tuple(
                 shape

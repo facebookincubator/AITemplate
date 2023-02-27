@@ -318,7 +318,41 @@ class CLIPMLP(nn.Module):
         return ops.reshape()(x, shape)
 
 
+class CLIPMLPQuickGelu(nn.Module):
+    """MLP as used in Vision Transformer, MLP-Mixer and related networks"""
+
+    def __init__(
+        self,
+        in_features,
+        hidden_features=None,
+        out_features=None,
+    ):
+        super().__init__()
+        out_features = out_features or in_features
+        hidden_features = hidden_features or in_features
+
+        self.fc1 = nn.Linear(
+            in_features,
+            hidden_features,
+        )
+        self.activation_fn = QuickGELUActivation()
+
+        self.fc2 = nn.Linear(hidden_features, out_features, specialization="add")
+
+    def forward(self, x, res):
+        shape = get_shape(x)
+        x = self.fc1(x)
+        x = self.activation_fn(x)
+        x = self.fc2(x, res)
+        return ops.reshape()(x, shape)
+
+
 class CLIPEncoderLayer(nn.Module):
+    ACT_LAYER_TO_CLIP_MLP_MAP = {
+        "gelu": CLIPMLP,
+        "quick_gelu": CLIPMLPQuickGelu,
+    }
+
     def __init__(
         self,
         hidden_size=768,
@@ -329,6 +363,7 @@ class CLIPEncoderLayer(nn.Module):
         seq_len=16,
         causal=False,
         mask_seq=0,
+        act_layer="gelu",
     ):
         super().__init__()
         self.embed_dim = hidden_size
@@ -346,7 +381,9 @@ class CLIPEncoderLayer(nn.Module):
             use_mem_eff=True,
         )
         self.layer_norm1 = nn.LayerNorm(self.embed_dim)
-        self.mlp = CLIPMLP(hidden_size, int(hidden_size * mlp_ratio))
+        self.mlp = self.ACT_LAYER_TO_CLIP_MLP_MAP[act_layer](
+            hidden_size, int(hidden_size * mlp_ratio)
+        )
         self.layer_norm2 = nn.LayerNorm(self.embed_dim)
 
     def forward(
@@ -396,6 +433,7 @@ class CLIPEncoder(nn.Module):
         seq_len=64,
         causal=False,
         mask_seq=0,
+        act_layer="gelu",
     ):
         super().__init__()
         self.layers = nn.ModuleList(
@@ -407,6 +445,7 @@ class CLIPEncoder(nn.Module):
                     seq_len=seq_len,
                     causal=causal,
                     mask_seq=mask_seq,
+                    act_layer=act_layer,
                 )
                 for _ in range(num_hidden_layers)
             ]
@@ -531,6 +570,7 @@ class CLIPTextTransformer(nn.Module):
         seq_len=64,
         causal=False,
         mask_seq=0,
+        act_layer="gelu",
     ):
         super().__init__()
         self.embeddings = CLIPTextEmbeddings(hidden_size=hidden_size)
@@ -542,6 +582,7 @@ class CLIPTextTransformer(nn.Module):
             seq_len=seq_len,
             causal=causal,
             mask_seq=mask_seq,
+            act_layer=act_layer,
         )
         self.final_layer_norm = nn.LayerNorm(hidden_size)
 

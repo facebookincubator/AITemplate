@@ -33,7 +33,7 @@ from aitemplate.backend.profiler_runner import ProfileResult
 
 from .... import backend
 from ....backend import registry
-from ....utils import alignment
+from ....utils import alignment, environ
 from ...base import DynamicProfileStrategy, ExecItem, IntImm, IntVar, Operator, Tensor
 from ...dtype import is_same_dtype
 from ...tensor_accessor import TensorAccessor
@@ -399,6 +399,9 @@ class gemm(Operator):
         entry for this gemm instance, we update this gemm op's
         relevant attributes with the cached result and return False.
         """
+        # We are forced to use the cache so we skip building profilers.
+        if environ.force_profiler_cache():
+            return False
         target = backend.target.Target.current()
 
         build_profiler = True
@@ -574,7 +577,9 @@ class gemm(Operator):
                 )
         return ab_alignment
 
-    def _profile_single_workload(self, profiler_prefix, exec_key, profiler_runner):
+    def _profile_single_workload(
+        self, profiler_prefix, exec_key, profiler_runner, force_cache
+    ):
         """
         Schedule profilers for given profiler path and gemm shape (exec_key)
         or get the result from cache
@@ -617,13 +622,19 @@ class gemm(Operator):
             self._attrs["workspace"] = max(self._attrs["workspace"], cache_value[1])
             self._attrs["split_k"] = cache_value[2]
             return
+        if cache_value is None and force_cache:
+            op_type = self._attrs["op"]
+            raise RuntimeError(
+                "force_cache is enabled but we could not find the following cache ",
+                f"available on device {target._arch=}, {op_type=}, {exec_entry_sha1=}",
+            )
         if target.use_dummy_profiling_results():
             op_type = self._attrs["op"]
             raise Exception(
                 "This is a CI run but we could not find the following cache ",
                 f"available on device {target._arch}\n",
                 f"{op_type} {exec_entry_sha1}.\n",
-                "To bypass, you need to make it available in the db table.",
+                "Please adjust target.select_minimal_algo function.",
             )
         if target.name() == "rocm":
             op_type = self._attrs["op"]
@@ -707,14 +718,15 @@ class gemm(Operator):
             )
             func = registry.get(func_key)
             func(self._attrs, dtype=self._attrs["inputs"][0]._attrs["dtype"])
+        target = backend.target.Target.current()
+        force_cache = environ.force_profiler_cache()
         for wkl in workloads:
             _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
-            target = backend.target.Target.current()
             # if in CI just choose minimal configs
             # workspace is a hack just provides 102400 Byte
-            if target.use_dummy_profiling_results():
+            if target.use_dummy_profiling_results() and not force_cache:
                 algo = target.select_minimal_algo(
                     list(self._attrs["op_instance"].keys())
                 )
@@ -725,7 +737,9 @@ class gemm(Operator):
                 # we have cached best algo
                 return
             else:
-                self._profile_single_workload(profiler_prefix, wkl, profiler_runner)
+                self._profile_single_workload(
+                    profiler_prefix, wkl, profiler_runner, force_cache
+                )
 
     def gen_function(self) -> str:
         """Generates the function code for the gemm op for the current target.

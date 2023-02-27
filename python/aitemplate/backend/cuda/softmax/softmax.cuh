@@ -16,6 +16,84 @@
 #ifndef CUDA_SOFTMAX
 #define CUDA_SOFTMAX
 
+#include <cuda.h>
+#include <cuda_bf16.h>
+#include <cuda_fp16.h>
+#include <math_constants.h>
+#include <cassert>
+#include <stdexcept>
+#include <string>
+
+using bfloat16 = nv_bfloat16;
+
+#define SOFTMAX_DEVICE_CHECK(call)                                   \
+  if ((call) != cudaSuccess) {                                       \
+    throw std::runtime_error(                                        \
+        std::string("softmax kernel call failed: ") +                \
+        cudaGetErrorString(cudaGetLastError()) + " at " + __FILE__ + \
+        ", line" + std::to_string(__LINE__));                        \
+  }
+
+#define SOFTMAX_LAUNCH_CHECK() SOFTMAX_DEVICE_CHECK(cudaGetLastError())
+
+// unroll directives copied from CUTLASS
+#if defined(__CUDA_ARCH__)
+#if defined(__CUDACC_RTC__) || (defined(__clang__) && defined(__CUDA__))
+#define PRAGMA_UNROLL _Pragma("unroll")
+#else
+#define PRAGMA_UNROLL #pragma unroll
+#endif // __CUDACC_RTC__
+
+#else
+#define PRAGMA_UNROLL
+#endif // __CUDA_ARCH__
+
+namespace {
+
+template <typename T>
+__inline__ __device__ T fast_max(const T a, const T b);
+
+template <typename T>
+__inline__ __device__ T fast_exp(const T a);
+
+template <>
+__inline__ __device__ half fast_max(const half a, const half b) {
+#if (__CUDA_ARCH__ >= 800)
+  return __hmax(a, b);
+#else
+  return a > b ? a : b;
+#endif
+}
+
+template <>
+__inline__ __device__ float fast_max(const float a, const float b) {
+  return fmaxf(a, b);
+}
+
+template <>
+__inline__ __device__ half fast_exp(const half a) {
+  return hexp(a);
+}
+
+template <>
+__inline__ __device__ float fast_exp(const float a) {
+  return __expf(a);
+}
+
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+
+template <>
+__inline__ __device__ bfloat16 fast_exp(const bfloat16 a) {
+  return hexp(a);
+}
+
+template <>
+__inline__ __device__ bfloat16 fast_max(const bfloat16 a, const bfloat16 b) {
+  return __hmax(a, b);
+}
+
+#endif
+
 template <typename T>
 __inline__ __device__ T Inf();
 
@@ -31,7 +109,7 @@ __inline__ __device__ double Inf<double>() {
 
 template <typename T>
 struct Arguments {
-  T* input;
+  const T* input;
   T* output;
 };
 
@@ -120,23 +198,7 @@ __inline__ __device__ T blockReduceMax(T* val) {
   return (T)0.0f;
 }
 
-namespace detail {
-template <typename T>
-struct numeric_limits_helper {
-  __device__ __host__ static constexpr T lowest() {
-    return platform::numeric_limits<T>::lowest();
-  }
-};
-
-// Cutlass doesn't have `lowest` in their specialization for float,
-// so we define our own helper struct here.
-template <>
-struct numeric_limits_helper<float> {
-  __device__ __host__ static constexpr float lowest() {
-    return std::numeric_limits<float>::lowest();
-  }
-};
-} // namespace detail
+} // namespace
 
 // input size: [M, K]
 // Currently the softmax kernel only supports 2D input with dim=1.
@@ -164,7 +226,7 @@ __global__ void softmax_small_k(Arguments<T> args, size_t M) {
   constexpr bool can_use_vector_load = ((m * K) % vector_len) == 0;
   // read input
   if (can_use_vector_load && m_idx + m < M) {
-    VECTORIZED_TYPE* input = reinterpret_cast<VECTORIZED_TYPE*>(args.input);
+    auto input = reinterpret_cast<const VECTORIZED_TYPE*>(args.input);
     VECTORIZED_TYPE* output = reinterpret_cast<VECTORIZED_TYPE*>(args.output);
 
     const size_t offset = (m_idx * K) / vector_len;
@@ -178,42 +240,42 @@ __global__ void softmax_small_k(Arguments<T> args, size_t M) {
     VECTORIZED_TYPE input_tile_vec[n_tile];
     T* input_tile = reinterpret_cast<T*>(&input_tile_vec);
 
-    CUTLASS_PRAGMA_UNROLL
+    PRAGMA_UNROLL
     for (size_t i = 0; i < n_tile; i++) {
       input_tile_vec[i] = input[i];
     }
 
-    CUTLASS_PRAGMA_UNROLL
+    PRAGMA_UNROLL
     for (size_t i = 0; i < m; i++) {
-      T max = detail::numeric_limits_helper<T>::lowest();
+      T max = std::numeric_limits<T>::lowest();
       // find max
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
-        max = cutlass::fast_max(input_tile[i * K + j], max);
+        max = fast_max(input_tile[i * K + j], max);
       }
       // get sum
       float sum = 0;
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
         const int tile_idx = i * K + j;
-        input_tile[tile_idx] = cutlass::fast_exp(input_tile[tile_idx] - max);
+        input_tile[tile_idx] = fast_exp(input_tile[tile_idx] - max);
         sum += static_cast<float>(input_tile[tile_idx]);
       }
       // normalize
       const float sum_inverse = 1.0 / sum;
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
         const int tile_idx = i * K + j;
         input_tile[tile_idx] = static_cast<T>(
             static_cast<float>(input_tile[tile_idx]) * sum_inverse);
       }
     }
-    CUTLASS_PRAGMA_UNROLL
+    PRAGMA_UNROLL
     for (size_t i = 0; i < n_tile; i++) {
       output[i] = input_tile_vec[i];
     }
   } else {
-    T* input = args.input;
+    const T* input = args.input;
     T* output = args.output;
 
     const size_t offset = m_idx * K;
@@ -227,34 +289,34 @@ __global__ void softmax_small_k(Arguments<T> args, size_t M) {
       T input_tile[K];
 
       // read input
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
         input_tile[j] = input[i * K + j];
       }
 
-      T max = detail::numeric_limits_helper<T>::lowest();
+      T max = std::numeric_limits<T>::lowest();
       // find max
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
-        max = cutlass::fast_max(input_tile[j], max);
+        max = fast_max(input_tile[j], max);
       }
       // get sum
       float sum = 0;
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
         const int tile_idx = i * K + j;
-        input_tile[j] = cutlass::fast_exp(input_tile[j] - max);
+        input_tile[j] = fast_exp(input_tile[j] - max);
         sum += static_cast<float>(input_tile[j]);
       }
       // normalize
       float sum_inverse = 1.0 / sum;
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
         input_tile[j] =
             static_cast<T>(static_cast<float>(input_tile[j]) * sum_inverse);
       }
       // write output
-      CUTLASS_PRAGMA_UNROLL
+      PRAGMA_UNROLL
       for (size_t j = 0; j < K; j++) {
         output[i * K + j] = input_tile[j];
       }
@@ -551,6 +613,245 @@ inline cudaError_t LaunchSoftmaxBlockAll(
   softmax_block_smem<T, ACT_T, block_size_conf_1>
       <<<grid, block_size_conf_1, smem, stream>>>(input, output, m, n);
   return cudaSuccess;
+}
+
+template <typename T, int K, size_t TileSize>
+void LaunchSoftmaxSmallK(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  const int n_threads = 128;
+  const int tile_size_by_n_threads = TileSize * n_threads;
+  dim3 block(n_threads);
+  dim3 grid((batch_size + tile_size_by_n_threads - 1) / tile_size_by_n_threads);
+  softmax_small_k<T, float4, n_threads, K, TileSize>
+      <<<grid, block, 0, stream>>>({input, output}, batch_size);
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T>
+struct VecTFor;
+
+template <>
+struct VecTFor<half> {
+  using vec8 = float4;
+  using vec4 = float2;
+  using vec2 = float;
+};
+
+template <>
+struct VecTFor<float> {
+  using vec8 = float8;
+  using vec4 = float4;
+  using vec2 = float2;
+};
+
+template <>
+struct VecTFor<bfloat16> {
+  using vec8 = float4;
+  using vec4 = float2;
+  using vec2 = float;
+};
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK8Small(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_width = -1;
+  for (auto i : {1, 8, 16, 32}) {
+    if (8 * i >= NElements) {
+      thread_group_width = i;
+      break;
+    }
+  }
+  int thread_group_per_block = 128 / thread_group_width;
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(thread_group_width, thread_group_per_block);
+  using vec8 = typename VecTFor<T>::vec8;
+  softmax_stored_locally_multi_dim<vec8, T, 8><<<grid, block, 0, stream>>>(
+      reinterpret_cast<const vec8*>(input),
+      reinterpret_cast<vec8*>(output),
+      batch_size,
+      NElements);
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK8Middle(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_per_block = 128 / 32; // 4
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(32, thread_group_per_block);
+  const int num_packs = (int((NElements + 31) / 32) + 7) / 8;
+  const int cols_per_thread = num_packs * 8;
+  using vec8 = typename VecTFor<T>::vec8;
+  softmax_stored_locally_multi_dim<vec8, T, cols_per_thread>
+      <<<grid, block, 0, stream>>>(
+          reinterpret_cast<const vec8*>(input),
+          reinterpret_cast<vec8*>(output),
+          batch_size,
+          NElements);
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK4Small(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_width = -1;
+  for (auto i : {1, 4, 8, 16, 32}) {
+    if (4 * i >= NElements) {
+      thread_group_width = i;
+      break;
+    }
+  }
+  int thread_group_per_block = 128 / thread_group_width;
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(thread_group_width, thread_group_per_block);
+  using vec4 = typename VecTFor<T>::vec4;
+  softmax_stored_locally_multi_dim<vec4, T, 8><<<grid, block, 0, stream>>>(
+      reinterpret_cast<const vec4*>(input),
+      reinterpret_cast<vec4*>(output),
+      batch_size,
+      NElements);
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK4Middle(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_per_block = 128 / 32; // 4
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(32, thread_group_per_block);
+  const int num_packs = (int((NElements + 31) / 32) + 3) / 4;
+  const int cols_per_thread = num_packs * 8;
+  using vec4 = typename VecTFor<T>::vec4;
+
+  softmax_stored_locally_multi_dim<vec4, T, cols_per_thread>
+      <<<grid, block, 0, stream>>>(
+          reinterpret_cast<const vec4*>(input),
+          reinterpret_cast<vec4*>(output),
+          batch_size,
+          NElements);
+
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK2Small(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_width = -1;
+  for (auto i : {1, 2, 4, 8, 16, 32}) {
+    if (2 * i >= NElements) {
+      thread_group_width = i;
+      break;
+    }
+  }
+  int thread_group_per_block = 128 / thread_group_width;
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(thread_group_width, thread_group_per_block);
+  using vec2 = typename VecTFor<T>::vec2;
+
+  softmax_stored_locally_multi_dim<vec2, T, 8><<<grid, block, 0, stream>>>(
+      reinterpret_cast<const vec2*>(input),
+      reinterpret_cast<vec2*>(output),
+      batch_size,
+      NElements);
+
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK2Middle(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_per_block = 128 / 32; // 4
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(32, thread_group_per_block);
+  const int num_packs = (int((NElements + 31) / 32) + 1) / 2;
+  const int cols_per_thread = num_packs * 2;
+  using vec2 = typename VecTFor<T>::vec2;
+
+  softmax_stored_locally_multi_dim<vec2, T, cols_per_thread>
+      <<<grid, block, 0, stream>>>(
+          reinterpret_cast<const vec2*>(input),
+          reinterpret_cast<vec2*>(output),
+          batch_size,
+          NElements);
+
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK1Small(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_width = -1;
+  for (auto i : {1, 2, 4, 8, 16, 32}) {
+    if (i >= NElements) {
+      thread_group_width = i;
+      break;
+    }
+  }
+  int thread_group_per_block = 128 / thread_group_width;
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(thread_group_width, thread_group_per_block);
+
+  softmax_stored_locally_multi_dim<T, T, 8>
+      <<<grid, block, 0, stream>>>(input, output, batch_size, NElements);
+
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+template <typename T, size_t NElements>
+void LaunchSoftmaxK1Middle(
+    const T* input,
+    T* output,
+    size_t batch_size,
+    cudaStream_t stream) {
+  int thread_group_per_block = 128 / 32; // 4
+  int grid_dim_x =
+      (batch_size + thread_group_per_block - 1) / thread_group_per_block;
+  dim3 grid(grid_dim_x);
+  dim3 block(32, thread_group_per_block);
+  const int cols_per_thread = (NElements + 31) / 32;
+
+  softmax_stored_locally_multi_dim<T, T, cols_per_thread>
+      <<<grid, block, 0, stream>>>(input, output, batch_size, NElements);
+
+  SOFTMAX_LAUNCH_CHECK();
 }
 
 #endif

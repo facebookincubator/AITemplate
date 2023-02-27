@@ -293,6 +293,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
                 uncond_tokens,
                 padding="max_length",
                 max_length=max_length,
+                truncation=True,
                 return_tensors="pt",
             )
             uncond_embeddings = self.clip_inference(
@@ -346,6 +347,12 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         extra_step_kwargs = {}
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
+            # check if the scheduler accepts generator
+        accepts_generator = "generator" in set(
+            inspect.signature(self.scheduler.step).parameters.keys()
+        )
+        if accepts_generator:
+            extra_step_kwargs["generator"] = generator
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if we are doing classifier free guidance

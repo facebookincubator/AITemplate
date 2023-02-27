@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 # encoding: utf-8
 import operator
 
@@ -363,9 +377,10 @@ def custom_getattr_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
             getitem_node.meta = node.meta.copy()
             return getitem_node
 
-    assert (
-        input_obj_type == torch.Tensor
-    ), f"Expected torch.Tensor type for {input_obj_type}"
+    assert input_obj_type in [
+        torch.Tensor,
+        torch.nn.parameter.Parameter,
+    ], f"Expected torch.Tensor type for {input_obj_type}"
     assert (
         attr_name == "shape" or attr_name == "device" or attr_name == "dtype"
     ), f"Only supporting shape, device and dtype getattr for now, not {attr_name}"
@@ -416,7 +431,10 @@ def tensor_size_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
 @register_acc_op_mapping(op_and_target=("call_method", "add"))
 @register_acc_op
 def add(*, input, other):
-    return input + other
+    if not (isinstance(input, torch.Tensor) or isinstance(other, torch.Tensor)):
+        return operator.add(input, other)
+    else:
+        return input + other
 
 
 @register_acc_op_properties(AccOpProperty.unary)
@@ -1026,7 +1044,10 @@ def rescale_quantize_per_channel(*, input, acc_out_ty=None):
 @register_acc_op_mapping(op_and_target=("call_method", "sub"))
 @register_acc_op
 def sub(*, input, other):
-    return input - other
+    if not (isinstance(input, torch.Tensor) or isinstance(other, torch.Tensor)):
+        return operator.sub(input, other)
+    else:
+        return input - other
 
 
 @register_acc_op_properties(AccOpProperty.pointwise)
@@ -1732,7 +1753,10 @@ def abs(*, input):
 @register_acc_op_mapping(op_and_target=("call_function", torch.neg))
 @register_acc_op
 def neg(*, input):
-    return torch.neg(input=input)
+    if not isinstance(input, torch.Tensor):
+        return operator.neg(input)
+    else:
+        return torch.neg(input=input)
 
 
 @register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)
@@ -1999,7 +2023,6 @@ def linalg_norm(*, input, ord, dim, keepdim):
     ],
 )
 def norm_mapper(node: torch.fx.Node, _: torch.nn.Module) -> torch.fx.Node:
-
     input_node = node.kwargs["input"]
     p = node.kwargs["p"]
     dim = node.kwargs["dim"]
@@ -2241,6 +2264,7 @@ def embedding_bag_4bit_rowwise_offsets(
 
 @register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)
 @register_acc_op_mapping(op_and_target=("call_function", torch.sin))
+@register_acc_op_mapping(op_and_target=("call_method", "sin"))
 @register_acc_op
 def sin(*, input):
     return torch.sin(input=input)
@@ -2248,6 +2272,7 @@ def sin(*, input):
 
 @register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)
 @register_acc_op_mapping(op_and_target=("call_function", torch.cos))
+@register_acc_op_mapping(op_and_target=("call_method", "cos"))
 @register_acc_op
 def cos(*, input):
     return torch.cos(input=input)
@@ -3042,7 +3067,6 @@ def xl_weight(weight_id: str, metadata: TensorMetadata, proxy_shape, dtype):
 )
 def log_softmax_mapper(node: torch.fx.Node, _: torch.nn.Module) -> torch.fx.Node:
     with node.graph.inserting_after(node):
-
         softmax_kwargs = {
             "input": node.kwargs["input"],
             "dim": node.kwargs["dim"],
@@ -3206,6 +3230,42 @@ def baddbmm_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
         )
         add_node.meta = node.meta.copy()
         return add_node
+
+
+@register_acc_op_mapping(op_and_target=("call_function", torch.clone))
+@register_acc_op_mapping(op_and_target=("call_method", "clone"))
+@register_acc_op
+def clone(*, input):
+    return torch.clone(input)
+
+
+@register_acc_op_mapping(op_and_target=("call_function", torch.unbind))
+@register_acc_op
+def unbind(*, input, dim=0):
+    return torch.unbind(input, dim=dim)
+
+
+@register_acc_op_mapping(
+    op_and_target=("call_function", torch.nn.functional.group_norm),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("num_groups", "num_groups"),
+        ("weight", "weight"),
+        ("bias", "bias"),
+        ("eps", "eps"),
+    ],
+)
+@register_acc_op
+def group_norm(*, input, num_groups, weight=None, bias=None, eps=1e-05):
+    return torch.nn.functional.group_norm(
+        input, num_groups, weight=weight, bias=bias, eps=eps
+    )
+
+
+@register_acc_op_mapping(op_and_target=("call_method", "long"))
+@register_acc_op
+def long(*, input):
+    return input.long()
 
 
 ###############################################################################

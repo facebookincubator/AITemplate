@@ -189,6 +189,43 @@ class BMMTestCase(unittest.TestCase):
             [1, 9, 11], M=64, N=32, K=16, test_name="dynamic_b_float", dtype="float"
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_bfloat16(self):
+        self._test_rcr(
+            [128], [64], N=8, K=64, test_name="static_bfloat16", dtype="bfloat16"
+        )
+        self._test_rcr(
+            [1, 5, 77, 128],
+            [32],
+            N=16,
+            K=64,
+            test_name="dynamic_b_bfloat16",
+            dtype="bfloat16",
+        )
+        self._test_crr(
+            [1, 2, 5],
+            [3, 6, 8],
+            M=24,
+            N=64,
+            test_name="dynamic_bk_bfloat16",
+            dtype="bfloat16",
+        )
+        self._test_rrr(
+            [8], [4, 7, 9], K=64, N=32, test_name="dynamic_m_bfloat16", dtype="bfloat16"
+        )
+        self._test_ccr(
+            [1, 9, 11],
+            M=64,
+            N=32,
+            K=16,
+            test_name="dynamic_b_bfloat16",
+            dtype="bfloat16",
+        )
+
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMBroadcastTestCase(unittest.TestCase):
@@ -428,6 +465,94 @@ class BMMBroadcastTestCase(unittest.TestCase):
         self._test_rrr([16, 8], [8, 8, 32], "2d_broadcastable_a", dtype="float")
         self._test_ccr([1, 8, 16], [2, 32, 8], "broadcastable_a", dtype="float")
         self._test_ccr([8, 8, 16], [32, 8], "2d_broadcastable_b", dtype="float")
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by CUDA < SM80.",
+    )
+    def test_bmm_broadcast_bfloat16(self):
+        self._test_rcr_with_accessors(dtype="bfloat16")
+        self._test_rcr_merge_with_accessors(dtype="bfloat16")
+        self._test_rcr(
+            [2, 16, 8], [1, 32, 8], "broadcastable_b_bfloat16", dtype="bfloat16"
+        )
+        self._test_rcr(
+            [16, 8], [8, 32, 8], "2d_broadcastable_a_bfloat16", dtype="bfloat16"
+        )
+        self._test_crr(
+            [1, 8, 16], [2, 8, 32], "broadcastable_a_bfloat16", dtype="bfloat16"
+        )
+        self._test_crr(
+            [8, 8, 16], [8, 32], "2d_broadcastable_b_bfloat16", dtype="bfloat16"
+        )
+        self._test_rrr(
+            [2, 16, 8], [1, 8, 32], "broadcastable_b_bfloat16", dtype="bfloat16"
+        )
+        self._test_rrr(
+            [16, 8], [8, 8, 32], "2d_broadcastable_a_bfloat16", dtype="bfloat16"
+        )
+        self._test_ccr(
+            [1, 8, 16], [2, 32, 8], "broadcastable_a_bfloat16", dtype="bfloat16"
+        )
+        self._test_ccr(
+            [8, 8, 16], [32, 8], "2d_broadcastable_b_bfloat16", dtype="bfloat16"
+        )
+
+    def test_rcr_fail(self, dtype="float16"):
+        target = detect_target()
+        batch_dim = shape_utils.gen_int_var_min_max([1, 16], name="batch_size")
+        m_dim = shape_utils.gen_int_var_min_max([1, 10], name="m")
+        K = 3
+        N = 8
+        X = Tensor(
+            shape=[batch_dim, m_dim, K], dtype=dtype, name="input_0", is_input=True
+        )
+        W = Tensor(shape=[batch_dim, N, K], dtype=dtype, name="input_1", is_input=True)
+        OP = ops.bmm_rcr()
+        Y = OP(X, W)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+        module = compile_model(Y, target, "./tmp", "bmm_rcr_should_fail")
+
+        X_pt = get_random_torch_tensor([2, 10, K], dtype)
+        W_pt = get_random_torch_tensor([16, 8, K], dtype)
+        y = get_torch_empty_tensor([2, 10, 8], dtype)
+
+        try:
+            module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
+            raise AssertionError(
+                "Shouldn't be able to run be imcompatible tensor shape!"
+            )
+        except RuntimeError:
+            pass
+
+    def test_rrr_fail(self, dtype="float16"):
+        target = detect_target()
+        batch_dim = shape_utils.gen_int_var_min_max([1, 16], name="batch_size")
+        m_dim = shape_utils.gen_int_var_min_max([1, 10], name="m")
+        K = 3
+        N = 8
+        X = Tensor(
+            shape=[batch_dim, m_dim, K], dtype=dtype, name="input_0", is_input=True
+        )
+        W = Tensor(shape=[batch_dim, K, N], dtype=dtype, name="input_1", is_input=True)
+        OP = ops.bmm_rrr()
+        Y = OP(X, W)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+        module = compile_model(Y, target, "./tmp", "bmm_rrr_should_fail")
+
+        X_pt = get_random_torch_tensor([2, 10, K], dtype)
+        W_pt = get_random_torch_tensor([16, K, 8], dtype)
+        y = get_torch_empty_tensor([2, 10, 8], dtype)
+
+        try:
+            module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
+            raise AssertionError(
+                "Shouldn't be able to run be imcompatible tensor shape!"
+            )
+        except RuntimeError:
+            pass
 
 
 if __name__ == "__main__":

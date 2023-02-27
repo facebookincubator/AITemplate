@@ -15,6 +15,9 @@
 """
 CUDA view_ops module init
 """
-from . import view_ops
+from . import make_jagged, view_ops
 
-__all__ = ["view_ops"]
+__all__ = [
+    "view_ops",
+    "make_jagged",
+]

@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 from typing import Any, Dict, Iterable, Mapping, Sequence
 
 import torch
@@ -72,6 +86,7 @@ def create_ait_operator_support(
         # 1. We only support subgraphs with torch.Tensor inputs for now
         ops.OpSupports.decline_if_input_dtype(torch.int64),
         ops.OpSupports.decline_if_input_dtype(torch.int32),
+        ops.OpSupports.decline_if_input_dtype(torch.float64),
         ops.OpSupports.decline_if_input_dtype(dict),
         # 2. Node is supported if it has AIT converter:
         supported_if_converter_registered,
@@ -88,6 +103,7 @@ class AITSplitterSettings(splitter_base._SplitterSettingBase):
     def __init__(self, min_acc_module_size=DEFAULT_MIN_ACC_MODULE_SIZE):
         super().__init__()
         self.min_acc_module_size = min_acc_module_size
+        self.exclude_support_node_name: set = set()
 
 
 class AITSplitter(splitter_base._SplitterBase):
@@ -101,7 +117,16 @@ class AITSplitter(splitter_base._SplitterBase):
         if not settings:
             settings = AITSplitterSettings()
         if not operator_support:
-            operator_support = create_ait_operator_support()
+            operator_support = create_ait_operator_support(
+                op_lowering_disallow_list=settings.exclude_support_node_name
+            )
+        else:
+            operator_support = ops.chain(
+                operator_support,
+                ops.OpSupports.decline_if_node_in_names(
+                    settings.exclude_support_node_name
+                ),
+            )
         super().__init__(
             module,
             sample_input,
@@ -128,7 +153,8 @@ class AITSplitter(splitter_base._SplitterBase):
                 torch.float16,
                 torch.float,
                 1,  # num_runtimes
-            )
+            ),
+            interpreter_result,
         )
 
     # TODO add _find_culprit once minimizer completed

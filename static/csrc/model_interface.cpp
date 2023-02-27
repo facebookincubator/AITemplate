@@ -112,6 +112,78 @@ AITemplateError AITemplateModelContainerSetConstant(
   CONVERT_EXCEPTION_TO_ERROR_CODE({ m->SetConstant(name, *tensor); })
 }
 
+AIT_EXPORT AITemplateError AITemplateModelContainerSetManyConstants(
+    AITemplateModelHandle handle,
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors) {
+  RETURN_ERROR_IF_NULL(handle)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE(
+      { m->SetManyConstants(names, tensors, num_tensors); })
+}
+
+AITemplateError AITemplateModelContainerSetDoubleBufferConstant(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    const char* name,
+    const AITData* tensor) {
+  RETURN_ERROR_IF_NULL(handle)
+  RETURN_ERROR_IF_NULL(tensor)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  auto stream = reinterpret_cast<ait::StreamType>(stream_handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE(
+      { m->SetDoubleBufferConstant(name, *tensor, stream); })
+}
+
+AIT_EXPORT AITemplateError AITemplateModelContainerSetManyDoubleBufferConstants(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors) {
+  RETURN_ERROR_IF_NULL(handle)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  auto stream = reinterpret_cast<ait::StreamType>(stream_handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE(
+      { m->SetManyDoubleBufferConstants(names, tensors, num_tensors, stream); })
+}
+
+AITemplateError AITemplateModelContainerGetNumConstants(
+    AITemplateModelHandle handle,
+    bool unbound_constants_only,
+    bool constant_folding_inputs_only,
+    size_t* num_constants_out) {
+  RETURN_ERROR_IF_NULL(handle)
+  RETURN_ERROR_IF_NULL(num_constants_out)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({
+    if (constant_folding_inputs_only) {
+      *num_constants_out =
+          m->GetNumConstantFoldingInputs(unbound_constants_only);
+    } else {
+      *num_constants_out = m->GetNumConstants(unbound_constants_only);
+    }
+  })
+}
+
+AITemplateError AITemplateModelContainerGetConstantNames(
+    AITemplateModelHandle handle,
+    bool unbound_constants_only,
+    bool constant_folding_inputs_only,
+    const char** constant_names_out) {
+  RETURN_ERROR_IF_NULL(handle)
+  // WriteAllConstantNamesTo() will handle nullptr checks on constant_names_out.
+  // Passing nullptr is allowed if there are 0 constants!
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({
+    m->WriteAllConstantNamesTo(
+        constant_names_out,
+        unbound_constants_only,
+        constant_folding_inputs_only);
+  })
+}
+
 AITemplateError AITemplateModelContainerRun(
     AITemplateModelHandle handle,
     const AITData* inputs,
@@ -300,6 +372,33 @@ AITemplateError AITemplateModelContainerGetNumRuntimes(
   RETURN_ERROR_IF_NULL(num_runtimes_out)
   auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
   CONVERT_EXCEPTION_TO_ERROR_CODE({ *num_runtimes_out = m->GetNumRuntimes(); })
+}
+
+AITemplateError AITemplateModelContainerFoldConstants(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    bool sync) {
+  RETURN_ERROR_IF_NULL(handle)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  auto stream = reinterpret_cast<ait::StreamType>(stream_handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({ m->FoldConstants(stream, sync, false); })
+}
+
+AITemplateError AITemplateModelContainerFoldConstantsInDoubleBuffer(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    bool sync) {
+  RETURN_ERROR_IF_NULL(handle)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  auto stream = reinterpret_cast<ait::StreamType>(stream_handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({ m->FoldConstants(stream, sync, true); })
+}
+
+AITemplateError AITemplateModelContainerSwapConstants(
+    AITemplateModelHandle handle) {
+  RETURN_ERROR_IF_NULL(handle)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({ m->SwapConstants(); })
 }
 
 AITemplateError AITemplateAllocatorCreate(

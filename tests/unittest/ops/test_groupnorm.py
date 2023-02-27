@@ -45,6 +45,8 @@ class GroupnormTestCase(unittest.TestCase):
         eps=1e-5,
         use_swish=False,
         copy_op=False,
+        atol=1e-2,
+        rtol=1e-2,
         dtype="float16",
     ):
         test_name = "group_norm_swish" if use_swish else "group_norm"
@@ -112,20 +114,18 @@ class GroupnormTestCase(unittest.TestCase):
         # print("pt: ", t)
 
         torch.testing.assert_close(
-            x4, x4_pt.permute(0, 2, 3, 1).contiguous(), atol=1e-2, rtol=1e-2
+            x4, x4_pt.permute(0, 2, 3, 1).contiguous(), atol=atol, rtol=rtol
         )
         self.test_count += 1
 
-    def test_groupnorm(self):
+    def test_groupnorm_float16(self):
         self._test_groupnorm()
-        self._test_groupnorm(x_shape=[3, 3, 1, 4], num_groups=2, eps=1e-5)
         self._test_groupnorm(x_shape=[7, 13, 9, 12], num_groups=4, eps=1e-5)
         self._test_groupnorm(x_shape=[1, 16, 16, 8192], num_groups=32, eps=1e-3)
         self._test_groupnorm(x_shape=[3, 64, 64, 128], num_groups=16, eps=1e-5)
         self._test_groupnorm(x_shape=[3, 33, 64, 120], num_groups=10, eps=1e-5)
         self._test_groupnorm(x_shape=[8, 34, 10, 72], num_groups=6, eps=1e-5)
         self._test_groupnorm(x_shape=[1, 8, 1, 64], num_groups=32, eps=1e-5)
-        self._test_groupnorm(x_shape=[1, 8, 1, 4], num_groups=2, eps=1e-5)
         self._test_groupnorm(x_shape=[1, 8, 1, 4], num_groups=2, eps=1e-5, copy_op=True)
 
     def test_groupnorm_swish(self):
@@ -134,36 +134,42 @@ class GroupnormTestCase(unittest.TestCase):
             x_shape=[3, 3, 1, 4], num_groups=2, eps=1e-5, use_swish=True
         )
         self._test_groupnorm(
-            x_shape=[7, 13, 9, 12], num_groups=4, eps=1e-5, use_swish=True
+            x_shape=[7, 13, 9, 12], num_groups=4, eps=1e-5, use_swish=True, copy_op=True
+        )
+        self._test_groupnorm(
+            x_shape=[2, 8, 8, 1280], num_groups=32, eps=1e-5, use_swish=True
+        )
+        self._test_groupnorm(
+            x_shape=[2, 32, 32, 320], num_groups=32, eps=1e-5, use_swish=True
+        )
+        self._test_groupnorm(
+            x_shape=[1, 512, 512, 256], num_groups=32, eps=1e-5, use_swish=True
         )
 
-        shapes = [
-            (2, 16, 16, 1280),
-            (2, 16, 16, 1920),
-            (2, 16, 16, 2560),
-            (2, 16, 16, 640),
-            (2, 32, 32, 1280),
-            (2, 32, 32, 1920),
-            (2, 32, 32, 320),
-            (2, 32, 32, 640),
-            (2, 32, 32, 960),
-            (2, 64, 64, 320),
-            (2, 8, 8, 1280),
-            (2, 8, 8, 2560),
-            (2, 64, 64, 640),
-            (2, 64, 64, 960),
-            (1, 256, 256, 128),
-            (1, 512, 512, 256),
-        ]
-
-        for shape in shapes:
-            self._test_groupnorm(x_shape=shape, num_groups=32, eps=1e-5, use_swish=True)
-            self._test_groupnorm(
-                x_shape=shape, num_groups=32, eps=1e-5, use_swish=True, copy_op=True
-            )
+        # For benchmark only.
+        # shapes = [
+        #     (2, 16, 16, 1280),
+        #     (2, 16, 16, 1920),
+        #     (2, 16, 16, 2560),
+        #     (2, 16, 16, 640),
+        #     (2, 32, 32, 1280),
+        #     (2, 32, 32, 1920),
+        #     (2, 32, 32, 320),
+        #     (2, 32, 32, 640),
+        #     (2, 32, 32, 960),
+        #     (2, 64, 64, 320),
+        #     (2, 8, 8, 1280),
+        #     (2, 8, 8, 2560),
+        #     (2, 64, 64, 640),
+        #     (2, 64, 64, 960),
+        #     (1, 256, 256, 128),
+        #     (1, 512, 512, 256),
+        # ]
+        # for shape in shapes:
+        #     self._test_groupnorm(x_shape=shape, num_groups=32, eps=1e-5, use_swish=True)
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    def test_float32(self):
+    def test_groupnorm_float32(self):
         # H % 8 != 0
         self._test_groupnorm(
             x_shape=[7, 13, 9, 12],
@@ -178,6 +184,33 @@ class GroupnormTestCase(unittest.TestCase):
             num_groups=32,
             eps=1e-5,
             dtype="float32",
+            use_swish=True,
+        )
+
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "bf16 is supported with CUDA sm80+",
+    )
+    @unittest.skipIf(detect_target().name() == "rocm", "bf16 not supported in ROCm")
+    def test_groupnorm_bfloat16(self):
+        # H % 8 != 0
+        self._test_groupnorm(
+            x_shape=[7, 13, 9, 12],
+            num_groups=4,
+            eps=1e-5,
+            atol=1e-1,
+            rtol=1e-1,
+            dtype="bfloat16",
+            use_swish=True,
+        )
+        # H % 8 == 0
+        self._test_groupnorm(
+            x_shape=[2, 16, 16, 640],
+            num_groups=32,
+            eps=1e-5,
+            atol=1e-1,
+            rtol=1e-1,
+            dtype="bfloat16",
             use_swish=True,
         )
 

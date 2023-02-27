@@ -143,23 +143,6 @@ inline cudaError_t GetNumBlocks(
 }
 
 template <typename T>
-struct DefaultComputeType {
-  using type = T;
-};
-
-template <>
-struct DefaultComputeType<half> {
-  using type = float;
-};
-
-// #if CUDA_VERSION >= 11000
-// template<>
-// struct DefaultComputeType<nv_bfloat16> {
-//   using type = float;
-// };
-// #endif  // CUDA_VERSION >= 11000
-
-template <typename T>
 class HasCanPackAs {
   typedef char one;
   struct two {

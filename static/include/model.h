@@ -14,7 +14,21 @@
 //
 #pragma once
 
+#include <stdexcept>
+#include <string>
+
 namespace ait {
+
+inline void DeviceCheckLastError(const char* file, int line) {
+  auto device_error = GetLastError();
+  if (device_error != GetDeviceSuccess()) {
+    std::string msg = std::string("Got error: ") + GetErrorString(device_error) +
+        " enum: " + std::to_string(device_error) + " at " + file + ": " +
+        std::to_string(line);
+    LOG(ERROR) << msg;
+    throw std::runtime_error(msg);
+  }
+}
 
 // This serves as a base class for AIT runtime objects, e.g. the compiled
 // model and the constant folder. It uses CRTP as a mechanism to call into
@@ -181,7 +195,7 @@ class ModelBase {
           std::to_string(shape.size));
     }
     for (size_t i = 0; i < param.shape_ptrs.size(); ++i) {
-      param.shape_ptrs[i].SetValue(shape.shape_data[i]);
+      param.shape_ptrs[i].SetValue(shape.shape_data[i], param.name);
     }
   }
 
@@ -263,12 +277,13 @@ class ModelBase {
     ParamDim(int64_t lower_bound, int64_t upper_bound, int64_t* value)
         : lower_bound_(lower_bound), upper_bound_(upper_bound), value_(value) {}
 
-    void SetValue(int64_t new_value) {
+    void SetValue(int64_t new_value, const char* name = nullptr) {
       if (new_value < lower_bound_ || new_value > upper_bound_) {
         throw std::out_of_range(
             "[SetValue] Dimension got value out of bounds; expected value to be in [" +
             std::to_string(lower_bound_) + ", " + std::to_string(upper_bound_) +
-            "], but got " + std::to_string(new_value));
+            "], but got " + std::to_string(new_value) +
+            (name ? ". Variable name: " + std::string(name) : "") + ".");
       }
       *value_ = new_value;
     }

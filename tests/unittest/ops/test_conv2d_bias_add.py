@@ -69,7 +69,9 @@ class ConvBiasAddTestCase(unittest.TestCase):
         W_pt = get_random_torch_tensor([CO, CI, 3, 3], dtype=dtype)
         B_pt = get_random_torch_tensor([1, CO, 1, 1], dtype=dtype)
         R_pt = get_random_torch_tensor([batch, CO, HH, WW], dtype=dtype)
-        Y_pt = torch.nn.functional.conv2d(X_pt, W_pt, padding=1)
+        Y_pt = torch.nn.functional.conv2d(X_pt.float(), W_pt.float(), padding=1).to(
+            dtype=X_pt.dtype
+        )
         Y_pt = Y_pt + B_pt + R_pt
 
         x = X_pt.permute((0, 2, 3, 1)).contiguous()
@@ -81,13 +83,15 @@ class ConvBiasAddTestCase(unittest.TestCase):
         y_transpose = y.permute(0, 3, 1, 2)
         if target.name() == "cuda":
             if dtype == "float32":
-                self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=5e-2, rtol=1e-2))
-            else:
-                self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
+                torch.testing.assert_close(Y_pt, y_transpose, atol=5e-2, rtol=1e-2)
+            elif dtype == "float16":
+                torch.testing.assert_close(Y_pt, y_transpose, atol=1e-2, rtol=1e-2)
+            elif dtype == "bfloat16":
+                torch.testing.assert_close(Y_pt, y_transpose, atol=5e-1, rtol=5e-1)
         else:
-            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1))
+            torch.testing.assert_close(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1)
 
-    def test_fp16(self):
+    def test_conv2d_bias_add_fp16(self):
         self._test_conv_bias_add(
             test_name="conv2d_bias_add_fp16",
             dtype="float16",
@@ -103,15 +107,21 @@ class ConvBiasAddTestCase(unittest.TestCase):
         detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
         "Not supported by CUDA < SM80.",
     )
-    def test_fp32(self):
+    def test_conv2d_bias_add_fp32(self):
         self._test_conv_bias_add(
             test_name="conv2d_bias_add_fp32",
             dtype="float32",
         )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "bf16 is not supported in ROCm")
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "bf16 is not supported by CUDA < SM80.",
+    )
+    def test_conv2d_bias_add_bf16(self):
         self._test_conv_bias_add(
-            copy_op=True,
-            test_name="conv2d_bias_add_fp32_copy_op",
-            dtype="float32",
+            test_name="conv2d_bias_add_bf16",
+            dtype="bfloat16",
         )
 
 

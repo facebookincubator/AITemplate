@@ -1,8 +1,24 @@
-from functools import reduce
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+import logging
 from typing import Any, List
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 
 class TensorSpec:
@@ -176,25 +192,82 @@ class TensorSpec:
         return result
 
     @classmethod
+    def from_input_list_with_batch_size_jagged_tensor(
+        cls,
+        inputs: List[torch.Tensor],
+        max_batch_size: int,
+        max_batch_size_jagged_tensor: int,
+        tag_val=None,
+    ) -> List["TensorSpec"]:
+        """
+        Most of the recommendation models will work fine using this function.
+
+        We make an assumption that inferred lowerable subgraph inputs will have
+        a single batch dimension with the same max batch size.
+        """
+        result: List = []
+        result_unsorted: List = []
+        left_inputs: List = []
+        left_inputs_ind: List = []
+        for ind, t in enumerate(inputs):
+            if t.shape[0] == tag_val:
+                shape: List[IntVar] = []
+                for i, d in enumerate(t.shape):
+                    if i == 0:
+                        shape.append(
+                            IntVar(
+                                [1, max_batch_size_jagged_tensor],
+                                "batch_size_jagged_tensor",
+                            )
+                        )
+                    else:
+                        shape.append(IntImm(d))
+                result_unsorted.append((ind, TensorSpec(shape, t.dtype)))
+            else:
+                left_inputs.append(t)
+                left_inputs_ind.append(ind)
+
+        bs_dim = cls.find_batch_size_dim(left_inputs)
+        for index, t in enumerate(left_inputs):
+            shape: List[IntVar] = []
+            for i, d in enumerate(t.shape):
+                if i == bs_dim[index]:
+                    shape.append(IntVar([1, max_batch_size], "batch_size"))
+                else:
+                    shape.append(IntImm(d))
+            result_unsorted.append((left_inputs_ind[index], TensorSpec(shape, t.dtype)))
+        result = sorted(result_unsorted, key=lambda num: num[0])
+        result = [r[1] for r in result]
+        return result
+
+    @classmethod
     # pyre-ignore [2]: Parameter `sample_input` must have a type other than `Any`
     def find_batch_size_dim(cls, inputs: Any) -> []:
         if isinstance(inputs, torch.Tensor) or len(inputs) <= 1:
             return [0]
         shapes = [i.shape for i in inputs]
-        batch_size = list(reduce(lambda i, j: i & j, (set(x) for x in shapes)))
-        if len(batch_size) != 1:
-            # Unable to find unified batch_size value among input tensors, default batch_size dim=0
-            return [0] * len(inputs)
+        frequency_map = {}
+        for shape in shapes:
+            if len(shape) < 2:
+                # By pass for rank-1 tensors. MRS model has rank-1 tensor carry no batch_size info
+                continue
+            # Dedup shape value for single tensor
+            shape = set(shape)
+            for i in shape:
+                frequency_map[i] = frequency_map.get(i, 0) + 1
+        sorted_frequency = sorted(frequency_map.items(), key=lambda x: -x[1])
+        batch_size = sorted_frequency[0][0]
 
         bs_dim = []
         for i in inputs:
-            # Default batch size dim = 0
-            dim = 0
+            # Default batch size dim = -1, indicate no batch_size
+            dim = -1
             for index, val in enumerate(i.shape):
-                if val == batch_size[0]:
+                if val == batch_size:
                     dim = index
                     break
             bs_dim.append(dim)
+
         return bs_dim
 
     @classmethod

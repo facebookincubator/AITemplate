@@ -28,11 +28,26 @@ from aitemplate.utils import shape_utils
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMRcrN1TestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.test_count = 0
 
-    def _test_rcr_n1(self, Bs, Ms, N, K, use_fp16_acc, test_name, dtype="float16"):
+    def _test_rcr_n1(
+        self,
+        Bs,
+        Ms,
+        N,
+        K,
+        use_fp16_acc,
+        test_name,
+        atol=1e-1,
+        rtol=1e-1,
+        dtype="float16",
+    ):
         target = detect_target(use_fp16_acc=use_fp16_acc)
         BDim = shape_utils.gen_int_var_min_max(Bs, name="batch")
         MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
@@ -71,7 +86,7 @@ class BMMRcrN1TestCase(unittest.TestCase):
             if X_pt.nelement() == 0 or W_pt.nelement() == 0:
                 pass
             else:
-                self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+                torch.testing.assert_close(Y_pt, y, atol=atol, rtol=rtol)
         self.test_count += 1
 
     def test_rcr_n1(self):
@@ -93,7 +108,7 @@ class BMMRcrN1TestCase(unittest.TestCase):
         self._test_rcr_n1([1], [100], 1, 0, False, "zero_k")
         self._test_rcr_n1([1], [0], 1, 3, False, "zero_m")
 
-    def test_float32(self):
+    def test_bmm_rcr_n1_float32(self):
         self._test_rcr_n1(
             [1], [1000000], 1, 32, True, "static_float32", dtype="float32"
         )
@@ -105,6 +120,31 @@ class BMMRcrN1TestCase(unittest.TestCase):
         )
         self._test_rcr_n1(
             [1, 5, 8], [100], 1, 123, False, "static_float32", dtype="float32"
+        )
+
+    @unittest.skipIf(
+        int(detect_target()._arch) < 80, "bf16 is supported with CUDA sm80+"
+    )
+    def test_bmm_rcr_n1_bfloat16(self):
+        self._test_rcr_n1(
+            [1],
+            [1000000],
+            1,
+            32,
+            True,
+            "static_bfloat16",
+            atol=2e-1,
+            rtol=2e-1,
+            dtype="bfloat16",
+        )
+        self._test_rcr_n1(
+            [1], [1000000], 1, 32, False, "static_bfloat16", dtype="bfloat16"
+        )
+        self._test_rcr_n1(
+            [1, 5, 8], [100], 1, 7, True, "static_bfloat16", dtype="bfloat16"
+        )
+        self._test_rcr_n1(
+            [1, 5, 8], [100], 1, 123, False, "static_bfloat16", dtype="bfloat16"
         )
 
 

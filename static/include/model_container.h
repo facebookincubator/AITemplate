@@ -14,6 +14,7 @@
 //
 #pragma once
 
+#include "constant_folder-generated.h"
 #include "model-generated.h"
 #include "model_interface.h"
 #include "raii_wrapper.h"
@@ -23,9 +24,17 @@
 #include <future>
 #include <mutex>
 #include <numeric>
+#include <shared_mutex>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace ait {
+
+enum class BufferState {
+  CLEAN = 0,
+  CONSTANTS_UPDATED = 1,
+  CONSTANTS_FOLDED = 2
+};
 
 // ModelContainer inherits from this class; its implementation is
 // generated at compilation time. Most of the ModelContainer
@@ -36,18 +45,48 @@ class ModelContainerBase {
   ModelContainerBase(
       size_t num_inputs,
       size_t num_outputs,
+      size_t num_bound_constants,
       size_t num_unbound_constants,
       size_t params_size,
       AITemplateAllocator& allocator);
 
  protected:
+  // The set of bounded constants/weights/parameters. These are constants which
+  // have value during compile time. We maintain it's size, and unlike unbound
+  // constants, we do not need to check whether they are set via SetConstant
+  // prior to inference.
+  std::unordered_map<std::string, size_t> bound_constant_name_to_idx_;
+
   // The set of unbound constants/weights/parameters. These are constants which
   // have no value at compile time and do not participate in constant folding.
   // They must be set via SetConstant prior to inference.
   std::unordered_map<std::string, size_t> unbound_constant_name_to_idx_;
 
-  // a single piece of memory for all constants
-  GPUPtr constants_;
+  // The names of all tensors that are required for constant folding, but are
+  // not necessarily in the final graph.
+  // constant_folding_optional_inputs_ are those that has initial value during
+  // compile time.
+  std::unordered_set<std::string> constant_folding_inputs_;
+  std::unordered_set<std::string> constant_folding_optional_inputs_;
+
+  // Offsets here correspond to the offsets of constants that were the outputs
+  // of constant folding. The indices are guaranteed to map to the correct
+  // indices in constant_folder_.
+  std::vector<size_t> constant_folding_outputs_offsets_;
+  // Offsets here correspond to the offsets of constants for bounded constants.
+  std::vector<size_t> bound_constant_offsets_;
+
+  // size for constants_ GPUPtr
+  size_t constants_size_;
+  // Pieces of memory for holding all constants, controled by
+  // use_constants_primary_buffer_
+  GPUPtr constants_primary_;
+  GPUPtr constants_secondary_;
+  bool use_constants_primary_buffer_;
+  // State of whether SetConstants/FoldConstants was called.
+  BufferState buffer_state_;
+  // Mapping for constant names to pointer
+  std::unordered_map<std::string, const void*> model_constants_;
 
   // size of the containers below: # inputs + # outputs + # unbound constants.
   size_t num_params_;
@@ -57,6 +96,10 @@ class ModelContainerBase {
   std::vector<const char*> param_names_;
   std::vector<std::vector<int64_t>> max_param_shapes_;
   std::vector<AITemplateDtype> param_dtypes_;
+
+  // These are entries used for bound constants.
+  std::vector<size_t> bound_constant_size_;
+  std::vector<AITemplateDtype> bound_constant_dtypes_;
 
   // NB: technically these could be derived from both the max shape and
   // the dytpe, but it's easier to just cache them.
@@ -110,6 +153,7 @@ class ModelContainer : ModelContainerBase {
       size_t num_models,
       size_t num_inputs,
       size_t num_outputs,
+      size_t num_bound_constants,
       size_t num_unbound_constants,
       size_t params_size,
       AITemplateAllocator& allocator);
@@ -155,6 +199,21 @@ class ModelContainer : ModelContainerBase {
       int64_t** output_shapes_out);
 
   void SetConstant(const char* name, const AITData& tensor);
+  void SetManyConstants(
+      const char** names,
+      const AITData* tensors,
+      size_t num_tensors);
+
+  uint8_t* GetInactiveConstantsBuffer();
+  void SetDoubleBufferConstant(
+      const char* name,
+      const AITData& tensor,
+      StreamType stream = 0);
+  void SetManyDoubleBufferConstants(
+      const char** names,
+      const AITData* tensors,
+      size_t num_tensors,
+      StreamType stream = 0);
 
   size_t NumInputs() const;
   size_t NumOutputs() const;
@@ -174,7 +233,31 @@ class ModelContainer : ModelContainerBase {
     return models_.size();
   }
 
+  void FoldConstants(StreamType stream, bool sync, bool double_buffer = false);
+  void SwapConstants();
+
+  size_t GetNumConstants(bool unbound_constants_only = true) const;
+  size_t GetNumConstantFoldingInputs(bool unbound_constants_only = true) const;
+
+  // Write all constant names to the array pointed to by names_out.
+  // This function assumes that names_out has enough space to hold
+  // at least GetNumConstants() pointers. The strings written
+  // are guaranteed to live as long as their owning ModelContainer.
+  void WriteAllConstantNamesTo(
+      const char** names_out,
+      bool unbound_constants_only,
+      bool constant_folding_inputs_only) const;
+
  private:
+  void WaitForAllModels(bool include_constant_folder = false);
+  void FoldConstantsImpl(StreamType stream, bool double_buffer = false);
+  void SetConstantImpl(
+      const char* name,
+      const AITData& tensor,
+      bool use_secondary_buffer = false,
+      StreamType stream = 0);
+  void SwapConstantFolderBuffer();
+
   void PrepareForRun(
       Model* model,
       const AITData* inputs,
@@ -184,7 +267,8 @@ class ModelContainer : ModelContainerBase {
 
   Model* GetAvailableModel();
   void ReclaimFinishedModels(std::unique_lock<std::mutex>& lk);
-  void ValidateDtype(AITemplateDtype dtype, size_t idx) const;
+  void ValidateParamDtype(AITemplateDtype dtype, size_t idx) const;
+  void ValidateBoundConstantDtype(AITemplateDtype dtype, size_t idx) const;
 
   float BenchmarkImpl(
       const AITData* inputs,
@@ -199,6 +283,7 @@ class ModelContainer : ModelContainerBase {
   AITemplateAllocator& allocator_;
 
   std::vector<std::unique_ptr<Model>> models_;
+  std::unique_ptr<ConstantFolder> constant_folder_;
   std::vector<Model*> available_models_;
   std::deque<Model*> pending_models_;
 
@@ -206,9 +291,28 @@ class ModelContainer : ModelContainerBase {
   std::mutex models_mutex_;
   // Notified whenever a model is put into pending_models_.
   std::condition_variable pending_models_available_;
+  // Prevents constant folding or SetConstants on main models from starting
+  // while there are ongoing inferences (and vice versa). FoldConstants() and
+  // SetConstants acquires in unique mode, Run()/Benchmark() acquire in shared
+  // mode.
+  //
+  // Since constants_sync_mutex_ is acquired in shared mode for the entire
+  // duration of Run()/Benchmark(), there is no need to acquire models_mutex_
+  // while constants_sync_mutex_ is acquired in unique mode.
+  // Why complicate things with two locks? The system is designed with the
+  // assumption that concurrent inferences are common. We don't want to acquire
+  // models_mutex_ uniquely for the entire duration of Run(), because that
+  // prevents concurrent inferences from happening while kernels are being
+  // queued.
+  std::shared_mutex constants_sync_mutex_;
+  // constants_double_buffer_mutex_ is separate from constants_sync_mutex since
+  // when we use double buffer, it won't affect the main model.
+  std::shared_mutex constants_double_buffer_mutex_;
 
   size_t num_inputs_;
   size_t num_outputs_;
+
+  bool constant_folded_once_ = false;
 };
 
 } // namespace ait

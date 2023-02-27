@@ -46,6 +46,11 @@ def _eliminate_cat(sorted_graph: List[Tensor]) -> List[Tensor]:
             single_input_cat_ops.append(op)
 
     for op in single_input_cat_ops:
+        input_tensor = op._attrs["inputs"][0]
+        output_tensor = op._attrs["outputs"][0]
+        # tensor can not be input and output
+        if output_tensor._attrs["is_output"] and input_tensor._attrs["is_input"]:
+            continue
         transform_utils.remove_single_tensor_op_from_sorted_graph(op)
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
@@ -60,7 +65,7 @@ def _try_merge_split_cat(first_op: Operator, cat: Operator) -> bool:
     #     y = cat(y1, y2)
     # In such a case, we cannot merge those two concat ops.
     if not all(
-        accessor.stride_dim is None for accessor in cat._attrs["input_accessors"]
+        accessor.actual_shapes is None for accessor in cat._attrs["input_accessors"]
     ):
         return False
     first_op_inputs = first_op._attrs["inputs"]
@@ -145,6 +150,10 @@ def _merge_split_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noqa: C
             if len(output_t._attrs["dst_ops"]) > 1:
                 found_cat_op = False
                 break
+            # If first op is output, it can't be fused.
+            if output_t._attrs["is_output"]:
+                found_cat_op = False
+                continue
             next_ops = output_t._attrs["dst_ops"]
             if len(next_ops) != 1:
                 break

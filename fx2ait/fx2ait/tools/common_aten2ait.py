@@ -1,3 +1,18 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+import logging
 import unittest
 
 import uuid
@@ -15,9 +30,13 @@ from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter
 
 from fx2ait.passes.lower_basic_pass_aten import (
+    compose_bmm,
     compose_chunk,
+    compose_getitem_slice,
+    remove_ops,
     replace_aten_op_with_indices,
     replace_aten_reshape_alias_with_replace,
+    # replace_batch_norm,  # it is needed if enable_aot=True in tracer
     replace_builtin_ops,
     replace_native_layernorm_with_layernorm,
     replace_transpose_mm_op_with_linear,
@@ -25,6 +44,7 @@ from fx2ait.passes.lower_basic_pass_aten import (
 )
 from fx2ait.tensor_spec import TensorSpec
 
+_LOGGER = logging.getLogger(__name__)
 torch.ops.load_library("//deeplearning/ait:AITModel")
 
 
@@ -68,12 +88,15 @@ class DispatchTestCase(TestCase):
         # Torchdynamo+aot proxytensor tracer
         # Below are common passes
         passes_list = [
+            compose_bmm,
+            compose_chunk,
+            compose_getitem_slice,
             replace_aten_reshape_alias_with_replace,
             replace_aten_op_with_indices,
-            replace_transpose_mm_op_with_linear,
+            replace_transpose_mm_op_with_linear,  # after compose_bmm
             replace_native_layernorm_with_layernorm,
-            compose_chunk,
-            replace_builtin_ops,
+            remove_ops,
+            replace_builtin_ops,  # after replace_native_layernorm_with_layernorm
         ]
         # Combine with customized passes specific to any model
         if customized_passes:
@@ -90,7 +113,7 @@ class DispatchTestCase(TestCase):
         )._to_server(ServerCompileConfig(passes=passes_list))
 
         fx_module = run_const_fold(fx_module)
-        print(fx_module.graph)
+        _LOGGER.info(f"aten fx graph: {fx_module.graph}")
 
         if len(expected_ops):
             self.assert_has_op(fx_module, expected_ops)
@@ -112,7 +135,6 @@ class DispatchTestCase(TestCase):
         permute_outputs: Optional[List[int]] = None,
         customized_passes: List[Callable] = None,
     ):
-
         mod.eval()
         original_inputs = inputs
         if permute_inputs:
@@ -137,7 +159,8 @@ class DispatchTestCase(TestCase):
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
-            )
+            ),
+            interp_result,
         )
 
         # Inference run and results comparison
@@ -229,7 +252,8 @@ class DispatchTestCase(TestCase):
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
-            )
+            ),
+            interp_result,
         )
 
         for inputs in inputs_list:
@@ -306,7 +330,6 @@ class DispatchTestCase(TestCase):
         permute_inputs: Optional[List[int]] = None,
         customized_passes: Optional[List[int]] = None,
     ) -> float:
-
         mod.eval()
         original_inputs = inputs
         if permute_inputs:
@@ -348,7 +371,8 @@ class DispatchTestCase(TestCase):
                     torch.float16,
                     torch.float,
                     1,  #  num_runtimes
-                )
+                ),
+                interp_result,
             )
             # Benchmark Pytorch Eager
             # warmup

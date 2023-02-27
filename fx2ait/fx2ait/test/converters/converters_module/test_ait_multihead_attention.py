@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import torch
 from fx2ait.acc_tracer import acc_ops
 from fx2ait.tools.common_fx2ait import AITTestCase
@@ -21,7 +35,7 @@ class TestMultiHeadAttentionConverter(AITTestCase):
 
                 return self.attn(query=unsqueeze, key=layer_norm, value=layer_norm)
 
-        seq_len_q, dim, nheads = 4, 16, 2
+        seq_len_q, dim, nheads = 4, 256, 16
         model = TestModule(dim, nheads).half().cuda()
         input_q = torch.randn(128, seq_len_q, dim).cuda().half()
         self.run_test(
@@ -33,7 +47,7 @@ class TestMultiHeadAttentionConverter(AITTestCase):
                 acc_ops.unsqueeze,
                 acc_ops.getitem,
             },
-            transformer_mode=True,
+            leaf_module=torch.nn.MultiheadAttention,
         )
 
     def test_multihead_attention(self):
@@ -61,5 +75,5 @@ class TestMultiHeadAttentionConverter(AITTestCase):
             model,
             [x],
             expected_ops={torch.nn.MultiheadAttention},
-            transformer_mode=True,
+            leaf_module=torch.nn.MultiheadAttention,
         )

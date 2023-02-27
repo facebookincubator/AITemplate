@@ -165,6 +165,8 @@ void max_pooling_launcher(const ElemT* input,
   dim3 grid(NI, (HO + block_h - 1) / block_h,
             (WO + block_w - 1) / block_w);
   dim3 block(CI / 2, block_ch);
+  auto kernel_func = max_pool_nhwc_kernel<kernel_size, stride, pad, 4, 4, 4>;
+  cudaFuncSetAttribute(kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, shm_size);
   max_pool_nhwc_kernel<kernel_size, stride, pad, 4, 4, 4>
       <<<grid, block, shm_size, stream>>>(input, output, NI, HI,
                                           WI, CI / 2, HO, WO);

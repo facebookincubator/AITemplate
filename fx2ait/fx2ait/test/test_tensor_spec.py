@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import unittest
 
 import torch
@@ -102,4 +116,38 @@ class TestTensorSpec(unittest.TestCase):
                 [IntImm(7), IntVar([1, 32], "batch_size"), IntImm(9)], torch.float16
             ),
             specs[2],
+        )
+
+    def test_input_with_no_bs_tensor(self):
+        inputs = [
+            torch.empty([2, 10, 4], dtype=torch.float16),
+            torch.empty([20], dtype=torch.int32),
+            torch.empty([7, 10, 9], dtype=torch.float16),
+            torch.empty([20, 7, 10, 9], dtype=torch.float16),
+        ]
+
+        specs = TensorSpec.from_input_list_with_batch_size(inputs, 32, 1)
+        self.assertEqual(4, len(specs))
+        self.assertEqual(
+            TensorSpec(
+                [IntImm(2), IntVar([1, 32], "batch_size"), IntImm(4)], torch.float16
+            ),
+            specs[0],
+        )
+        self.assertEqual(
+            TensorSpec([IntImm(20)], torch.int32),
+            specs[1],
+        )
+        self.assertEqual(
+            TensorSpec(
+                [IntImm(7), IntVar([1, 32], "batch_size"), IntImm(9)], torch.float16
+            ),
+            specs[2],
+        )
+        self.assertEqual(
+            TensorSpec(
+                [IntImm(20), IntImm(7), IntVar([1, 32], "batch_size"), IntImm(9)],
+                torch.float16,
+            ),
+            specs[3],
         )

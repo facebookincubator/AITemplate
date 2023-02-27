@@ -37,3 +37,4 @@ jobs:
       run: |
         python tests/lint/check_meta_header.py --path=./tests --fixit=False
         python tests/lint/check_meta_header.py --path=./python --fixit=False
+        python tests/lint/check_meta_header.py --path=./fx2ait --fixit=False

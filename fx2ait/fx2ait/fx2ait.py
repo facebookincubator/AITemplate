@@ -1,3 +1,17 @@
+#  Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
 import io
 import logging
 import os
@@ -33,6 +47,7 @@ class AITInterpreterResult(NamedTuple):
     engine: Any
     input_names: Sequence[str]
     output_names: Sequence[str]
+    fx_input_names: Sequence[str] = []
 
 
 class AITInterpreter(torch.fx.Interpreter):
@@ -101,6 +116,7 @@ class AITInterpreter(torch.fx.Interpreter):
 
         self._input_names: List[str] = []
         self._output_names: List[str] = []
+        self._fx_input_names: List[str] = []
         self._loaded_params: Dict[str, AITTensor] = {}
 
         self.dump_ait_dir = dump_ait_dir
@@ -210,8 +226,21 @@ class AITInterpreter(torch.fx.Interpreter):
             args["tensor"] = output_tensors
 
         self.engine = compile_model(**args)
+        ait_input_names = [
+            n._attrs["name"]
+            for n in self.engine.debug_sorted_graph
+            if n._attrs["is_input"]
+        ]
+        for name in ait_input_names:
+            assert (
+                self._fx_input_names.count(name) == 1
+            ), f"Cannot find AIT's compiled input: {name} in fx graph!"
 
-        for i, input_name in enumerate(self._input_names):
+        for name in self._fx_input_names:
+            if name in ait_input_names:
+                self._input_names.append(name)
+
+        for i, input_name in enumerate(self._fx_input_names):
             _LOGGER.info("Set input{}: {}".format(i, input_name))
 
         if self.engine is None:
@@ -224,6 +253,7 @@ class AITInterpreter(torch.fx.Interpreter):
             self.engine,
             self._input_names,
             self._output_names,
+            self._fx_input_names,
         )
 
     def run_node(self, n):
@@ -231,7 +261,7 @@ class AITInterpreter(torch.fx.Interpreter):
         return super().run_node(n)
 
     def placeholder(self, target, args, kwargs):
-        self._input_names.append(target)
+        self._fx_input_names.append(target)
         input_spec = self.input_specs[self.input_specs_iter]
         self.input_specs_iter += 1
 
@@ -312,7 +342,6 @@ class AITInterpreter(torch.fx.Interpreter):
             outputs = (args[0],)
 
         for i, output in enumerate(outputs):
-
             name = f"output_{i}"
             output._attrs["name"] = name
             output._attrs["is_output"] = True

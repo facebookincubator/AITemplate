@@ -138,6 +138,46 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}      stream
 {{indent}}  );
 {{indent}}}
+{% elif dtype == "bfloat16" %}
+{{indent}}if (x_dim2 % 8 == 0) {
+{{indent}}  permute102_launcher<float4>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2 / 8,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}} else if (x_dim2 % 4 == 0) {
+{{indent}}  permute102_launcher<float2>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2 / 4,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}} else if (x_dim2 % 2 == 0) {
+{{indent}}  permute102_launcher<float>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2 / 2,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}} else {
+{{indent}}  permute102_launcher<bfloat16>(
+{{indent}}      in_ptr,
+{{indent}}      out_ptr,
+{{indent}}      x_dim0,
+{{indent}}      x_dim1,
+{{indent}}      x_dim2,
+{{indent}}      stream
+{{indent}}  );
+{{indent}}}
+{% else %}
+{{indent}} static_assert(std::is_same_v<T, half> || std::is_same_v<T, float> || std::is_same_v<T, bfloat16>, "Unsupported dtype");
 {% endif %}
 {{indent}}return;
 """
@@ -153,6 +193,7 @@ SRC_TEMPLATE = jinja2.Template(
 #define DIRECT_BLOCK_Z 2
 
 namespace {
+using bfloat16 = __nv_bfloat16;
 
 template<typename T>
 __global__ void permute102_tiled_kernel(T* output,
