@@ -7,11 +7,11 @@ Using Docker
 The easiest way to get started is to use Docker.  Using docker is able to avoid performance regression caused by incorrect version of NVCC and HIPCC.
 To use docker, we provide a bash script to build the docker image.
 
-- CUDA: 
+- CUDA:
     .. code-block:: bash
 
         ./docker/build.sh cuda
-- ROCM: 
+- ROCM:
     .. code-block:: bash
 
         DOCKER_BUILDKIT=1 ./docker/build.sh rocm
@@ -31,13 +31,13 @@ To launch the docker container
 
         docker run -it --network=host --device=/dev/kfd --device=/dev/dri --group-add=video --ipc=host --cap-add=SYS_PTRACE --security-opt seccomp=unconfined ait:latest
 
-AITemplate will be installed in as a Python package to Python 3.8. There will be also a copy of source code and examples at `/AITemplate`
+AITemplate will be installed as a Python package in Python 3.8. There will be also a copy of the source code and examples at `/AITemplate`.
 
 
-Install as standard Python package
-----------------------------------
+Installing as a Standard Python Package
+---------------------------------------
 
-Before start installing AITemplate, first make sure you have correct hardware and software environment.
+Before installing AITemplate, first make sure you have correct hardware and software environment.
 
 - Hardware
     - NVIDIA: AIT is only tested on SM80+ GPUs (Ampere etc).
@@ -52,24 +52,23 @@ Before start installing AITemplate, first make sure you have correct hardware an
     - AMD: ROCm 5.2, with HIPCC 10736 (commit `b0f4678b9058a4ae00200dfb1de0da5f2ea84dcb`)
 
 .. warning::
-    - Incorrect compiler version will lead performance regression.
-    - Instruction for building HIPCC 10736 can be founded in `docker/Dockerfile.rocm`
+    - Incorrect compiler version may lead to performance regression.
+    - Instruction for building HIPCC 10736 can be founded in `docker/Dockerfile.rocm`.
 
 
-When clone the code, please use the following command to clone the submodules:
-```
-git clone --recursive https://github.com/facebookincubator/AITemplate
-```
+When cloning the code, please use the following command to clone the submodules:
+
+    .. code-block:: bash
+
+        git clone --recursive https://github.com/facebookincubator/AITemplate
 
 .. warning::
-    Please check all submodules are cloned correctly before go to next step.
+    Please check that all submodules are cloned correctly before the next step.
 
-Then build Python wheel package and install.
+Then build the Python wheel package and install it:
 
     .. code-block:: bash
 
         cd python
         python setup.py bdist_wheel
         pip install dist/aitemplate-0.0.1-py3-none-any.whl
-
-
