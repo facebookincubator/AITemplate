@@ -1,18 +1,18 @@
 # FX2AIT for AITemplate
 
 
-FX2AIT is an python based tool that transforms PyTorch model into AITempate(AIT) engine for lightning-fast inference serving.
+FX2AIT is a Python-based tool that converts PyTorch models into AITemplate (AIT) engine for lightning-fast inference serving.
 AITLowerer built on top of FX2AIT is able to perform AIT conversion on PyTorch model with AIT unsupported operators. Model can enjoy partial AIT acceleration using AITLowerer.
 
 FX2AIT highlights include:
 
 - Automatic Conversion: FX2AIT only need PyTorch model and input as input for conversion. The output can be used for inference serving directly.
-- Expanded Support: AITemplate doesn't cover all operators PyTorch provides. FX2AIT provided AITLowerer as solution to support patial AIT conversion for models with AIT unsupportted operators. For more information, please check example/03_lowering_split.
+- Expanded Support: AITemplate doesn't cover all operators PyTorch provides. FX2AIT provided AITLowerer as solution to support partial AIT conversion for models with AIT unsupported operators. For more information, please check example/03_lowering_split.
 
-## Installalation
+## Installation
 
 **Hardware requirement:**
-  - **NVIDIA**: FX2AIT is base on AIT, thus the hardware requirement is same as AIT. AIT is only tested on SM80+ GPUs (Ampere etc). Not all kernels work with old SM75/SM70 (T4/V100) GPUs.
+  - **NVIDIA**: FX2AIT is based on AIT, thus the hardware requirement is same as AIT. AIT is only tested on SM80+ GPUs (Ampere etc). Not all kernels work with old SM75/SM70 (T4/V100) GPUs.
 ### From Source
 The following command will create a Python wheel for AITemplate. Please ensure you have correct CUDA compiler installed.
 - CUDA: CUDA 11.6
