@@ -92,13 +92,19 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
     }
 
     void RunImpl(StreamType stream) {
-        {% if profiler_annotation %}
-        RAII_ProfilerRange _raiiAITProfilerRange("main_start");
-        {% endif %}
-  {% for func in function_seq %}
-  {{ func }}
-      DeviceCheckLastError(__FILE__, __LINE__);
+  {% if profiler_annotation %}
+      RAII_ProfilerRange _raiiAITProfilerRange("main_start");
+  {% endif %}
+      std::vector<std::function<void()>> fns;
+  {% for fn in function_seq %}
+      fns.push_back([=] () -> void {
+        {{ fn }}
+        DeviceCheckLastError(__FILE__, __LINE__);
+      });
   {% endfor %}
+      for (auto fn: fns) {
+        fn();
+      }
       DeviceToDeviceCopies(stream);
     }
 
