@@ -1175,8 +1175,8 @@ def _choose_conv2d_op(
     dilate: int,
     x: AITTensor,
     weight: AITTensor,
-    bias: [AITTensor],
-    transposed: [bool] = False,
+    bias: AITTensor,
+    transposed: bool = False,
 ) -> ConverterOutput:
     """
     Helper to choose conv2d vs. conv2d_bias op based on existence of bias
@@ -1307,7 +1307,7 @@ def _choose_conv3d_op(
     dilate: int,
     x: AITTensor,
     weight: AITTensor,
-    bias: [AITTensor],
+    bias: AITTensor,
     groups: int = 1,
 ) -> ConverterOutput:
     """

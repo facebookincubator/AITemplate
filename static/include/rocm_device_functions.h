@@ -57,7 +57,7 @@ inline std::string PrintArchFeatureFlags(const hipDeviceArch_t& arch) {
       << "\n     Has 32-bit integer atomics for shared memory: "
       << (arch.hasSharedInt32Atomics ? "yes" : "no")
       << "\n     Has 32-bit float atomic exch for shared memory: "
-      << (arch.hasSharedFloatAtomicExch ? "yes" : "no"
+      << (arch.hasSharedFloatAtomicExch ? "yes" : "no")
       << "\n     Has 32-bit float atomic add in global and shared memory: "
       << (arch.hasFloatAtomicAdd ? "yes" : "no")
       << "\n     Has 64-bit integer atomics for global memory: "
