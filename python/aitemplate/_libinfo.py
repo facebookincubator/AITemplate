@@ -14,4 +14,4 @@
 #
 # current version
 # We use the version of the incoming release for code
-__version__ = "0.1.dev1"
+__version__ = "0.3.dev0"
