@@ -313,8 +313,7 @@ class ProfilerRunner:
                     )
             finally:
                 # unblock one future in `join()`
-                if not err:
-                    self._done_queue.put(stdout)
+                self._done_queue.put(stdout)
 
         future.add_done_callback(callback_when_done)
         self._futures.append(future)
