@@ -68,17 +68,6 @@ GET_STRIDED_ADDRESS_TEMPLATE = jinja2.Template(
 KERNEL_READ_INPUT_TEMPLATE = jinja2.Template(
     """
   {{read_t}} *{{input_name}} = const_cast<{{read_t}}*>(input{{input_idx}});
-  {{get_strided_address}}
-  {{read_t}} tmp_i{{input_idx}} = *{{input_name}};
-  const {{op_t}}* p_tmp_i{{input_idx}} = reinterpret_cast<const {{op_t}}*>(&tmp_i{{input_idx}});
-
-    """
-)
-
-
-KERNEL_VEC_READ_INPUT_TEMPLATE = jinja2.Template(
-    """
-  {{read_t}} *{{input_name}} = const_cast<{{read_t}}*>(input{{input_idx}});
   constexpr int vec_size{{input_idx}} =  sizeof({{max_read_t}}) / sizeof({{read_t}});
   {{get_strided_address}}
   {{read_t}} tmp_i{{input_idx}}[vec_size{{input_idx}}];
@@ -86,7 +75,7 @@ KERNEL_VEC_READ_INPUT_TEMPLATE = jinja2.Template(
   for (int i = 0; i < vec_size{{input_idx}}; i++) {
     tmp_i{{input_idx}}[i] = *{{input_name}};
   }
-  const {{op_t}}* p_tmp_i{{input_idx}} = reinterpret_cast<const {{op_t}}*>(&(tmp_i{{input_idx}})[0]);
+  const {{op_t}}* p_tmp_i{{input_idx}} = reinterpret_cast<const {{op_t}}*>(tmp_i{{input_idx}});
 
     """
 )
@@ -211,6 +200,7 @@ class FusedElementwiseMetaData:
 
     # holding the largest read type for the fused kernel
     max_read_t: str
+    # holding the read_t for each fused input
     read_ts: List[str]
     op_t: str
     data_t: str
@@ -479,9 +469,12 @@ def _get_types_and_sizes(
         else max_non_broadcast_alignment
         for align in alignments
     ]
-    # all alignments are capped by the max_input_accessor_alignment
+    max_accessor_alignment = tensor_accessor_codegen.find_max_alignment(
+        max_input_accessor_alignment, dtype, output_accessors
+    )
+    # all alignments are capped by the max_accessor_alignment
     alignments = [
-        align if align <= max_input_accessor_alignment else max_input_accessor_alignment
+        align if align <= max_accessor_alignment else max_accessor_alignment
         for align in alignments
     ]
     return alignments, input_broadcast_sizes, dtype
@@ -640,12 +633,11 @@ def _gen_read_inputs_str(
     ):
         input_name = f"input_tmp{input_idx}"
 
-        # read_t != max_read_t means that we are broadcasting this input
-        # and actually reading a different number of elements from this input
+        # When broadcasting an input, we are reading a different number of elements
+        # from this input based on the "ratio" of its read_t to the max_read_t
         n_elems_per_thread = (
-            "N_ELEMENTS_PER_THREAD"
-            if broadcast_size and read_t == fused_elementwise_metadata.max_read_t
-            else f"(sizeof({read_t}) / sizeof({fused_elementwise_metadata.data_t}))"
+            f"(N_ELEMENTS_PER_THREAD / "
+            f"(sizeof({fused_elementwise_metadata.max_read_t}) / sizeof({read_t})))"
         )
         data_idx = (
             "idx"
@@ -659,24 +651,15 @@ def _gen_read_inputs_str(
             read_t=read_t,
             data_idx=data_idx,
         )
-        if broadcast_size and read_t != fused_elementwise_metadata.max_read_t:
-            read_input = KERNEL_VEC_READ_INPUT_TEMPLATE.render(
-                get_strided_address=get_strided_addr_str,
-                input_name=input_name,
-                input_idx=input_idx,
-                max_read_t=fused_elementwise_metadata.max_read_t,
-                read_t=read_t,
-                op_t=fused_elementwise_metadata.op_t,
-                data_t=fused_elementwise_metadata.data_t,
-            )
-        else:
-            read_input = KERNEL_READ_INPUT_TEMPLATE.render(
-                get_strided_address=get_strided_addr_str,
-                input_name=input_name,
-                input_idx=input_idx,
-                read_t=read_t,
-                op_t=fused_elementwise_metadata.op_t,
-            )
+        read_input = KERNEL_READ_INPUT_TEMPLATE.render(
+            get_strided_address=get_strided_addr_str,
+            input_name=input_name,
+            input_idx=input_idx,
+            max_read_t=fused_elementwise_metadata.max_read_t,
+            read_t=read_t,
+            op_t=fused_elementwise_metadata.op_t,
+            data_t=fused_elementwise_metadata.data_t,
+        )
         read_inputs.append(read_input)
     read_inputs_str = "\n".join(read_inputs)
     return read_inputs_str
@@ -800,7 +783,10 @@ def fused_elementwise_gen_function(
     # Dump data types into func_attr for testing purpose.
     func_attrs["max_read_t"] = fused_elementwise_metadata.max_read_t
     # Fused inputs may not be in the same order as the inputs passed to each
-    # elementwise op, so we save a tuple
+    # elementwise op, so we save a tuple. Note that this attribute is different
+    # from the read_ts field of FusedElementwiseMetaData, where each "read_t"
+    # maps to the input at the same index. The "read_ts" attribute is only
+    # used for testing purpose.
     func_attrs["read_ts"] = [
         (inp._attrs["name"], read_t)
         for (inp, read_t) in zip(inputs, fused_elementwise_metadata.read_ts)

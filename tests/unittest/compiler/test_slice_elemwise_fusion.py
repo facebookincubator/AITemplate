@@ -33,8 +33,11 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         super(SliceElemwiseFusionTestCase, self).__init__(*args, **kwargs)
         self.test_count = 0
 
+    # "read_ts" attribute contains a list of tuples like
+    # [("input0", "uint4"), ("input1", "half")]. This helper function returns
+    # the list of the second elements, i.e. read_t types for all inputs.
     def _get_read_ts(self, op):
-        return list(set(t for _, t in op._attrs["read_ts"]))
+        return list({t for _, t in op._attrs["read_ts"]})
 
     def _test_slice_elemwise_fusion(
         self,
