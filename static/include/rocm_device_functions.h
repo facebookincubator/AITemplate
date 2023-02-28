@@ -67,9 +67,9 @@ inline std::string PrintArchFeatureFlags(const hipDeviceArch_t& arch) {
       << "\n     Has double-precision floating point: "
       << (arch.hasDoubles ? "yes" : "no")
       << "\n     Has warp vote instructions (__any, __all): "
-      << (arch.hasWarpVote: ? "yes" : "no")
+      << (arch.hasWarpVote ? "yes" : "no")
       << "\n     Has warp ballot instructions (__ballot): "
-      << (arch.hasWarpBallot: ? "yes" : "no")
+      << (arch.hasWarpBallot ? "yes" : "no")
       << "\n     Has warp shuffle operations. (__shfl_*): "
       << (arch.hasWarpShuffle ? "yes" : "no")
       << "\n     Has funnel two words into one with shift&mask caps: "
