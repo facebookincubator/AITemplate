@@ -33,11 +33,11 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         super(SliceElemwiseFusionTestCase, self).__init__(*args, **kwargs)
         self.test_count = 0
 
-    # "read_ts" attribute contains a list of tuples like
+    # "read_types" attribute contains a list of tuples like
     # [("input0", "uint4"), ("input1", "half")]. This helper function returns
     # the list of the second elements, i.e. read_t types for all inputs.
-    def _get_read_ts(self, op):
-        return list({t for _, t in op._attrs["read_ts"]})
+    def _get_read_types(self, op):
+        return list({t for _, t in op._attrs["read_types"]})
 
     def _test_slice_elemwise_fusion(
         self,
@@ -89,7 +89,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         self.assertEqual(len(sorted_ops), 1)
         # import pdb; pdb.set_trace()
         self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
-        self.assertEqual(self._get_read_ts(sorted_ops[0]), [expected_max_read_t])
+        self.assertEqual(self._get_read_types(sorted_ops[0]), [expected_max_read_t])
         self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
@@ -275,7 +275,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
         self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
-        self.assertEqual(self._get_read_ts(sorted_ops[0]), [expected_max_read_t])
+        self.assertEqual(self._get_read_types(sorted_ops[0]), [expected_max_read_t])
         self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
@@ -471,7 +471,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
         self.assertEqual(sorted_ops[0]._attrs["max_read_t"], expected_max_read_t)
-        self.assertEqual(self._get_read_ts(sorted_ops[0]), [expected_max_read_t])
+        self.assertEqual(self._get_read_types(sorted_ops[0]), [expected_max_read_t])
         self.assertEqual(sorted_ops[0]._attrs["op_t"], expected_op_t)
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 

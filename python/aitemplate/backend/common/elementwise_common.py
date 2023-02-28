@@ -201,7 +201,7 @@ class FusedElementwiseMetaData:
     # holding the largest read type for the fused kernel
     max_read_t: str
     # holding the read_t for each fused input
-    read_ts: List[str]
+    read_types: List[str]
     op_t: str
     data_t: str
     input_broadcast_sizes: List[List[IntVar]]
@@ -658,7 +658,7 @@ def _gen_read_inputs_str(
     for input_idx, (input_accessor, read_t, broadcast_size) in enumerate(
         zip(
             fused_elementwise_metadata.input_accessors,
-            fused_elementwise_metadata.read_ts,
+            fused_elementwise_metadata.read_types,
             broadcast_sizes,
         )
     ):
@@ -736,7 +736,7 @@ def _gen_kernel_function(
     input_params_decl = ",".join(
         [
             KERNEL_DECL_INPUT_PARAM_TEMPLATE.render(
-                read_t=fused_elementwise_metadata.read_ts[i], idx=i
+                read_t=fused_elementwise_metadata.read_types[i], idx=i
             )
             for i, _ in enumerate(fused_elementwise_metadata.inputs)
         ]
@@ -815,12 +815,12 @@ def fused_elementwise_gen_function(
     func_attrs["max_read_t"] = fused_elementwise_metadata.max_read_t
     # Fused inputs may not be in the same order as the inputs passed to each
     # elementwise op, so we save a tuple. Note that this attribute is different
-    # from the read_ts field of FusedElementwiseMetaData, where each "read_t"
-    # maps to the input at the same index. The "read_ts" attribute is only
+    # from the read_types field of FusedElementwiseMetaData, where each "read_t"
+    # maps to the input at the same index. The "read_types" attribute is only
     # used for testing purpose.
-    func_attrs["read_ts"] = [
+    func_attrs["read_types"] = [
         (inp._attrs["name"], read_t)
-        for (inp, read_t) in zip(inputs, fused_elementwise_metadata.read_ts)
+        for (inp, read_t) in zip(inputs, fused_elementwise_metadata.read_types)
     ]
     func_attrs["op_t"] = fused_elementwise_metadata.op_t
     func_attrs["data_t"] = fused_elementwise_metadata.data_t
@@ -857,7 +857,7 @@ def fused_elementwise_gen_function(
     kernel_call_input_params = ",".join(
         [
             KERNEL_CALL_INPUT_PARAM_TEMPLATE.render(
-                read_t=fused_elementwise_metadata.read_ts[i], idx=i
+                read_t=fused_elementwise_metadata.read_types[i], idx=i
             )
             for i, _ in enumerate(fused_elementwise_metadata.inputs)
         ]
