@@ -401,9 +401,9 @@ void ModelContainer::SetConstantImpl(
           ". Check that the provided tensor's shape is correct.");
     }
   } else {
-    throw std::runtime_error(
-        std::string("Called SetConstant on ") + name +
-        std::string(" but can't find in either bound or unbound constant set"));
+    LOG(WARNING) << "Called SetConstant on " << name
+       << " but can't find in either bound or unbound constant set";
+    return;
   }
 
   auto* src = tensor.ptr;
