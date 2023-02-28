@@ -359,12 +359,88 @@ def _get_sub_func_metadata(
     return (sub_func_metadata, op_t)
 
 
-def _get_types_and_sizes(
+def _get_alignments(
+    extended_input_shapes: List[List[IntVar]],
+    input_broadcast_sizes: List[int],
+    num_rightmost_non_broadcast_dims: List[int],
+    rightmost_broadcast_dim: int,
+    output_rank: int,
+    dtype: str,
+) -> Tuple[List[int], List[int]]:
+    """
+    A helper function that returns two alignments lists, where the first list
+    is the alignments for inputs and the second one contains the alignments
+    for those non-broadcasted inputs
+    """
+    # We track alignment for each input
+    alignments = []
+    non_broadcast_alignments = []
+    for extended_input_shape, input_broadcast_sz, num_rightmost_non_br_dims in zip(
+        extended_input_shapes,
+        input_broadcast_sizes,
+        num_rightmost_non_broadcast_dims,
+    ):
+        # make sure we are not going to wrongfully generate an larger vector read type
+        if input_broadcast_sz is None and rightmost_broadcast_dim is not None:
+            num_rightmost_non_br_dims = output_rank - rightmost_broadcast_dim
+        num_elements_for_alignments = shape_utils.get_num_rightmost_static_elements(
+            extended_input_shape, num_rightmost_non_br_dims
+        )
+        if num_elements_for_alignments > 1 or input_broadcast_sz is None:
+            non_broadcast_alignments.append(num_elements_for_alignments)
+        alignment = alignment_utils.find_max_alignment(
+            num_elements_for_alignments, dtype
+        )
+        alignments.append(alignment)
+    return (alignments, non_broadcast_alignments)
+
+
+def _refine_alignments_with_tensor_accessors(
+    non_broadcast_alignments: List[int],
+    alignments: List[int],
+    dtype: str,
+    input_accessors: List[TensorAccessor],
+    output_accessors: List[TensorAccessor],
+) -> List[int]:
+    """
+    This helper function returns the valid alignments based on the constrains
+    imposed on non_broadcast_alignments, input_accessors and output_accessors.
+    """
+    max_non_broadcast_alignment = None
+    if len(non_broadcast_alignments) > 1:
+        max_non_broadcast_alignment = alignment_utils.find_max_alignment_from(
+            non_broadcast_alignments, dtype
+        )
+    alignments = [
+        align
+        if align == 1 or max_non_broadcast_alignment is None
+        else max_non_broadcast_alignment
+        for align in alignments
+    ]
+    max_input_accessor_alignment = (
+        tensor_accessor_codegen.find_max_alignment_for_accessors(dtype, input_accessors)
+    )
+    # Note that we use the same alignment for accessing inputs and outputs, although
+    # they may have different alignment requirements. We may lose perf a little bit,
+    # but reduce the complexity of our jinja template. We can do some perf
+    # experiments later to determine if we want to chase more perf gains.
+    max_accessor_alignment = tensor_accessor_codegen.find_max_alignment(
+        max_input_accessor_alignment, dtype, output_accessors
+    )
+    # all alignments are capped by the max_accessor_alignment
+    alignments = [
+        align if align <= max_accessor_alignment else max_accessor_alignment
+        for align in alignments
+    ]
+    return alignments
+
+
+def _get_alignments_and_sizes_and_dtype(
     inputs: List[Tensor],
     input_accessors: List[TensorAccessor],
     output_accessors: List[TensorAccessor],
     backend_spec: BackendSpec,
-) -> Tuple[int, List[List[IntVar]], str]:
+) -> Tuple[List[int], List[List[IntVar]], str]:
     """
     Returns Tuple(alignments, input_broadcast_sizes, dtype)
     """
@@ -417,66 +493,21 @@ def _get_types_and_sizes(
                     break
         extended_input_shapes.append(extended_input_shape)
         num_rightmost_non_broadcast_dims.append(num_rightmost_non_br_dims)
-    # maximum valid alignment among all input accessors
-    max_input_accessor_alignment = None
-    # We track alignment for each input
-    alignments = []
-    non_broadcast_alignments = []
-    for (
-        extended_input_shape,
-        input_broadcast_sz,
-        num_rightmost_non_br_dims,
-        input_accessor,
-    ) in zip(
+    (alignments, non_broadcast_alignments) = _get_alignments(
         extended_input_shapes,
         input_broadcast_sizes,
         num_rightmost_non_broadcast_dims,
-        input_accessors,
-    ):
-        # make sure we are not going to wrongfully generate an larger vector read type
-        if input_broadcast_sz is None and rightmost_broadcast_dim is not None:
-            num_rightmost_non_br_dims = len(output_shape) - rightmost_broadcast_dim
-        num_elements_for_alignments = shape_utils.get_num_rightmost_static_elements(
-            extended_input_shape, num_rightmost_non_br_dims
-        )
-        if num_elements_for_alignments > 1 or input_broadcast_sz is None:
-            non_broadcast_alignments.append(num_elements_for_alignments)
-        alignment = tensor_accessor_codegen.find_max_alignment(
-            num_elements_for_alignments, dtype, output_accessors
-        )
-        input_alignment = tensor_accessor_codegen.find_max_alignment_for_accessor(
-            input_accessor
-        )
-        max_input_accessor_alignment = (
-            input_alignment
-            if max_input_accessor_alignment is None
-            else min(max_input_accessor_alignment, input_alignment)
-        )
-        # Note that we use the same alignment for accessing inputs and outputs, although
-        # they may have different alignment requirements. We may lose perf a little bit,
-        # but reduce the complexity of our jinja template. We can do some perf
-        # experiments later to determine if we want to chase more perf gains.
-        alignment = min(alignment, input_alignment)
-        alignments.append(alignment)
-    max_non_broadcast_alignment = None
-    if len(non_broadcast_alignments) > 1:
-        max_non_broadcast_alignment = alignment_utils.find_max_alignment_from(
-            non_broadcast_alignments, dtype
-        )
-    alignments = [
-        align
-        if align == 1 or max_non_broadcast_alignment is None
-        else max_non_broadcast_alignment
-        for align in alignments
-    ]
-    max_accessor_alignment = tensor_accessor_codegen.find_max_alignment(
-        max_input_accessor_alignment, dtype, output_accessors
+        rightmost_broadcast_dim,
+        len(output_shape),
+        dtype,
     )
-    # all alignments are capped by the max_accessor_alignment
-    alignments = [
-        align if align <= max_accessor_alignment else max_accessor_alignment
-        for align in alignments
-    ]
+    alignments = _refine_alignments_with_tensor_accessors(
+        non_broadcast_alignments,
+        alignments,
+        dtype,
+        input_accessors,
+        output_accessors,
+    )
     return alignments, input_broadcast_sizes, dtype
 
 
@@ -499,7 +530,7 @@ def _parse_func_metadata(
     original_outputs: List[Tensor],
     backend_spec: BackendSpec,
 ) -> FusedElementwiseMetaData:
-    alignments, input_broadcast_sizes, dtype = _get_types_and_sizes(
+    alignments, input_broadcast_sizes, dtype = _get_alignments_and_sizes_and_dtype(
         inputs, input_accessors, output_accessors, backend_spec
     )
     max_read_type = backend_spec.get_elementwise_read_backend_type(
