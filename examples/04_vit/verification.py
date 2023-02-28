@@ -134,8 +134,8 @@ def verification(
 
     inputs = [input_pt.permute((0, 2, 3, 1)).contiguous()]
     ys = []
-    num_ouputs = len(ait_mod.get_output_name_to_index_map())
-    for i in range(num_ouputs):
+    num_outputs = len(ait_mod.get_output_name_to_index_map())
+    for i in range(num_outputs):
         shape = ait_mod.get_output_maximum_shape(i)
         ys.append(torch.empty(shape).cuda().half())
     ait_mod.run_with_tensors(inputs, ys)

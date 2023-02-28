@@ -22,6 +22,7 @@ from typing import Callable, List, Optional, Set
 from unittest import TestCase
 
 import torch
+from aitemplate.testing import detect_target
 from fx2ait.acc_tracer import acc_tracer
 from fx2ait.acc_tracer.ait_acc_normalizer import update_acc_op_mappers_for_ait
 from fx2ait.ait_module import AITModule
@@ -70,6 +71,7 @@ class AITTestCase(TestCase):
     def setUp(self):
         super().setUp()
         torch.manual_seed(3)
+        detect_target()
 
     def run_test(
         self,

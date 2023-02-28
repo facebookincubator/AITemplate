@@ -37,7 +37,7 @@ class Conv2dBiasAct(Module):
         groups=1,
         dtype="float16",
     ):
-        """initilize the Conv2dBiasAct class
+        """Initialize the Conv2dBiasAct class
 
         Parameters
         ----------

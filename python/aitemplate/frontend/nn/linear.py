@@ -21,10 +21,6 @@ from ...compiler import ops
 from .module import Module
 from .parameter import Parameter
 
-# pylint: disable=C0103
-
-USE_CUDA = detect_target().name() == "cuda"
-
 
 class Linear(Module):
     r"""Applies a linear transformation to the incoming data: :math:`y = xA^T + b`
@@ -64,6 +60,8 @@ class Linear(Module):
         Tensor(shape=[128, 30])
     """
 
+    USE_CUDA = None
+
     def __init__(
         self,
         in_channels,
@@ -74,6 +72,8 @@ class Linear(Module):
         **kwargs,
     ):
         super().__init__()
+        if Linear.USE_CUDA is None:
+            Linear.USE_CUDA = detect_target().name() == "cuda"
         self.weight = Parameter(shape=[out_channels, in_channels], dtype=dtype)
         op_name = "gemm_rcr_bias" if bias else "gemm_rcr"
         if specialization is not None:
@@ -89,7 +89,7 @@ class Linear(Module):
     def forward(self, *args):
         assert len(args) >= 1
         x = args[0]
-        if not USE_CUDA:
+        if not self.USE_CUDA:
             shape = x._attrs["shape"]
             x = x if len(shape) == 2 else ops.reshape()(x, [-1, self.in_channels])
         if len(args) == 2:

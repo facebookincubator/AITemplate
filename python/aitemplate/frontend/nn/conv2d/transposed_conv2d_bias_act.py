@@ -37,7 +37,7 @@ class ConvTranspose2dBiasAct(Module):
         groups=1,
         dtype="float16",
     ):
-        """initilize the ConvTranspose2dBiasAct class
+        """Initialize the ConvTranspose2dBiasAct class
 
         Parameters
         ----------

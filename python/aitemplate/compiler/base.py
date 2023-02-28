@@ -285,7 +285,7 @@ class JaggedIntVar(IntVar):
 
     Because JaggedIntVar is an IntVar, it can be treated so by the AIT ops
     that are unaware of the jagged Tensor semantics. But the ops that are
-    aware can interpet the JaggedIntVar as the first dimension of the jagged
+    aware can interpret the JaggedIntVar as the first dimension of the jagged
     Tensor by specifically processing the underlying batch_dim and jagged_dims.
 
     If there is more than one JaggedDim in a JaggedIntVar, those jagged dimensions
@@ -889,7 +889,7 @@ class IntVarTensor(Tensor):
 
 
 class DynamicProfileStrategy(Enum):
-    """Dynamic profiling stategy enum.
+    """Dynamic profiling strategy enum.
     Instances are used to select profiling strategy when there are dynamic dims.
     """
 

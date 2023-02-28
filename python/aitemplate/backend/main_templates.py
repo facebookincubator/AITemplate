@@ -33,6 +33,7 @@ MODEL_TEMPLATE = jinja2.Template(
 #include <algorithm>
 #include <deque>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <unordered_map>

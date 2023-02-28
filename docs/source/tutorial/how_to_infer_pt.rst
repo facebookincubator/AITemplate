@@ -1,16 +1,16 @@
 How to inference a PyTorch model with AIT
-==========================================
+=========================================
 
 This tutorial will demonstrate how to inference a PyTorch model with AIT.
-Full source code can be founded at `examples/07_how_to_run_pt_model/how_to_run_pt_model.py`
+Full source code can be found at `examples/07_how_to_run_pt_model/how_to_run_pt_model.py`.
 
 0. Prerequisites
------------------
+----------------
 
-We need to import necessary Python modules
+We need to import necessary Python modules:
 
 .. code-block:: python
-  
+
   from collections import OrderedDict
 
   import torch
@@ -23,9 +23,9 @@ We need to import necessary Python modules
 
 
 1. Define a PyTorch module
----------------------------
+--------------------------
 
-Here we define a PyTorch model which is commonly seen in Transformers.
+Here we define a PyTorch model which is commonly seen in Transformers:
 
 .. code-block:: python
 
@@ -46,7 +46,7 @@ Here we define a PyTorch model which is commonly seen in Transformers.
       return hidden_states
 
 2. Define an AIT module
-------------------------
+-----------------------
 
 We can define a similar AIT module as follows:
 
@@ -69,15 +69,16 @@ We can define a similar AIT module as follows:
 .. warning::
   The `nn.Module` API in AIT looks similar to PyTorch, but it is not the same.
 
-  The fundamental difference is that AIT module is a container to build graph, while PyTorch module is a container to store parameters for eager.
-  Which means, each AIT module's `forward` method can be only called once, and the graph is built during the first call. If you want to share parameters, needs to call `compiler.ops` instead. The `compiler.ops` is similar to `functional` in PyTorch.
+  The fundamental difference is that AIT module is a container to build a graph, while PyTorch module is a container to store parameters for eager.
+  Which means, each AIT module's `forward` method can be only called once, and the graph is built during the first call.
+  If you want to share parameters, you need to use the `compiler.ops` instead. The `compiler.ops` is similar to `functional` in PyTorch.
 
-  AITemplate supports automatically fusion on linear followed by other operators. However in many case especially for quick iterations, we use manual `specialization` to specify the fused operator. For example, `specialization="fast_gelu"` will fuse linear with `fast_gelu` operator.
-  
+  AITemplate supports automatic fusion of linear followed by other operators. However in many cases, especially for quick iterations, we use manual `specialization` to specify the fused operator. For example, `specialization="fast_gelu"` will fuse linear with the `fast_gelu` operator.
+
 3. Define a helper function to map PyTorch parameters to AIT parameters
--------------------------------------------------------------------------
+-----------------------------------------------------------------------
 
-In AIT, all names must follow C variable naming standard because the name will be used in codegen process.
+In AIT, all names must follow the C variable naming standard, because the names will be used in the codegen process.
 
 .. code-block:: python
 
@@ -93,12 +94,12 @@ In AIT, all names must follow C variable naming standard because the name will b
 
 .. warning::
 
-  - Different to PyTorch, it is required to call ait_model **.name_parameter_tensor()** method to provide each parameter a name with direct map to PyTorch.
-  - Because all names in AIT must follow C variable naming standard, you can easier replace `.` to `_` or use a regular expression to make sure the name in valid.
-  - For network with conv + bn subgraph, we currently haven't provide automatic pass to fold it. Refer our ResNet and Detectron2 examples to see how we handle CNN layout transform and BatchNorm folding.
+  - Different to PyTorch, it is required to call ait_model **.name_parameter_tensor()** method to provide each parameter with a name with a direct map to PyTorch.
+  - Because all names in AIT must follow the C variable naming standard, you can easily replace `.` by `_` or use a regular expression to make sure the name in valid.
+  - For networks with conv + bn subgraph, we currently don't provide an automatic pass to fold it. Please refer to our ResNet and Detectron2 examples to see how we handle CNN layout transform and BatchNorm folding.
 
 4. Create PyTorch module, inputs/outputs
------------------------------------------
+----------------------------------------
 
 .. code-block:: python
 
@@ -115,7 +116,7 @@ In AIT, all names must follow C variable naming standard because the name will b
   y_pt = pt_model(x)
 
 5. Create AIT module, inputs/outputs
--------------------------------------
+------------------------------------
 
 .. code-block:: python
 
@@ -139,12 +140,12 @@ In AIT, all names must follow C variable naming standard because the name will b
 .. warning::
 
   - Similar to MetaTensor, LazyTensor and a lot of other lazy evaluation frameworks, AIT's Tensor records the computation graph, and the graph is built when the Tensor is compiled.
-  - For input tensor, it is required to set the attribute **is_input=True**
-  - For output tensor, it is required to set the attribute **Y._attrs["is_output"] = True**
-  - For input and output tensors, it is better to provide **name** attributes to use in runtime
+  - For input tensor, it is required to set the attribute **is_input=True**.
+  - For output tensor, it is required to set the attribute **Y._attrs["is_output"] = True**.
+  - For input and output tensors, it is better to provide the **name** attributes to use in runtime.
 
-6. Compile AIT module in to runtime, and do verification
---------------------------------------------------------
+6. Compile AIT module into runtime and do verification
+------------------------------------------------------
 
 .. code-block:: python
 
@@ -180,9 +181,9 @@ In AIT, all names must follow C variable naming standard because the name will b
     print(f"PyTorch eager time: {pt_t} ms/iter")
 
 
-In this example, AIT will automatically fuse GELU and elementwise add into TensorCore/MatrixCore gemm operation. On RTX-3080 for this example, AIT is about 1.15X fast than PyTorch Eager in this example.
+In this example, AIT will automatically fuse GELU and elementwise addition into the TensorCore/MatrixCore gemm operation. On RTX-3080, in the example AIT is about 1.15X faster than PyTorch Eager.
 
 .. note::
 
-  - In this example, we fold parameters (weights) into AIT runtime, which the final dynamic library will contains parameters.
-  - If during compile we don't provide parameters, for example the total parameters size is greater than 2GB, we can always call `set_constant` function in runtime. Check runtime API for details.
+  - In this example, we fold the parameters (`weights`) into AIT runtime. The final dynamic library will contain them as parameters.
+  - If during the compile time we don't provide the parameters (for example, because the total parameters size is greater than 2GB), we can always call `set_constant` function in the runtime. Please check the runtime API for the details.

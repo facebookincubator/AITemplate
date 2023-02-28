@@ -60,7 +60,7 @@ class flash_attention(Operator):
     """
 
     def __init__(self, batch_size, dropout, max_seq_len, causal) -> None:
-        """initilize attention module"""
+        """Initialize attention module"""
         super().__init__()
         assert dropout == 0
         self._attrs["op"] = "flash_attention"

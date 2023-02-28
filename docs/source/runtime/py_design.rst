@@ -1,6 +1,6 @@
-=====================
+===================
 Python Runtime Note
-=====================
+===================
 
 Python `Model`
 ==============
@@ -16,7 +16,7 @@ This class represents a contiguous blob of memory that AIT will use as a tensor.
 * `shape: List[int]`: The shape of the tensor.
 * `dtype: str`: The tensor's dtype; one of `"float32", "float16", "int32", "int64"`. Note that most ops only support float16 at this stage.
 
-If using AITemplate with PyTorch, `AITData`s can be constructed with the `torch_to_ait_data` utility:
+When using AITemplate with PyTorch, `AITData` can be constructed with the `torch_to_ait_data` utility:
 
 .. code-block:: python
 
@@ -30,7 +30,7 @@ If PyTorch is not available, `Model` provides a set of functions for copying, al
 `run`
 -----
 
-`run` takes a set of inputs and outputs as `AITData`s. Both arguments can be passed as either an ordered list or a dictionary (mapping name to tensor).
+`run` takes inputs and outputs as collections of `AITData` instances. Both arguments can be passed as either an ordered list or a dictionary (mapping name to tensor).
 
 .. code-block:: python
 
@@ -55,9 +55,9 @@ If PyTorch is not available, `Model` provides a set of functions for copying, al
       outputs[output_name_to_idx[name]] = ait_outputs[name]
 
     module.run(inputs, outputs)
-      
 
-One important caveat is that the output must be its **maximum** size. This is because of dynamic shapes - the size of the output may vary, but its shape is not inferred until inference time. The maximum shape can be queried with the `get_output_maximum_shape()`:
+
+One important caveat is that the output must have the **maximum** possible size. This is because of dynamic shapes: the size of the output may vary, but its shape is not inferred until inference time. The maximum shape can be queried with the `get_output_maximum_shape()`:
 
 .. code-block:: python
 
@@ -67,7 +67,7 @@ One important caveat is that the output must be its **maximum** size. This is be
     max_shape = module.get_output_maximum_shape("output")
 
 
-`Model.run` returns a dictionary of output `AITData`s with (possibly dynamic) shapes that the runtime inferred.
+`Model.run` returns a dictionary of output `AITData` instances with (possibly dynamic) shapes that inferred in the runtime.
 
 Nullptr Inputs/Outputs
 ----------------------
@@ -102,7 +102,7 @@ Constants are read-only and *shared* with all runtimes in the `ModelContainer`.
 `run_with_tensors`
 ------------------
 
-`run_with_tensors` is a convenience method with the same interface as `run`, except it can take lists of `torch.Tensor`s:
+`run_with_tensors` is a convenience method with the same interface as `run`, except it can take lists (or dicts) of `torch.Tensor` instances:
 
 .. code-block:: python
 
@@ -115,9 +115,14 @@ Constants are read-only and *shared* with all runtimes in the `ModelContainer`.
 Streams and Asynchronous Predictions
 ------------------------------------
 
-A pointer to a stream can optionally be passed to `run`. If none is given, the prediction happens on the default stream 0. If the `sync` argument is set to `True`, the stream is synchronized before `run()` returns. `sync` is `True` by default.
+A pointer to a stream can optionally be passed to `run`.
+If none is given, the prediction happens on the default stream 0.
+If the `sync` argument is set to `True`, the stream is synchronized before `run()` returns.
+`sync` is `True` by default.
 
-Multiple predictions can happen at the same time (on the same or different streams). Under the hood, there is a fixed-size pool of runtime objects. When all the runtimes are used, `run()` blocks until one is available.
+Multiple predictions can happen at the same time (on the same or different streams).
+Under the hood, there is a fixed-size pool of runtime objects.
+When all the runtimes are used, `run()` blocks until one becomes available.
 The size of this pool can be configured with the `num_runtimes` option in `Model`'s constructor.
 
 CUDA Graph

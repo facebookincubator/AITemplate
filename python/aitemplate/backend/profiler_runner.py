@@ -28,6 +28,8 @@ from collections import namedtuple
 from queue import Queue
 from typing import Callable, List, Tuple
 
+from aitemplate.testing import detect_target
+
 from .target import Target
 from .task_runner import BaseRunner, Task
 
@@ -263,7 +265,11 @@ class ProfilerRunner:
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(devices))
         self._futures = []
         self._postprocessing_delegate = postprocessing_delegate
-        self._dev_select_flag = Target.current().dev_select_flag()
+        try:
+            target = Target.current()
+        except RuntimeError:
+            target = detect_target()
+        self._dev_select_flag = target.dev_select_flag()
 
     def push(self, cmds: List[str], process_result_callback: Callable):
         """
