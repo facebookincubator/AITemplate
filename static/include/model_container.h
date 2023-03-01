@@ -133,8 +133,8 @@ ModelContainer* CreateModelContainer(
 // to start up two inferences on different streams concurrently,
 // we can do this:
 //
-// model_container.Run(inputs0, num_inputs, outputs0, num_ouputs, stream0, ...);
-// model_container.Run(inputs1, num_inputs, outputs1, num_ouputs, stream1, ...);
+// model_container.Run(inputs0, n_inputs, outputs0, n_outputs, stream0, ...);
+// model_container.Run(inputs1, n_inputs, outputs1, n_outputs, stream1, ...);
 // StreamSynchronize(stream0);
 // StreamSynchronize(stream1);
 //

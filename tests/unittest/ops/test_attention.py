@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 """
-Unittests for flash_attenion Operator.
+Unittests for flash_attention Operator.
 """
 import logging
 import math
