@@ -207,7 +207,7 @@ def _fuse_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
             and shape[dim]._attrs["values"][0] == split_sizes[0]
         ):
             transform_utils.remove_single_tensor_op_from_sorted_graph(split_op)
-        continue
+
     sorted_graph = transform_utils.sanitize_sorted_graph(sorted_graph)
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
