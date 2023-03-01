@@ -24,6 +24,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import filter_test_cases_by_test_env
 from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
@@ -181,6 +182,8 @@ class LayernormTestCase(unittest.TestCase):
             MS=(16, 8, 4), NS=(2, 4, 32), dtype="bfloat16", atol=1e-2, rtol=1e-2
         )
 
+
+filter_test_cases_by_test_env(LayernormTestCase)
 
 if __name__ == "__main__":
     unittest.main()
