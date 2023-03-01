@@ -31,9 +31,9 @@ class SplitGetItemTestCase(unittest.TestCase):
     def _test_split_getitem(
         self,
         shape,
-        split_sections=[32],
-        split_dim=1,
-        test_name="split_getitem",
+        split_sections,
+        split_dim,
+        test_name="split_full_idx",
         dtype="float16",
     ):
         assert len(shape) == 3, f"expected shape to be 3 but got {shape}"
@@ -99,17 +99,13 @@ class SplitGetItemTestCase(unittest.TestCase):
     def test_split_getitem_to_noop(self):
         self._test_split_getitem(
             shape=(16, 32, 10),
-            split_sections=[32],
-            split_dim=1,
-            test_name="split_getitem_to_noop",
-            dtype="float16",
+            split_sections=[16],
+            split_dim=0,
         )
         self._test_split_getitem(
             shape=(16, 32, 10),
-            split_sections=[16],
-            split_dim=0,
-            test_name="split_getitem_to_noop",
-            dtype="float16",
+            split_sections=[32],
+            split_dim=1,
         )
 
 
