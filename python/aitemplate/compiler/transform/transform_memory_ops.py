@@ -193,6 +193,8 @@ def _fuse_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
         src_ops = tensor._attrs["src_ops"]
         if len(src_ops) != 1:
             continue
+        if tensor._attrs["is_output"]:
+            continue
         src_op = list(src_ops)[0]
         if src_op._attrs["op"] != "split":
             continue
@@ -206,6 +208,11 @@ def _fuse_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
             and isinstance(shape[dim], IntImm)
             and shape[dim]._attrs["values"][0] == split_sizes[0]
         ):
+            input_tensor = split_op._attrs["inputs"][0]
+            output_tensor = split_op._attrs["outputs"][0]
+            # tensor can not be input and output
+            if output_tensor._attrs["is_output"] and input_tensor._attrs["is_input"]:
+                continue
             transform_utils.remove_single_tensor_op_from_sorted_graph(split_op)
 
     sorted_graph = transform_utils.sanitize_sorted_graph(sorted_graph)
