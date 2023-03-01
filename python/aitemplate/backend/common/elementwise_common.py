@@ -18,14 +18,15 @@ Backend-agnostic functions for elementwise codegen.
 
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 from aitemplate.backend.backend_spec import BackendSpec
 
-from ...compiler.base import IntImm, IntVar, Operator, Tensor
+from ...compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Tensor
 from ...compiler.tensor_accessor import TensorAccessor
 from ...utils import alignment as alignment_utils, shape_utils
+from ..target import Target
 from . import tensor_accessor_codegen
 
 CONSTANT_TEMPLATE = jinja2.Template(
@@ -65,6 +66,97 @@ GET_STRIDED_ADDRESS_TEMPLATE = jinja2.Template(
 )
 
 
+KERNEL_COMPUTE_IDX_TEMPLATE = jinja2.Template(
+    """
+  const {{index_type}} dense_idx = blockIdx.x * FUSED_ELE_THREAD_SIZE + threadIdx.x;
+  const {{index_type}} dense_idx_elem = dense_idx * N_ELEMENTS_PER_THREAD;
+  if (dense_idx_elem >= n_elements) {
+    return;
+  }
+    """
+)
+
+
+KERNEL_COMPUTE_DENSE_IDX_THEN_JAGGED_IDX_TEMPLATE = jinja2.Template(
+    """
+  // first compute the dense_idx from the blockIdx and threadIdx
+  const {{index_type}} dense_idx = blockIdx.x * FUSED_ELE_THREAD_SIZE + threadIdx.x;
+  const {{index_type}} dense_idx_elem = dense_idx * N_ELEMENTS_PER_THREAD;
+  if (dense_idx_elem >= n_elements) {
+    return;
+  }
+
+  // then compute the jagged_idx from the dense_idx_elem
+  {{index_type}} jagged_idx;
+  {
+    // dense_coord is along consecutive dense dimensions
+    // jagged_coord is along the total_length of the jagged Tensor
+    {{index_type}} dense_coord = dense_idx_elem / ({{strides[0]}});
+    {{index_type}} running_idx = dense_idx_elem % ({{strides[0]}});
+    {{offsets_type}} jagged_coord = 0, prev_offset, next_offset;
+
+{% for i in range(num_offsets) %}
+    prev_offset = offsets.data[{{i}}][jagged_coord + dense_coord];
+    next_offset = offsets.data[{{i}}][jagged_coord + dense_coord + 1];
+    dense_coord = running_idx / ({{strides[i+1]}});
+    running_idx = running_idx % ({{strides[i+1]}});
+    if (dense_coord >= next_offset - prev_offset) {
+        // this element of the dense volume is
+        // out of bounds of the jagged Tensor
+        return;
+    }
+    jagged_coord = prev_offset;
+
+{% endfor %}
+    jagged_coord += dense_coord;
+    jagged_idx = (jagged_coord * ({{strides[num_offsets]}}) + running_idx) / N_ELEMENTS_PER_THREAD;
+  }
+    """
+)
+
+
+KERNEL_COMPUTE_JAGGED_IDX_THEN_DENSE_IDX_TEMPLATE = jinja2.Template(
+    """
+  // first compute the jagged_idx from the blockIdx and threadIdx
+  const {{index_type}} jagged_idx = blockIdx.x * FUSED_ELE_THREAD_SIZE + threadIdx.x;
+  const {{index_type}} jagged_idx_elem = jagged_idx * N_ELEMENTS_PER_THREAD;
+  if (jagged_idx_elem >= n_elements) {
+    return;
+  }
+
+  // then compute the dense_idx from the jagged_idx_elem
+  {{index_type}} dense_idx = jagged_idx_elem % ({{strides[num_offsets]}});
+  {
+    {{offsets_type}} left, right, mid, tmp_value, offset_idx, offset_value;
+    {{index_type}} running_idx = jagged_idx_elem / ({{strides[num_offsets]}});
+
+    // binary search to determine the dense coord along the current jagged dimension
+    // the goal is to find the index of the maximum offset value in offsets.data[{{i}}]
+    // which is <= the running_idx. the (running_idx - offset_value) will then indicate
+    // the dense cooord along the current jagged dimension.
+{% for i in range(num_offsets - 1, -1, -1) %}
+    left = 0;
+    right = offsets.lengths[{{i}}] - 1;
+    while (left <= right) {
+        mid = (left + right) >> 1;
+        tmp_value = offsets.data[{{i}}][mid];
+        if (tmp_value <= running_idx) {
+            offset_idx = mid;
+            offset_value = tmp_value;
+            left = mid + 1;
+        } else {
+            right = mid - 1;
+        }
+    }
+    dense_idx += (running_idx - offset_value) * ({{strides[i+1]}});
+    running_idx = offset_idx;
+
+{% endfor %}
+    dense_idx = (dense_idx + running_idx * ({{strides[0]}})) / N_ELEMENTS_PER_THREAD;
+  }
+    """
+)
+
 KERNEL_READ_INPUT_TEMPLATE = jinja2.Template(
     """
   {{read_t}} *{{input_name}} = const_cast<{{read_t}}*>(input{{input_idx}});
@@ -102,14 +194,8 @@ KERNEL_WRITE_OUTPUT_TEMPLATE = jinja2.Template(
 KERNEL_TEMPLATE = jinja2.Template(
     """
 __global__ void
-{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{index_type}} n_elements) {
-  const int bid = blockIdx.x;
-  const int tid = threadIdx.x;
-  const {{index_type}} idx = bid * FUSED_ELE_THREAD_SIZE + tid;
-  const {{index_type}} idx_elem = idx * N_ELEMENTS_PER_THREAD;
-  if (idx_elem >= n_elements) {
-    return;
-  }
+{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{offsets}} {{index_type}} n_elements) {
+  {{compute_idx}}
   {{read_inputs}}
   {{define_outputs}}
 #pragma unroll
@@ -134,6 +220,8 @@ FUNC_TEMPLATE = jinja2.Template(
     """
 {{head}}
 
+#include "jagged.h"
+
 namespace {
 
 {{constant}}
@@ -146,7 +234,7 @@ namespace {
 
 }  // namespace
 
-void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims_decl}} {{index_type}} n_elements, {{prefix}}Stream_t stream) {
+void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims_decl}} {{offsets_decl}} {{index_type}} n_elements, {{prefix}}Stream_t stream) {
     if (n_elements == 0) {
       return;
     }
@@ -155,6 +243,7 @@ void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims_de
         {{kernel_call_output_params}},
         {{kernel_call_input_params}},
         {{dynamic_dims_call}}
+        {{offsets_call}}
         n_elements
     );
 }
@@ -163,7 +252,7 @@ void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims_de
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
-void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{index_type}} n_elements, {{prefix}}Stream_t stream);
+void invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{offsets}} {{index_type}} n_elements, {{prefix}}Stream_t stream);
     """
 )
 
@@ -171,7 +260,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{
     {{indent}}{{index_type}} {{func_name}}_n_elements = {{calculate_n}};
-    {{indent}}invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{func_name}}_n_elements, {{stream}});
+    {{indent}}invoke_{{func_name}}({{output_params}}, {{input_params}}, {{dynamic_dims}} {{offsets}} {{func_name}}_n_elements, {{stream}});
 {{indent}}}
     """
 )
@@ -207,6 +296,33 @@ class FusedElementwiseMetaData:
     input_broadcast_sizes: List[List[IntVar]]
     dynamic_dims: List[IntVar]
     sub_funcs: List[ElementwiseMetaData]
+
+    # this flag specifies if the jagged and mixed inputs need
+    # separate indexing logic within the generated kernel code.
+    # this typically happens when the shape of at least one of
+    # the dense inputs overlaps with one or more jagged dimensions
+    # of the jagged inputs (all jagged inputs are assume to have
+    # the same rank and JaggedIntVar / jagged dimensions).
+    mixed_jagged_dense_indexing: bool = False
+
+    # this attribute is relevant only when mixed_jagged_dense_indexing
+    # is True. it specifies the smallest rectangular volume that fits
+    # all inputs (jagged and dense) and outputs (jagged): i.e., the maximum
+    # rectangular volume that the jagged output Tensor can fit in.
+    # the output_volume list, therefore, can't contain a JaggedIntVar, as
+    # the latter in the jagged output Tensor shape is "expanded" to the
+    # list with `batch_dim` followed by an IntImm for each jagged dim.
+    output_volume: Optional[List[IntVar]] = None
+
+    # this attribute is relevant only when mixed_jagged_dense_indexing
+    # is True. wether the jagged index space implementation (as opposed
+    # to the dense index space implementation) should be use to compute
+    # the dense_idx and jagged_idx separately in the mixed jagged /
+    # dense indexing cases. the dense space indexing runs over the
+    # (dense) output volume and computes jagged_idx from dense_idx.
+    # the jagged space indexing runs over the jagged output shape
+    # and computes the dense_inx from jagged_idx (with binary search).
+    use_jagged_space_indexing: bool = False
 
 
 def gen_function_single_thread(
@@ -359,6 +475,11 @@ def _get_sub_func_metadata(
     return (sub_func_metadata, op_t)
 
 
+def _is_jagged_shape(shape: List[IntVar]) -> bool:
+    """Whether the given shape is a shape of a jagged Tensor."""
+    return len(shape) > 0 and isinstance(shape[0], JaggedIntVar)
+
+
 def _get_alignments(
     extended_input_shapes: List[List[IntVar]],
     input_broadcast_sizes: List[int],
@@ -440,13 +561,13 @@ def _get_alignments_and_sizes_and_dtype(
     input_accessors: List[TensorAccessor],
     output_accessors: List[TensorAccessor],
     backend_spec: BackendSpec,
+    mixed_jagged_dense_indexing: bool,
+    output_volume: Optional[List[IntVar]],
 ) -> Tuple[List[int], List[List[IntVar]], str]:
     """
     Returns Tuple(alignments, input_broadcast_sizes, dtype)
     """
-
     # Handle input broadcast.
-    output_shape = output_accessors[0].original_shapes
     dtype = inputs[0]._attrs["dtype"]
 
     # Determine the rightmost broadcast dim among all inputs.
@@ -466,6 +587,21 @@ def _get_alignments_and_sizes_and_dtype(
     extended_input_shapes = []
     for input_accessor in input_accessors:
         input_shape = input_accessor.original_shapes
+
+        if mixed_jagged_dense_indexing:
+            if _is_jagged_shape(input_shape):
+                # broadcast the jagged input shape against the output_shape:
+                # in a mixed jagged / dense op the output_shape is the shape
+                # of the output jagged Tensor
+                output_shape = output_accessors[0].original_shapes
+            else:
+                # broadcast the dense input shape against the output_volume,
+                # as the dense indexing will be done in the output_volume
+                output_shape = output_volume
+        else:
+            # treat all outputs as dense: use output_shape for broadcasting
+            output_shape = output_accessors[0].original_shapes
+
         broadcastable, _ = shape_utils.get_broadcast_max_shape(
             output_shape, input_shape
         )
@@ -491,6 +627,22 @@ def _get_alignments_and_sizes_and_dtype(
                     else:
                         rightmost_broadcast_dim = max(i, rightmost_broadcast_dim)
                     break
+
+        if mixed_jagged_dense_indexing:
+            # in the mixed jagged / dense indexing case, the number of the
+            # rightmost non-broadcated static dimensions of the dense inputs
+            # to be considered for vectorization can't be larger than the
+            # number of the jagged output's inner dimensions (i.e., the
+            # dimensions following the JaggedIntVar). otherwise, there may
+            # be an overlap with the jagged dimensions, in which case the
+            # vectorization can break.
+            jagged_output_shape = output_accessors[0].original_shapes
+            num_inner_dims_in_jagged_shape = len(jagged_output_shape) - 1
+            num_rightmost_non_br_dims = min(
+                num_rightmost_non_br_dims,
+                num_inner_dims_in_jagged_shape,
+            )
+
         extended_input_shapes.append(extended_input_shape)
         num_rightmost_non_broadcast_dims.append(num_rightmost_non_br_dims)
     (alignments, non_broadcast_alignments) = _get_alignments(
@@ -517,7 +669,63 @@ def _get_dynamic_dims(output_accessors: List[TensorAccessor]) -> List[IntVar]:
         for dim in output_accessor.original_shapes:
             if not isinstance(dim, IntImm):
                 res[dim._attrs["name"]] = dim
-    return res.values()
+                if isinstance(dim, JaggedIntVar):
+                    # the batch_dim within the JaggedIntVar may not be present directly
+                    # in other input / output shapes, so we're adding it here separately
+                    batch_dim = dim.batch_dim()
+                    res[batch_dim._attrs["name"]] = batch_dim
+    return list(res.values())
+
+
+def _get_mixed_jagged_dense_config(
+    input_accessors: List[TensorAccessor],
+    output_accessors: List[TensorAccessor],
+) -> Tuple[bool, List[IntVar]]:
+    """
+    Returns Tuple(
+        mixed_jagged_dense_indexing,
+        output_volume,
+        use_jagged_space_indexing,
+    )
+    """
+    # all output shapes are assumed to be the same
+    output_shape = output_accessors[0].original_shapes
+    input_shapes = [acc.original_shapes for acc in input_accessors]
+    jagged_input_shapes = [s for s in input_shapes if _is_jagged_shape(s)]
+    dense_input_shapes = [s for s in input_shapes if not _is_jagged_shape(s)]
+
+    if not jagged_input_shapes or not dense_input_shapes:
+        # there are either only dense inputs or only jagged inputs:
+        # in both cases all inputs will be treated as dense, because
+        # the JaggedIntVars and ranks of all the jagged inputs are
+        # assumed to be the same
+        return False, None, False
+
+    jagged_rank = len(jagged_input_shapes[0])
+    max_dense_rank = max(len(s) for s in dense_input_shapes)
+
+    if max_dense_rank <= jagged_rank - 1:
+        # the longest dense shape does not overlap with the jagged dims:
+        # the jagged inputs can be treated as dense, meaning that the
+        # total_length of the jagged inputs (not overlapping with the
+        # dense inputs' shapes) will be treated as a single dense dim
+        return False, None, False
+
+    jagged_int_var = output_shape[0]
+    jagged_max_dense_prefix_shape = jagged_int_var.get_max_dense_shape()
+    jagged_suffix_shape = output_shape[1:]
+    output_volume = jagged_max_dense_prefix_shape + jagged_suffix_shape
+
+    use_jagged_space_indexing = Target.current()._kwargs.get(
+        "use_jagged_space_indexing", False
+    )
+
+    # because at least one of the dense inputs overlap with the
+    # JaggedIntVar of the jagged inputs, jagged and dense inputs
+    # will need different indexing in the generated kernel.
+    # output_volume is the smallest rectangular volume fitting
+    # all the input (jagged and dense) and outputs (jagged).
+    return True, output_volume, use_jagged_space_indexing
 
 
 def _parse_func_metadata(
@@ -530,8 +738,21 @@ def _parse_func_metadata(
     original_outputs: List[Tensor],
     backend_spec: BackendSpec,
 ) -> FusedElementwiseMetaData:
+    (
+        mixed_jagged_dense_indexing,
+        output_volume,
+        use_jagged_space_indexing,
+    ) = _get_mixed_jagged_dense_config(
+        input_accessors,
+        output_accessors,
+    )
     alignments, input_broadcast_sizes, dtype = _get_alignments_and_sizes_and_dtype(
-        inputs, input_accessors, output_accessors, backend_spec
+        inputs,
+        input_accessors,
+        output_accessors,
+        backend_spec,
+        mixed_jagged_dense_indexing,
+        output_volume,
     )
     max_read_type = backend_spec.get_elementwise_read_backend_type(
         max(alignments), dtype
@@ -564,6 +785,9 @@ def _parse_func_metadata(
         input_broadcast_sizes,
         dynamic_dims,
         sub_func_metadata,
+        mixed_jagged_dense_indexing,
+        output_volume,
+        use_jagged_space_indexing,
     )
 
 
@@ -586,6 +810,7 @@ def _gen_int_var_product_str(
 def _gen_input_broadcast_calculator_str(
     input_shape: List[IntVar],
     output_shape: List[IntVar],
+    mixed_jagged_dense_indexing: bool,
 ) -> str:
     output_num_elements = []
     output_strides = []
@@ -608,11 +833,15 @@ def _gen_input_broadcast_calculator_str(
         output_strides.append([IntImm(1)])
         output_num_elements.append(output_shape[start_idx:])
 
+    index_variable = "dense_idx"
+    if mixed_jagged_dense_indexing and _is_jagged_shape(input_shape):
+        index_variable = "jagged_idx"
+
     res = []
     for output_num_element, output_stride, input_stride in zip(
         output_num_elements, output_strides, input_strides
     ):
-        idx_str = "idx * N_ELEMENTS_PER_THREAD"
+        idx_str = f"{index_variable} * N_ELEMENTS_PER_THREAD"
         res.append(
             "{} % ({}) / ({}) * ({})".format(
                 idx_str,
@@ -628,15 +857,36 @@ def _gen_input_broadcast_calculator_str(
 def _gen_input_broadcast_size_str(
     input_broadcast_sizes: List[List[IntVar]],
     output_shape: List[IntVar],
+    mixed_jagged_dense_indexing: bool,
+    output_volume: Optional[List[IntVar]],
 ) -> List[str]:
     res = []
     for input_broadcast_size in input_broadcast_sizes:
         if input_broadcast_size is None:
             res.append("")
         else:
+            if mixed_jagged_dense_indexing:
+                if _is_jagged_shape(input_broadcast_size):
+                    # broadcast the dense input shape in the jagged
+                    # index space: i.e., against the output_shape
+                    output_broadcast_size = output_shape
+                else:
+                    # broadcast the dense input shape in the dense
+                    # index space: i.e., against the output_volume
+                    output_broadcast_size = output_volume
+            else:
+                # broadcast all input shapes in the dense index space
+                # all inputs are treated as dense ==> output_shape
+                output_broadcast_size = output_shape
+
             res.append(
-                _gen_input_broadcast_calculator_str(input_broadcast_size, output_shape)
+                _gen_input_broadcast_calculator_str(
+                    input_broadcast_size,
+                    output_broadcast_size,
+                    mixed_jagged_dense_indexing,
+                )
             )
+
     return res
 
 
@@ -648,6 +898,56 @@ def _gen_dynamic_dim_str(
     if res:
         res += ", "
     return res
+
+
+def _gen_offsets_str(
+    fused_elementwise_metadata: FusedElementwiseMetaData,
+    has_type: bool,
+    const_ref: bool,
+    name: Optional[str] = None,
+) -> str:
+    offsets = ""
+    if fused_elementwise_metadata.mixed_jagged_dense_indexing:
+        inputs = fused_elementwise_metadata.inputs
+        jagged_input = [t for t in inputs if t.is_jagged()][0]
+        jagged_int_var = jagged_input._attrs["shape"][0]
+        offsets_var_name = jagged_int_var.offsets_var_name()
+        offsets_struct_type = jagged_int_var.offsets_struct_type()
+
+        ref_prefix = "const " if const_ref else ""
+        ref_suffix = "&" if const_ref else ""
+        arg_type = f"{ref_prefix}{offsets_struct_type}{ref_suffix} " if has_type else ""
+        arg_name = name if name is not None else offsets_var_name
+        offsets = f"{arg_type}{arg_name}, "
+
+    return offsets
+
+
+def _gen_num_elements_calculator(
+    fused_elementwise_metadata: FusedElementwiseMetaData,
+) -> str:
+    if fused_elementwise_metadata.mixed_jagged_dense_indexing:
+        if fused_elementwise_metadata.use_jagged_space_indexing:
+            # for the jagged space indexing, the num_elements
+            # is the number of elements in the output jagged Tensor, hence
+            # the usage of the output shape here, not the output volume
+            return _gen_int_var_product_str(
+                fused_elementwise_metadata.output_accessors[0].original_shapes,
+            )
+        else:
+            # for the dense space indexing, the num_elements
+            # is the number of elements in the output volume: the smallest
+            # rectangular volume that fits the output jagged Tensor, hence
+            # the usage of the output volume here, not the output shape
+            return _gen_int_var_product_str(
+                fused_elementwise_metadata.output_volume,
+            )
+    else:
+        # all inputs and outputs are treated as dense:
+        # use the output shape for computing num_elements
+        return _gen_int_var_product_str(
+            fused_elementwise_metadata.output_accessors[0].original_shapes,
+        )
 
 
 def _gen_read_inputs_str(
@@ -662,6 +962,12 @@ def _gen_read_inputs_str(
             broadcast_sizes,
         )
     ):
+        index_variable = "dense_idx"
+        if fused_elementwise_metadata.mixed_jagged_dense_indexing:
+            input_shape = input_accessor.original_shapes
+            if _is_jagged_shape(input_shape):
+                index_variable = "jagged_idx"
+
         input_name = f"input_tmp{input_idx}"
 
         # When broadcasting an input, we are reading a different number of elements
@@ -671,7 +977,7 @@ def _gen_read_inputs_str(
             f"(sizeof({fused_elementwise_metadata.max_read_t}) / sizeof({read_t})))"
         )
         data_idx = (
-            "idx"
+            index_variable
             if not broadcast_size
             else f"({broadcast_size}) / {n_elems_per_thread}"
         )
@@ -696,18 +1002,26 @@ def _gen_read_inputs_str(
     return read_inputs_str
 
 
-def _gen_write_outputs_str(fused_elementwise_metadata: FusedElementwiseMetaData):
+def _gen_write_outputs_str(
+    fused_elementwise_metadata: FusedElementwiseMetaData,
+):
     write_outputs = []
     for output_idx, output_accessor in enumerate(
         fused_elementwise_metadata.output_accessors
     ):
+        index_variable = "dense_idx"
+        if fused_elementwise_metadata.mixed_jagged_dense_indexing:
+            # the output of a mixed jagged / dense
+            # elementwise operation is always jagged
+            index_variable = "jagged_idx"
+
         output_name = f"output{output_idx}"
         get_strided_addr_str = GET_STRIDED_ADDRESS_TEMPLATE.render(
             tensor_accessor=output_accessor,
             data_ptr=output_name,
             data_t=fused_elementwise_metadata.data_t,
             read_t=fused_elementwise_metadata.max_read_t,
-            data_idx="idx",
+            data_idx=index_variable,
         )
         write_out = KERNEL_WRITE_OUTPUT_TEMPLATE.render(
             get_strided_address=get_strided_addr_str,
@@ -717,6 +1031,62 @@ def _gen_write_outputs_str(fused_elementwise_metadata: FusedElementwiseMetaData)
         write_outputs.append(write_out)
     write_outputs_str = "\n".join(write_outputs)
     return write_outputs_str
+
+
+def _get_output_volume_strides(
+    output_volume: List[IntVar],
+) -> List[str]:
+    """
+    Generate the stride expressions for each of the dimensions
+    of the output volume. A stride expression here means the
+    product of all dimensions following the given dimension.
+    The order of the stride expressions in the returned list
+    is the same as of the dimensions of the output volume.
+    """
+    strides = []
+    for dim in reversed(output_volume[1:]):
+        str_dim = str(dim.value()) if isinstance(dim, IntImm) else dim._attrs["name"]
+        if strides:
+            strides.append(f"{strides[-1]} * {str_dim}")
+        else:
+            strides.append(str_dim)
+    strides.reverse()
+    return strides
+
+
+def _gen_compute_idx(
+    index_type: str,
+    fused_elementwise_metadata: FusedElementwiseMetaData,
+) -> str:
+    if fused_elementwise_metadata.mixed_jagged_dense_indexing:
+        # generate the index computation code computing both
+        # dense_idx and jagged_idx, to be used for the dense
+        # and jagged inputs / outptus, respectively
+        inputs = fused_elementwise_metadata.inputs
+        jagged_input = [t for t in inputs if t.is_jagged()][0]
+        jagged_int_var = jagged_input._attrs["shape"][0]
+        num_offsets = len(jagged_int_var.jagged_dims())
+
+        compute_idx_template = (
+            KERNEL_COMPUTE_JAGGED_IDX_THEN_DENSE_IDX_TEMPLATE
+            if fused_elementwise_metadata.use_jagged_space_indexing
+            else KERNEL_COMPUTE_DENSE_IDX_THEN_JAGGED_IDX_TEMPLATE
+        )
+
+        return compute_idx_template.render(
+            index_type=index_type,
+            num_offsets=num_offsets,
+            strides=_get_output_volume_strides(
+                fused_elementwise_metadata.output_volume,
+            ),
+            offsets_type=jagged_int_var.offsets_type(),
+        )
+    else:
+        # no need for the mixed jagged / dense indexing:
+        # use dense_idx for all inputs and outputs
+        return KERNEL_COMPUTE_IDX_TEMPLATE.render(
+            index_type=index_type,
+        )
 
 
 def _gen_kernel_function(
@@ -742,9 +1112,16 @@ def _gen_kernel_function(
         ]
     )
 
+    compute_idx_str = _gen_compute_idx(
+        index_type,
+        fused_elementwise_metadata,
+    )
+
     broadcast_sizes = _gen_input_broadcast_size_str(
         fused_elementwise_metadata.input_broadcast_sizes,
         fused_elementwise_metadata.output_accessors[0].original_shapes,
+        fused_elementwise_metadata.mixed_jagged_dense_indexing,
+        fused_elementwise_metadata.output_volume,
     )
     read_inputs_str = _gen_read_inputs_str(fused_elementwise_metadata, broadcast_sizes)
 
@@ -776,8 +1153,19 @@ def _gen_kernel_function(
         output_params=output_params_decl,
         input_params=input_params_decl,
         dynamic_dims=_gen_dynamic_dim_str(
-            index_type, fused_elementwise_metadata.dynamic_dims, has_type=True
+            index_type,
+            fused_elementwise_metadata.dynamic_dims,
+            has_type=True,
         ),
+        offsets=_gen_offsets_str(
+            fused_elementwise_metadata,
+            has_type=True,
+            # the offsets are passed
+            # by value to the kernel
+            const_ref=False,
+            name="offsets",
+        ),
+        compute_idx=compute_idx_str,
         read_inputs=read_inputs_str,
         define_outputs=define_outputs,
         write_outputs=write_outputs_str,
@@ -889,6 +1277,20 @@ def fused_elementwise_gen_function(
             fused_elementwise_metadata.dynamic_dims,
             has_type=False,
         ),
+        offsets_decl=_gen_offsets_str(
+            fused_elementwise_metadata,
+            has_type=True,
+            # the offsets are passed
+            # by const reference to the function
+            const_ref=True,
+            name="offsets",
+        ),
+        offsets_call=_gen_offsets_str(
+            fused_elementwise_metadata,
+            has_type=False,
+            const_ref=False,
+            name="offsets",
+        ),
         kernel_call_output_params=kernel_call_output_params,
         kernel_call_input_params=kernel_call_input_params,
     )
@@ -943,6 +1345,12 @@ def fused_elementwise_gen_function_decl(
             fused_elementwise_metadata.dynamic_dims,
             has_type=True,
         ),
+        offsets=_gen_offsets_str(
+            fused_elementwise_metadata,
+            has_type=True,
+            const_ref=True,
+            name="offsets",
+        ),
     )
     return function_decl
 
@@ -953,6 +1361,7 @@ def fused_elementwise_gen_function_call(
     backend_spec: BackendSpec,
 ):
     """Generates fused_elementwise function call."""
+
     ops = func_attrs["elementwise_ops"]
     inputs = func_attrs["inputs"]
     outputs = func_attrs["outputs"]
@@ -972,24 +1381,26 @@ def fused_elementwise_gen_function_call(
     )
 
     output_params = ",".join([output._attrs["name"] for output in outputs])
-
     input_params = ",".join([input._attrs["name"] for input in inputs])
-
-    num_elements_calculator = _gen_int_var_product_str(
-        output_accessors[0].original_shapes
-    )
 
     return FUNC_CALL_TEMPLATE.render(
         stream=backend_spec.stream,
         func_name=func_attrs["name"],
         index_type=backend_spec.index_type,
-        calculate_n=num_elements_calculator,
+        calculate_n=_gen_num_elements_calculator(
+            fused_elementwise_metadata,
+        ),
         output_params=output_params,
         input_params=input_params,
         dynamic_dims=_gen_dynamic_dim_str(
             backend_spec.index_type,
             fused_elementwise_metadata.dynamic_dims,
             has_type=False,
+        ),
+        offsets=_gen_offsets_str(
+            fused_elementwise_metadata,
+            has_type=False,
+            const_ref=False,
         ),
         indent=indent,
     )
