@@ -25,7 +25,7 @@ from aitemplate.backend.backend_spec import BackendSpec
 
 from ...compiler.base import IntImm, IntVar, Operator, Tensor
 from ...compiler.tensor_accessor import TensorAccessor
-from ...utils import shape_utils
+from ...utils import alignment as alignment_utils, shape_utils
 from . import tensor_accessor_codegen
 
 CONSTANT_TEMPLATE = jinja2.Template(
@@ -68,9 +68,14 @@ GET_STRIDED_ADDRESS_TEMPLATE = jinja2.Template(
 KERNEL_READ_INPUT_TEMPLATE = jinja2.Template(
     """
   {{read_t}} *{{input_name}} = const_cast<{{read_t}}*>(input{{input_idx}});
+  constexpr int vec_size{{input_idx}} =  sizeof({{max_read_t}}) / sizeof({{read_t}});
   {{get_strided_address}}
-  {{read_t}} tmp_i{{input_idx}} = *{{input_name}};
-  const {{op_t}}* p_tmp_i{{input_idx}} = reinterpret_cast<const {{op_t}}*>(&tmp_i{{input_idx}});
+  {{read_t}} tmp_i{{input_idx}}[vec_size{{input_idx}}];
+  #pragma unroll
+  for (int i = 0; i < vec_size{{input_idx}}; i++) {
+    tmp_i{{input_idx}}[i] = *{{input_name}};
+  }
+  const {{op_t}}* p_tmp_i{{input_idx}} = reinterpret_cast<const {{op_t}}*>(tmp_i{{input_idx}});
 
     """
 )
@@ -193,7 +198,10 @@ class FusedElementwiseMetaData:
     original_inputs: List[Tensor]
     original_outputs: List[Tensor]
 
-    read_t: str
+    # holding the largest read type for the fused kernel
+    max_read_t: str
+    # holding the read_t for each fused input
+    read_types: List[str]
     op_t: str
     data_t: str
     input_broadcast_sizes: List[List[IntVar]]
@@ -351,21 +359,111 @@ def _get_sub_func_metadata(
     return (sub_func_metadata, op_t)
 
 
-def _get_types_and_sizes(
+def _get_alignments(
+    extended_input_shapes: List[List[IntVar]],
+    input_broadcast_sizes: List[int],
+    num_rightmost_non_broadcast_dims: List[int],
+    rightmost_broadcast_dim: int,
+    output_rank: int,
+    dtype: str,
+) -> Tuple[List[int], List[int]]:
+    """
+    A helper function that returns two alignments lists, where the first list
+    is the alignments for inputs and the second one contains the alignments
+    for those non-broadcasted inputs
+    """
+    # We track alignment for each input
+    alignments = []
+    non_broadcast_alignments = []
+    for extended_input_shape, input_broadcast_sz, num_rightmost_non_br_dims in zip(
+        extended_input_shapes,
+        input_broadcast_sizes,
+        num_rightmost_non_broadcast_dims,
+    ):
+        # make sure we are not going to wrongfully generate an larger vector read type
+        if input_broadcast_sz is None and rightmost_broadcast_dim is not None:
+            num_rightmost_non_br_dims = output_rank - rightmost_broadcast_dim
+        num_elements_for_alignments = shape_utils.get_num_rightmost_static_elements(
+            extended_input_shape, num_rightmost_non_br_dims
+        )
+        if num_elements_for_alignments > 1 or input_broadcast_sz is None:
+            non_broadcast_alignments.append(num_elements_for_alignments)
+        alignment = alignment_utils.find_max_alignment(
+            num_elements_for_alignments, dtype
+        )
+        alignments.append(alignment)
+    return (alignments, non_broadcast_alignments)
+
+
+def _refine_alignments_with_tensor_accessors(
+    non_broadcast_alignments: List[int],
+    alignments: List[int],
+    dtype: str,
+    input_accessors: List[TensorAccessor],
+    output_accessors: List[TensorAccessor],
+) -> List[int]:
+    """
+    This helper function returns the valid alignments based on the constrains
+    imposed on non_broadcast_alignments, input_accessors and output_accessors.
+    """
+    max_non_broadcast_alignment = None
+    if len(non_broadcast_alignments) > 1:
+        max_non_broadcast_alignment = alignment_utils.find_max_alignment_from(
+            non_broadcast_alignments, dtype
+        )
+    alignments = [
+        align
+        if align == 1 or max_non_broadcast_alignment is None
+        else max_non_broadcast_alignment
+        for align in alignments
+    ]
+    max_input_accessor_alignment = (
+        tensor_accessor_codegen.find_max_alignment_for_accessors(dtype, input_accessors)
+    )
+    # Note that we use the same alignment for accessing inputs and outputs, although
+    # they may have different alignment requirements. We may lose perf a little bit,
+    # but reduce the complexity of our jinja template. We can do some perf
+    # experiments later to determine if we want to chase more perf gains.
+    max_accessor_alignment = tensor_accessor_codegen.find_max_alignment(
+        max_input_accessor_alignment, dtype, output_accessors
+    )
+    # all alignments are capped by the max_accessor_alignment
+    alignments = [
+        align if align <= max_accessor_alignment else max_accessor_alignment
+        for align in alignments
+    ]
+    return alignments
+
+
+def _get_alignments_and_sizes_and_dtype(
     inputs: List[Tensor],
     input_accessors: List[TensorAccessor],
     output_accessors: List[TensorAccessor],
     backend_spec: BackendSpec,
-) -> Tuple[int, List[List[IntVar]], str]:
+) -> Tuple[List[int], List[List[IntVar]], str]:
     """
-    Returns Tuple(alignment, input_broadcast_sizes, dtype)
+    Returns Tuple(alignments, input_broadcast_sizes, dtype)
     """
 
     # Handle input broadcast.
     output_shape = output_accessors[0].original_shapes
     dtype = inputs[0]._attrs["dtype"]
+
+    # Determine the rightmost broadcast dim among all inputs.
+    # This value prevents us from wrongfully generating a larger alignment
+    # for cases such as X1[2, 2], X2[2, 1], where [2, 2] and [2, 1] are shapes.
+    # If we do not have a rightmost_broadcast_dim guard, we would
+    # end up generating alignment = 4 for X1. But, this would be wrong, because
+    # in the kernel, we might have a single effective thread that loads four
+    # elements from X1 and only one element from X2. Potentially, we could
+    # make this thread load two elements from X2, but it would make address
+    # indexing templates fairly complicated in general. Let's make simple
+    # cases work and extend it later if we had to, e.g. we saw large perf penalty
+    # without doing it.
+    rightmost_broadcast_dim = None
+    num_rightmost_non_broadcast_dims = []
     input_broadcast_sizes = []
-    min_num_elements = None
+    extended_input_shapes = []
     for input_accessor in input_accessors:
         input_shape = input_accessor.original_shapes
         broadcastable, _ = shape_utils.get_broadcast_max_shape(
@@ -377,8 +475,8 @@ def _get_types_and_sizes(
                     input_shape, output_shape
                 )
             )
-        num_rightmost_non_broadcast_elements = len(output_shape)
         extended_input_shape = list(input_shape)
+        num_rightmost_non_br_dims = len(output_shape)
         if input_shape == output_shape:
             input_broadcast_sizes.append(None)
         else:
@@ -387,26 +485,30 @@ def _get_types_and_sizes(
             input_broadcast_sizes.append(extended_input_shape)
             for i in reversed(range(len(extended_input_shape))):
                 if extended_input_shape[i] != output_shape[i]:
-                    num_rightmost_non_broadcast_elements -= i + 1
+                    num_rightmost_non_br_dims -= i + 1
+                    if rightmost_broadcast_dim is None:
+                        rightmost_broadcast_dim = i
+                    else:
+                        rightmost_broadcast_dim = max(i, rightmost_broadcast_dim)
                     break
-        num_elements_for_alignments = shape_utils.get_num_rightmost_static_elements(
-            extended_input_shape, num_rightmost_non_broadcast_elements
-        )
-        if not min_num_elements:
-            min_num_elements = num_elements_for_alignments
-        else:
-            min_num_elements = min(min_num_elements, num_elements_for_alignments)
-    alignment = tensor_accessor_codegen.find_max_alignment(
-        min_num_elements, dtype, output_accessors
+        extended_input_shapes.append(extended_input_shape)
+        num_rightmost_non_broadcast_dims.append(num_rightmost_non_br_dims)
+    (alignments, non_broadcast_alignments) = _get_alignments(
+        extended_input_shapes,
+        input_broadcast_sizes,
+        num_rightmost_non_broadcast_dims,
+        rightmost_broadcast_dim,
+        len(output_shape),
+        dtype,
     )
-    # Note that we use the same alignment for accessing inputs and outputs, although
-    # they may have different alignment requirements. We may lose perf a little bit,
-    # but reduce the complexity of our jinja template. We can do some perf
-    # experiments later to determine if we want to chase more perf gains.
-    alignment = tensor_accessor_codegen.find_max_alignment(
-        alignment, dtype, input_accessors
+    alignments = _refine_alignments_with_tensor_accessors(
+        non_broadcast_alignments,
+        alignments,
+        dtype,
+        input_accessors,
+        output_accessors,
     )
-    return alignment, input_broadcast_sizes, dtype
+    return alignments, input_broadcast_sizes, dtype
 
 
 def _get_dynamic_dims(output_accessors: List[TensorAccessor]) -> List[IntVar]:
@@ -428,11 +530,20 @@ def _parse_func_metadata(
     original_outputs: List[Tensor],
     backend_spec: BackendSpec,
 ) -> FusedElementwiseMetaData:
-    alignment, input_broadcast_sizes, dtype = _get_types_and_sizes(
+    alignments, input_broadcast_sizes, dtype = _get_alignments_and_sizes_and_dtype(
         inputs, input_accessors, output_accessors, backend_spec
     )
-    read_type = backend_spec.get_elementwise_read_backend_type(alignment, dtype)
-    op_type = backend_spec.get_elementwise_op_backend_type(alignment, dtype)
+    max_read_type = backend_spec.get_elementwise_read_backend_type(
+        max(alignments), dtype
+    )
+    read_types = [
+        backend_spec.get_elementwise_read_backend_type(alignment, dtype)
+        for alignment in alignments
+    ]
+    # It's safe to use the maximum alignment for determine op_type, because
+    # smaller inputs (i.e. those being broadcasted) will be placed into a
+    # larger tmp variable which is valid for selected op_type.
+    op_type = backend_spec.get_elementwise_op_backend_type(max(alignments), dtype)
     data_type = backend_spec.dtype_to_backend_type(dtype)
     sub_func_metadata, op_type = _get_sub_func_metadata(
         ops, data_type, op_type, backend_spec
@@ -446,7 +557,8 @@ def _parse_func_metadata(
         output_accessors,
         original_inputs,
         original_outputs,
-        read_type,
+        max_read_type,
+        read_types,
         op_type,
         data_type,
         input_broadcast_sizes,
@@ -497,12 +609,13 @@ def _gen_input_broadcast_calculator_str(
         output_num_elements.append(output_shape[start_idx:])
 
     res = []
-    for (output_num_element, output_stride, input_stride) in zip(
+    for output_num_element, output_stride, input_stride in zip(
         output_num_elements, output_strides, input_strides
     ):
+        idx_str = "idx * N_ELEMENTS_PER_THREAD"
         res.append(
             "{} % ({}) / ({}) * ({})".format(
-                "idx * N_ELEMENTS_PER_THREAD",
+                idx_str,
                 _gen_int_var_product_str(output_num_element),
                 _gen_int_var_product_str(output_stride),
                 _gen_int_var_product_str(input_stride),
@@ -538,31 +651,45 @@ def _gen_dynamic_dim_str(
 
 
 def _gen_read_inputs_str(
-    fused_elementwise_metadata: FusedElementwiseMetaData, broadcast_sizes: List[str]
+    fused_elementwise_metadata: FusedElementwiseMetaData,
+    broadcast_sizes: List[str],
 ):
     read_inputs = []
-    for input_idx, (input_accessor, broadcast_size) in enumerate(
-        zip(fused_elementwise_metadata.input_accessors, broadcast_sizes)
+    for input_idx, (input_accessor, read_t, broadcast_size) in enumerate(
+        zip(
+            fused_elementwise_metadata.input_accessors,
+            fused_elementwise_metadata.read_types,
+            broadcast_sizes,
+        )
     ):
         input_name = f"input_tmp{input_idx}"
+
+        # When broadcasting an input, we are reading a different number of elements
+        # from this input based on the "ratio" of its read_t to the max_read_t
+        n_elems_per_thread = (
+            f"(N_ELEMENTS_PER_THREAD / "
+            f"(sizeof({fused_elementwise_metadata.max_read_t}) / sizeof({read_t})))"
+        )
         data_idx = (
             "idx"
             if not broadcast_size
-            else f"({broadcast_size}) / N_ELEMENTS_PER_THREAD"
+            else f"({broadcast_size}) / {n_elems_per_thread}"
         )
         get_strided_addr_str = GET_STRIDED_ADDRESS_TEMPLATE.render(
             tensor_accessor=input_accessor,
             data_ptr=input_name,
             data_t=fused_elementwise_metadata.data_t,
-            read_t=fused_elementwise_metadata.read_t,
+            read_t=read_t,
             data_idx=data_idx,
         )
         read_input = KERNEL_READ_INPUT_TEMPLATE.render(
             get_strided_address=get_strided_addr_str,
             input_name=input_name,
             input_idx=input_idx,
-            read_t=fused_elementwise_metadata.read_t,
+            max_read_t=fused_elementwise_metadata.max_read_t,
+            read_t=read_t,
             op_t=fused_elementwise_metadata.op_t,
+            data_t=fused_elementwise_metadata.data_t,
         )
         read_inputs.append(read_input)
     read_inputs_str = "\n".join(read_inputs)
@@ -579,7 +706,7 @@ def _gen_write_outputs_str(fused_elementwise_metadata: FusedElementwiseMetaData)
             tensor_accessor=output_accessor,
             data_ptr=output_name,
             data_t=fused_elementwise_metadata.data_t,
-            read_t=fused_elementwise_metadata.read_t,
+            read_t=fused_elementwise_metadata.max_read_t,
             data_idx="idx",
         )
         write_out = KERNEL_WRITE_OUTPUT_TEMPLATE.render(
@@ -601,7 +728,7 @@ def _gen_kernel_function(
     output_params_decl = ",".join(
         [
             KERNEL_DECL_OUTPUT_PARAM_TEMPLATE.render(
-                read_t=fused_elementwise_metadata.read_t, idx=i
+                read_t=fused_elementwise_metadata.max_read_t, idx=i
             )
             for i, _ in enumerate(fused_elementwise_metadata.outputs)
         ]
@@ -609,7 +736,7 @@ def _gen_kernel_function(
     input_params_decl = ",".join(
         [
             KERNEL_DECL_INPUT_PARAM_TEMPLATE.render(
-                read_t=fused_elementwise_metadata.read_t, idx=i
+                read_t=fused_elementwise_metadata.read_types[i], idx=i
             )
             for i, _ in enumerate(fused_elementwise_metadata.inputs)
         ]
@@ -622,7 +749,7 @@ def _gen_kernel_function(
     read_inputs_str = _gen_read_inputs_str(fused_elementwise_metadata, broadcast_sizes)
 
     define_outputs = KERNEL_DEFINE_OUTPUTS_TEMPLATE.render(
-        read_t=fused_elementwise_metadata.read_t,
+        read_t=fused_elementwise_metadata.max_read_t,
         op_t=fused_elementwise_metadata.op_t,
         indexes=list(range(len(fused_elementwise_metadata.outputs))),
     )
@@ -685,7 +812,16 @@ def fused_elementwise_gen_function(
         backend_spec,
     )
     # Dump data types into func_attr for testing purpose.
-    func_attrs["read_t"] = fused_elementwise_metadata.read_t
+    func_attrs["max_read_t"] = fused_elementwise_metadata.max_read_t
+    # Fused inputs may not be in the same order as the inputs passed to each
+    # elementwise op, so we save a tuple. Note that this attribute is different
+    # from the read_types field of FusedElementwiseMetaData, where each "read_t"
+    # maps to the input at the same index. The "read_types" attribute is only
+    # used for testing purpose.
+    func_attrs["read_types"] = [
+        (inp._attrs["name"], read_t)
+        for (inp, read_t) in zip(inputs, fused_elementwise_metadata.read_types)
+    ]
     func_attrs["op_t"] = fused_elementwise_metadata.op_t
     func_attrs["data_t"] = fused_elementwise_metadata.data_t
 
@@ -713,7 +849,7 @@ def fused_elementwise_gen_function(
     kernel_call_output_params = ",".join(
         [
             KERNEL_CALL_OUTPUT_PARAM_TEMPLATE.render(
-                read_t=fused_elementwise_metadata.read_t, idx=i
+                read_t=fused_elementwise_metadata.max_read_t, idx=i
             )
             for i, _ in enumerate(fused_elementwise_metadata.outputs)
         ]
@@ -721,13 +857,13 @@ def fused_elementwise_gen_function(
     kernel_call_input_params = ",".join(
         [
             KERNEL_CALL_INPUT_PARAM_TEMPLATE.render(
-                read_t=fused_elementwise_metadata.read_t, idx=i
+                read_t=fused_elementwise_metadata.read_types[i], idx=i
             )
             for i, _ in enumerate(fused_elementwise_metadata.inputs)
         ]
     )
     constant = CONSTANT_TEMPLATE.render(
-        read_t=fused_elementwise_metadata.read_t,
+        read_t=fused_elementwise_metadata.max_read_t,
         op_t=fused_elementwise_metadata.op_t,
         data_t=fused_elementwise_metadata.data_t,
     )
