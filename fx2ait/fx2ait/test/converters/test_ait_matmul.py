@@ -14,6 +14,7 @@
 #
 import torch
 from fx2ait.acc_tracer import acc_ops
+from fx2ait.tensor_spec import TensorSpec
 from fx2ait.tools.common_fx2ait import AITTestCase
 
 from parameterized import parameterized
@@ -90,3 +91,43 @@ class TestMatMulConverter(AITTestCase):
             torch.randn(*rhs_shape).half().cuda(),
         ]
         self.run_test(model, inputs, expected_ops={acc_ops.matmul})
+
+    def test_reshape_bmm(self):
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+                x = torch.reshape(x, [-1, 3, 4])
+                y = torch.reshape(y, [-1, 4, 6])
+                return torch.bmm(x, y)
+
+        model = TestModule().cuda()
+        inputs_spec = TensorSpec.create_spec_from_shapes(
+            inputs_min=[[2, 3, 4], [2, 4, 6]],
+            inputs_max=[[20, 3, 4], [20, 4, 6]],
+            dtype_list=[
+                torch.float16,
+                torch.float16,
+            ],
+        )
+        self.run_test_with_dynamic_shape(
+            model, inputs_spec, expected_ops={acc_ops.matmul}
+        )
+
+    def test_reshape_4d_bmm(self):
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+                x = torch.reshape(x, [-1, 1, 3, 4])
+                y = torch.reshape(y, [-1, 1, 4, 6])
+                return torch.matmul(x, y)
+
+        model = TestModule().cuda()
+        inputs_spec = TensorSpec.create_spec_from_shapes(
+            inputs_min=[[2, 3, 4], [2, 4, 6]],
+            inputs_max=[[20, 3, 4], [20, 4, 6]],
+            dtype_list=[
+                torch.float16,
+                torch.float16,
+            ],
+        )
+        self.run_test_with_dynamic_shape(
+            model, inputs_spec, expected_ops={acc_ops.matmul}
+        )

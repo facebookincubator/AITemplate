@@ -503,13 +503,22 @@ def extract_config(
     if lib_dtype == "float":
         data_type = cutlass_lib.library.DataType.f32
         acc_type = cutlass_lib.library.DataType.f32
-    else:
+    elif "half" in lib_dtype:
         data_type = cutlass_lib.library.DataType.f16
         acc_type = cutlass_lib.library.DataType.f32
         # check target use fp16 acc
         if "use_fp16_acc" in Target.current()._kwargs:
             if Target.current()._kwargs["use_fp16_acc"]:
                 acc_type = cutlass_lib.library.DataType.f16
+    elif "bfloat16" in lib_dtype:
+        data_type = cutlass_lib.library.DataType.bf16
+        acc_type = cutlass_lib.library.DataType.f32
+        # check target use fp16 acc
+        if "use_fp16_acc" in Target.current()._kwargs:
+            if Target.current()._kwargs["use_fp16_acc"]:
+                acc_type = cutlass_lib.library.DataType.bf16
+    else:
+        raise RuntimeError(f"Unsupported dtype {lib_dtype}")
 
     def f_proc_op(op):
         ret = []

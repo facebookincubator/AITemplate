@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import copy
 import time
 import unittest
 
@@ -21,6 +22,7 @@ from typing import Callable, List, Optional, Set
 from unittest import TestCase
 
 import torch
+from aitemplate.testing import detect_target
 from fx2ait.acc_tracer import acc_tracer
 from fx2ait.acc_tracer.ait_acc_normalizer import update_acc_op_mappers_for_ait
 from fx2ait.ait_module import AITModule
@@ -69,6 +71,7 @@ class AITTestCase(TestCase):
     def setUp(self):
         super().setUp()
         torch.manual_seed(3)
+        detect_target()
 
     def run_test(
         self,
@@ -81,25 +84,30 @@ class AITTestCase(TestCase):
         precision: LowerPrecision = LowerPrecision.FP16,
         permute_inputs: Optional[List[int]] = None,
         permute_outputs: Optional[List[int]] = None,
-        transformer_mode: Optional[bool] = False,
         passes: List[Callable] = [],  # noqa: B006
+        leaf_module: Callable = None,  # one leaf module
+        apply_passes_to_lowered_module_only=False,
     ):
         # TODO: add precision to interpreter once AIT supports multiple precision level
         # TODO: @qxy11 remove permute options once AIT supports channels-first format
         mod.eval()
+
+        leaf_module_list = []
+        if leaf_module:
+            leaf_module_list.append(leaf_module)
+
+        orig_mod = copy.deepcopy(mod)
         mod = acc_tracer.trace(
             mod,
             inputs,
-            leaf_module_list=[
-                torch.nn.MultiheadAttention if transformer_mode else None
-            ],
+            leaf_module_list=leaf_module_list,
         )
         for p in passes:
             mod = p(mod, inputs)
 
         print(mod.graph)
 
-        original_inputs = inputs
+        original_inputs = copy.deepcopy(inputs)
         if permute_inputs:
             inputs = [inp.permute(*permute_inputs).contiguous() for inp in inputs]
         interp = AITInterpreter(
@@ -114,6 +122,10 @@ class AITTestCase(TestCase):
                 cuda_inputs.append(i.cuda())
 
             mod.eval()
+            if apply_passes_to_lowered_module_only:
+                ref_outputs = orig_mod(*original_inputs)
+            else:
+                ref_outputs = mod(*original_inputs)
             if len(expected_ops):
                 self.assert_has_op(mod, expected_ops)
             if unexpected_ops:
@@ -131,7 +143,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
             else:
                 ait_mod = AITModule(
@@ -142,10 +155,9 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
-
-            ref_outputs = mod(*original_inputs)
 
             torch.cuda.synchronize()
             start_event = torch.cuda.Event(enable_timing=True)
@@ -155,10 +167,9 @@ class AITTestCase(TestCase):
             end_event.record()
             torch.cuda.synchronize()
             print("AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3))
-
             # PyTorch Transformer model would yield 2 output tensors, of which the second one is
             # not useful. AIT model only output 1 output tensor, alter ref_output to match this.
-            if transformer_mode:
+            if leaf_module == torch.nn.MultiheadAttention:
                 ref_outputs = ref_outputs[0]
             if isinstance(outputs, torch.Tensor):
                 ref_outputs = [ref_outputs]
@@ -233,7 +244,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
             else:
                 ait_mod = AITModule(
@@ -244,7 +256,8 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
-                    )
+                    ),
+                    interp_result,
                 )
 
             ref_outputs = mod(*original_inputs)
@@ -358,7 +371,8 @@ def benchmark_function(
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
-            )
+            ),
+            interp_result,
         )
         # Benchmark Pytorch Eager
         # warmup

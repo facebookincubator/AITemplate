@@ -129,8 +129,8 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             "input2": encoder_hidden_states.cuda().half(),
         }
         ys = []
-        num_ouputs = len(exe_module.get_output_name_to_index_map())
-        for i in range(num_ouputs):
+        num_outputs = len(exe_module.get_output_name_to_index_map())
+        for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
@@ -146,8 +146,8 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             "input1": position_ids,
         }
         ys = []
-        num_ouputs = len(exe_module.get_output_name_to_index_map())
-        for i in range(num_ouputs):
+        num_outputs = len(exe_module.get_output_name_to_index_map())
+        for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
@@ -157,8 +157,8 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         exe_module = self.vae_ait_exe
         inputs = [torch.permute(vae_input, (0, 2, 3, 1)).contiguous().cuda().half()]
         ys = []
-        num_ouputs = len(exe_module.get_output_name_to_index_map())
-        for i in range(num_ouputs):
+        num_outputs = len(exe_module.get_output_name_to_index_map())
+        for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
@@ -293,6 +293,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
                 uncond_tokens,
                 padding="max_length",
                 max_length=max_length,
+                truncation=True,
                 return_tensors="pt",
             )
             uncond_embeddings = self.clip_inference(
@@ -346,6 +347,12 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         extra_step_kwargs = {}
         if accepts_eta:
             extra_step_kwargs["eta"] = eta
+            # check if the scheduler accepts generator
+        accepts_generator = "generator" in set(
+            inspect.signature(self.scheduler.step).parameters.keys()
+        )
+        if accepts_generator:
+            extra_step_kwargs["generator"] = generator
 
         for i, t in enumerate(self.progress_bar(self.scheduler.timesteps)):
             # expand the latents if we are doing classifier free guidance

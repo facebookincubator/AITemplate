@@ -48,10 +48,33 @@ class TestSliceTensor(AITTestCase):
                 (slice(None, None, None), slice(0, 3, 1), slice(1, -1, 1)),
             ),
             ("none", (slice(None, None, None), None, slice(1, -1, 1), 1)),
+            (
+                "unsqueeze_inner_dim_twice",
+                (
+                    slice(None, None, None),
+                    slice(None, None, None),
+                    slice(None, None, None),
+                    slice(None, None, None),
+                    None,
+                    None,
+                ),
+            ),
             ("with_squeeze", (slice(None, None, None), 1, slice(1, -1, 1), None)),
             (
                 "slice_zero_slice",
                 (slice(None, None, None), slice(None, None, None), slice(0, 0, None)),
+            ),
+            (
+                "slice_start_seq_slice",
+                (slice(0, 1, None), [0, 1, 2], slice(0, 10, None)),
+            ),
+            (
+                "slice_end_seq_slice",
+                (slice(0, 1, None), [0, 6, 7, 8, 9], slice(0, 10, None)),
+            ),
+            (
+                "slice_long_seq_slice",
+                (slice(0, 1, None), [0, 5, 6, 7, 2, 3, 4, 5], slice(0, 10, None)),
             ),
             (
                 "slice_list_slice",

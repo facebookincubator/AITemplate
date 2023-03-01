@@ -28,6 +28,7 @@ import torch
 from aitemplate.compiler import AIT_DEFAULT_NUM_RUNTIMES, compile_model, ops
 from aitemplate.compiler.base import (
     _ConstantTensorData,
+    _create_host_zero_tensor,
     _HostConstantTensorData,
     _NumpyConstantTensorData,
     _TorchConstantTensorData,
@@ -44,6 +45,7 @@ from aitemplate.compiler.model import (
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 class ModelAPITestCase(unittest.TestCase):
@@ -526,10 +528,10 @@ class ModelAPITestCase(unittest.TestCase):
                 profile_name,
             )
             with open(profile_name) as f:
-                report = json.loads(f.read())
+                report = json.load(f)
                 self.assertTrue(len(report), 1)
                 for _, elapsed in report.items():
-                    self.assertGreater(elapsed, 0)
+                    self.assertGreater(elapsed["ms_per_iter"], 0)
 
     def test_get_output_dtype(self):
         module, inputs, output_np = self._get_simple_graph_and_output(
@@ -1438,44 +1440,103 @@ class ModelAPITestCase(unittest.TestCase):
         target = detect_target()
 
         input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
+        constant_0 = Tensor(shape=[1, 2], dtype="float16", name="constant_0")
         constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
         constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
-        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_1)
-        output = ops.elementwise(FuncEnum.MUL)(x, constant_2)
-        output._attrs["name"] = "output"
-        output._attrs["is_output"] = True
+        constant_3 = Tensor(shape=[1, 2], dtype="float16", name="constant_3")
+        constant_4 = Tensor(shape=[1, 2], dtype="float16", name="constant_4")
+        constants = {}
 
-        module = compile_model(output, target, "./tmp", "test_get_constant_names")
-        names = module.get_constant_names()
-        self.assertEqual(len(names), 2)
-        self.assertIn("constant_1", names)
-        self.assertIn("constant_2", names)
+        # constant 0 and constant 1 are not folded.
+        # constant 0 is unbounded, constant 1 is bounded.
+        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_0)
+        x1 = ops.concatenate()([x, x, constant_1])
+        constants["constant_1"] = get_random_torch_tensor((1, 2), "float16")
 
-    def test_get_constant_folding_input_names(self):
-        target = detect_target()
+        # constants 2 and 3 and 4 are folded.
+        # constants 2 and 4 are unbounded, constants 3 is bounded.
+        y = ops.concatenate()([constant_2, constant_3, constant_4])
+        constants["constant_3"] = get_random_torch_tensor((1, 2), "float16")
 
-        input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
-        constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
-        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
-        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_3")
-        # constant 1 is not folded.
-        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_1)
-        # constants 2 and 3 are
-        y = ops.elementwise(FuncEnum.MUL)(constant_2, constant_2)
-
-        output = ops.elementwise(FuncEnum.MUL)(x, y)
+        output = ops.elementwise(FuncEnum.MUL)(x1, y)
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
         module = compile_model(
-            output, target, "./tmp", "test_get_constant_folding_input_names"
+            output, target, "./tmp", "test_get_constant_names", constants=constants
         )
-        names = module.get_constant_folding_input_names()
-        self.assertEqual(names, [])
-        # TODO: uncomment when the new constant folding pass is enabled.
-        # self.assertEqual(len(names), 2)
-        # self.assertIn("constant_2", names)
-        # self.assertIn("constant_3", names)
+
+        names_0 = module.get_constant_names(
+            unbound_constants_only=True, constant_folding_only=False
+        )
+        self.assertEqual(set(names_0), {"constant_0", "constant_2", "constant_4"})
+
+        names_1 = module.get_constant_names(
+            unbound_constants_only=False, constant_folding_only=False
+        )
+        self.assertEqual(
+            set(names_1),
+            {"constant_0", "constant_1", "constant_2", "constant_3", "constant_4"},
+        )
+
+        names_2 = module.get_constant_names(
+            unbound_constants_only=True, constant_folding_only=True
+        )
+        self.assertEqual(set(names_2), {"constant_2", "constant_4"})
+
+        names_3 = module.get_constant_names(
+            unbound_constants_only=False, constant_folding_only=True
+        )
+        self.assertEqual(set(names_3), {"constant_2", "constant_3", "constant_4"})
+
+        names_4 = module.get_constant_folding_input_names(unbound_constants_only=True)
+        self.assertEqual(set(names_4), {"constant_2", "constant_4"})
+
+        names_5 = module.get_constant_folding_input_names(unbound_constants_only=False)
+        self.assertEqual(set(names_5), {"constant_2", "constant_3", "constant_4"})
+
+    def test_get_constant_names_with_ait_generated(self):
+        target = detect_target()
+
+        input_0 = Tensor(shape=[1, 2], dtype="float16", name="input_0", is_input=True)
+        constant_0 = Tensor(shape=[1, 2], dtype="float16", name="constant_0")
+        constant_1 = Tensor(shape=[1, 2], dtype="float16", name="constant_1")
+        constant_2 = Tensor(shape=[1, 2], dtype="float16", name="constant_2")
+        constant_3 = _create_host_zero_tensor(
+            shape=[1, 2], name="constant_3", dtype="float16"
+        )
+        constant_4 = Tensor(shape=[1, 2], dtype="float16", name="constant_4")
+        constants = {}
+
+        # constant 0 and constant 1 are not folded.
+        # constant 0 is unbounded, constant 1 is bounded.
+        x = ops.elementwise(FuncEnum.MUL)(input_0, constant_0)
+        x1 = ops.concatenate()([x, x, constant_1])
+        constants["constant_1"] = get_random_torch_tensor((1, 2), "float16")
+
+        # constants 2 and 3 and 4 are folded.
+        # constants 2 and 4 are unbounded, constants 3 is bounded.
+        y = ops.concatenate()([constant_2, constant_3, constant_4])
+
+        output = ops.elementwise(FuncEnum.MUL)(x1, y)
+        output._attrs["name"] = "output"
+        output._attrs["is_output"] = True
+
+        module = compile_model(
+            output,
+            target,
+            "./tmp",
+            "test_get_constant_names_with_ait_generated",
+            constants=constants,
+        )
+
+        names = module.get_constant_names(
+            unbound_constants_only=False, constant_folding_only=False
+        )
+        self.assertEqual(
+            set(names),
+            {"constant_0", "constant_1", "constant_2", "constant_4"},
+        )
 
     def test_set_many_constants(self):
         target = detect_target()

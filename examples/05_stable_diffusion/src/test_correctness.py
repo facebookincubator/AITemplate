@@ -31,6 +31,10 @@ from .compile_lib.compile_vae import compile_vae
 
 
 class StableDiffusionVerification(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super(StableDiffusionVerification, self).__init__(*args, **kwargs)
 
@@ -43,10 +47,10 @@ class StableDiffusionVerification(unittest.TestCase):
             ).to("cuda")
         except OSError:
             if ManifoldClient is not None:
-                with ManifoldClient.get_client(bucket="aitemplate") as client:
+                with ManifoldClient.get_client(bucket="glow_test_data") as client:
                     await_sync(
                         client.getRecursive(
-                            manifold_path="tree/stable_diffusion/v2",
+                            manifold_path="tree/aitemplate/stable_diffusion/v2",
                             local_path=self.local_path,
                         )
                     )

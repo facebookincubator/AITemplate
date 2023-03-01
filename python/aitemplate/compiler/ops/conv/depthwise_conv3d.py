@@ -264,7 +264,7 @@ class depthwise_conv3d(Operator):
             includes the output tensor in shape (N, T_out, H_out, W_out, C_out)
         """
         self._attrs["inputs"] = [x, w]
-        if self._attrs["bias"]:
+        if bias:
             self._attrs["inputs"].append(bias)
         self._set_depth()
         output_shape = self._infer_shapes(x, w)

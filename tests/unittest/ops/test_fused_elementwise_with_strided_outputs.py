@@ -122,6 +122,10 @@ class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
                     # Do comparisons.
                     self.assertTrue(torch.allclose(x7, x7_pt, atol=1e-2, rtol=1e-2))
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_all_aligned_fp16(self):
         self._test_fused_elementwise_with_strided_outputs(
             batch0_sizes=[1],
@@ -217,6 +221,10 @@ class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
             dtype="float32",
         )
 
+    @unittest.skipIf(
+        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+        "Not supported by cuda sm<80",
+    )
     def test_not_aligned_fp16(self):
         self._test_fused_elementwise_with_strided_outputs(
             batch0_sizes=[8],

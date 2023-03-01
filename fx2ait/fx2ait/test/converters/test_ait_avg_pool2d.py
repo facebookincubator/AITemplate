@@ -42,6 +42,4 @@ class TestAvgPool2dConverter(AITTestCase):
             model,
             inputs,
             expected_ops={acc_ops.avg_pool2d},
-            permute_inputs=[0, 2, 3, 1],
-            permute_outputs=[0, 3, 1, 2],
         )

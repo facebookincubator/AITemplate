@@ -30,7 +30,7 @@ import jinja2
 from .... import backend
 from ....backend import registry
 from ....backend.target import Target
-from ....utils import alignment, shape_utils
+from ....utils import alignment, environ, shape_utils
 from ...base import DynamicProfileStrategy, IntImm, IntVar, Operator, Tensor
 from .cache_entry import Conv3dQueryEntry, Conv3dRecordEntry
 from .conv_common import (
@@ -303,10 +303,19 @@ class conv3d(Operator):
         entry for this gemm instance, we update this gemm op's
         relevant attributes with the cached result and return False.
         """
+        force_cache = environ.force_profiler_cache()
         if self._has_dynamic_input_dims():
+            if force_cache:
+                raise RuntimeError(
+                    "We cannot force to use the cache as dynamic dims require "
+                    "us to generate and build the profilers"
+                )
             # If there are dynamic dims, we'll have to generate and build the
             # profilers, as the binaries will be needed for dynamic profiling.
             return True
+        # We are forced to use the cache so we skip building profilers.
+        if force_cache:
+            return False
 
         target = backend.target.Target.current()
         workloads = list(self._attrs["exec_path"].keys())
@@ -428,7 +437,7 @@ class conv3d(Operator):
         command = [str(x) for x in cmd]
         return command
 
-    def _profile_single_workload(self, profiler_prefix, exec_key, devices):
+    def _profile_single_workload(self, profiler_prefix, exec_key, devices, force_cache):
         target = backend.target.Target.current()
         # query cache
         tmp_key = next(iter(self._attrs["op_instance"].keys()))
@@ -466,6 +475,12 @@ class conv3d(Operator):
         if cache_value is not None and not target.force_profile():
             _LOGGER.info("Load profiling result from cache.")
             return cache_value
+        if cache_value is None and force_cache:
+            op_type = self._attrs["op"]
+            raise RuntimeError(
+                "force_cache is enabled but we could not find the following cache ",
+                f"available on device {target._arch=}, {op_type=}, {exec_entry_sha1=}",
+            )
         if target.use_dummy_profiling_results():
             op_type = self._attrs["op"]
             raise Exception(
@@ -555,8 +570,8 @@ class conv3d(Operator):
 
         workloads = list(self._attrs["exec_path"].keys())
         profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
-        if "op_instance" not in self._attrs:
-            target = backend.target.Target.current()
+        target = backend.target.Target.current()
+        if "op_instance" not in self._attrs or len(self._attrs["op_instance"]) == 0:
             # init candidate ops
             func_key = "{target}.{op}.config".format(
                 target=target.name(), op=self._attrs["op"]
@@ -564,14 +579,14 @@ class conv3d(Operator):
             func = registry.get(func_key)
             func(self._attrs, dtype=self._attrs["inputs"][0]._attrs["dtype"])
 
+        force_cache = environ.force_profiler_cache()
         for wkl in workloads:
             _LOGGER.info(
                 "Profile: {name}: {wkl}".format(name=self._attrs["name"], wkl=wkl),
             )
-            target = backend.target.Target.current()
             # if in CI just choose minimal configs
             # workspace is a hack just provides 102400 Byte
-            if target.use_dummy_profiling_results():
+            if target.use_dummy_profiling_results() and not force_cache:
                 algo = target.select_minimal_algo(
                     list(self._attrs["op_instance"].keys())
                 )
@@ -580,7 +595,7 @@ class conv3d(Operator):
                 self._attrs["workspace"] = 102400
             elif self._attrs["exec_path"][wkl] == "":
                 best_algo, workspace = self._profile_single_workload(
-                    profiler_prefix, wkl, devices
+                    profiler_prefix, wkl, devices, force_cache
                 )
                 self._attrs["exec_path"][wkl] = best_algo
                 self._attrs["workspace"] = max(self._attrs["workspace"], workspace)

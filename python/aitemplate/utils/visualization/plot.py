@@ -189,7 +189,9 @@ def plot_graph(tensors, file_path: str) -> None:
                 modal_set.append(_gen_op_modal(dst_op))
             dot_graph.add_edge(pydot.Edge(tensor_node, op_node))
 
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    file_dir = os.path.dirname(file_path)
+    if file_dir:
+        os.makedirs(file_dir, exist_ok=True)
 
     if ext == "html":
         basename = os.path.splitext(os.path.basename(file_path))[0]

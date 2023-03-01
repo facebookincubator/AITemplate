@@ -26,10 +26,10 @@ TWO_TENSOR_INPUTS = [
     (torch.randn(3, 4), torch.randn(2, 3, 4)),
     (torch.randn(2, 3, 4), torch.randn(3, 4)),
     (torch.randn(1, 1, 1), torch.randn(2, 3, 4)),
-    (torch.randn(1), torch.randn(2, 3, 4)),
     (torch.randn(2, 3, 4), torch.randn(1)),
     (torch.randn(2, 3, 4), torch.randn(1, 1, 1)),
     (torch.randn(1, 3, 4), torch.randn(5, 1, 4)),
+    (torch.randn(1), torch.randn(2, 3, 4)),
 ]
 
 
@@ -61,6 +61,16 @@ class TestBinaryOpConverter(AITTestCase):
                 acc_ops.div,
                 [(lhs, rhs.clamp(min=0.01)) for lhs, rhs in TWO_TENSOR_INPUTS],
             ],
+            # TODO enable full list of test when OSS python version upgrade to include pyhton floordiv fix
+            # [
+            #     "floor_div",
+            #     operator.floordiv,
+            #     acc_ops.floor_div,
+            #     [
+            #         (TWO_TENSOR_INPUTS[i][0], TWO_TENSOR_INPUTS[i][1].clamp(min=0.01))
+            #         for i in range(0, 2)
+            #     ],
+            # ],
         ]
     )
     def test_two_tensors(

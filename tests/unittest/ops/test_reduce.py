@@ -15,7 +15,6 @@
 import logging
 import unittest
 
-import numpy as np
 import torch
 
 from aitemplate.compiler import compile_model, ops
@@ -82,11 +81,10 @@ class ReduceTestCase(unittest.TestCase):
 
         y = torch.empty_like(Y_pt)
         module.run_with_tensors([X_pt], [y])
-        y_pt = Y_pt.cpu().numpy()
 
-        np.testing.assert_equal(y_shape, y_pt.shape)
-        np.testing.assert_equal(string_to_torch_dtype(y_dtype), Y_pt.dtype)
-        np.testing.assert_allclose(y_pt, y.cpu().numpy(), atol=atol, rtol=rtol)
+        torch.testing.assert_close(y_shape, Y_pt.shape)
+        self.assertEqual(string_to_torch_dtype(y_dtype), Y_pt.dtype)
+        torch.testing.assert_close(Y_pt, y, atol=atol, rtol=rtol)
         self.test_count += 1
 
     def _run_reduce_sum(
@@ -432,9 +430,8 @@ class ReduceTestCase(unittest.TestCase):
 
             y = torch.empty_like(Y_pt)
             module.run_with_tensors([X_pt], [y])
-            y_pt = Y_pt.cpu().numpy()
 
-            np.testing.assert_allclose(y_pt, y.cpu().numpy(), atol=1e-2, rtol=1e-2)
+            torch.testing.assert_close(Y_pt, y, atol=1e-2, rtol=1e-2)
             self.test_count += 1
 
     def _run_batched_reduce_sum(
@@ -527,6 +524,39 @@ class ReduceTestCase(unittest.TestCase):
             output_type="float32",
             rtol=1.3e-6,
             atol=1e-5,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
+    def test_reduce_sum_bfloat16(self):
+        # reduce_smallaxis
+        self._run_reduce_sum(
+            dim=1,
+            input_shape=[1, 4],
+            keepdim=True,
+            input_type="bfloat16",
+            output_type=None,
+            rtol=1e-1,
+            atol=1e-1,
+        )
+        # reduce_3d
+        self._run_reduce_sum(
+            dim=-2,
+            input_shape=[3, 2048, 4],
+            keepdim=False,
+            input_type="bfloat16",
+            output_type=None,
+            rtol=1e-1,
+            atol=1e-1,
+        )
+        # reduce (common) 2d
+        self._run_reduce_sum(
+            dim=-1,
+            input_shape=[1270, 1223],
+            keepdim=False,
+            input_type="bfloat16",
+            output_type=None,
+            rtol=1e-0,
+            atol=1e-0,
         )
 
 

@@ -425,24 +425,35 @@ __global__ void ConcatKernelGeneralized(
   // Allocate a temporary buffer and perform all these read ops
   ChunkInputT inputValues[N_READ_OPS];
 
+  // don't merge these two branches, it is slower
   if (actualTEValue != originalTEValue) {
+    TensorAccessor inputTA{0, false, 0, originalTEValue, actualTEValue};
+
 #pragma unroll N_READ_OPS
     for (int32_t i = 0; i < N_READ_OPS; i++) {
-      // do remapping according to a TensorAccessor logic
-      // the remapping is expensive.
-      const IndexT iInputRow = (readPositionContiguous + i * (IndexT)ChunkInputT::NElements) / originalTEValue;
-      const IndexT iInputPos = (readPositionContiguous + i * (IndexT)ChunkInputT::NElements) % originalTEValue;
-      const IndexT readPosition = iInputRow * actualTEValue + iInputPos;
-
       // each read op reads ChunkInputT::NElements elements from an input tensor
-      inputValues[i].load(inputData + readPosition);
+      const input_data_type* const __restrict srcp =
+        inputTA.template get<const input_data_type, const input_data_type>(
+          inputData,
+          readPositionContiguous + i * ChunkInputT::NElements
+        );
+
+      inputValues[i].load(srcp);
     }
   }
   else {
+    TensorAccessor inputTA{0, true, 0, 0, 0};
+
 #pragma unroll N_READ_OPS
     for (int32_t i = 0; i < N_READ_OPS; i++) {
       // each read op reads ChunkInputT::NElements elements from an input tensor
-      inputValues[i].load(inputData + readPositionContiguous + i * (IndexT)ChunkInputT::NElements);
+      const input_data_type* const __restrict srcp =
+        inputTA.template get<const input_data_type, const input_data_type>(
+          inputData,
+          readPositionContiguous + i * ChunkInputT::NElements
+        );
+
+      inputValues[i].load(srcp);
     }
   }
 

@@ -46,11 +46,10 @@ class Embedding(Module):
         return self.weight.tensor()
 
 
-USE_CUDA = detect_target().name() == "cuda"
-
-
 class BertEmbeddings(Module):
     """Construct the embeddings from word, position and token_type embeddings."""
+
+    USE_CUDA = None
 
     def __init__(
         self,
@@ -63,6 +62,8 @@ class BertEmbeddings(Module):
         dtype="float16",
     ):
         super().__init__()
+        if BertEmbeddings.USE_CUDA is None:
+            BertEmbeddings.USE_CUDA = detect_target().name() == "cuda"
         assert (
             hidden_dropout_prob == 0.0
         ), "Dropout rate larger than 0 is not supported yet."
@@ -85,7 +86,7 @@ class BertEmbeddings(Module):
         token_type_ids,  # [B, S]
         position_ids,  # [B, S]
     ):
-        if USE_CUDA:
+        if self.USE_CUDA:
             embeddings = ops.bert_embeddings()(
                 input_ids,
                 token_type_ids,

@@ -260,7 +260,7 @@ int main(int argc, char** argv) {
 FUNC_SIGNATURE = jinja2.Template(
     """
 void {{func_name}}(int64_t* output,
-                   const {{dtype}}* input,
+                   const void* input,
                    const {{index_type}} elem_cnt,
                    const {{index_type}} instance_size,
                    const {{index_type}} instance_num,

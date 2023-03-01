@@ -40,6 +40,10 @@ struct half4 {
   half x, y, z, w;
 };
 
+struct bfloat16_4 {
+  bfloat16 x, y, z, w;
+};
+
 template <typename T, int NUM>
 __inline__ __device__ T warpReduceSum(T* val) {
 #pragma unroll
@@ -411,6 +415,136 @@ __global__ void layernorm_sigmoid_mul_stored_locally(
 // input [m, n] row-major
 // gamma [n]
 // beta [n]
+// grid [m]
+// block [block_size] -- each threadblock deals with block_size elements;
+// block_size = n / 4
+// block_size: round up to multiples of 32
+template <bool FuseSigmoidMul>
+__global__ void layernorm_sigmoid_mul_stored_locally(
+    bfloat16_4* output,
+    const bfloat16_4* input,
+    const bfloat16_4* gamma,
+    const bfloat16_4* beta,
+    const int n,
+    const float eps,
+    TensorAccessor input_accessor,
+    TensorAccessor output_accessor) {
+  const uint64_t m_idx = blockIdx.x;
+  const uint64_t tid = threadIdx.x;
+  __shared__ float s_mean, s_variance;
+
+  const uint64_t quarter_n = n >> 2;
+  const uint64_t offset = m_idx * quarter_n;
+
+  float local_sums[1] = {0.0f};
+  bfloat16_4 local_val_half{0.0f, 0.0f, 0.0f, 0.0f};
+  float4 local_val{0.0f, 0.0f, 0.0f, 0.0f};
+
+  if (tid < quarter_n) {
+    local_val_half = *input_accessor.get<const bfloat16, const bfloat16_4>(
+        input, offset + tid);
+
+    local_val = {
+        static_cast<float>(local_val_half.x),
+        static_cast<float>(local_val_half.y),
+        static_cast<float>(local_val_half.z),
+        static_cast<float>(local_val_half.w)};
+    local_sums[0] = local_val.x + local_val.y + local_val.z + local_val.w;
+  }
+
+  if (blockDim.x <= 32) {
+    warpReduceSum<float, 1>(local_sums);
+  } else {
+    blockReduceSum<float, 1>(local_sums);
+  }
+  if (threadIdx.x == 0) {
+    s_mean = local_sums[0] / n;
+  }
+  __syncthreads();
+
+  local_sums[0] = 0.0f;
+  if (tid < quarter_n) {
+    local_sums[0] = (local_val.x - s_mean) * (local_val.x - s_mean) +
+        (local_val.y - s_mean) * (local_val.y - s_mean) +
+        (local_val.z - s_mean) * (local_val.z - s_mean) +
+        (local_val.w - s_mean) * (local_val.w - s_mean);
+  }
+
+  if (blockDim.x <= 32) {
+    warpReduceSum<float, 1>(local_sums);
+  } else {
+    blockReduceSum<float, 1>(local_sums);
+  }
+  if (threadIdx.x == 0) {
+    s_variance = rsqrtf(local_sums[0] / n + eps);
+  }
+  __syncthreads();
+
+  if (tid < quarter_n) {
+#ifdef AIT_LAYERNORM_CONST_GAMMA
+    const float4 gamma_val = {
+        AIT_LAYERNORM_CONST_GAMMA,
+        AIT_LAYERNORM_CONST_GAMMA,
+        AIT_LAYERNORM_CONST_GAMMA,
+        AIT_LAYERNORM_CONST_GAMMA};
+#else
+    const bfloat16_4 gamma_val_half = gamma[tid];
+    const float4 gamma_val = {
+        static_cast<float>(gamma_val_half.x),
+        static_cast<float>(gamma_val_half.y),
+        static_cast<float>(gamma_val_half.z),
+        static_cast<float>(gamma_val_half.w)};
+#endif // AIT_LAYERNORM_CONST_GAMMA
+
+#ifdef AIT_LAYERNORM_CONST_BETA
+    const float4 beta_val = {
+        AIT_LAYERNORM_CONST_BETA,
+        AIT_LAYERNORM_CONST_BETA,
+        AIT_LAYERNORM_CONST_BETA,
+        AIT_LAYERNORM_CONST_BETA};
+#else
+    const bfloat16_4 beta_val_half = beta[tid];
+    const float4 beta_val = {
+        static_cast<float>(beta_val_half.x),
+        static_cast<float>(beta_val_half.y),
+        static_cast<float>(beta_val_half.z),
+        static_cast<float>(beta_val_half.w)};
+#endif // AIT_LAYERNORM_CONST_BETA
+
+    if (FuseSigmoidMul) {
+      local_val.x *= sigmoid(
+          normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x));
+      local_val.y *= sigmoid(
+          normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y));
+      local_val.z *= sigmoid(
+          normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z));
+      local_val.w *= sigmoid(
+          normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w));
+    } else {
+      local_val.x =
+          normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x);
+      local_val.y =
+          normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y);
+      local_val.z =
+          normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z);
+      local_val.w =
+          normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w);
+    }
+
+    local_val_half.x = __float2bfloat16_rn(local_val.x);
+    local_val_half.y = __float2bfloat16_rn(local_val.y);
+    local_val_half.z = __float2bfloat16_rn(local_val.z);
+    local_val_half.w = __float2bfloat16_rn(local_val.w);
+
+    *(output_accessor.get<bfloat16, bfloat16_4>(output, offset + tid)) =
+        local_val_half;
+  }
+}
+
+// output [m, n] row-major
+// input [m, n] row-major
+// gamma [n]
+// beta [n]
 // grid(m)
 // block(block_size) -- each thread deals with n / block_size elements
 // block_size = 512
@@ -593,7 +727,7 @@ cudaError_t invokeLayernormSigmoidMul(
       input_accessor.is_valid_alignment(4) &&
       output_accessor.is_valid_alignment(4)) {
     block.x = (block.x / 4 + 31) / 32 * 32;
-    if constexpr (std::is_same<T, float>::value) {
+    if constexpr (std::is_same_v<T, float>) {
       layernorm_sigmoid_mul_stored_locally<FuseSigmoidMul>
           <<<grid, block, 0, stream>>>(
               (float4*)output,
@@ -605,7 +739,7 @@ cudaError_t invokeLayernormSigmoidMul(
               input_accessor,
               output_accessor);
       LAYER_NORM_CUDA_CHECK_LAUNCH();
-    } else {
+    } else if constexpr (std::is_same_v<T, half>) {
       layernorm_sigmoid_mul_stored_locally<FuseSigmoidMul>
           <<<grid, block, 0, stream>>>(
               (half4*)output,
@@ -617,6 +751,22 @@ cudaError_t invokeLayernormSigmoidMul(
               input_accessor,
               output_accessor);
       LAYER_NORM_CUDA_CHECK_LAUNCH();
+    } else if constexpr (std::is_same_v<T, bfloat16>) {
+      layernorm_sigmoid_mul_stored_locally<FuseSigmoidMul>
+          <<<grid, block, 0, stream>>>(
+              (bfloat16_4*)output,
+              (const bfloat16_4*)input,
+              (const bfloat16_4*)gamma,
+              (const bfloat16_4*)beta,
+              n,
+              eps,
+              input_accessor,
+              output_accessor);
+      LAYER_NORM_CUDA_CHECK_LAUNCH();
+    } else {
+      static_assert(
+          std::is_same_v<T, half> || std::is_same_v<T, float> ||
+          std::is_same_v<T, bfloat16>);
     }
   } else if (n < 1024) {
     block.x = (block.x + 31) / 32 * 32;
@@ -873,6 +1023,140 @@ __global__ void batch_layernorm_sigmoid_mul_stored_locally(
     local_val_half.y = __float2half_rn(local_val.y);
     local_val_half.z = __float2half_rn(local_val.z);
     local_val_half.w = __float2half_rn(local_val.w);
+
+    output[tid] = local_val_half;
+  }
+}
+
+// output [b, m, n] row-major
+// input [b, m, n] row-major
+// gamma [b, n]
+// beta [b, n]
+// grid(b, m)
+// block(block_size) -- each threadblock deals with block_size elements
+// block_size = n / 4
+// block_size: round up to multiples of 32
+template <bool FuseSigmoidMul>
+__global__ void batch_layernorm_sigmoid_mul_stored_locally(
+    bfloat16_4* output,
+    const bfloat16_4* input,
+    const bfloat16_4* gamma,
+    const bfloat16_4* beta,
+    const int m,
+    const int n,
+    const float eps) {
+  const int b_idx = blockIdx.x;
+  const int m_idx = blockIdx.y;
+  const int tid = threadIdx.x;
+  __shared__ float s_mean, s_variance;
+
+  const int quarter_n = n >> 2;
+  const int offset = (m_idx + b_idx * m) * quarter_n;
+  const int gamma_beta_offset = b_idx * quarter_n;
+
+  input += offset;
+  output += offset;
+
+  gamma += gamma_beta_offset;
+  beta += gamma_beta_offset;
+
+  float local_sums[1] = {0.0f};
+  bfloat16_4 local_val_half{0.0f, 0.0f, 0.0f, 0.0f};
+  float4 local_val{0.0f, 0.0f, 0.0f, 0.0f};
+
+  if (tid < quarter_n) {
+    local_val_half = input[tid];
+    local_val = {
+        static_cast<float>(local_val_half.x),
+        static_cast<float>(local_val_half.y),
+        static_cast<float>(local_val_half.z),
+        static_cast<float>(local_val_half.w)};
+    local_sums[0] = local_val.x + local_val.y + local_val.z + local_val.w;
+  }
+
+  if (blockDim.x <= 32) {
+    warpReduceSum<float, 1>(local_sums);
+  } else {
+    blockReduceSum<float, 1>(local_sums);
+  }
+  if (threadIdx.x == 0) {
+    s_mean = local_sums[0] / n;
+  }
+  __syncthreads();
+
+  local_sums[0] = 0.0f;
+  if (tid < quarter_n) {
+    local_sums[0] = (local_val.x - s_mean) * (local_val.x - s_mean) +
+        (local_val.y - s_mean) * (local_val.y - s_mean) +
+        (local_val.z - s_mean) * (local_val.z - s_mean) +
+        (local_val.w - s_mean) * (local_val.w - s_mean);
+  }
+
+  if (blockDim.x <= 32) {
+    warpReduceSum<float, 1>(local_sums);
+  } else {
+    blockReduceSum<float, 1>(local_sums);
+  }
+  if (threadIdx.x == 0) {
+    s_variance = rsqrtf(local_sums[0] / n + eps);
+  }
+  __syncthreads();
+
+  if (tid < quarter_n) {
+#ifdef AIT_LAYERNORM_CONST_GAMMA
+    const float4 gamma_val = {
+        AIT_LAYERNORM_CONST_GAMMA,
+        AIT_LAYERNORM_CONST_GAMMA,
+        AIT_LAYERNORM_CONST_GAMMA,
+        AIT_LAYERNORM_CONST_GAMMA};
+#else
+    const bfloat16_4 gamma_val_half = gamma[tid];
+    const float4 gamma_val = {
+        static_cast<float>(gamma_val_half.x),
+        static_cast<float>(gamma_val_half.y),
+        static_cast<float>(gamma_val_half.z),
+        static_cast<float>(gamma_val_half.w)};
+#endif // AIT_LAYERNORM_CONST_GAMMA
+
+#ifdef AIT_LAYERNORM_CONST_BETA
+    const float4 beta_val = {
+        AIT_LAYERNORM_CONST_BETA,
+        AIT_LAYERNORM_CONST_BETA,
+        AIT_LAYERNORM_CONST_BETA,
+        AIT_LAYERNORM_CONST_BETA};
+#else
+    const bfloat16_4 beta_val_half = beta[tid];
+    const float4 beta_val = {
+        static_cast<float>(beta_val_half.x),
+        static_cast<float>(beta_val_half.y),
+        static_cast<float>(beta_val_half.z),
+        static_cast<float>(beta_val_half.w)};
+#endif // AIT_LAYERNORM_CONST_BETA
+
+    if (FuseSigmoidMul) {
+      local_val.x *= sigmoid(
+          normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x));
+      local_val.y *= sigmoid(
+          normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y));
+      local_val.z *= sigmoid(
+          normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z));
+      local_val.w *= sigmoid(
+          normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w));
+    } else {
+      local_val.x =
+          normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x);
+      local_val.y =
+          normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y);
+      local_val.z =
+          normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z);
+      local_val.w =
+          normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w);
+    }
+
+    local_val_half.x = __float2bfloat16_rn(local_val.x);
+    local_val_half.y = __float2bfloat16_rn(local_val.y);
+    local_val_half.z = __float2bfloat16_rn(local_val.z);
+    local_val_half.w = __float2bfloat16_rn(local_val.w);
 
     output[tid] = local_val_half;
   }
@@ -1197,7 +1481,7 @@ void invokeBatchLayernormSigmoidMul(
   dim3 block(n);
   if ((n % 4 == 0) && (n >= 128) && (n <= 4096)) {
     block.x = (block.x / 4 + 31) / 32 * 32;
-    if (std::is_same<T, float>::value) {
+    if constexpr (std::is_same<T, float>::value) {
       batch_layernorm_sigmoid_mul_stored_locally<FuseSigmoidMul>
           <<<grid, block, 0, stream>>>(
               (float4*)output,
@@ -1207,7 +1491,7 @@ void invokeBatchLayernormSigmoidMul(
               m,
               n,
               eps);
-    } else {
+    } else if constexpr (std::is_same<T, half>::value) {
       batch_layernorm_sigmoid_mul_stored_locally<FuseSigmoidMul>
           <<<grid, block, 0, stream>>>(
               (half4*)output,
@@ -1217,6 +1501,20 @@ void invokeBatchLayernormSigmoidMul(
               m,
               n,
               eps);
+    } else if constexpr (std::is_same<T, bfloat16>::value) {
+      batch_layernorm_sigmoid_mul_stored_locally<FuseSigmoidMul>
+          <<<grid, block, 0, stream>>>(
+              (bfloat16_4*)output,
+              (const bfloat16_4*)input,
+              (const bfloat16_4*)gamma,
+              (const bfloat16_4*)beta,
+              m,
+              n,
+              eps);
+    } else {
+      static_assert(
+          std::is_same_v<T, half> || std::is_same_v<T, float> ||
+          std::is_same_v<T, bfloat16>);
     }
   } else if (n < 1024) {
     block.x = (block.x + 31) / 32 * 32;
@@ -1411,6 +1709,162 @@ __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
   }
 }
 
+// output b * [m, n] row-major
+// input  b * [m, n] row-major
+// gamma b * [n]
+// beta  b * [n]
+// grid [b, m]
+// block [block_size] -- each thread deals with 4 elements
+// block_size = n / 4
+template <bool FuseSigmoidMul, int NumInputs>
+__device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
+    const Arguments<bfloat16_4, float, NumInputs>& args) {
+  const int b_idx = blockIdx.x;
+  const int m_idx = blockIdx.y;
+  const int tid = threadIdx.x;
+  __shared__ float s_mean, s_variance;
+  float local_sums[1] = {0.0f};
+
+  bfloat16_4* output = args.outputs[b_idx];
+  const bfloat16_4* input = args.inputs[b_idx];
+  const bfloat16_4* gamma = args.gammas[b_idx];
+  const bfloat16_4* beta = args.betas[b_idx];
+  const TensorAccessor& input_accessor = args.input_accessors[b_idx];
+  const TensorAccessor& output_accessor = args.output_accessors[b_idx];
+
+  const int n = args.N[b_idx];
+  const int quarter_n = n >> 2;
+  const int offset = m_idx * quarter_n;
+
+  const int block_size = blockDim.x;
+  const int num_iters =
+      ceil(static_cast<float>(quarter_n) / static_cast<float>(block_size));
+
+  bfloat16_4 local_val_half{0, 0, 0, 0};
+  float4 local_val{0.0f, 0.0f, 0.0f, 0.0f};
+
+  for (size_t i = 0; i < num_iters; ++i) {
+    int elem_no = tid + block_size * i;
+
+    if (elem_no < quarter_n) {
+      local_val_half = *input_accessor.get<const bfloat16, const bfloat16_4>(
+          input, offset + elem_no);
+      local_val = {
+          static_cast<float>(local_val_half.x),
+          static_cast<float>(local_val_half.y),
+          static_cast<float>(local_val_half.z),
+          static_cast<float>(local_val_half.w)};
+      local_sums[0] += local_val.x + local_val.y + local_val.z + local_val.w;
+    }
+  }
+  if (blockDim.x <= 32) {
+    warpReduceSum<float, 1>(local_sums);
+  } else {
+    blockReduceSum<float, 1>(local_sums);
+  }
+  if (threadIdx.x == 0) {
+    s_mean = local_sums[0] / n;
+  }
+  __syncthreads();
+  local_sums[0] = 0.0f;
+
+  for (size_t i = 0; i < num_iters; ++i) {
+    int elem_no = tid + block_size * i;
+    if (elem_no < quarter_n) {
+      local_val_half = *input_accessor.get<const bfloat16, const bfloat16_4>(
+          input, offset + elem_no);
+      local_val = {
+          static_cast<float>(local_val_half.x),
+          static_cast<float>(local_val_half.y),
+          static_cast<float>(local_val_half.z),
+          static_cast<float>(local_val_half.w)};
+      local_sums[0] += (local_val.x - s_mean) * (local_val.x - s_mean) +
+          (local_val.y - s_mean) * (local_val.y - s_mean) +
+          (local_val.z - s_mean) * (local_val.z - s_mean) +
+          (local_val.w - s_mean) * (local_val.w - s_mean);
+    }
+  }
+  if (blockDim.x <= 32) {
+    warpReduceSum<float, 1>(local_sums);
+  } else {
+    blockReduceSum<float, 1>(local_sums);
+  }
+  if (threadIdx.x == 0) {
+    s_variance = rsqrtf(local_sums[0] / n + args.eps);
+  }
+  __syncthreads();
+
+  for (size_t i = 0; i < num_iters; ++i) {
+    int elem_no = tid + block_size * i;
+    if (elem_no < quarter_n) {
+      local_val_half = *input_accessor.get<const bfloat16, const bfloat16_4>(
+          input, offset + elem_no);
+      local_val = {
+          static_cast<float>(local_val_half.x),
+          static_cast<float>(local_val_half.y),
+          static_cast<float>(local_val_half.z),
+          static_cast<float>(local_val_half.w)};
+#ifdef AIT_LAYERNORM_CONST_GAMMA
+      const float4 gamma_val = {
+          AIT_LAYERNORM_CONST_GAMMA,
+          AIT_LAYERNORM_CONST_GAMMA,
+          AIT_LAYERNORM_CONST_GAMMA,
+          AIT_LAYERNORM_CONST_GAMMA};
+#else
+      const bfloat16_4 gamma_val_half = gamma[elem_no];
+      const float4 gamma_val = {
+          static_cast<float>(gamma_val_half.x),
+          static_cast<float>(gamma_val_half.y),
+          static_cast<float>(gamma_val_half.z),
+          static_cast<float>(gamma_val_half.w)};
+#endif // AIT_LAYERNORM_CONST_GAMMA
+
+#ifdef AIT_LAYERNORM_CONST_BETA
+      const float4 beta_val = {
+          AIT_LAYERNORM_CONST_BETA,
+          AIT_LAYERNORM_CONST_BETA,
+          AIT_LAYERNORM_CONST_BETA,
+          AIT_LAYERNORM_CONST_BETA};
+#else
+      const bfloat16_4 beta_val_half = beta[elem_no];
+      const float4 beta_val = {
+          static_cast<float>(beta_val_half.x),
+          static_cast<float>(beta_val_half.y),
+          static_cast<float>(beta_val_half.z),
+          static_cast<float>(beta_val_half.w)};
+#endif // AIT_LAYERNORM_CONST_BETA
+
+      if constexpr (FuseSigmoidMul) {
+        local_val.x *= sigmoid(normalize(
+            local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x));
+        local_val.y *= sigmoid(normalize(
+            local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y));
+        local_val.z *= sigmoid(normalize(
+            local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z));
+        local_val.w *= sigmoid(normalize(
+            local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w));
+      } else {
+        local_val.x =
+            normalize(local_val.x, s_mean, s_variance, gamma_val.x, beta_val.x);
+        local_val.y =
+            normalize(local_val.y, s_mean, s_variance, gamma_val.y, beta_val.y);
+        local_val.z =
+            normalize(local_val.z, s_mean, s_variance, gamma_val.z, beta_val.z);
+        local_val.w =
+            normalize(local_val.w, s_mean, s_variance, gamma_val.w, beta_val.w);
+      }
+
+      local_val_half.x = __float2bfloat16_rn(local_val.x);
+      local_val_half.y = __float2bfloat16_rn(local_val.y);
+      local_val_half.z = __float2bfloat16_rn(local_val.z);
+      local_val_half.w = __float2bfloat16_rn(local_val.w);
+
+      *(output_accessor.get<bfloat16, bfloat16_4>(output, offset + elem_no)) =
+          local_val_half;
+    }
+  }
+}
+
 #define GROUP_LAYER_NORM_MAX_INLINE_INPUTS 39
 
 template <
@@ -1431,6 +1885,28 @@ template <
         true>
 __global__ void group_layernorm_sigmoid_mul_stored_locally_half(
     const Arguments<half4, float, NumInputs>* args) {
+  group_layernorm_sigmoid_mul_stored_locally_impl<FuseSigmoidMul, NumInputs>(
+      *args);
+}
+
+template <
+    bool FuseSigmoidMul,
+    int NumInputs,
+    std::enable_if_t<NumInputs <= GROUP_LAYER_NORM_MAX_INLINE_INPUTS, bool> =
+        true>
+__global__ void group_layernorm_sigmoid_mul_stored_locally_bfloat16(
+    Arguments<bfloat16_4, float, NumInputs> args) {
+  group_layernorm_sigmoid_mul_stored_locally_impl<FuseSigmoidMul, NumInputs>(
+      args);
+}
+
+template <
+    bool FuseSigmoidMul,
+    int NumInputs,
+    std::enable_if_t<(NumInputs > GROUP_LAYER_NORM_MAX_INLINE_INPUTS), bool> =
+        true>
+__global__ void group_layernorm_sigmoid_mul_stored_locally_bfloat16(
+    const Arguments<bfloat16_4, float, NumInputs>* args) {
   group_layernorm_sigmoid_mul_stored_locally_impl<FuseSigmoidMul, NumInputs>(
       *args);
 }

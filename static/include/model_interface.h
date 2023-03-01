@@ -155,13 +155,28 @@ AIT_EXPORT AITemplateError AITemplateModelContainerSetManyConstants(
     const AITData* tensors,
     size_t num_tensors);
 
+AIT_EXPORT AITemplateError AITemplateModelContainerSetDoubleBufferConstant(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    const char* name,
+    const AITData* tensor);
+
+AIT_EXPORT AITemplateError AITemplateModelContainerSetManyDoubleBufferConstants(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    const char** names,
+    const AITData* tensors,
+    size_t num_tensors);
+
 AIT_EXPORT AITemplateError AITemplateModelContainerGetNumConstants(
     AITemplateModelHandle handle,
+    bool unbound_constants_only,
     bool constant_folding_inputs_only,
     size_t* num_constants_out);
 
 AIT_EXPORT AITemplateError AITemplateModelContainerGetConstantNames(
     AITemplateModelHandle handle,
+    bool unbound_constants_only,
     bool constant_folding_inputs_only,
     const char** constant_names_out);
 
@@ -205,7 +220,7 @@ AIT_EXPORT AITemplateError AITemplateModelContainerBenchmark(
     AITemplateModelHandle handle,
     const AITData* inputs,
     size_t num_inputs,
-    AITData* ouputs,
+    AITData* outputs,
     size_t num_outputs,
     AITemplateStreamHandle stream_handle,
     bool graph_mode,
@@ -261,6 +276,14 @@ AIT_EXPORT AITemplateError AITemplateModelContainerFoldConstants(
     AITemplateModelHandle handle,
     AITemplateStreamHandle stream_handle,
     bool sync);
+
+AIT_EXPORT AITemplateError AITemplateModelContainerFoldConstantsInDoubleBuffer(
+    AITemplateModelHandle handle,
+    AITemplateStreamHandle stream_handle,
+    bool sync);
+
+AIT_EXPORT AITemplateError
+AITemplateModelContainerSwapConstants(AITemplateModelHandle handle);
 
 AIT_EXPORT AITemplateError AITemplateAllocatorCreate(
     AITemplateAllocator** allocator_out,

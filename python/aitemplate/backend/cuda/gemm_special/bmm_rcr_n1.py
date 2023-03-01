@@ -112,8 +112,12 @@ EXEC_TEMPLATE = jinja2.Template(
 SRC_TEMPLATE = jinja2.Template(
     """
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
+
+using bfloat16 = __nv_bfloat16;
+using bfloat16_2 =  __nv_bfloat162;
 
 namespace {
 
@@ -287,7 +291,65 @@ namespace detail {
       return __high2float(a);
     }
   };
-}
+
+#if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && (__CUDA_ARCH__ >= 800)
+  template<>
+  struct InputHelper<bfloat16> {
+    typedef bfloat16 scalar_type;
+    typedef bfloat16_2 vec2_type;
+
+    static
+    __inline__ __device__ vec2_type fma2(vec2_type a, vec2_type b, vec2_type c) {
+      return __hfma2(a, b, c);
+    }
+
+    static
+    __inline__ __device__ scalar_type fma(scalar_type a, scalar_type b, scalar_type c) {
+      return __hfma(a, b, c);
+    }
+
+    static
+    __inline__ __device__ vec2_type mul2(vec2_type a, vec2_type b) {
+      return __hmul2(a, b);
+    }
+
+    static
+    __inline__ __device__ scalar_type mul(scalar_type a, scalar_type b) {
+      return __hmul(a, b);
+    }
+
+    static
+    __inline__ __device__ vec2_type add2(vec2_type a, vec2_type b) {
+      return __hadd2(a, b);
+    }
+
+    static
+    __inline__ __device__ scalar_type add(scalar_type a, scalar_type b) {
+      return __hadd(a, b);
+    }
+
+    static
+    __inline__ __device__ scalar_type low(vec2_type a) {
+      return __low2bfloat16(a);
+    }
+
+    static
+    __inline__ __device__ scalar_type high(vec2_type a) {
+      return __high2bfloat16(a);
+    }
+
+    static
+    __inline__ __device__ float lowf(vec2_type a) {
+      return __low2float(a);
+    }
+
+    static
+    __inline__ __device__ float highf(vec2_type a) {
+      return __high2float(a);
+    }
+  }; // struct InputHelper<bfloat16>
+#endif
+} // namespace detail
 
 // Each thread reads one row from "a" and one column from "b",
 // computes dot_product(a_row, b_col), and writes the result to "c".

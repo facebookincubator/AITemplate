@@ -59,7 +59,7 @@ class mem_eff_attention(Operator):
     """
 
     def __init__(self, causal, dropout=0) -> None:
-        """initilize attention module"""
+        """Initialize attention module"""
         super().__init__()
         assert dropout == 0
         self._attrs["op"] = "mem_eff_attention"

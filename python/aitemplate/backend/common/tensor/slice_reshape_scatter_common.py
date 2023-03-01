@@ -80,9 +80,19 @@ def gen_function(
     # TODO: consider to profile elems_per_thread
     elems_per_thread = 8 if len(func_attrs["inputs"]) == 1 else 256
     element_func_def = None if element_func is None else tanh_def.render()
+    # slice_reshape_scatter is a temporary solution for a special fusion pattern.
+    # It will be replaced with a more general slice + concat pass once it's
+    # ready. Second, the constrains of slice_reshape_scatter ensure that its
+    # output_accessor's stride is actually linear offset in the output tensor.
+    # So, let's not to pollute a common slice kernel with output TensorAccessors
+    # at the moment since we do not support output TensorAccessors for slice
+    # op yet, which may have perf implication to the kernel as well.
+    output_accessor = func_attrs["output_accessors"][0]
+    output_offset = output_accessor.offset
     return slice_common.gen_function(
         func_attrs,
         backend_spec=backend_spec,
+        output_offset=output_offset,
         elems_per_thread=elems_per_thread,
         update_output_shape=False,
         element_func=element_func,

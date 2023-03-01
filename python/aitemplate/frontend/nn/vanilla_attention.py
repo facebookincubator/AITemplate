@@ -97,7 +97,7 @@ class VanillaMultiheadAttention(Module):
     where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
 
     Args:
-        dim: toal dimension of the model
+        dim: total dimension of the model
         batch_size: batch size
         seq_len: sequence length
         num_heads: Number of parallel attention heads. Default: 8
@@ -212,7 +212,7 @@ class VanillaCrossAttention(Module):
     where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
 
     Args:
-        dim: toal dimension of the model
+        dim: total dimension of the model
         batch_size: batch size
         seq_len: sequence length
         num_heads: Number of parallel attention heads. Default: 8

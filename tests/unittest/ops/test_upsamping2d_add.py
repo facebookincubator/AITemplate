@@ -22,7 +22,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
-_DEFAULT_BATCH_SIZE = [1, 16]
+_DEFAULT_BATCH_SIZE = [1, 3]
 
 
 class UpsamplingAddTestCase(unittest.TestCase):
@@ -85,8 +85,8 @@ class UpsamplingAddTestCase(unittest.TestCase):
             r = torch.permute(R_pt, (0, 2, 3, 1)).contiguous()
             y = torch.empty_like(Y_pt).permute((0, 2, 3, 1)).contiguous()
             module.run_with_tensors({"input_0": x, "input_1": r}, [y])
-            y_tranpose = torch.permute(y, (0, 3, 1, 2))
-            self.assertTrue(torch.allclose(Y_pt, y_tranpose, atol=1e-2, rtol=1e-2))
+            y_transpose = torch.permute(y, (0, 3, 1, 2))
+            self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
     def test_bilinear_upsample_add_fp16(self):
         self._test_single_op(

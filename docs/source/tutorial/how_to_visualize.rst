@@ -1,5 +1,5 @@
 How to visualize an AIT model
-==============================
+=============================
 
 Visualization is important for understanding the behavior of a model optimization.
 In AIT, we modify the codegen a little bit, from generating CUDA/HIP C++ code to HTML/Javascript code,
@@ -9,7 +9,7 @@ then we can generate a visualization of the model.
 The following code will generate a visualization of our first example.
 
 1. Define the AIT Model
-------------------------
+-----------------------
 
 .. code-block:: python
 
@@ -71,12 +71,12 @@ The following code will generate a visualization of our first example.
   graph = apply_optimizations(output_tensor)
 
 3. Generate visualization
---------------------------
+-------------------------
 
 .. code-block:: python
 
   # Plot the graph
-  plot_graph(graph, file_path="ait_model.html", network_name="ait_sample_net")
+  plot_graph(graph, file_path="ait_model.html")
 
 The visualization will be generated in the "ait_model.html" file. This file can be opened in Chrome without any web server.
 

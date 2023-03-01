@@ -97,6 +97,24 @@ class Permute021Test(unittest.TestCase):
             dtype="float32",
         )
 
+    @parameterized.expand(
+        [
+            param((2, 384, 262), (0, 2, 1)),
+            param((2, 3, 384, 262), (0, 1, 3, 2)),
+            param((2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
+            param((IntVar([2, 3]), 384, 262), (0, 2, 1)),
+            param((IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
+        ]
+    )
+    @unittest.skipIf(detect_target().name() == "rocm", "bf16 is not supported on ROCm")
+    def test_permute021_bf16(self, input_shape, dims):
+        self._test_permute_021(
+            input_shape=input_shape,
+            dims=dims,
+            test_name="permute021_bf16",
+            dtype="bfloat16",
+        )
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

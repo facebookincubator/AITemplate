@@ -498,6 +498,62 @@ class BMMBroadcastTestCase(unittest.TestCase):
             [8, 8, 16], [32, 8], "2d_broadcastable_b_bfloat16", dtype="bfloat16"
         )
 
+    def test_rcr_fail(self, dtype="float16"):
+        target = detect_target()
+        batch_dim = shape_utils.gen_int_var_min_max([1, 16], name="batch_size")
+        m_dim = shape_utils.gen_int_var_min_max([1, 10], name="m")
+        K = 3
+        N = 8
+        X = Tensor(
+            shape=[batch_dim, m_dim, K], dtype=dtype, name="input_0", is_input=True
+        )
+        W = Tensor(shape=[batch_dim, N, K], dtype=dtype, name="input_1", is_input=True)
+        OP = ops.bmm_rcr()
+        Y = OP(X, W)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+        module = compile_model(Y, target, "./tmp", "bmm_rcr_should_fail")
+
+        X_pt = get_random_torch_tensor([2, 10, K], dtype)
+        W_pt = get_random_torch_tensor([16, 8, K], dtype)
+        y = get_torch_empty_tensor([2, 10, 8], dtype)
+
+        try:
+            module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
+            raise AssertionError(
+                "Shouldn't be able to run be imcompatible tensor shape!"
+            )
+        except RuntimeError:
+            pass
+
+    def test_rrr_fail(self, dtype="float16"):
+        target = detect_target()
+        batch_dim = shape_utils.gen_int_var_min_max([1, 16], name="batch_size")
+        m_dim = shape_utils.gen_int_var_min_max([1, 10], name="m")
+        K = 3
+        N = 8
+        X = Tensor(
+            shape=[batch_dim, m_dim, K], dtype=dtype, name="input_0", is_input=True
+        )
+        W = Tensor(shape=[batch_dim, K, N], dtype=dtype, name="input_1", is_input=True)
+        OP = ops.bmm_rrr()
+        Y = OP(X, W)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+        module = compile_model(Y, target, "./tmp", "bmm_rrr_should_fail")
+
+        X_pt = get_random_torch_tensor([2, 10, K], dtype)
+        W_pt = get_random_torch_tensor([16, K, 8], dtype)
+        y = get_torch_empty_tensor([2, 10, 8], dtype)
+
+        try:
+            module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
+            raise AssertionError(
+                "Shouldn't be able to run be imcompatible tensor shape!"
+            )
+        except RuntimeError:
+            pass
+
 
 if __name__ == "__main__":
     unittest.main()

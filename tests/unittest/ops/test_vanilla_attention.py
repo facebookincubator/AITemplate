@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 """
-Unittests for vanilla_attenion.
+Unittests for vanilla_attention.
 """
 import logging
 import math
@@ -96,7 +96,7 @@ def attention_pt(X_pt, W_pt, B_pt, nheads, d, seqlen):
     return Y_pt
 
 
-class vanillaAttentionTestCase(unittest.TestCase):
+class VanillaAttentionTestCase(unittest.TestCase):
     def _test_vanilla_attention(
         self,
         batch_size=16,

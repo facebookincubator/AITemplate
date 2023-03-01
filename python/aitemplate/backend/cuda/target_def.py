@@ -31,6 +31,7 @@ from aitemplate.backend.profiler_cache import ProfileCacheDB
 
 from aitemplate.backend.target import TargetType
 
+from ...utils import environ
 from ...utils.misc import is_debug
 
 from .. import registry
@@ -103,6 +104,7 @@ class CUDA(Target):
             ),
             os.path.join(self._template_path, "../cub"),
         ]
+
         options = [
             "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
             "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
@@ -113,7 +115,7 @@ class CUDA(Target):
             "-Xcompiler=-Wconversion",
             "-Xcompiler=-fno-strict-aliasing",
             "-Xcompiler -fvisibility=hidden",
-            "-O3",
+            environ.get_compiler_opt_level(),
             "-std=c++17",
             "--expt-relaxed-constexpr",
             "--use_fast_math",
@@ -252,6 +254,7 @@ class FBCUDA(CUDA):
             with open(fb_include_path, "w") as fb_include:
                 for arg in pp_args:
                     fb_include.write(pipes.quote(arg) + "\n")
+
             options = self.nvcc_options_json["args"] + [
                 "-I" + cutlass_path[0],
                 "-I" + cutlass_path[1],
@@ -276,20 +279,18 @@ class FBCUDA(CUDA):
                 "-gencode=arch=compute_%s,code=[sm_%s,compute_%s]"
                 % (self._arch, self._arch, self._arch),
                 "-Xcompiler=-Wconversion",
-                "-O3",
+                environ.get_compiler_opt_level(),
                 "-std=c++17",
             ]
             if self._ndebug == 1:
                 options.append("-DNDEBUG")
             FBCUDA.compile_options_ = " ".join(options)
         compile_options = FBCUDA.compile_options_
-        _LOGGER.debug(f"The compile options are: {compile_options}")
+        _LOGGER.info(f"The compile options are: {compile_options}")
         return compile_options
 
     def __exit__(self, ptype, value, trace):
         super().__exit__(ptype, value, trace)
-        if not is_debug() and self._include_path:
-            shutil.rmtree(self._include_path)
 
     def binary_compile_cmd(self):
         """

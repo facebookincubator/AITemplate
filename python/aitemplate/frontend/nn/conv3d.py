@@ -15,7 +15,7 @@
 """
 conv3d Module.
 """
-from ...compiler.ops import conv3d, depthwise_conv3d
+from ...compiler.ops import conv3d, conv3d_bias, depthwise_conv3d
 from .module import Module
 from .parameter import Parameter
 
@@ -105,8 +105,8 @@ class Conv3d(Module):
 
         if groups == 1:
             if bias:
-                raise AttributeError(
-                    "conv3d with groups==1 does not support bias for now."
+                self.op = conv3d_bias(
+                    stride=stride, pad=padding, dilate=dilation, group=groups
                 )
             self.op = conv3d(stride=stride, pad=padding, dilate=dilation, group=groups)
         else:

@@ -29,11 +29,15 @@ FUNC_TEMPLATE = jinja2.Template(
 #include <iostream>
 #include <cuda_fp16.h>
 #include "cutlass/cutlass.h"
+#include "cutlass/gemm/device/default_gemm_configuration.h"
 // TODO: this include should be removed. There's a bug in CUTLASS, the
 // header containing cutlass::gemm::warp::WarpSize is not being included.
 // Until the fix is upstreamed, just inject it here instead.
 #include "cutlass/gemm/warp/mma.h"
+#include "gemm_kernel_utils.h"
 #include "kernel_forward.h"
+
+using namespace gemm_kernel_utils;
 
 {{func_signature}}
 {
@@ -80,10 +84,28 @@ FUNC_TEMPLATE = jinja2.Template(
         std::cerr << "WARNING: you will get better performance with `kSingleValueIteration=true` (keeps the output in RF rather than GMEM)";
     }
 
+    using GemmType = DefaultGemmType<ArchTag, {{elem_input_type}}>;
+    using OpClass = typename GemmType::OpClass;
+    using DefaultConfig =
+        typename cutlass::gemm::device::DefaultGemmConfiguration<
+            OpClass,
+            ArchTag,
+            {{elem_input_type}},
+            {{elem_input_type}},
+            {{elem_input_type}}, // ElementC
+            float // ElementAccumulator
+            >;
+
+    // If the head_size already meets the alignment requirement, then
+    // it's safe to mark mem_align to be true to maximize the alignment
+    // benefit. Otherwise, assign false to it to use the minimal alignment.
+    constexpr const bool mem_align =
+        ({{head_size}} % DefaultConfig::kAlignmentA == 0) &&
+        ({{head_size}} % DefaultConfig::kAlignmentB == 0);
     using Attention = AttentionKernel<
         {{elem_input_type}}, // scalar_t
         ArchTag,
-        true, // memory is aligned
+        mem_align, // memory is aligned
         kQueriesPerBlock,
         kKeysPerBlock,
         kSingleValueIteration
@@ -133,8 +155,9 @@ FUNC_TEMPLATE = jinja2.Template(
       cudaFuncSetAttribute(kernel_fn, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_bytes);
     }
     if (!Attention::check_supported(p)) {
-      std::cerr << "Kernel does not support these inputs" << std::endl;
-      return;
+      std::string error_msg = std::string("Got error: kernel does not support these inputs") +
+           " at " + __FILE__ + ": " + std::to_string(__LINE__);          
+      throw std::runtime_error(error_msg);
     }
     kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
 
@@ -205,6 +228,7 @@ def mem_eff_attention_gen_function(func_attrs: Dict[str, Any]) -> str:
     )
     return FUNC_TEMPLATE.render(
         elem_input_type=elem_input_type,
+        head_size=func_attrs["head_size"],
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
         kIs64x64="true" if func_attrs["head_size"] <= 64 else "false",
         kSingleValueIteration="true" if func_attrs["head_size"] <= 128 else "false",

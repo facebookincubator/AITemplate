@@ -30,6 +30,12 @@
 
 namespace ait {
 
+enum class BufferState {
+  CLEAN = 0,
+  CONSTANTS_UPDATED = 1,
+  CONSTANTS_FOLDED = 2
+};
+
 // ModelContainer inherits from this class; its implementation is
 // generated at compilation time. Most of the ModelContainer
 // logic does not need codegen; anything that does should be put
@@ -39,11 +45,18 @@ class ModelContainerBase {
   ModelContainerBase(
       size_t num_inputs,
       size_t num_outputs,
+      size_t num_bound_constants,
       size_t num_unbound_constants,
       size_t params_size,
       AITemplateAllocator& allocator);
 
  protected:
+  // The set of bounded constants/weights/parameters. These are constants which
+  // have value during compile time. We maintain it's size, and unlike unbound
+  // constants, we do not need to check whether they are set via SetConstant
+  // prior to inference.
+  std::unordered_map<std::string, size_t> bound_constant_name_to_idx_;
+
   // The set of unbound constants/weights/parameters. These are constants which
   // have no value at compile time and do not participate in constant folding.
   // They must be set via SetConstant prior to inference.
@@ -51,15 +64,29 @@ class ModelContainerBase {
 
   // The names of all tensors that are required for constant folding, but are
   // not necessarily in the final graph.
+  // constant_folding_optional_inputs_ are those that has initial value during
+  // compile time.
   std::unordered_set<std::string> constant_folding_inputs_;
+  std::unordered_set<std::string> constant_folding_optional_inputs_;
 
   // Offsets here correspond to the offsets of constants that were the outputs
   // of constant folding. The indices are guaranteed to map to the correct
   // indices in constant_folder_.
   std::vector<size_t> constant_folding_outputs_offsets_;
+  // Offsets here correspond to the offsets of constants for bounded constants.
+  std::vector<size_t> bound_constant_offsets_;
 
-  // a single piece of memory for all constants
-  GPUPtr constants_;
+  // size for constants_ GPUPtr
+  size_t constants_size_;
+  // Pieces of memory for holding all constants, controled by
+  // use_constants_primary_buffer_
+  GPUPtr constants_primary_;
+  GPUPtr constants_secondary_;
+  bool use_constants_primary_buffer_;
+  // State of whether SetConstants/FoldConstants was called.
+  BufferState buffer_state_;
+  // Mapping for constant names to pointer
+  std::unordered_map<std::string, const void*> model_constants_;
 
   // size of the containers below: # inputs + # outputs + # unbound constants.
   size_t num_params_;
@@ -69,6 +96,10 @@ class ModelContainerBase {
   std::vector<const char*> param_names_;
   std::vector<std::vector<int64_t>> max_param_shapes_;
   std::vector<AITemplateDtype> param_dtypes_;
+
+  // These are entries used for bound constants.
+  std::vector<size_t> bound_constant_size_;
+  std::vector<AITemplateDtype> bound_constant_dtypes_;
 
   // NB: technically these could be derived from both the max shape and
   // the dytpe, but it's easier to just cache them.
@@ -102,8 +133,8 @@ ModelContainer* CreateModelContainer(
 // to start up two inferences on different streams concurrently,
 // we can do this:
 //
-// model_container.Run(inputs0, num_inputs, outputs0, num_ouputs, stream0, ...);
-// model_container.Run(inputs1, num_inputs, outputs1, num_ouputs, stream1, ...);
+// model_container.Run(inputs0, n_inputs, outputs0, n_outputs, stream0, ...);
+// model_container.Run(inputs1, n_inputs, outputs1, n_outputs, stream1, ...);
 // StreamSynchronize(stream0);
 // StreamSynchronize(stream1);
 //
@@ -122,6 +153,7 @@ class ModelContainer : ModelContainerBase {
       size_t num_models,
       size_t num_inputs,
       size_t num_outputs,
+      size_t num_bound_constants,
       size_t num_unbound_constants,
       size_t params_size,
       AITemplateAllocator& allocator);
@@ -172,6 +204,17 @@ class ModelContainer : ModelContainerBase {
       const AITData* tensors,
       size_t num_tensors);
 
+  uint8_t* GetInactiveConstantsBuffer();
+  void SetDoubleBufferConstant(
+      const char* name,
+      const AITData& tensor,
+      StreamType stream = 0);
+  void SetManyDoubleBufferConstants(
+      const char** names,
+      const AITData* tensors,
+      size_t num_tensors,
+      StreamType stream = 0);
+
   size_t NumInputs() const;
   size_t NumOutputs() const;
 
@@ -190,10 +233,11 @@ class ModelContainer : ModelContainerBase {
     return models_.size();
   }
 
-  void FoldConstants(StreamType stream, bool sync);
+  void FoldConstants(StreamType stream, bool sync, bool double_buffer = false);
+  void SwapConstants();
 
-  size_t GetNumConstants() const;
-  size_t GetNumConstantFoldingInputs() const;
+  size_t GetNumConstants(bool unbound_constants_only = true) const;
+  size_t GetNumConstantFoldingInputs(bool unbound_constants_only = true) const;
 
   // Write all constant names to the array pointed to by names_out.
   // This function assumes that names_out has enough space to hold
@@ -201,12 +245,18 @@ class ModelContainer : ModelContainerBase {
   // are guaranteed to live as long as their owning ModelContainer.
   void WriteAllConstantNamesTo(
       const char** names_out,
+      bool unbound_constants_only,
       bool constant_folding_inputs_only) const;
 
  private:
   void WaitForAllModels(bool include_constant_folder = false);
-  void FoldConstantsImpl(StreamType stream);
-  void SetConstantImpl(const char* name, const AITData& tensor);
+  void FoldConstantsImpl(StreamType stream, bool double_buffer = false);
+  void SetConstantImpl(
+      const char* name,
+      const AITData& tensor,
+      bool use_secondary_buffer = false,
+      StreamType stream = 0);
+  void SwapConstantFolderBuffer();
 
   void PrepareForRun(
       Model* model,
@@ -217,7 +267,8 @@ class ModelContainer : ModelContainerBase {
 
   Model* GetAvailableModel();
   void ReclaimFinishedModels(std::unique_lock<std::mutex>& lk);
-  void ValidateDtype(AITemplateDtype dtype, size_t idx) const;
+  void ValidateParamDtype(AITemplateDtype dtype, size_t idx) const;
+  void ValidateBoundConstantDtype(AITemplateDtype dtype, size_t idx) const;
 
   float BenchmarkImpl(
       const AITData* inputs,
@@ -254,6 +305,9 @@ class ModelContainer : ModelContainerBase {
   // prevents concurrent inferences from happening while kernels are being
   // queued.
   std::shared_mutex constants_sync_mutex_;
+  // constants_double_buffer_mutex_ is separate from constants_sync_mutex since
+  // when we use double buffer, it won't affect the main model.
+  std::shared_mutex constants_double_buffer_mutex_;
 
   size_t num_inputs_;
   size_t num_outputs_;

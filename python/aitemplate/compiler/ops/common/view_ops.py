@@ -25,7 +25,15 @@ import jinja2
 
 from aitemplate import backend
 from aitemplate.backend import registry
-from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.compiler.base import (
+    IntImm,
+    IntVar,
+    IntVarTensor,
+    JaggedDim,
+    JaggedIntVar,
+    Operator,
+    Tensor,
+)
 from aitemplate.utils.shape_utils import convert_shape_to_IntVar
 
 from ....utils.tensor_utils import wrap_dim
@@ -548,3 +556,170 @@ class unsqueeze(squeeze):
 
         self._attrs["out_dim_to_in"] = out_dim_to_in
         return y_shapes
+
+
+class make_jagged(_view):
+    """
+    Creates a jagged Tensor from a normal Tensor, offsets, and metadata.
+
+    Jagged Tensors are normal Tensors with the first dynamic dimensions
+    represented with a JaggedIntVar instance (as opposed to a vanilla
+    IntVar). The purpose of this op is to take a normal AIT Tensor "source"
+    that contains the jagged Tensor's data and return a jagged Tensor with
+    the same data as source (with the is_view_of attribute set to source)
+    and the first dimension set to a JaggedIntVar. The jagged Tensor resulting
+    from this op can then be treated as jagged by other ops aware of the
+    jagged Tensor semantics (e.g., elementwise). Importantly, the source
+    Tensor is not sufficient for that, as it doesn't carry the necessary
+    jagged Tensor metadata (which the jagged Tensor does, in the first
+    JaggedIntVar dimension of its shape).
+
+    *Important*: this op is the only right way to create a jagged Tensor.
+    The reason is that the offsets Tensors passed to this op get registered
+    in the graph and, as a result, can't be optimized out. This wouldn't
+    be the case if the jagged Tensor would be "constructed" manually.
+
+    See the docstring of the JaggedIntVar class for more details on the
+    jagged Tensor semantics and representation.
+
+    In the backend, the purpose of the make_jagged op is to setup the
+    unified offsets representation for the jagged Tensor and to check
+    the contents of the rank-1 offsets Tensors for consistency.
+
+    __init__ Args:
+        batch_dim : IntVar
+            The batch dimension of the jagged Tensor.
+            Importantly, this is different from the first dimension of the
+            soruce Tensor, as it logically represents the number of variable-
+            length sequences encoded by the JaggedIntVar. I.e., the batch_dim
+            is B in the sum_B(N_B) representation of the JaggedIntVar.
+        jagged_dims : List[JaggedDim]
+            The list of jagged dimensions encoded in the JaggedIntVar of the
+            resulting jagged Tensor. See the JaggedDim and JaggedIntVar class
+            docstrings for the details.
+
+    __call__ Args:
+        source : Tensor
+            The source Tensor of the jagged Tensor created by this op.
+            The jagged Tensor is a view of the source Tensor. The main
+            difference is that the resulting jagged Tensor's first
+            dimension is set to a JaggedIntVar, constructed from the
+            batch_dim, jagged_dims, and the offsets_list.
+        offsets_list : List[Tensor]
+            The list of rank-1 offsets Tensors describing the variable-length
+            layout of each of the jagged_dims. There must be exactly as many
+            offsets Tensors in the offsets_list as there are JaggedDims in
+            the jagged_dims list. Each offsets Tensor is associated with the
+            corresponding JaggedDim before constructing a JaggedIntVar from
+            them for the resulting jagged Tensor.
+    """
+
+    def __init__(
+        self,
+        batch_dim: IntVar,
+        jagged_dims: List[JaggedDim],
+    ) -> None:
+        if type(batch_dim) != IntVar:
+            raise TypeError(
+                "batch_dim must be dynamic (IntVar), "
+                f"but given {type(batch_dim).__name__}."
+            )
+        if not jagged_dims or not all(
+            isinstance(dim, JaggedDim) for dim in jagged_dims
+        ):
+            raise TypeError(
+                "jagged_dim must be a non-empty list of JaggedDims, "
+                f"but given {jagged_dims}."
+            )
+
+        super().__init__()
+
+        self._attrs["op"] = "make_jagged"
+        self._attrs["batch_dim"] = batch_dim
+        self._attrs["jagged_dims"] = list(jagged_dims)
+
+    def _set_jagged_dim_offsets(self, offsets_list: List[Tensor]):
+        jagged_dims = self._attrs["jagged_dims"]
+        for i, (jagged_dim, offsets) in enumerate(zip(jagged_dims, offsets_list)):
+            if jagged_dim.offsets() is not None:
+                if jagged_dim.offsets() == offsets:
+                    continue
+                else:
+                    raise ValueError(
+                        f"JaggedDim {i} in the jagged_dims already has associated "
+                        "offsets != the offsets passed to the make_jagged.__call__."
+                    )
+            jagged_dim._attrs["offsets"] = offsets
+
+    def _infer_shapes(self, source: Tensor) -> List[IntVar]:
+        jagged_int_var = JaggedIntVar(
+            batch_dim=self._attrs["batch_dim"],
+            jagged_dims=self._attrs["jagged_dims"],
+            total_length=source._attrs["shape"][0],
+        )
+
+        return [jagged_int_var] + source._attrs["shape"][1:]
+
+    def __call__(self, source: Tensor, offsets_list: List[Tensor]) -> Tensor:
+        jagged_dims = self._attrs["jagged_dims"]
+        if len(offsets_list) != len(jagged_dims):
+            raise ValueError(
+                f"{len(offsets_list)=} must be equal to {len(jagged_dims)=}"
+            )
+        for offsets in offsets_list:
+            if len(offsets._attrs["shape"]) != 1:
+                raise ValueError(
+                    "The offsets Tensors must be rank-1, "
+                    f"but given shape {offsets._attrs['shape']}."
+                )
+            if offsets._attrs["dtype"] not in ["int32", "int64"]:
+                raise TypeError(
+                    "The offsets Tensors can be either int32 or int64, "
+                    f"but given the Tensor of type {offsets._attrs['dtype']}."
+                )
+        if len(source._attrs["shape"]) == 0:
+            raise ValueError(
+                "The source Tensor must be at least rank-1, but given rank-0."
+            )
+        if type(source._attrs["shape"][0]) != IntVar:
+            raise ValueError(
+                "The source Tensor's first dim (total_length) must be dynamic (IntVar), "
+                f"but given {type(source._attrs['shape'][0]).__name__}."
+            )
+
+        self._attrs["inputs"] = [source, *offsets_list]
+        self._set_depth()
+        self._set_jagged_dim_offsets(offsets_list)
+        output_shape = self._infer_shapes(source)
+        output = Tensor(
+            shape=output_shape,
+            src_ops={self},
+            is_view_of=source,
+        )
+        self._attrs["outputs"] = [output]
+
+        return output
+
+    def _get_op_attributes(self):
+        return {
+            "batch_dim": self._attrs["batch_dim"],
+            "jagged_dims": self._attrs["jagged_dims"],
+        }
+
+    def gen_function(self) -> str:
+        target = backend.target.Target.current()
+        func_key = "{target}.{op}.gen_function".format(
+            target=target.name(), op=self._attrs["op"]
+        )
+        func = registry.get(func_key)
+        return func(self._attrs)
+
+    def _args_for_pseudo_code(self):
+        batch_dim = self._attrs["batch_dim"].pseudo_code()
+        jagged_dims = ", ".join(
+            [dim.pseudo_code() for dim in self._attrs["jagged_dims"]]
+        )
+        return [
+            f"batch_dim={batch_dim}",
+            f"jagged_dims={jagged_dims}",
+        ]

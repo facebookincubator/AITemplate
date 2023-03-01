@@ -33,12 +33,12 @@ from parameterized import parameterized
 
 
 def cuda_skip_condition(dtype, arch):
-    return dtype == "float32" and int(arch) < 80
+    return dtype != "float16" and int(arch) < 80
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMM_RCR_TestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand([("float16"), ("float32"), ("bfloat16")])
     def test_perm102_bmm_rrr(self, dtype):
         arch_ = detect_target()._arch
         if cuda_skip_condition(dtype, arch_):
@@ -70,7 +70,7 @@ class Perm102BMM_RCR_TestCase(unittest.TestCase):
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMM_RCR_BiasTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand([("float16"), ("float32"), ("bfloat16")])
     def test_perm102_bmm_rrr_bias(self, dtype):
         arch_ = detect_target()._arch
         if cuda_skip_condition(dtype, arch_):

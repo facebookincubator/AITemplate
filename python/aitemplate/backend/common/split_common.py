@@ -160,6 +160,7 @@ split_kernel(
 
 enum class LoadVecType {
   VT_HALF = 0,
+  VT_BFLOAT16,
   VT_FLOAT,
   VT_FLOAT2,
   VT_FLOAT4
@@ -189,6 +190,8 @@ static inline LoadVecType get_vec_type(
   HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
   if constexpr (std::is_same_v<ELEM_T, half>) {
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+  } else if constexpr (std::is_same_v<ELEM_T, bfloat16>) {
+    HANDLE_ONE_VEC_TYPE(LoadVecType::VT_BFLOAT16, bfloat16)
   }
 
 #undef HANDLE_ONE_VEC_TYPE
@@ -272,6 +275,8 @@ void split_kernel_launcher(
     HANDLE_ONE_VEC_TYPE(LoadVecType::VT_FLOAT, float)
     if constexpr (std::is_same_v<ELEM_T, half>) {
       HANDLE_ONE_VEC_TYPE(LoadVecType::VT_HALF, half)
+    } else if constexpr (std::is_same_v<ELEM_T, bfloat16>) {
+      HANDLE_ONE_VEC_TYPE(LoadVecType::VT_BFLOAT16, bfloat16)
     }
 
   throw std::runtime_error("Invalid LoadVecType\\n");

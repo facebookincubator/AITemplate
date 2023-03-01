@@ -160,6 +160,15 @@ class DynamicSliceTestCase(unittest.TestCase):
             input_type="float32",
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_dynamic_slice_bfloat16(self):
+        self._run_dynamic_slice(
+            input_shape=[2, 3, 5],
+            start_indices=[None, 0, 0],
+            end_indices=[2, None, -1],
+            input_type="bfloat16",
+        )
+
 
 class DynamicSliceBatchedTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -278,6 +287,16 @@ class DynamicSliceBatchedTestCase(unittest.TestCase):
             start_indices=[None, 1, None, -1],
             end_indices=[None, None, -1, 0],
             input_type="float32",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_batch_dynamic_slice_bfloat16(self):
+        self._run_batch_dynamic_slice(
+            batch_sizes=[5, 3, 9],
+            input_shape=[2, 4, 3],
+            start_indices=[None, 1, None, -1],
+            end_indices=[None, None, -1, 0],
+            input_type="bfloat16",
         )
 
 

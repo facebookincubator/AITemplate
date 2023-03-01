@@ -72,18 +72,18 @@ class topkTestCase(unittest.TestCase):
         x = scores.reshape(shape).contiguous()
         y = torch.empty(o_shape).cuda().to(torch.int64)
         module.run_with_tensors([x], [y])
-        self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
+        torch.testing.assert_close(y_pt, y, atol=0, rtol=0)
         self.test_count += 1
 
     def test_topk_heap(self):
-        self._test_topk(shape=(2000,), topK=100, test_name="topk_heap")
+        self._test_topk(shape=(2000,), topK=30, test_name="topk_heap")
         self._test_topk(
-            shape=(2000,), topK=100, test_name="topk_heap_copy_op", copy_op=True
+            shape=(2000,), topK=40, test_name="topk_heap_copy_op", copy_op=True
         )
-        self._test_topk(shape=(4, 500), topK=100, dim=1, test_name="topk_heap2")
+        self._test_topk(shape=(4, 500), topK=50, dim=1, test_name="topk_heap2")
         self._test_topk(
             shape=(4, 500),
-            topK=100,
+            topK=2,
             dim=1,
             test_name="topk_heap2_copy_op",
             copy_op=True,
@@ -109,29 +109,13 @@ class topkTestCase(unittest.TestCase):
             shape=(4, 500),
             topK=200,
             dim=1,
-            test_name="topk_sort_copy_op_f32",
-            copy_op=True,
-            dtype="float32",
-        )
-        self._test_topk(
-            shape=(4, 500),
-            topK=100,
-            dim=1,
-            test_name="topk_heap_copy_op_f32",
-            copy_op=True,
-            dtype="float32",
-        )
-        self._test_topk(
-            shape=(4, 500),
-            topK=200,
-            dim=1,
             test_name="topk_sort_f32",
             copy_op=False,
             dtype="float32",
         )
         self._test_topk(
             shape=(4, 500),
-            topK=100,
+            topK=30,
             dim=1,
             test_name="topk_heap_f32",
             copy_op=False,

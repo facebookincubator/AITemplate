@@ -43,6 +43,7 @@ def lower_mod_default(
             torch.float16,
             1,  # num_runtimes
         ),
+        interpreter_result,
     )
     return res_mod
 

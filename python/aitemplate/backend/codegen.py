@@ -247,6 +247,30 @@ if ({condition}) {{
     """
 
 
+def extract_input_output_shapes(func_attrs):
+    if "input_accessors" in func_attrs:
+        input_shape = [
+            [v.pseudo_code() for v in acc.original_shapes]
+            for acc in func_attrs["input_accessors"]
+        ]
+    else:
+        input_shape = [
+            [v.pseudo_code() for v in t.shape()] for t in func_attrs["inputs"]
+        ]
+
+    if "output_accessors" in func_attrs:
+        output_shape = [
+            [v.pseudo_code() for v in acc.original_shapes]
+            for acc in func_attrs["output_accessors"]
+        ]
+
+    else:
+        output_shape = [
+            [v.pseudo_code() for v in t.shape()] for t in func_attrs["outputs"]
+        ]
+    return input_shape, output_shape
+
+
 def device_copy(dst_tensor: Tensor, src_tensor: Tensor, dst_idx: int) -> str:
     src_name = src_tensor._attrs["name"]
     dst_ptr = f"params_[{dst_idx}].ptr"
@@ -313,13 +337,18 @@ class ModelContainerGenerator:
         self.set_inputs = []
         self.func_name_seq = []
         self.func_seq = []
+        self._input_shape_seq = []
+        self._output_shape_seq = []
         self.tensor_decl = []
         self.dim_decl = []
+        self.jagged_decl = []
         self.device_to_device_copies = []
         self.function_state = []
         self.set_up_constants = []
         self.set_up_param_names = []
         self.set_up_param_dtypes = []
+        self.set_up_bound_constant_dtypes = []
+        self.set_up_bound_constant_size = []
         self.set_up_output_shapes = []
         self.set_up_param_dynamic_shapes = []
         self.state_record = set()
@@ -331,10 +360,13 @@ class ModelContainerGenerator:
         self.num_constants = 0
         self.constants_data_size = 0
         self.owned_constants_init = []
+        self.reset_constants = []
 
+        self.set_up_bound_constant_offsets = []
         self.set_up_constant_folding_outputs_offsets = []
 
         self.input_idx = 0
+        self.bound_constant_idx = 0
         self.unbound_constant_idx = 0
         self.output_name_to_idx = _construct_output_name_to_index_map(
             graph, output_tensors
@@ -432,6 +464,37 @@ class ModelContainerGenerator:
         self.constants_data_size += num_bytes
         self.num_constants += 1
 
+    def _codegen_bound_constant(self, tensor: Tensor) -> None:
+        if tensor._attrs.get("is_internal_constant", False):
+            return
+
+        name = tensor._attrs["name"]
+        self.set_up_constant_names.append(
+            set_value(
+                f'bound_constant_name_to_idx_["{name}"]',
+                self.bound_constant_idx,
+            )
+        )
+        self.set_up_bound_constant_dtypes.append(
+            set_value(
+                f"bound_constant_dtypes_[{self.bound_constant_idx}]",
+                dtype_to_enumerator(tensor.dtype()),
+            )
+        )
+        self.set_up_bound_constant_size.append(
+            set_value(
+                f"bound_constant_size_[{self.bound_constant_idx}]",
+                len(tensor._attrs["data"]),
+            )
+        )
+        self.set_up_bound_constant_offsets.append(
+            set_value(
+                f"bound_constant_offsets_[{self.bound_constant_idx}]",
+                tensor._attrs["offset"],
+            )
+        )
+        self.bound_constant_idx += 1
+
     def _codegen_param_setup(
         self,
         tensor: Tensor,
@@ -441,12 +504,20 @@ class ModelContainerGenerator:
         """
         name = tensor._attrs["name"]
         data = tensor._attrs["data"]
+        const_slice = self._tensor_slice_func(tensor, "constants")
         if data is not None:
             # Owned constant. Set up logic for copying the constant in from *.so.
-            self.set_up_constants.append(self._tensor_slice_func(tensor, "constants"))
+            self.set_up_constants.append(const_slice)
+            self.set_up_constants.append(
+                set_value(
+                    f'constant_name_to_ptr_["{name}"]',
+                    f"const_cast<const void**>(reinterpret_cast<void**>(&{name}))",
+                )
+            )
+            self._codegen_bound_constant(tensor)
+            self.reset_constants.append(const_slice)
             if self.constants_data_file is not None:
                 self._add_owned_constant(tensor)
-
         elif tensor._attrs["constant_folding_output_idx"] is not None:
             self.set_up_constant_folding_outputs_offsets.append(
                 set_value(
@@ -454,8 +525,8 @@ class ModelContainerGenerator:
                     tensor._attrs["offset"],
                 )
             )
-            self.tensor_slice.append(self._tensor_slice_func(tensor, "constants"))
-
+            self.tensor_slice.append(const_slice)
+            self.reset_constants.append(const_slice)
         elif not isinstance(tensor, IntVarTensor):
             # Unbound constant. We will expect the user to set this via SetConstant.
             self.set_up_constant_names.append(
@@ -509,7 +580,7 @@ class ModelContainerGenerator:
             self.set_inputs.append(set_value(name, view._attrs["name"]))
             return
         is_view = view is not None
-        if is_view:
+        if is_view and len(self.param_name_to_ptr_idx) > 0:
             ptr_idx = self.param_name_to_ptr_idx[view._attrs["name"]]
             self.set_inputs.append(set_value(name, view._attrs["name"]))
         else:
@@ -581,6 +652,37 @@ class ModelContainerGenerator:
             self.dim_decl.append(self.f_var_decl(dim._attrs["name"], intimm))
             self.visited_dims.add(dim._attrs["name"])
 
+    def _process_jagged_dims(self, node: Tensor) -> None:
+        # JaggedIntVars are processed separately here (besides being processed
+        # like normal IntVars in _process_dims above), as they require adding
+        # the offset structure declaration into the Model codegen, as well as
+        # the batch_dim if it's not set when processing other tensors that
+        # directly contain the batch_dim it in their shapes
+        jagged_int_var = node._attrs["shape"][0]
+        name = jagged_int_var._attrs["name"]
+
+        # we use the key with a prefix here, as the JaggedIntVar's name
+        # is identical to the name of the total_length it is based on,
+        # which might have been traversed already
+        key = f"jagged_int_var_{name}"
+        if key not in self.visited_dims:
+            for i, jagged_dim in enumerate(jagged_int_var.jagged_dims()):
+                if jagged_dim.offsets() is None:
+                    raise RuntimeError(
+                        f"No offsets Tensor is associated with the JaggedDim {i} in "
+                        f"the JaggedIntVar {name}: can't generate offset-related code."
+                    )
+            self.jagged_decl.append(
+                f"   {jagged_int_var.offsets_struct_type()} "
+                f"{jagged_int_var.offsets_var_name()};"
+            )
+            self.visited_dims.add(key)
+
+        batch_dim_name = jagged_int_var.batch_dim()._attrs["name"]
+        if batch_dim_name not in self.visited_dims:
+            self.dim_decl.append(self.f_var_decl(batch_dim_name, 0))
+            self.visited_dims.add(batch_dim_name)
+
     def _process_dims_for_tensor(self, node: Tensor) -> None:
         self._process_dims(node._attrs["shape"])
 
@@ -622,6 +724,10 @@ class ModelContainerGenerator:
                     seq = f'  {{\n  RAII_ProfilerRange _raiiOpProfilerRange("{func._attrs["outputs"][0]._attrs["name"]}");\n{seq}\n  }}'
                 self.func_name_seq.append(func._attrs["original_name"])
                 self.func_seq.append(seq)
+                input_shape, output_shape = extract_input_output_shapes(func._attrs)
+                self._input_shape_seq.append(input_shape)
+                self._output_shape_seq.append(output_shape)
+
             if "int_state_flag" in func._attrs:
                 if func._attrs["name"] not in self.state_record:
                     self.function_state.append(
@@ -707,12 +813,20 @@ class ModelContainerGenerator:
         self._process_dims_for_tensor(node)
         self._process_src_ops(node)
 
+        if node.is_jagged():
+            self._process_jagged_dims(node)
+
     def generate_model(self) -> str:
         # Disable graph mode on ROCM because the updating operations
         # are not supported
         target_has_graph_mode = "true" if self.target.name() == "cuda" else "false"
 
-        func_pair_seq = zip(self.func_name_seq, self.func_seq)
+        per_op_profiler_seq = zip(
+            self.func_name_seq,
+            self.func_seq,
+            self._input_shape_seq,
+            self._output_shape_seq,
+        )
         return MODEL_TEMPLATE.render(
             model_name=self.model_name,
             function_decl="\n".join(self.func_decl),
@@ -723,9 +837,10 @@ class ModelContainerGenerator:
             device_to_device_copies="\n".join(self.device_to_device_copies),
             set_up_param_dynamic_shapes="\n".join(self.set_up_param_dynamic_shapes),
             function_seq=self.func_seq,
-            function_pair_seq=func_pair_seq,
+            per_op_profiler_seq=per_op_profiler_seq,
             tensor_decl="\n".join(self.tensor_decl),
             dim_decl="\n".join(self.dim_decl),
+            jagged_decl="\n".join(self.jagged_decl),
             function_state="\n".join(self.function_state),
             target_has_graph_mode=target_has_graph_mode,
             unique_workspace_size=self.workspace.unique_size,
@@ -736,31 +851,47 @@ class ModelContainerGenerator:
             num_outputs=self.num_outputs,
             param_size=self.max_constant_blob_size + self.extra_owned_constant_size,
             num_unbound_constants=self.unbound_constant_idx,
+            reset_constants="\n".join(self.reset_constants),
             profiler_annotation=self.debug_settings.gen_profiler_annotation,
         )
 
-    def _create_set_up_constant_folding_outputs_offsets(self) -> str:
+    def _create_set_up_constant_offsets(self) -> str:
         """
+        bound_constant_offsets_ stores a map for each constant to the offset in constant buffer,
         constant_folding_outputs_offsets_ stores a map from each output of constant folding
         to its offset inside the constant buffer.
+
 
         When the model is loaded, we use these offsets to wire up the constant folding output
         pointers to the outputs of the constant folder.
         """
-        if not self.set_up_constant_folding_outputs_offsets:
-            return ""
-
-        return jinja2.Template(
-            """
-constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
-{{set_up_statements}}
-"""
-        ).render(
-            num_constant_folding_outputs=len(
-                self.set_up_constant_folding_outputs_offsets
-            ),
-            set_up_statements="\n".join(self.set_up_constant_folding_outputs_offsets),
-        )
+        constant_offsets = ""
+        if self.set_up_constant_folding_outputs_offsets:
+            constant_offsets = jinja2.Template(
+                """
+    constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
+    {{set_up_statements}}
+    """
+            ).render(
+                num_constant_folding_outputs=len(
+                    self.set_up_constant_folding_outputs_offsets
+                ),
+                set_up_statements="\n".join(
+                    self.set_up_constant_folding_outputs_offsets
+                ),
+            )
+            constant_offsets += "\n"
+        if self.set_up_bound_constant_offsets:
+            constant_offsets += jinja2.Template(
+                """
+    bound_constant_offsets_.resize({{num_bound_constant_offsets}});
+    {{set_up_statements}}
+    """
+            ).render(
+                num_bound_constant_offsets=len(self.set_up_bound_constant_offsets),
+                set_up_statements="\n".join(self.set_up_bound_constant_offsets),
+            )
+        return constant_offsets
 
     def generate_source(self) -> Dict[str, str]:
         """
@@ -783,12 +914,15 @@ constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
             param_size=self.max_constant_blob_size + self.extra_owned_constant_size,
             set_up_constant_names="\n".join(self.set_up_constant_names),
             set_up_param_dtypes="\n".join(self.set_up_param_dtypes),
+            set_up_bound_constant_dtypes="\n".join(self.set_up_bound_constant_dtypes),
+            set_up_bound_constant_size="\n".join(self.set_up_bound_constant_size),
             set_up_output_shapes="\n".join(self.set_up_output_shapes),
             set_up_param_names="\n".join(self.set_up_param_names),
             num_constants=self.num_constants,
+            num_bound_constants=self.bound_constant_idx,
             num_unbound_constants=self.unbound_constant_idx,
             owned_constants_init=",".join(self.owned_constants_init),
-            set_up_constant_folding_outputs_offsets=self._create_set_up_constant_folding_outputs_offsets(),
+            set_up_constant_offsets=self._create_set_up_constant_offsets(),
             set_up_constant_folding_inputs="\n".join(
                 self.set_up_constant_folding_inputs
             ),
@@ -821,6 +955,10 @@ constant_folding_outputs_offsets_.resize({{num_constant_folding_outputs}});
             )
         else:
             self._add_owned_constant(tensor)
+            self._codegen_bound_constant(tensor)
+            self.set_up_constant_folding_inputs.append(
+                f'constant_folding_optional_inputs_.insert("{name}");'
+            )
 
         self._process_dims_for_tensor(tensor)
 

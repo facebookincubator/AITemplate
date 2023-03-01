@@ -18,8 +18,20 @@ from typing import Any, Callable, Dict, List, Tuple, Union
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor
 
-from aitemplate.compiler.public import elementwise, FuncEnum, Tensor as AITTensor
+from aitemplate.compiler.public import (
+    elementwise,
+    FuncEnum,
+    permute,
+    Tensor as AITTensor,
+)
 from torch.fx.node import Argument
+
+OPS_FOLLOW_PT_TENSOR_LAYOUT = True
+
+
+def set_tensor_layout_policy(follow_pt_layout: bool):
+    global OPS_FOLLOW_PT_TENSOR_LAYOUT
+    OPS_FOLLOW_PT_TENSOR_LAYOUT = follow_pt_layout
 
 
 def get_positive_dim(dim: int, dim_size: int) -> int:
@@ -117,6 +129,8 @@ def get_python_op_from_ait_constant_elementwise_op(
         return operator.truediv
     elif op_type == FuncEnum.SQRT:
         return math.sqrt
+    elif op_type == FuncEnum.FLOOR_DIV:
+        return operator.floordiv
     else:
         raise RuntimeError(f"{op_type} is not supported yet!")
 
@@ -136,6 +150,50 @@ def identical_elem_tuple_to_int(param):
 
 def nchw2nhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
     return [shape[0], shape[2], shape[3], shape[1]]
+
+
+def ncdhw2ndhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
+    return [shape[0], shape[2], shape[3], shape[4], shape[1]]
+
+
+def weight_nchw2nhwc(weight: AITTensor) -> None:
+    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 1)
+    return weight
+
+
+def weight_ncdhw2ndhwc(weight: AITTensor) -> None:
+    weight._attrs["data"].tensor = weight._attrs["data"].tensor.permute(0, 2, 3, 4, 1)
+    return weight
+
+
+def ait_ncl2nlc(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 2, 1])
+
+
+def ait_nlc2ncl(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 2, 1])
+
+
+def ait_nchw2nhwc(ait_tensor: AITTensor) -> AITTensor:
+    if OPS_FOLLOW_PT_TENSOR_LAYOUT:
+        return permute()(ait_tensor, [0, 2, 3, 1])
+    else:
+        return ait_tensor
+
+
+def ait_nhwc2nchw(ait_tensor: AITTensor) -> AITTensor:
+    if OPS_FOLLOW_PT_TENSOR_LAYOUT:
+        return permute()(ait_tensor, [0, 3, 1, 2])
+    else:
+        return ait_tensor
+
+
+def ait_ncdhw2ndhwc(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 2, 3, 4, 1])
+
+
+def ait_ndhwc2ncdhw(ait_tensor: AITTensor) -> AITTensor:
+    return permute()(ait_tensor, [0, 4, 1, 2, 3])
 
 
 # TODO:  This is a hack to workaround AIT's dynamic shape requirement.
