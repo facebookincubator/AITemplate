@@ -20,8 +20,8 @@ from typing import List
 
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
-from ...utils import graph_utils
-from ..base import IntImm, Operator, Tensor
+from ...utils import graph_utils, shape_utils
+from ..base import Operator, Tensor
 from . import transform_utils
 
 
@@ -188,12 +188,10 @@ def _merge_split_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noqa: C
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _eliminate_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
     for tensor in sorted_graph:
         src_ops = tensor._attrs["src_ops"]
         if len(src_ops) != 1:
-            continue
-        if tensor._attrs["is_output"]:
             continue
         src_op = list(src_ops)[0]
         if src_op._attrs["op"] != "split":
@@ -205,7 +203,7 @@ def _fuse_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
         shape = split_op._attrs["inputs"][0]._attrs["shape"]
         if (
             len(split_sizes) == 1
-            and isinstance(shape[dim], IntImm)
+            and shape_utils.is_static_dimension(shape, dim)
             and shape[dim]._attrs["values"][0] == split_sizes[0]
         ):
             input_tensor = split_op._attrs["inputs"][0]
@@ -227,7 +225,7 @@ def transform_memory_ops(
     """
 
     funcs = [
-        _fuse_split_full_idx,
+        _eliminate_split_full_idx,
         _merge_split_and_cat,
         _eliminate_cat,
     ]
