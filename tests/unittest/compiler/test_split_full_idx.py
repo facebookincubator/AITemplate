@@ -175,7 +175,7 @@ class SplitGetItemTestCase(unittest.TestCase):
         )
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def _test_split_getitem_remove_output(self):
+    def test_split_getitem_remove_output(self):
         self._test_split_getitem_remove_output(
             shape=(16, 32, 10),
             split_sections=[16],
