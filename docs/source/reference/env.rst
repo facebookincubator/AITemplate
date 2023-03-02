@@ -14,6 +14,8 @@ Codegen
 
 **AIT_COMPILER_OPT**: The optimization level for a compiler, which is directly passed to the host compiler command line. AITemplate host code may be very light in certain cases, so there is nothing to optimize for a host compiler. Thus, there is no need to make host compiler perform time costly optimizations. It may be very useful to use "-O0" value for debugging GPU kernels. "-O3" by default.
 
+**AIT_TIME_COMPILATION**: If set to "1", time each make command at the compilation time. This helps us to do compilation time analysis. Requires to install `time <https://man7.org/linux/man-pages/man1/time.1.html>`_ package.
+
 Profiling
 ---------
 
