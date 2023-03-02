@@ -69,6 +69,14 @@ class TestTensorSpec(unittest.TestCase):
                     ([4, 10, 9], torch.float16),
                 ],
             ),
+            (
+                "same_shapes",
+                [
+                    ([10, 3, 40, 5], torch.float16),
+                    ([10, 3, 40, 5], torch.float16),
+                    ([10, 3, 40, 5], torch.float32),
+                ],
+            ),
         ]
     )
     def test_input_list_with_batch_size(self, _, settings):
