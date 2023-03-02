@@ -15,12 +15,9 @@
 import logging
 
 import click
-
 import torch
-
 from aitemplate.testing import detect_target
 from aitemplate.utils.import_path import import_parent
-
 from diffusers import StableDiffusionPipeline
 
 if __name__ == "__main__":
@@ -56,6 +53,13 @@ def compile_diffusers(
         revision="fp16",
         torch_dtype=torch.float16,
     ).to("cuda")
+
+    assert (
+        width % 64 == 0
+    ), "Width must be divisible by 64, otherwise, the compilation process will fail."
+    assert (
+        height % 64 == 0
+    ), "Height must be divisible by 64, otherwise, the compilation process will fail."
 
     ww = width // 8
     hh = height // 8
