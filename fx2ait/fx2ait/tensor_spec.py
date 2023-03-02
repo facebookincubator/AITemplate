@@ -247,16 +247,27 @@ class TensorSpec:
             return [0]
         shapes = [i.shape for i in inputs]
         frequency_map = {}
+        first_dims = set()
         for shape in shapes:
             if len(shape) < 2:
                 # By pass for rank-1 tensors. MRS model has rank-1 tensor carry no batch_size info
                 continue
             # Dedup shape value for single tensor
+            first_dims.add(shape[0])
             shape = set(shape)
             for i in shape:
                 frequency_map[i] = frequency_map.get(i, 0) + 1
-        sorted_frequency = sorted(frequency_map.items(), key=lambda x: -x[1])
-        batch_size = sorted_frequency[0][0]
+
+        if len(first_dims) == 1:
+            # first dim is the same in every input: we use it as batch_size
+            batch_size = first_dims.pop()
+        elif frequency_map:
+            # first dims are different: we use the most frequent dim as batch_size
+            sorted_frequency = sorted(frequency_map.items(), key=lambda x: -x[1])
+            batch_size = sorted_frequency[0][0]
+        else:
+            # no dims to sort: no batch_size
+            batch_size = -1
 
         bs_dim = []
         for i in inputs:
