@@ -887,6 +887,7 @@ def acc_ops_group_norm(
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
+    input_val = ait_nchw2nhwc(kwargs["input"])
     num_groups = kwargs["num_groups"]
     weight_val = kwargs["weight"]
     bias_val = kwargs["bias"]
@@ -895,7 +896,8 @@ def acc_ops_group_norm(
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     num_channels = input_val.shape()[-1].value()
     op = group_norm(num_groups, num_channels)
-    return op(input_val, weight_val, bias_val, eps_val)
+    result = op(input_val, weight_val, bias_val, eps_val)
+    return ait_nhwc2nchw(result)
 
 
 @ait_converter(acc_ops.layer_norm)
