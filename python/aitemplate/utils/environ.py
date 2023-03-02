@@ -49,3 +49,12 @@ def force_profiler_cache() -> bool:
         ), "cannot specify both AIT_FORCE_PROFILER_CACHE and FORCE_PROFILE"
     _LOGGER.info(f"{force_cache=}")
     return force_cache
+
+
+def time_compilation() -> bool:
+    """
+    When enabled, time each make command at compilation time.
+    This helps us doing compilation time analysis.
+    Requires to install "time".
+    """
+    return os.getenv("AIT_TIME_COMPILATION", "0") == "1"
