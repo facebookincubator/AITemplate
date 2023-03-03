@@ -55,7 +55,6 @@ class TestFuseExpand(unittest.TestCase):
 
                 z_ait = torch.empty_like(z_pt)
                 mod.run_with_tensors({"x": x_pt, "y": y_pt}, {"z": z_ait})
-
                 self.assertTrue(torch.equal(z_ait, z_pt))
 
 

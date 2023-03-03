@@ -31,14 +31,13 @@ call the passes in this file more than once.
 """
 from typing import List
 
-from aitemplate.compiler.base import IntVar, Operator
+from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 
 from aitemplate.compiler.transform import transform_utils
 
 from aitemplate.utils import graph_utils
 from aitemplate.utils.shape_utils import is_singleton_dimension
-
-from ..base import Tensor
 
 
 def _remove_no_op_expands(sorted_graph: List[Tensor]) -> List[Tensor]:
@@ -56,9 +55,6 @@ def _remove_no_op_expands(sorted_graph: List[Tensor]) -> List[Tensor]:
         if op._attrs["op"] != "expand":
             continue
 
-        if op._attrs["expand_dim"] is not None:
-            continue
-
         outputs = op._attrs["outputs"]
         assert len(outputs) == 1, "expand must only have 1 output"
         expand_output = outputs[0]
@@ -69,6 +65,14 @@ def _remove_no_op_expands(sorted_graph: List[Tensor]) -> List[Tensor]:
         inputs = op._attrs["inputs"]
         assert len(inputs) >= 1, "expand must have at least 1 input"
         expand_input = inputs[0]
+
+        assert len(op._attrs["dim_types"]) == len(
+            expand_output._attrs["shape"]
+        ), "expand must have dim_type for every output dimension"
+
+        # If we just keep every dimension as-is, it is a no-op
+        if any(dt != ExpandDimensionType.KEEP_DIM for dt in op._attrs["dim_types"]):
+            continue
 
         # This expand is a no-op, so we know that these shapes should
         # be the same. However, the shape inference system may not be aware
