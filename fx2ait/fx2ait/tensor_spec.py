@@ -247,6 +247,7 @@ class TensorSpec:
             return [0]
         shapes = [i.shape for i in inputs]
         frequency_map = {}
+        position_scores = {}
         first_dims = set()
         for shape in shapes:
             if len(shape) < 2:
@@ -254,16 +255,24 @@ class TensorSpec:
                 continue
             # Dedup shape value for single tensor
             first_dims.add(shape[0])
-            shape = set(shape)
-            for i in shape:
-                frequency_map[i] = frequency_map.get(i, 0) + 1
+            seen_dims = set()
+            for i, dim in enumerate(shape):
+                if dim not in seen_dims:
+                    frequency_map[dim] = frequency_map.get(dim, 0) + 1
+                    position_scores[dim] = position_scores.get(dim, 0) + i
+                    seen_dims.add(dim)
 
         if len(first_dims) == 1:
             # first dim is the same in every input: we use it as batch_size
             batch_size = first_dims.pop()
         elif frequency_map:
             # first dims are different: we use the most frequent dim as batch_size
-            sorted_frequency = sorted(frequency_map.items(), key=lambda x: -x[1])
+            # if there is more than 1 most frequent dim, we choose the one with the
+            # lowest position score (i.e., the leftmost of the most frequent ones)
+            sorted_frequency = sorted(
+                frequency_map.items(),
+                key=lambda x: (-x[1], position_scores[x[0]]),
+            )
             batch_size = sorted_frequency[0][0]
         else:
             # no dims to sort: no batch_size
