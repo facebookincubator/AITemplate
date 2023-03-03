@@ -55,11 +55,8 @@ def compile_diffusers(
     ).to("cuda")
 
     assert (
-        width % 64 == 0
-    ), "Width must be divisible by 64, otherwise, the compilation process will fail."
-    assert (
-        height % 64 == 0
-    ), "Height must be divisible by 64, otherwise, the compilation process will fail."
+        height % 64 == 0 and width % 64 == 0
+    ), "Height and Width must be multiples of 64, otherwise, the compilation process will fail."
 
     ww = width // 8
     hh = height // 8
