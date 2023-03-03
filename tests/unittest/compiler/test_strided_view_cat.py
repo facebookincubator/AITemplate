@@ -41,7 +41,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=2,
                 new_shape=[-1, 2, 2],
                 cat_dim=2,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -49,7 +49,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=2,
                 new_shape=[-1, 2, 1, 2],
                 cat_dim=3,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -57,7 +57,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=4,
                 new_shape=[-1, 4, 4, 1],
                 cat_dim=2,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -65,7 +65,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=2,
                 new_shape=[-1, 2, 2, 1],
                 cat_dim=2,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -73,7 +73,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=4,
                 new_shape=[-1, 4, 2, 2],
                 cat_dim=2,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
