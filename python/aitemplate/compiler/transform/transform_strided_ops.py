@@ -129,7 +129,7 @@ def _group_gemm_cat_checker(
 
 def _is_bmm(op_type: str) -> bool:
     # TODO: support cutlass bmm ops
-    return op_type.startswith(("bmm_rcr", "bmm_crr"))
+    return op_type.startswith(("bmm_rcr", "bmm_crr", "bmm_ccr", "bmm_rrr"))
 
 
 def _bmm_checker(bmm_op: Operator, cat_op: Operator) -> bool:
