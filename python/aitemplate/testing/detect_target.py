@@ -30,6 +30,28 @@ IS_CUDA = None
 FLAG = ""
 
 
+def _detect_cuda_with_nvidia_smi():
+    try:
+        proc = Popen(
+            ["nvidia-smi", "--query-gpu=gpu_name", "--format=csv"],
+            stdout=PIPE,
+            stderr=PIPE,
+        )
+        stdout, stderr = proc.communicate()
+        stdout = stdout.decode("utf-8")
+        if "H100" in stdout:
+            return "90"
+        if any(a in stdout for a in ["A100", "A10G", "RTX 30", "A30", "RTX 40"]):
+            return "80"
+        if "V100" in stdout:
+            return "70"
+        if "T4" in stdout:
+            return "75"
+        return None
+    except Exception:
+        return None
+
+
 def _detect_cuda():
     try:
         import pycuda.driver as drv
@@ -47,6 +69,9 @@ def _detect_cuda():
             return "70"
         else:
             return None
+    except ImportError:
+        # go back to old way to detect the CUDA arch
+        return _detect_cuda_with_nvidia_smi()
     except Exception:
         return None
 
