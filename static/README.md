@@ -55,7 +55,7 @@ If PyTorch is not available, `Model` provides a set of functions for copying, al
 # Arguments as a dictionary
 module.run(
   {"input0": in0_ait, "input1": in1_ait},
-  {"output0": out0_ait, "output1": out0_ait},
+  {"output0": out0_ait, "output1": out1_ait},
 )
 
 # Arguments as an ordered list. Note that you might need to query
@@ -63,8 +63,8 @@ module.run(
 input_name_to_idx = module.get_input_name_to_index_map()
 output_name_to_idx = module.get_output_name_to_index_map()
 
-inputs = [None for i in range(len(input_name_to_idx))]
-outputs = [None for i in range(len(input_name_to_idx))]
+inputs = [None] * len(input_name_to_idx)
+outputs = [None] * len(output_name_to_idx)
 
 for name in input_name_to_idx:
   inputs[input_name_to_idx[name]] = ait_inputs[name]
