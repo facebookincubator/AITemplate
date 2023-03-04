@@ -105,7 +105,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=2,
                 new_shape=[-1, 2, 1, 2],
                 cat_dim=3,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
                 dtype="float",
             ),
@@ -157,9 +157,6 @@ class StridedViewCatOpTestCase(unittest.TestCase):
         X2 = ops.gemm_rcr_bias_add()(input0, input1, input3, input4)
         X3 = ops.gemm_rcr_bias_add_add()(input0, input1, input3, input4, input4)
         X4 = ops.bmm_rcr()(input0, input2)
-
-        # For now these ops do not support output_accessors yet.
-        # TODO: enable these checks once these ops support output_accessors.
         X5 = ops.bmm_rrr_add()(input0, input2, input3)
 
         # [m, b, k] x [b, n, k] -> [m, b, n] b = n, k = n
