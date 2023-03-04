@@ -56,7 +56,7 @@ def compile_diffusers(
 
     assert (
         height % 64 == 0 and width % 64 == 0
-    ), "Height and Width must be multiples of 64, otherwise, the compilation process will fail."
+    ), f"Height and Width must be multiples of 64, otherwise, the compilation process will fail. Got {height=} {width=}"
 
     ww = width // 8
     hh = height // 8
