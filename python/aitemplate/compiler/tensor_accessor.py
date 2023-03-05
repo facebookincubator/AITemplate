@@ -262,7 +262,7 @@ class TensorAccessor(object):
         # Loop through self._dim_mapping to generate stride_strs.
         found_original_dim_group = False
         res = []
-        for (original_group, actual_group) in self._dim_mapping:
+        for original_group, actual_group in self._dim_mapping:
             if not found_original_dim_group:
                 if dim in original_group:
                     found_original_dim_group = True
@@ -423,17 +423,16 @@ class TensorAccessor(object):
         ):
             self.is_from_strided_tensor = True
 
-    def update_base_tensor_shape(self, new_tensor: Tensor) -> None:
+    def update_base_shape(self, new_shape: List[IntVar]) -> None:
         """
-        Updates the TensorAccessor's actual shape.
+        Updates the TensorAccessor's actual shape to new_shape.
         This API is useful to handle view ops, e.g. reshape, flatten, etc.
         """
-
         assert (
             self.stride_dim is None
         ), "Tensor accessor cannot be updated once stride_dim is set!"
 
-        self.actual_shapes = new_tensor._attrs["shape"]
+        self.actual_shapes = new_shape
         original_dynamic_dims = {
             dim for dim in self.original_shapes if not isinstance(dim, IntImm)
         }
@@ -446,3 +445,10 @@ class TensorAccessor(object):
             f"actual tensor: {self.actual_shapes}!"
         )
         self._try_gen_dim_mapping()
+
+    def update_base_tensor_shape(self, new_tensor: Tensor) -> None:
+        """
+        Updates the TensorAccessor's actual shape.
+        This API is useful to handle view ops, e.g. reshape, flatten, etc.
+        """
+        self.update_base_shape(new_tensor._attrs["shape"])

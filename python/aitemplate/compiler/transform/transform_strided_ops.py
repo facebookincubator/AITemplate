@@ -27,6 +27,7 @@ from aitemplate.compiler.transform.fuse_split import (
     _fuse_split_and_group_gemm,
     _fuse_split_and_strided_op,
 )
+from aitemplate.compiler.transform.transform_memory_ops import transform_memory_ops
 from aitemplate.compiler.transform.transform_strided_op_and_view_op import (
     _fuse_strided_op_and_view_op,
 )
@@ -305,9 +306,15 @@ def _fuse_strided_op_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noq
 
             cat_inputs_to_remove.append(idx)
 
-            strided_op._attrs["output_accessors"][strided_idx].update_base_tensor(
-                cat_output, cat_dim, offset
-            )
+            this_input_accessor = cat_input_accessors[idx]
+            this_output_accessor = strided_op._attrs["output_accessors"][strided_idx]
+            # if the cat op has been fused with any view-op, we need to adjust
+            # the base shape for the strided output accessor as well
+            if this_input_accessor.original_shapes != this_input_accessor.actual_shapes:
+                this_output_accessor.update_base_shape(
+                    cat_input_accessors[idx].original_shapes
+                )
+            this_output_accessor.update_base_tensor(cat_output, cat_dim, offset)
 
             cat_output._attrs["src_ops"].add(strided_op)
 
@@ -470,6 +477,11 @@ def transform_strided_ops(
             _fuse_split_and_group_gemm,
             # Common passes:
             _fuse_strided_op_and_view_op,
+            # make sure to place transform_memory_ops after _fuse_strided_op_and_view_op
+            # but before the following _fuse_strided passes. It's because we want to
+            # fuse concat before running strided-related fusion. Otherwise, we would have
+            # to re-construct tensor accessors, which might not be feasible in some cases.
+            transform_memory_ops,
             _fuse_strided_op_and_cat,
             _fuse_split_and_strided_op,
             # make sure this pass runs after _fuse_strided_op_and_cat
