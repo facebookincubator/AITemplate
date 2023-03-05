@@ -146,15 +146,13 @@ void {{func_name}}(
     offsets.data[{{idx}}] = reinterpret_cast<const {{offsets_type}}*>(offsets_data_{{idx}});
 {% endfor %}
 
-{% if set_batch_dim %}
-    // batch_dim must be set by this code
-    *batch_dim = offsets.lengths[0] - 1;
-{% else %}
-    // batch_dim must have been set before this code
-    if (*batch_dim != offsets.lengths[0] - 1) {
+    if (*batch_dim == 0) {
+      // batch_dim must be set by this code
+      *batch_dim = offsets.lengths[0] - 1;
+    } else if (*batch_dim != offsets.lengths[0] - 1) {
+      // batch_dim must have been set before this code
       throw std::runtime_error("batch_dim != len(offsets[0]) - 1");
     }
-{% endif %}
 
     int64_t max_offset_length = 0;
     for (int i = 0; i < {{num_offsets}}; ++i) {
@@ -223,7 +221,6 @@ def make_jagged_gen_function(func_attrs):
 
     output = func_attrs["outputs"][0]
     jagged_int_var = output._attrs["shape"][0]
-    set_batch_dim = jagged_int_var.batch_dim()._attrs.get("isolated", False)
     offsets_struct_type = jagged_int_var.offsets_struct_type()
     jagged_dim_min_values = [dim.min_value() for dim in jagged_int_var.jagged_dims()]
     jagged_dim_max_values = [dim.max_value() for dim in jagged_int_var.jagged_dims()]
@@ -231,7 +228,6 @@ def make_jagged_gen_function(func_attrs):
     return SRC_TEMPLATE.render(
         func_name=func_name,
         num_offsets=len(offsets_list),
-        set_batch_dim=set_batch_dim,
         offsets_struct_type=offsets_struct_type,
         jagged_dim_min_values=jagged_dim_min_values,
         jagged_dim_max_values=jagged_dim_max_values,
