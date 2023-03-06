@@ -77,6 +77,14 @@ class TestTensorSpec(unittest.TestCase):
                     ([10, 3, 40, 5], torch.float32),
                 ],
             ),
+            (
+                "leftmost_bs_dim",
+                [
+                    ([10, 20, 30], torch.float16),
+                    ([10, 30, 20], torch.float16),
+                    ([20, 10, 30], torch.float32),
+                ],
+            ),
         ]
     )
     def test_input_list_with_batch_size(self, _, settings):
