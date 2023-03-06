@@ -83,7 +83,10 @@ NI == {{x_dim0}} && HI == {{x_dim1}} && WI == {{x_dim2}} && CI == {{x_dim3}}
 
 EXEC_DYN_KEY_TEMPLATE = jinja2.Template(
     """
-NI >= {{x_dim0_lb}} && NI <= {{x_dim0_ub}} && HI == {{x_dim1}} && WI == {{x_dim2}} && CI == {{x_dim3}}
+NI >= {{x_dim0_lb}} && NI <= {{x_dim0_ub}} &&
+ HI >= {{x_dim1_lb}} && HI <= {{x_dim1_ub}} &&
+ WI >= {{x_dim2_lb}} && WI <= {{x_dim2_ub}} &&
+ CI == {{x_dim3}}
 """
 )
 
@@ -244,13 +247,29 @@ class conv2d(Operator):
             x_dim0=shape[0], x_dim1=shape[1], x_dim2=shape[2], x_dim3=shape[3]
         ).replace("\n", "")
 
-    def _gen_dyn_exec_key(self, dim0_lb, dim0_ub, dim1, dim2, dim3):
+    def _gen_dyn_exec_key(
+        self, dim0_lb, dim0_ub, dim1_lb, dim1_ub, dim2_lb, dim2_ub, dim3
+    ):
         return self.exec_dyn_key_template.render(
-            x_dim0_lb=dim0_lb, x_dim0_ub=dim0_ub, x_dim1=dim1, x_dim2=dim2, x_dim3=dim3
+            x_dim0_lb=dim0_lb,
+            x_dim0_ub=dim0_ub,
+            x_dim1_lb=dim1_lb,
+            x_dim1_ub=dim1_ub,
+            x_dim2_lb=dim2_lb,
+            x_dim2_ub=dim2_ub,
+            x_dim3=dim3,
         ).replace("\n", "")
 
     def _extract_exec_path(self, x: Tensor):
         x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
+        # FIXME: we take the max height and weight for profiling at the moment.
+        # Let's figure out a better profiling strategy later.
+        # The following attribute is temporarily used to hold the lower bounds of
+        # all dimensions. We will remove them later once we have a better profiling
+        # strategy.
+        self._attrs["dim_lower_bounds"] = [min(vals) for vals in x_shape_values]
+        x_shape_values = [x_shape_values[0]] + [[max(vs)] for vs in x_shape_values[1:]]
+
         x_shapes = itertools.product(*x_shape_values)
         self._attrs["exec_path"] = OrderedDict()
         for x_shape in x_shapes:
@@ -541,10 +560,6 @@ class conv2d(Operator):
             devices = [0]
         self._profile_static(workdir, devices)
 
-        target = backend.target.Target.current()
-        if target.use_dummy_profiling_results():
-            return
-
         if self._has_dynamic_input_dims():
             if dynamic_profiling_strategy != DynamicProfileStrategy.HINTS:
                 raise NotImplementedError(
@@ -592,17 +607,8 @@ class conv2d(Operator):
     def _profile_dynamic_dim(self, workdir):
         """Profiles with dynamic shapes."""
 
-        profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
-        runner = backend.profiler_runner.Runner([0], self._attrs["name"])
         # extract dynamic dim from exec_path
-        if len(self._attrs["exec_path"]) <= 1:
-            return
-        if len(set(self._attrs["exec_path"].values())) <= 1:
-            # all exec paths point to the same algo
-            return
-
         def _extract_dynamic_dim(exec_keys):
-            _LOGGER.info("ONLY SUPPORT DYNAMIC BATCH (dim0)!")
             var_dims = [[], [], [], []]
             for key in exec_keys:
                 dims = self._invert_exec_key(key)
@@ -610,11 +616,41 @@ class conv2d(Operator):
                     var_dims[i].append(v)
             return var_dims
 
+        dim_lbs = self._attrs["dim_lower_bounds"]
         dims = _extract_dynamic_dim(self._attrs["exec_path"].keys())
-        dim1 = dims[1][0]
-        dim2 = dims[2][0]
+        dim0_lb = dim_lbs[0]
+        dim1_lb = dim_lbs[1]
+        dim2_lb = dim_lbs[2]
+        # dims' upper bounds are the same except the batch dimension
+        dim1_ub = dims[1][0]
+        dim2_ub = dims[2][0]
         dim3 = dims[3][0]
+
+        num_exec_path = len(self._attrs["exec_path"])
+        if num_exec_path < 1:
+            return
         algos = list(self._attrs["exec_path"].values())
+        if num_exec_path == 1 or len(set(algos)) <= 1:
+            # all exec paths point to the same algo
+            new_exec_paths = OrderedDict()
+            # Because we have a single algo, it's safe to just take the upper
+            # bound of dim0 (i.e. batch dim) values.
+            dim0_ub = max(dims[0])
+            # we need to generate new exec paths that ensure the ranges of
+            # likely dynamic heights and weights
+            new_key = self._gen_dyn_exec_key(
+                dim0_lb, dim0_ub, dim1_lb, dim1_ub, dim2_lb, dim2_ub, dim3
+            )
+            new_exec_paths[new_key] = algos[0]
+            self._attrs["exec_path"] = new_exec_paths
+            return
+
+        target = backend.target.Target.current()
+        if target.use_dummy_profiling_results():
+            return
+
+        profiler_prefix = os.path.join(workdir, "profiler", self._attrs["op"])
+        runner = backend.profiler_runner.Runner([0], self._attrs["name"])
         # generate region
         regions = []  # lb, ub, lb_algos, ub_algos
         for i in range(len(dims[0]) - 1):
@@ -631,7 +667,7 @@ class conv2d(Operator):
             last_mid = mid
             while mid > lb and mid < ub:
                 mid = (lb + ub) // 2
-                mid_shape = [mid, dim1, dim2, dim3]
+                mid_shape = [mid, dim1_ub, dim2_ub, dim3]
                 _LOGGER.info(
                     "current: lb_algo: {lb_algo}, LB:{lb} MID:{mid} UB:{ub}".format(
                         lb_algo=lb_algo, lb=lb, mid=mid, ub=ub
@@ -674,10 +710,10 @@ class conv2d(Operator):
                 last_mid = mid
                 mid = (lb + ub) // 2
             lo_region_key = self._gen_dyn_exec_key(
-                origin_lb, last_mid, dim1, dim2, dim3
+                origin_lb, last_mid, dim1_lb, dim1_ub, dim2_lb, dim2_ub, dim3
             )
             up_region_key = self._gen_dyn_exec_key(
-                last_mid, origin_ub, dim1, dim2, dim3
+                last_mid, origin_ub, dim1_lb, dim1_ub, dim2_lb, dim2_ub, dim3
             )
             new_exec_paths[lo_region_key] = lb_algo
             new_exec_paths[up_region_key] = ub_algo
