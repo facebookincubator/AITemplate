@@ -308,7 +308,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}// TODO: cutlass bug here
 {{indent}}// auto status = gemm_op.can_implement(arguments);
 {{indent}}// CUTLASS_CHECK(status);
-{{indent}}auto status = gemm_op.initialize(arguments, workspace, stream);
+{{indent}}auto status = gemm_op.initialize(arguments, workspace, stream);{% if use_streamk %} // if this fails under streamk, you probably need to increase workspace{% endif %}
 {{indent}}CUTLASS_CHECK(status);
 {{indent}}status = gemm_op(stream);
 {{indent}}CUTLASS_CHECK(status);
@@ -782,6 +782,12 @@ def group_gemm_instance(op_def: str, func_attrs: Dict[str, Any], for_profiler: b
         "GemmBatchedIdentityThreadblockSwizzle",
         tmp,
     )
+    if common.is_streamk_enabled(func_attrs):
+        tmp = tmp.replace(
+            "GemmBatchedIdentityThreadblockSwizzle",
+            "ThreadblockSwizzleStreamK"
+        )
+
     tmp = re.sub(
         r"cutlass::arch::OpMultiplyAdd",
         "cutlass::gemm::kernel::GroupScheduleMode::kDeviceOnly,\n"
@@ -821,6 +827,7 @@ def gen_profiler(
         problem_args=problem_args_template.render(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
+            use_streamk=common.is_streamk_enabled(func_attrs),
         ),
     )
 
@@ -832,6 +839,7 @@ def gen_profiler(
             for_profiler=True,
             f_instance_convertor=group_gemm_instance,
             emit_kernel=True,
+            func_attrs=func_attrs,
         )
         config_name = common.extract_config_name(config)
         instance_name = f"{instance_name_base}_{instance_idx}"
@@ -931,6 +939,7 @@ def gen_function(
     problem_args = problem_args_template.render(
         elem_input_type=elem_input_type,
         elem_output_type=elem_output_type,
+        avail_sms=None,  # avail_sms is not used for StreamK in GroupGemm
     )
     func_name = func_attrs["name"]
     exec_path = func_attrs["exec_path"]
@@ -1021,6 +1030,7 @@ def gen_function(
         instance="GemmInstance",
         is_profiler=False,
         problem_args=problem_args,
+        use_streamk=common.is_streamk_enabled(func_attrs),
     )
     adapter_func = ADAPTOR_FUNCTION_TEMPLATE.render(
         func_name=func_name, exec_program=exec_program, has_bias=has_bias

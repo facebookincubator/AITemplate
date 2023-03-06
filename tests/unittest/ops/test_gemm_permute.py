@@ -22,6 +22,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    streamk_enabled_and_not_supported,
 )
 from aitemplate.utils import shape_utils
 
@@ -162,6 +163,7 @@ class GEMMTestCase(unittest.TestCase):
             # )
             # print(f"pt: {t} ms/iter")
 
+    @unittest.skipIf(streamk_enabled_and_not_supported(), "StreamK is not supported")
     def test_rcr_0213(self):
         self._test_rcr_0213(
             [54],

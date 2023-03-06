@@ -78,6 +78,9 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     K,                                                       // typename LayoutB::Stride::LongIndex ldb
     0,                                                       // typename LayoutC::Stride::LongIndex ldc
     output_stride,                                           // typename LayoutC::Stride::LongIndex ldd
+    {% if avail_sms %}
+    {{avail_sms}},                                           // avail_sms
+    {% endif %}
 """
 )
 

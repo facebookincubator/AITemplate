@@ -17,6 +17,7 @@ GEMM Specialization for
 C = UnaryOp2(BinaryOp2(BinaryOp1(UnaryOp1(GeMM(A, B) + bias), D1), D2)),
 """
 
+import logging
 import re
 from functools import partial
 
@@ -30,6 +31,8 @@ from . import common, gemm_rcr
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 
+
+_LOGGER = logging.getLogger(__name__)
 
 # For config extraction.
 GEMM_UNIVERSAL_WITH_BROADCAST_TEMPLATE = jinja2.Template(
@@ -393,6 +396,9 @@ def gemm_bias_broadcast_instance(
         gemm_universal_with_broadcast_params,
         op_def,
     )
+    if common.is_streamk_enabled(func_attrs):
+        assert "GemmUniversalWithBroadcast" in gemm_universal_with_broadcast_params
+        _LOGGER.warning("Warning! StreamK is not supported for GemmUniversalWithBroadcast")
     return res
 
 
@@ -446,6 +452,7 @@ def gen_profiler(
             layout=layout,
             has_d1=has_d1,
         ),
+        # use_streamk=common.is_streamk_enabled(func_attrs),  # StreamK is not used with GemmUniversalWithBroadcast
     )
     input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
         input_ndims=ndims,
@@ -469,6 +476,7 @@ def gen_profiler(
                 unary_op2=unary_op2,
                 elem_type=elem_input_type,
             ),
+            func_attrs=func_attrs,
         )
         config_name = common.extract_config_name(config)
         instance_name = f"{instance_name_base}_{instance_idx}"

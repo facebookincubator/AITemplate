@@ -67,6 +67,10 @@ basic_tests: &basic_tests
         mkdir ~/test-results
         python3.8 -m pytest $TEST_FILES -o junit_family=xunit1 --junitxml=~/test-results/junit.xml --verbose --continue-on-collection-errors -rA
 
+        # Second round of tests for GEMM StreamK operations
+        TEST_FILES=$(circleci tests glob "tests/unittest/ops/test_*.py" | grep -v benchmark | circleci tests split --split-by=timings)
+        USE_GEMM_STREAMK=1 python3.8 -m pytest $TEST_FILES -o junit_family=xunit1 --junitxml=~/test-results/junit.xml --verbose --continue-on-collection-errors -rA
+
 fx2ait_tests: &fx2ait_tests
   - run:
       name: Run fx2ait tests

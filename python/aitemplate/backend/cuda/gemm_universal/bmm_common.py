@@ -205,6 +205,9 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     {{mm_info.ldb}},                                                                                    // typename LayoutB::Stride::LongIndex ldb
     {{mm_info.ldbias}},                                                                                 // typename LayoutC::Stride::LongIndex ldc
     {{mm_info.ldc}},                                                                                    // typename LayoutC::Stride::LongIndex ldd
+    {% if avail_sms %}
+    {{avail_sms}},                                                                                      // avail_sms
+    {% endif %}
 """
 )
 
@@ -361,6 +364,7 @@ def make_function_strided_args(
 
     problem_args = PROBLEM_ARGS_TEMPLATE.render(
         mm_info=bmm_problem_info,
+        avail_sms=common.extract_avail_sms_streamk(func_attrs)
     )
     return (problem_args, input_addr_calculator, output_addr_calculator)
 
@@ -403,6 +407,7 @@ def gen_profiler(
         instance=instance_name_base,
         is_profiler=True,
         problem_args=problem_args,
+        use_streamk=common.is_streamk_enabled(func_attrs),
     )
     input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
         input_ndims=a_ndims,
@@ -414,7 +419,11 @@ def gen_profiler(
     instances = []
     benchmark_instances = []
     for instance_idx, (op_name, op) in enumerate(op_instance.items()):
-        config = common.emit_instance(op, for_profiler=True)
+        config = common.emit_instance(
+            op,
+            for_profiler=True,
+            func_attrs=func_attrs,
+        )
         config_name = common.extract_config_name(config)
         instance_name = f"{instance_name_base}_{instance_idx}"
         gemm_op = f"gemm_op_{instance_idx}"
@@ -524,6 +533,7 @@ def default_gen_profiler(
 
     problem_args = PROBLEM_ARGS_TEMPLATE.render(
         mm_info=default_mm_info,
+        avail_sms=common.extract_avail_sms_streamk(func_attrs)
     )
 
     return gen_profiler(

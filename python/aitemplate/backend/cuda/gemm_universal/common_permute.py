@@ -107,6 +107,12 @@ def gemm_permute_instance(op_def, func_attrs, for_profiler):
     tmp = re.sub(
         r"{}".format(layout_class), "{}<{}>".format(layout_class, shape_info), op_def
     )
+    if common.is_streamk_enabled(func_attrs):
+        tmp = re.sub(
+            "cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle(<\\d+>)*",
+            "cutlass::gemm::threadblock::ThreadblockSwizzleStreamK",
+            tmp
+        )
     return tmp
 
 
@@ -180,6 +186,7 @@ def gen_function(
             instance=fname,
             problem_args=problem_args,
             support_split_k=support_split_k,
+            use_streamk=common.is_streamk_enabled(func_attrs),
         )
         exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
@@ -253,6 +260,7 @@ def gen_profiler(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
         ),
+        use_streamk=common.is_streamk_enabled(func_attrs),
     )
     input_output_checks = common.INPUT_OUTPUT_CHECKS_TEMPLATE.render(
         input_ndims=ndims,
