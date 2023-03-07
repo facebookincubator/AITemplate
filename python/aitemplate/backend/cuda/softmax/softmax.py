@@ -35,8 +35,8 @@ from ...target import Target
 # i.e. for each K, we only need to compile one of the implementation, not all.
 #
 # For each K, whether to use wrapReduce or blockReduce was done by experiment
-# Please refer to this post: https://fb.quip.com/HCfIAbpWB0qi
-# and this experiment log: https://docs.google.com/spreadsheets/d/1bl3GCLQ67p27kXOSVJikEob38fojqaZIS--mPdQxeo0/edit#gid=931264442
+# Please refer to this post: https://github.com/facebookincubator/AITemplate/wiki/How-to-write-a-fast-Softmax-CUDA-kernel%3F
+# and this experiment log [fb internal only]: https://github.com/facebookincubator/AITemplate/wiki/How-to-write-a-fast-Softmax-CUDA-kernel%3F
 FUNC_TEMPLATE = jinja2.Template(
     """
 {{custom_libs}}
