@@ -48,6 +48,7 @@ class LowerSettings:
         use_fp16_acc=False uses fp32 accumulation for gemm ops.
         Set use_fp16_acc=True for better perf; set use_fp16_acc=False for better accuracy.
         For LowerPrecision.FP32, use_fp16_acc is invalid.
+    allow_int_inputs: If AIT acc subgraph accept integer inputs.
     leaf_module_list: The list of modules that acc_tracer will not trace into.
     output_precision: The AITemplate output precision level.
     additional_inputs: The additional input to help determine input batch_size dimension range.
@@ -68,6 +69,7 @@ class LowerSettings:
     # If None, infer the dtypes from the sample inputs.
     precision: Optional[LowerPrecision] = LowerPrecision.FP16
     use_fp16_acc: bool = True  # only valid for precision == FP16
+    allow_int_inputs: bool = False  # If AIT acc subgraph accept integer inputs
     ast_rewriter_allow_list: Optional[Set[Type[nn.Module]]] = None
     leaf_module_list: Optional[Set[Type[nn.Module]]] = None
     # If None, infer the dtypes from the sample inputs.
