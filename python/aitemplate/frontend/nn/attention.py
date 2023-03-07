@@ -390,3 +390,12 @@ class CrossAttention(Module):
         x = self.proj_drop(x)
         x = ops.reshape()(x, [-1, seq, self.dim])
         return x
+
+
+class ScaledDotProductAttention(Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, q, k, v):
+        attn = ops.mem_eff_attention(causal=False)(q, k, v)
+        return attn
