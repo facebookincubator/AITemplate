@@ -100,7 +100,8 @@ def default_split_function(
     model: fx.GraphModule, inputs: Input, lower_settings: LowerSettings
 ) -> SplitResult:
     settings = AITSplitterSettings(
-        min_acc_module_size=lower_settings.min_acc_module_size
+        min_acc_module_size=lower_settings.min_acc_module_size,
+        allow_int_inputs=lower_settings.allow_int_inputs,
     )
     splitter = AITSplitter(model, inputs, settings=settings)
     splitter.node_support_preview()
