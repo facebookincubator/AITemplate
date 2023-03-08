@@ -13,6 +13,13 @@
 #  limitations under the License.
 #
 
+"""
+Specialized and optimized CUDA kernel declarations for the `expand` operator
+dealing with the most common case that the input and target shapes are known at compile time,
+with the possible exception of leading dimensions.
+
+"""
+
 import math
 import os
 from itertools import accumulate
@@ -27,16 +34,9 @@ from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.target import Target
 from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 
-"""
-Specialized and optimized CUDA kernel declarations for the `expand` operator
-dealing with the most common case that the input and target shapes are known at compile time,
-with the possible exception of leading dimensions.
-
-"""
-
 
 @registry.reg("cuda.expand.static.func_decl")
-def gen_function_decl(func_attrs):
+def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
     return FUNC_DECL_TEMPLATE.render(create_template_args(func_attrs))
 
 
@@ -68,7 +68,12 @@ using bfloat16 = __nv_bfloat16;
 
 #define MAX_THREADS_PER_BLOCK 1024l
 // integer ceil division
-#define INT_CEIL_DIV(a,b) (((a) + (b) - 1) / (b))
+#define INT_CEIL_DIV(a, b) (((a) + (b)-1) / (b))
+
+// Maximum amount of shared memory that the repeat copy kernel(s) should use.
+// (used within repeat.cuh, included below )
+// Note: 44kb is sufficient in this case to fully utilize the GPU parallelism
+#define SHM_MAX 1024 * 44
 
 {{custom_libs}}
 
@@ -99,7 +104,7 @@ __forceinline__ __device__ {{index_type}} {{func_name}}_get_read_offset(const {{
  *
  * see https://developer.nvidia.com/blog/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
  */
-__forceinline__ __device__ void {{func_name}}_tail_copy(
+__forceinline__ __device__ void tail_copy(
         const {{dtype}} * const src, // base src tensor memory pointer
         const {{index_type}} read_offset, // base offset into src, via {{dtype}}-typed indexing
         {{dtype}} * const dst,  // base destination tensor memory pointer
@@ -113,32 +118,22 @@ __forceinline__ __device__ void {{func_name}}_tail_copy(
     }
 }
 
-
 /**
- * Implement the "middle" part of the kernel, where we have to deal with non-contiguous reads/writes.
- *
+ * Implement the "middle" part of the kernel, dealing with strided reads/writes.
  * Also utilizes grid-stride loop for efficiency and flexibility
- * see  * see https://developer.nvidia.com/blog/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
+ * see
+ * * https://developer.nvidia.com/blog/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
+ * * https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/#coalesced-access-to-global-memory
+ * * and https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/#strided-accesses
+ * for a more detailed explanation of the reasons for the choice of this specific form.
+ *
+ * Performance notes:
+ *
+ * It is critical to calculate the block_thread_index passed to tail_copy(..) based on
+ * the x-dimension of the launch grid, in order to benefit from Warp memory access coalescing.
+ *
  */
-__global__ void {{func_name}}_mid_kernel(
-
-  const {{dtype}}* const src, // source tensor
-  {{dtype}}* const dst // destination tensor
-  ) {
-    // determine our range of elements to read
-    const {{index_type}} write_offset = (blockDim.x * blockIdx.x + threadIdx.x) * {{tail_size}}l;
-    const {{index_type}} read_offset = {{func_name}}_get_read_offset(write_offset);
-    const {{index_type}} grid_size_x = gridDim.x*blockDim.x;
-    const {{index_type}} grid_size_y = gridDim.y*blockDim.y;
-    const {{index_type}} thread_idx_y = blockDim.y * blockIdx.y + threadIdx.y;
-    for ({{index_type}} i=write_offset;i<{{mid_size*tail_size}}l;i+=grid_size_x) {
-        {{func_name}}_tail_copy(src, read_offset, dst, write_offset, thread_idx_y, grid_size_y, {{tail_size}}l);
-    }
-
-}
-
-
-__global__ void {{func_name}}_mid_kernel2(
+__global__ void expand_strided_copy(
 
   const {{dtype}}* const src, // source tensor
   {{dtype}}* const dst // destination tensor
@@ -151,7 +146,7 @@ __global__ void {{func_name}}_mid_kernel2(
     const {{index_type}} step_size_y = grid_size_y * {{tail_size}}l;
     const {{index_type}} thread_idx_x = blockDim.x * blockIdx.x + threadIdx.x;
     for ({{index_type}} i=write_offset;i<{{mid_size*tail_size}}l;i+=step_size_y) {
-        {{func_name}}_tail_copy(src, read_offset, dst, write_offset, thread_idx_x, grid_size_x, {{tail_size}}l);
+        tail_copy(src, read_offset, dst, write_offset, thread_idx_x, grid_size_x, {{tail_size}}l);
     }
 
 }
@@ -165,18 +160,22 @@ void {{func_name}} (
   const {{index_type}} head_size, // how many times to repeat the first part of the tensor.
   cudaStream_t stream)
 {
+  if ((({{mid_size*tail_size}})==0) || (head_size==0)) {
+    return;
+  }
   {% if mid_dim_count>0 %}
   // we have middle dimensions which involve non-contiguous reads
   // so we need to invoke the middle kernel
-  dim3 dimGrid({{mid_grid_blocks_x}}, {{mid_grid_blocks_y}});
-  dim3 dimBlock({{mid_grid_threads_x}}, {{mid_grid_threads_y}});
-  {{func_name}}_mid_kernel2<<<dimGrid,dimBlock,0,stream>>>(src, dst);
+  dim3 dimGrid({{grid_blocks_x}}, {{grid_blocks_y}});
+  dim3 dimBlock({{grid_threads_x}}, {{grid_threads_y}});
+  expand_strided_copy<<<dimGrid,dimBlock,0,stream>>>(src, dst);
   if (head_size>1l) {
      // now repeat copy what we already built once, multiple times into the rest of the output tensor
      cuda_repeat_head(dst, {{mid_size*tail_size}}l*sizeof({{dtype}}),head_size-1, stream);
   }
   {% else %}
-    // we have no middle dimensions, so all we need to do is repeatedly copy the source multiple times
+    // we have no middle dimensions, so strided copy is unneccessary.
+    // All we need to do is repeatedly copy the source multiple times
     // repeat the entire thing a dynamic number of times ( e.g. head_size times )
     cuda_repeat_src(src, dst, {{mid_size*tail_size}}l*sizeof({{dtype}}), head_size, stream);
   {% endif %}
@@ -184,42 +183,31 @@ void {{func_name}} (
 """
 )
 
-_dtype_sizes = {
-    "half": 2,
-    "bfloat16": 2,
-    "float32": 4,
-    "int64_t": 8,
-    "int32_t": 4,
-    "float": 4,
-}
 
-_size_dtypes = {
-    2: "half",
-    4: "float",
-    8: "int64_t",
-    16: "int4",
-}
-
-
-def _ceil(num):
+def _ceil(num: float) -> int:
     return int(math.ceil(num))
 
 
-def create_template_args(func_attrs: Dict[str, Any], indent="  "):
+def create_template_args(
+    func_attrs: Dict[str, Any], indent: str = "  "
+) -> Dict[str, Any]:
     x = func_attrs["inputs"][0]
     y = func_attrs["outputs"][0]
     dst = y._attrs["name"]
     src = x._attrs["name"]
     func_name = func_attrs["name"]
+    # Efficient vectorized & buffered repeat copy implementation,
+    # even for odd shapes
     custom_libs = Target.current().get_custom_libs(
         os.path.dirname(__file__), "repeat.cuh"
     )
-    dtype = CUDASpec().dtype_to_backend_dtype[x.dtype()]
+    cuda_spec = CUDASpec()
+    dtype = cuda_spec.dtype_to_backend_dtype[x.dtype()]
     assert (
         dtype is not None
     ), f"CUDA implementation does not support dtype {x.dtype()} (yet)"
-    dtype2 = _size_dtypes.get(_dtype_sizes[dtype] * 2, None)
-    dtype4 = _size_dtypes.get(_dtype_sizes[dtype] * 4, None)
+    dtype2 = cuda_spec.type_for_size.get(cuda_spec.sizeof_types[dtype] * 2, None)
+    dtype4 = cuda_spec.type_for_size.get(cuda_spec.sizeof_types[dtype] * 4, None)
     xshape = x._attrs["shape"]
     yshape = y._attrs["shape"]
     dim_types: List[ExpandDimensionType] = func_attrs["dim_types"]
@@ -288,11 +276,15 @@ def create_template_args(func_attrs: Dict[str, Any], indent="  "):
     ]  # this does not include the number of elements obtained from head repetitions
     # since we have excluded head dimensions above
     input_numel = input_strides[0]
-
-    mid_size = output_numel // tail_size
+    if tail_size > 0:
+        mid_size = output_numel // tail_size
+    else:
+        mid_size = 0
     mid_dim_count = len(yshape) - tail_dim_count - head_dim_count
-
-    mid_expansion_rate = mid_size * tail_size // input_numel
+    if input_numel > 0:
+        mid_expansion_rate = mid_size * tail_size // input_numel
+    else:
+        mid_expansion_rate = 1
 
     # remove the first dimension, which is the total number of elements
     # and prepend the head_dims with stride 0
@@ -330,13 +322,13 @@ def create_template_args(func_attrs: Dict[str, Any], indent="  "):
         output_strides = [s // 2 for s in output_strides]
         read_strides = [s // 2 for s in read_strides]
 
-    mid_grid_blocks_x = 1
-    mid_grid_threads_x = min(tail_size, 32)
-    mid_max_y_threads = 1024 // mid_grid_threads_x  # guaranteed to be >= 1
-    mid_grid_threads_y = min(
-        mid_max_y_threads, mid_size
+    grid_blocks_x = 1
+    grid_threads_x = max(1, min(tail_size, 32))
+    max_y_threads = 1024 // grid_threads_x  # guaranteed to be >= 1
+    grid_threads_y = max(
+        1, min(max_y_threads, mid_size)
     )  # so that  mid_grid_threads_x*max_x_threads <= 1024
-    mid_grid_blocks_y = _ceil(mid_size / mid_grid_threads_y)
+    grid_blocks_y = _ceil(mid_size / grid_threads_y)
 
     if dtype == "bfloat16":
         # bfloat16 is not available in model-generated.h as a type,
@@ -363,21 +355,21 @@ def create_template_args(func_attrs: Dict[str, Any], indent="  "):
         "dtype": dtype,  # data type of the input and output tensor elements ( valid CUDA C type like float )
         "indent": indent,  # indentation for the function call template,
         "index_type": index_type,
-        "mid_grid_blocks_y": mid_grid_blocks_y,
-        "mid_grid_blocks_x": mid_grid_blocks_x,
-        "mid_grid_threads_y": mid_grid_threads_y,
-        "mid_grid_threads_x": mid_grid_threads_x,
-        "custom_libs": custom_libs,
+        "grid_blocks_y": grid_blocks_y,  # number of y grid blocks in the strided copy kernel
+        "grid_blocks_x": grid_blocks_x,  # number of x grid blocks in the strided copy kernel
+        "grid_threads_y": grid_threads_y,  # number of y threads per grid block in the strided copy kernel
+        "grid_threads_x": grid_threads_x,  # number of x threads per grid block in the strided copy kernel
+        "custom_libs": custom_libs,  # custom library path, e.g. path to repeat.cuh
     }
 
 
 @registry.reg("cuda.expand.static.gen_function")
-def gen_function(func_attrs):
+def gen_function(func_attrs: Dict[str, Any]) -> str:
     return SRC_TEMPLATE.render(create_template_args(func_attrs, "    "))
 
 
 @registry.reg("cuda.expand.static.func_call")
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_function_call(func_attrs: Dict[str, Any], indent: str = "  ") -> str:
     return FUNC_CALL_TEMPLATE.render(create_template_args(func_attrs, indent))
 
 
