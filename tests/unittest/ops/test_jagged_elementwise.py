@@ -572,8 +572,6 @@ class JaggedElementwiseTestCase(unittest.TestCase):
             )
 
     def _test_benchmark_jagged_dense_elementise_add(self):
-        # ESUHM use case: "jagged + dense + dense = jagged",
-        # with dtype=float16; https://fburl.com/code/1e9z83fb
         self._benchmark_jagged_dense_elementwise_add(
             B=1024,
             N=260,
@@ -582,7 +580,7 @@ class JaggedElementwiseTestCase(unittest.TestCase):
             dtype="float16",
             offsets_dtype="int32",
             use_jagged_space_indexing=False,
-            test_suffix="esuhm",
+            test_suffix="benchmark",
         )
 
 
