@@ -916,6 +916,7 @@ def acc_ops_layer_norm(
         raise ValueError(f"Unexpected normalized shape value in {name}: {shape}")
     weight = kwargs["weight"]
     bias = kwargs["bias"]
+    eps = kwargs["eps"]
     normalized_shape = []
     if all(isinstance(i, int) for i in shape):
         for i in shape:
@@ -924,7 +925,7 @@ def acc_ops_layer_norm(
         normalized_shape = shape
     else:
         raise ValueError(f"Unexpected normalized shape value in {name}: {shape}")
-    return layernorm()(input_val, weight, bias, normalized_shape)
+    return layernorm()(input_val, weight, bias, normalized_shape, eps)
 
 
 @ait_converter(acc_ops.flatten)

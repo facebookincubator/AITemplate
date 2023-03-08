@@ -22,17 +22,18 @@ from torch import nn
 class TestLayernormConverter(AITTestCase):
     @parameterized.expand(
         [
-            param("1d_normalized_shape", [10], [2, 10]),
+            param("1d_normalized_shape", [10], [2, 10], 1e-5),
+            param("1d_normalized_shape", [100], [20, 100], 1e-6),
             # Enable test case once layernorm support expand
             # param("2d_normalized_shape", [5, 10], [5, 10]),
         ]
     )
-    def test_layer_norm(self, name, normalized_shape, input_shape):
+    def test_layer_norm(self, name, normalized_shape, input_shape, eps):
         class TestModule(torch.nn.Module):
             def __init__(self, normalized_shape):
                 super().__init__()
                 # TODO remove hard code eps once layernorm api expose eps setting
-                self.mod = nn.LayerNorm(normalized_shape, eps=1e-5)
+                self.mod = nn.LayerNorm(normalized_shape, eps=eps)
 
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return self.mod(x)
