@@ -387,6 +387,9 @@ class JaggedIntVar(IntVar):
             and self.jagged_dims() == another.jagged_dims()
         )
 
+    def __hash__(self) -> int:
+        return hash((self._attrs["name"], tuple(self._attrs["values"])))
+
     def total_length(self) -> IntVar:
         """The total_length dimension the JaggedIntVar is based on."""
         return self._total_length
