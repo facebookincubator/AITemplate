@@ -97,7 +97,8 @@ __device__ half2 fast_tanh(half2 x) {
   return x;
 
 #else
-  NOT_IMPLEMENTED();
+  return half2(
+      {cutlass::fast_tanh(float(x.x)), cutlass::fast_tanh(float(x.y))});
 #endif
 }
 
