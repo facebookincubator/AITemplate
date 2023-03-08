@@ -259,14 +259,14 @@ class ExpandTestCase(unittest.TestCase):
             #     True,
             #     "int64",
             # ),
-            # param(
-            #     "benchmark_var_1",
-            #     "float32",
-            #     [100, 1, 9, 4],
-            #     [20, 20, 100, 100, 9, -1],
-            #     False,
-            #     "int64",
-            # ),
+            param(
+                "benchmark_var_1",
+                "float32",
+                [100, 1, 9, 4],
+                [20, 20, 100, 100, 9, -1],
+                False,
+                "int64",
+            ),
             # param(
             #     "benchmark_var_2",
             #     "int64",
@@ -289,6 +289,9 @@ class ExpandTestCase(unittest.TestCase):
             param("edge_case_shapes_2", "float32", [1], [-1]),
             param("edge_case_shapes_3", "float32", [3], [-1]),
             param("edge_case_shapes_4", "float32", [1], [1]),
+            param("edge_case_shapes_5", "float32", [1, 1], [1, 0]),
+            param("edge_case_shapes_6", "float32", [2, 0], [-1, -1]),
+            param("edge_case_shapes_7", "float32", [2, 0], [2, 0]),
             param(
                 "edge_case_shapes_var_1",
                 "float32",
@@ -299,6 +302,9 @@ class ExpandTestCase(unittest.TestCase):
             param("edge_case_shapes_var_2", "float32", [1], [-1], False),
             param("edge_case_shapes_var_3", "float32", [3], [-1], False),
             param("edge_case_shapes_var_4", "float32", [1], [1], False),
+            param("edge_case_shapes_var_5", "float32", [1, 1], [1, 0], False),
+            param("edge_case_shapes_var_6", "float32", [2, 0], [-1, -1], False),
+            param("edge_case_shapes_var_6", "float32", [2, 0], [2, 0], False),
         ]
     )
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")

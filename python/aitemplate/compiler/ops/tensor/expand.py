@@ -92,14 +92,16 @@ class expand(Operator):
         input_shape = tensor._attrs["shape"]
         assert len(input_shape) > 0, "Input tensor must have a shape of length > 0"
         for i, dim in enumerate(input_shape):
-            if dim.lower_bound() <= 0:
+            if dim.lower_bound() < 0:
                 raise ValueError(
-                    f"Dimension {i} of expand input tensor shape has range [{dim.lower_bound()}:{dim.upper_bound()}], which includes zero or negative values."
+                    f"Dimension {i} of expand input tensor shape has range [{dim.lower_bound()}:{dim.upper_bound()}], which includes negative values."
                 )
         for i, dim in enumerate(target_shape):
-            if dim.lower_bound() <= 0 and dim.lower_bound() != -1:
+            if dim.lower_bound() < 0 and not (
+                dim.lower_bound() == -1 and dim.upper_bound() == -1
+            ):
                 raise ValueError(
-                    f"Dimension {i} of expand target shape has range [{dim.lower_bound()}:{dim.upper_bound()}], which includes zero or negative values."
+                    f"Dimension {i} of expand target shape has range [{dim.lower_bound()}:{dim.upper_bound()}], which includes negative values."
                 )
 
         if len(target_shape) < len(input_shape):

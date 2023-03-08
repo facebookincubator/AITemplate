@@ -61,6 +61,32 @@ class GPUBackendSpec(BackendSpec):
         }
     )
 
+    # find the size in bytes of a given backend type
+    sizeof_types: Dict[str, int] = field(
+        default_factory=lambda: {
+            "uint8_t": 1,
+            "half": 2,
+            "bfloat16": 2,
+            "float32": 4,
+            "int64_t": 8,
+            "int32_t": 4,
+            "float": 4,
+        }
+    )
+
+    # find a backend type for a given size in bytes
+    # useful to find types 2 or 4 times larger than a given dtype
+    # for vectorization purposes.
+    type_for_size: Dict[int, str] = field(
+        default_factory=lambda: {
+            1: "uint8_t",
+            2: "half",
+            4: "float",
+            8: "int64_t",
+            16: "int4",
+        }
+    )
+
     backend_datatype_convertors: Dict[str, Dict[str, str]] = field(
         default_factory=lambda: {
             "half": {"float": "__half2float"},
