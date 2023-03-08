@@ -34,6 +34,8 @@ class GemmQueryEntry:
     epilogue: int
     exec_entry_sha1: str
     pshape: str
+    use_streamk: bool
+    streamk_avail_sms: int
 
 
 @dataclass
@@ -56,3 +58,5 @@ class GemmRecordEntry:
     algo: str
     workspace: int
     split_k: int
+    use_streamk: bool
+    streamk_avail_sms: int

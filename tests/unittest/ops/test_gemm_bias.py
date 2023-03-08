@@ -23,6 +23,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    streamk_enabled_and_not_supported,
 )
 from aitemplate.utils import shape_utils
 from parameterized import parameterized
@@ -99,6 +100,7 @@ class GEMMBiasTestCase(unittest.TestCase):
             self._test_rcr([2], N=0, K=4, test_name="zero_n")
             self._test_rcr([0], N=4, K=4, test_name="zero_m")
 
+    @unittest.skipIf(streamk_enabled_and_not_supported(), "StreamK is not supported")
     def test_rcr_static(self):
         self._test_rcr([4096], N=4, K=4, test_name="static")
         self._test_rcr([1000], N=81, K=1024, test_name="static")

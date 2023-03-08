@@ -21,6 +21,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    streamk_enabled_and_not_supported,
 )
 from parameterized import parameterized
 
@@ -84,6 +85,8 @@ class GEMMBiasSwishTestCase(unittest.TestCase):
 
     @parameterized.expand(("float16", "float32", "bfloat16"))
     def test_rcr(self, dtype):
+        if streamk_enabled_and_not_supported():
+            self.skipTest("StreamK is not supported")
         skipped_reason = _skip_target(detect_target(), dtype)
         if skipped_reason is not None:
             self.skipTest(skipped_reason)

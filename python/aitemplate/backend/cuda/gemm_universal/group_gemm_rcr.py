@@ -37,6 +37,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     ldb,                                                     // typename LayoutB::Stride::LongIndex *ldb
     ldc,                                                     // typename LayoutC::Stride::LongIndex *ldc
     ldc,                                                     // typename LayoutC::Stride::LongIndex *ldd
+    // (If StreamK is used, avail_sms is not set for GroupGemm)
 """
 )
 

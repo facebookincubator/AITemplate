@@ -187,6 +187,15 @@ class gemm(Operator):
         self._attrs["alpha"] = 1.0
         self._attrs["permute_shape"] = ""
         self.exec_cond_template = EXEC_COND_TEMPLATE
+        self._attrs["use_streamk"] = os.environ.get("USE_GEMM_STREAMK", "0") == "1"
+        self._attrs["streamk_avail_sms"] = int(os.environ.get("GEMM_STREAMK_AVAIL_SMS", -1))  # used only if "use_streamk_set"
+
+        if self._attrs["use_streamk"]:
+            # Setting a large workspace by default to work with streamk as required workspace can vary during runtime
+            # and is not straightforwardly calculated even when max shape bounds are known. Meaning that workspace required for
+            # _larger_ shapes might be smaller then for smaller shapes. The calculations are very non-straightforward so this
+            # default value is probable an overkill for most of the cases.
+            self._attrs["workspace"] = int(os.environ.get("GEMM_STREAMK_WORKSPACE", "1073774592"))
 
     def _extract_epilogue_alignment(
         self, output_shape: List[Any], dynamic_profiling_strategy=None
@@ -381,6 +390,13 @@ class gemm(Operator):
         target = backend.target.Target.current()
 
         op_type = self._attrs["op"]
+
+        if self._attrs["use_streamk"]:
+            op_type += "_streamk"
+            avail_sms = self._attrs["streamk_avail_sms"]
+            if avail_sms != -1:
+                op_type += f"__avail_sms_{avail_sms}"
+
         all_op_names = list(self._attrs["op_instance"].keys())
         encoded_str = sha1((";".join(all_op_names)).encode("utf-8")).hexdigest()
 
@@ -426,6 +442,8 @@ class gemm(Operator):
                     epilogue=tmp_op.epilogue_functor.value,
                     exec_entry_sha1=exec_entry_sha1,
                     pshape=self._attrs["permute_shape"],
+                    use_streamk=self._attrs["use_streamk"],
+                    streamk_avail_sms=self._attrs["streamk_avail_sms"],
                 )
                 cache_value = target.query_profile_cache("gemm", query.__dict__)
                 if cache_value is not None and not target.force_profile():
@@ -605,6 +623,8 @@ class gemm(Operator):
             epilogue=tmp_op.epilogue_functor.value,
             exec_entry_sha1=exec_entry_sha1,
             pshape=self._attrs["permute_shape"],
+            use_streamk=self._attrs["use_streamk"],
+            streamk_avail_sms=self._attrs["streamk_avail_sms"],
         )
         cache_value = target.query_profile_cache("gemm", query.__dict__)
         if cache_value is not None and not target.force_profile():
@@ -877,6 +897,8 @@ class GemmProfilerPostprocessingDelegate:
                 workspace=workspace,
                 split_k=split_k,
                 pshape=func_attrs["permute_shape"],
+                use_streamk=func_attrs["use_streamk"],
+                streamk_avail_sms=func_attrs["streamk_avail_sms"],
             )
             try:
                 target.insert_profile_cache("gemm", cache_record.__dict__)

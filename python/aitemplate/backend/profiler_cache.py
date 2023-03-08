@@ -64,6 +64,8 @@ GEMM_INIT_TEMPLATE = jinja2.Template(
   duration FLOAT DEFAULT -1,
   split_k INTEGER DEFAULT 1,
   pshape VARCHAR(64) NOT NULL,
+  use_streamk BOOLEAN DEFAULT FALSE,
+  streamk_avail_sms INTEGER DEFAULT -1,
   template_ver INTEGER NOT NULL DEFAULT 290,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
 );
@@ -86,6 +88,8 @@ op_type='{{op_type}}' AND
 device='{{device}}' AND
 epilogue={{epilogue}} AND
 pshape='{{pshape}}' AND
+use_streamk={{use_streamk}} AND
+streamk_avail_sms={{streamk_avail_sms}} AND
 exec_entry_sha1='{{exec_entry_sha1}}';
 """
 )
@@ -108,7 +112,9 @@ INSERT INTO {{dev}}_gemm_{{version}} (
     algo,
     workspace,
     split_k,
-    pshape
+    pshape,
+    use_streamk,
+    streamk_avail_sms
 )
 VALUES (
     '{{exec_entry}}',
@@ -126,7 +132,9 @@ VALUES (
     '{{algo}}',
     {{workspace}},
     {{split_k}},
-    '{{pshape}}'
+    '{{pshape}}',
+    {{use_streamk}},
+    {{streamk_avail_sms}}
 );
 """
 )
@@ -784,8 +792,10 @@ class ProfileCacheDB(object):
             op_type=args["op_type"],
             device=args["device"],
             epilogue=args["epilogue"],
-            split_k=args["split_k"],
+            split_k=args["split_k"],  # not used
             pshape=args["pshape"],
+            use_streamk=args["use_streamk"],
+            streamk_avail_sms=args["streamk_avail_sms"],
             exec_entry_sha1=args["exec_entry_sha1"],
         )
         insert_sql = GEMM_INSERT_TEMPLATE.render(

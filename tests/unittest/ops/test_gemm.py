@@ -23,6 +23,7 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    streamk_enabled_and_not_supported,
 )
 from aitemplate.utils import shape_utils
 from parameterized import parameterized
@@ -138,6 +139,7 @@ class GEMMTestCase(unittest.TestCase):
                 else:
                     torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
+    @unittest.skipIf(streamk_enabled_and_not_supported(), "StreamK is not supported")
     def test_rcr_dynamic_n(self):
         self._test_rcr([16, 1 * 29, 64], 256, 300000, "einsum_1")
         self._test_rcr_dynamic_n(

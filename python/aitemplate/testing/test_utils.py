@@ -20,6 +20,7 @@ import unittest
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
+import os
 import torch
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
@@ -176,3 +177,17 @@ def get_shape(shape: List[IntVar], dim_to_value_dict: Dict[str, int]):
         for dim in shape
     ]
     return res
+
+
+def streamk_enabled_and_not_supported():
+    is_streamk_enabled = os.environ.get("USE_GEMM_STREAMK", "0") == "1"
+    
+    if not is_streamk_enabled:
+        return False
+    
+    target = detect_target()
+    # Stream K may not be supported for arch < 80
+    if target.name() != "cuda" or int(target._arch) < 80:
+        return True
+
+    return False

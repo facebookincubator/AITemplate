@@ -68,6 +68,7 @@ def gen_function(
     problem_args = problem_args_template.render(
         elem_input_type=elem_input_type,
         elem_output_type=elem_output_type,
+        avail_sms=common.extract_avail_sms_streamk(func_attrs),
     )
     return common.gen_function(
         func_attrs,

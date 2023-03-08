@@ -232,7 +232,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {% endif %}
 {{indent}}auto status = gemm_op.can_implement(arguments);
 {{indent}}CUTLASS_CHECK(status);
-{{indent}}status = gemm_op.initialize(arguments, workspace, stream);
+{{indent}}status = gemm_op.initialize(arguments, workspace, stream);{% if use_streamk %} // if this fails under streamk, you probably need to increase workspace{% endif %}
 {{indent}}CUTLASS_CHECK(status);
 {{indent}}status = gemm_op(stream);
 {{indent}}CUTLASS_CHECK(status);
@@ -636,6 +636,20 @@ def has_d1(func_attrs):
     return func_attrs.get("num_sources", 0) >= 2
 
 
+def is_streamk_enabled(func_attrs):
+    return func_attrs is not None and func_attrs.get("use_streamk", False)
+
+
+def extract_avail_sms_streamk(func_attrs):
+    if not is_streamk_enabled(func_attrs):
+        return None
+
+    avail_sms = 1
+    if func_attrs is not None:
+        avail_sms = func_attrs.get("streamk_avail_sms", 1)
+    return avail_sms
+
+
 def get_gemm_instance_template_params(
     op_def: str,
     kernel_config: Tuple[str, int, int] = ("cutlass::gemm::device::Gemm", 21, 3),
@@ -731,6 +745,14 @@ def universal_gemm_instance(
         "cutlass::gemm::device::Gemm", "cutlass::gemm::device::GemmUniversal"
     )
     tmp = tmp.replace("false,", "")
+
+    if is_streamk_enabled(func_attrs):
+        tmp = re.sub(
+            "cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle(<\\d+>)*",
+            "cutlass::gemm::threadblock::ThreadblockSwizzleStreamK",
+            tmp
+        )
+
     return tmp
 
 
@@ -862,6 +884,7 @@ def gen_function(
             instance=fname,
             problem_args=problem_args,
             support_split_k=support_split_k,
+            use_streamk=is_streamk_enabled(func_attrs),
         )
         exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
@@ -974,6 +997,8 @@ def gen_profiler(
         problem_args=problem_args_template.render(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
+            avail_sms=extract_avail_sms_streamk(func_attrs),
+            use_streamk=is_streamk_enabled(func_attrs),
         ),
     )
     input_output_checks = INPUT_OUTPUT_CHECKS_TEMPLATE.render(
@@ -986,7 +1011,11 @@ def gen_profiler(
     instances = []
     benchmark_instances = []
     for instance_idx, (op_name, op) in enumerate(op_instance.items()):
-        config = emit_instance(op, for_profiler=True)
+        config = emit_instance(
+            op,
+            for_profiler=True,
+            func_attrs=func_attrs,
+        )
         config_name = extract_config_name(config)
         instance_name = f"{instance_name_base}_{instance_idx}"
         gemm_op = f"gemm_op_{instance_idx}"

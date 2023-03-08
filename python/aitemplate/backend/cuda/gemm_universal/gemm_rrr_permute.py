@@ -62,6 +62,9 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     N,                                                       // typename LayoutB::Stride::LongIndex ldb
     N,                                                       // typename LayoutC::Stride::LongIndex ldc
     output_stride,                                           // typename LayoutC::Stride::LongIndex ldd
+    {% if avail_sms %}
+    {{avail_sms}},                                           // avail_sms
+    {% endif %}
 """
 )
 
@@ -144,11 +147,13 @@ def gen_function(
         problem_args = PROBLEM_ARGS_TEMPLATE.render(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
+            avail_sms=common.extract_avail_sms_streamk(func_attrs),
         )
     else:
         problem_args = problem_args_template.render(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
+            avail_sms=common.extract_avail_sms_streamk(func_attrs),
         )
 
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
