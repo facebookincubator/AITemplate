@@ -836,6 +836,18 @@ def matmul(*, input, other):
     arg_replacement_tuples=[("input", "input")],
 )
 @register_custom_acc_mapper_fn(
+    op_and_target=("call_function", nn.functional.dropout1d),
+    arg_replacement_tuples=[("input", "input")],
+)
+@register_custom_acc_mapper_fn(
+    op_and_target=("call_function", nn.functional.dropout2d),
+    arg_replacement_tuples=[("input", "input")],
+)
+@register_custom_acc_mapper_fn(
+    op_and_target=("call_function", nn.functional.dropout3d),
+    arg_replacement_tuples=[("input", "input")],
+)
+@register_custom_acc_mapper_fn(
     op_and_target=("call_method", "detach"), arg_replacement_tuples=[("input", "input")]
 )
 @register_custom_acc_mapper_fn(
