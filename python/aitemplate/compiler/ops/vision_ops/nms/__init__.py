@@ -15,9 +15,9 @@
 """
 Nms family ops.
 """
-from .batched_nms import batched_nms
-from .efficient_nms import efficient_nms
-from .nms import nms
+from aitemplate.compiler.ops.vision_ops.nms.batched_nms import batched_nms
+from aitemplate.compiler.ops.vision_ops.nms.efficient_nms import efficient_nms
+from aitemplate.compiler.ops.vision_ops.nms.nms import nms
 
 
 __all__ = ["batched_nms", "nms", "efficient_nms"]

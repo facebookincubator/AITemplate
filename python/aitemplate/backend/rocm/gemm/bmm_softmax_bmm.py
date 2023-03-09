@@ -19,9 +19,9 @@ This is used for `ops.bmm_rcr`.
 """
 import jinja2
 
-from ... import registry
-from . import bmm_common, common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import bmm_common, common
+from aitemplate.backend.rocm.gemm.layout import RCR
 
 EXTRA_CODE = jinja2.Template(
     """

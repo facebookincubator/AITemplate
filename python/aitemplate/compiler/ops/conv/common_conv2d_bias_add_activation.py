@@ -16,8 +16,8 @@
 Fused conv2d_bias_add_activation op.
 """
 
-from ...base import Tensor
-from .conv2d import conv2d
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.conv.conv2d import conv2d
 
 
 # pylint: disable=C0103

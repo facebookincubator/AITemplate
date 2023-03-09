@@ -18,12 +18,12 @@ gemm rcr with bias + permute
 
 from typing import Tuple
 
-from aitemplate.testing import detect_target
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.common import reshape
+from aitemplate.compiler.ops.gemm_universal import gemm_rcr_bias
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
-from ...base import Tensor
-from ...tensor_accessor import TensorAccessor
-from ..common import reshape
-from . import gemm_rcr_bias
+from aitemplate.testing import detect_target
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

@@ -15,4 +15,10 @@
 
 # flake8: noqa
 
-from . import conv2d_operation, gemm_operation, generator, library, manifest
+from aitemplate.utils.mk_ck_lib import (
+    conv2d_operation,
+    gemm_operation,
+    generator,
+    library,
+    manifest,
+)

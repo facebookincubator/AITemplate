@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 
-from ... import registry
+from aitemplate.backend import registry
 
 
 @registry.reg("cuda.bmm_softmax_bmm_permute.func_decl")

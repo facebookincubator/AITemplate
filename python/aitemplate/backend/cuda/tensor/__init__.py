@@ -15,7 +15,7 @@
 """
 CUDA tensor ops module init
 """
-from . import (
+from aitemplate.backend.cuda.tensor import (
     argmax,
     batch_gather,
     concatenate,

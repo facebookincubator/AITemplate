@@ -16,9 +16,9 @@
 ROCM split function
 """
 
-from ... import registry
-from ...backend_spec import ROCMSpec
-from ...common import split_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import ROCMSpec
+from aitemplate.backend.common import split_common
 
 
 @registry.reg("rocm.split.func_decl")

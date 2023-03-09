@@ -19,8 +19,8 @@ beta: [b, n]
 """
 from typing import List
 
-from ...base import IntImm
-from .layernorm import layernorm
+from aitemplate.compiler.base import IntImm
+from aitemplate.compiler.ops.layernorm.layernorm import layernorm
 
 # pylint: disable=C0103,W0221,W0102,W0223
 

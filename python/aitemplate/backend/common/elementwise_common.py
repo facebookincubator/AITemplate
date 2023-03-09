@@ -22,12 +22,12 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 from aitemplate.backend.backend_spec import BackendSpec
+from aitemplate.backend.common import tensor_accessor_codegen
+from aitemplate.backend.target import Target
 
-from ...compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Tensor
-from ...compiler.tensor_accessor import TensorAccessor
-from ...utils import alignment as alignment_utils, shape_utils
-from ..target import Target
-from . import tensor_accessor_codegen
+from aitemplate.compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Tensor
+from aitemplate.compiler.tensor_accessor import TensorAccessor
+from aitemplate.utils import alignment as alignment_utils, shape_utils
 
 CONSTANT_TEMPLATE = jinja2.Template(
     """

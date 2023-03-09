@@ -15,9 +15,9 @@
 """
 common module for ConvTranspose2d_bias_act subgraph
 """
-from ....compiler import ops
-from ..module import Module
-from ..parameter import Parameter
+from aitemplate.compiler import ops
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.parameter import Parameter
 
 # pylint: disable=C0103
 

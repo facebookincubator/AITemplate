@@ -25,12 +25,12 @@ from typing import Any, Dict
 
 import jinja2
 
-from ....utils import alignment
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.cuda.gemm_universal import common
+from aitemplate.backend.target import Target
 
-from ...backend_spec import CUDASpec
-from ...common import gemm_common
-from ...target import Target
-from ..gemm_universal import common
+from aitemplate.utils import alignment
 
 
 # pylint: disable=C0301,C0415,R1705

@@ -17,9 +17,9 @@ permute(0, 2, 1) op
 """
 from typing import List
 
-from .... import backend
-from ....backend import registry
-from ...base import IntVar, Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntVar, Operator, Tensor
 
 # pylint: disable=C0103,W0221
 

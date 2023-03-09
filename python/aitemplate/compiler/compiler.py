@@ -21,15 +21,19 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
-from aitemplate.compiler.model import AITemplateAllocatorKind
+
+from aitemplate.compiler.base import DynamicProfileStrategy, Tensor
+
+from aitemplate.compiler.model import (
+    AIT_DEFAULT_NUM_RUNTIMES,
+    AITemplateAllocatorKind,
+    Model,
+    TorchTensor,
+)
 from aitemplate.compiler.transform.profile import elapsed_dt_sec
 from aitemplate.utils import graph_utils
 from aitemplate.utils.debug_settings import AITDebugSettings
 from aitemplate.utils.serialization.serdes_code import dump_program
-
-from .base import DynamicProfileStrategy, Tensor
-
-from .model import AIT_DEFAULT_NUM_RUNTIMES, Model, TorchTensor
 
 # pylint: disable=W0102
 

@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 
-from .groupnorm import group_norm
+from aitemplate.compiler.ops.groupnorm.groupnorm import group_norm
 
 
 class group_norm_swish(group_norm):

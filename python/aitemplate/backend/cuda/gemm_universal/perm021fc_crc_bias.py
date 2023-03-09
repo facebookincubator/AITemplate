@@ -16,8 +16,13 @@
 Codegen functions for perm021fc_crc_bias, which computes
 [b, n, m](col) = bmm([1, k, n](col), [b, k, m](row)) + bias[n].
 """
-from ... import registry
-from . import bmm_common, common, common_bias, perm021fc_crc
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.gemm_universal import (
+    bmm_common,
+    common,
+    common_bias,
+    perm021fc_crc,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

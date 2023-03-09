@@ -14,8 +14,8 @@
 #
 import sys
 
-from . import backend, compiler, frontend, testing, utils
-from ._libinfo import __version__  # noqa
+from aitemplate import backend, compiler, frontend, testing, utils
+from aitemplate._libinfo import __version__  # noqa
 
 if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
     PY3STATEMENT = "The minimal Python requirement is Python 3.7"

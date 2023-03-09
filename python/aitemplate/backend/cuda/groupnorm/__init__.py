@@ -12,6 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from . import groupnorm, groupnorm_swish
+from aitemplate.backend.cuda.groupnorm import groupnorm, groupnorm_swish
 
 __all__ = ["groupnorm", "groupnorm_swish"]

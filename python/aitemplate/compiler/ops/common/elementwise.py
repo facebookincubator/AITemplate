@@ -18,11 +18,12 @@ Elementwise operator definition, which covers UNARY / Binary / Ternary operators
 import functools
 from typing import Any, List
 
-from ....utils import shape_utils
-from ...base import IntVar, IntVarTensor, Operator, Tensor
-from ...dtype import normalize_dtype
-from ...op_registry import OP_REGISTRY
-from .epilogue import FuncEnum
+from aitemplate.compiler.base import IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.compiler.dtype import normalize_dtype
+from aitemplate.compiler.op_registry import OP_REGISTRY
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+
+from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,C0301,W0223,R1724
 

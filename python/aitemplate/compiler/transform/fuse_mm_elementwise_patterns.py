@@ -12,9 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from ..ops.common import elementwise
-from ..ops.common.epilogue import FuncEnum
-from ..ops.gemm_universal import (
+from aitemplate.compiler.ops.common import elementwise
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.compiler.ops.gemm_universal import (
     bmm_ccr,
     bmm_ccr_add,
     bmm_crr,

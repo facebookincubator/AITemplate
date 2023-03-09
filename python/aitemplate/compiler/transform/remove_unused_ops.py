@@ -18,7 +18,7 @@ Remove useless operators from a sorted_graph.
 from collections import deque
 from typing import List
 
-from ..base import Tensor
+from aitemplate.compiler.base import Tensor
 
 
 def remove_unused_ops(sorted_graph: List[Tensor]) -> None:

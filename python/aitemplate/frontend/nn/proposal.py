@@ -19,10 +19,10 @@ import math
 
 import numpy as np
 
-from ...compiler import ops
-from ...compiler.base import Tensor
-from ...compiler.ops.common.epilogue import FuncEnum
-from .module import Module
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.frontend.nn.module import Module
 
 
 def _mkanchors(widths, heights, x_ctr, y_ctr):

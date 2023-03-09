@@ -16,10 +16,17 @@
 Codegen functions for perm102_bmm_rcr_bias, which computes
 C[m, b, n](row) = bmm(A[m, b, k](row), B[b, n, k](col)) + bias[n].
 """
-from ... import registry
-from ...backend_spec import CUDASpec
-from . import bmm_common, common, common_bias, perm102_bmm_rcr
-from .perm102_bmm_rcr import get_output_addr_calculator
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.gemm_universal import (
+    bmm_common,
+    common,
+    common_bias,
+    perm102_bmm_rcr,
+)
+from aitemplate.backend.cuda.gemm_universal.perm102_bmm_rcr import (
+    get_output_addr_calculator,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

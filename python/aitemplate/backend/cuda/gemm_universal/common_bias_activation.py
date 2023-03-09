@@ -17,9 +17,9 @@
 Common codegen functions for gemm_bias_activation.
 """
 
-from ...backend_spec import CUDASpec
-from . import common, common_bias, gemm_rcr
-from .layout import RCR
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.gemm_universal import common, common_bias, gemm_rcr
+from aitemplate.backend.cuda.gemm_universal.layout import RCR
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

@@ -17,8 +17,9 @@ Syntax sugar ops to support List/Tuples in the IR. These ops don't generate any 
 """
 from typing import Any, List, Tuple, Union
 
-from ....utils.tensor_utils import wrap_dim
-from ...base import IntImm, IntVar, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+
+from aitemplate.utils.tensor_utils import wrap_dim
 
 # pylint: disable=C0103,W0221,R1732,W0613
 

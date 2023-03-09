@@ -16,10 +16,10 @@
 CUDA concatenate function
 """
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...common import concatenate_common
-from . import concatenate_fast
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import concatenate_common
+from aitemplate.backend.cuda.tensor import concatenate_fast
 
 
 def _is_valid_fast_cat(func_attrs):

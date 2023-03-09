@@ -19,10 +19,11 @@ import math
 
 from typing import List
 
-from ...utils import graph_utils
-from ..base import IntImm, IntVar, Operator, Tensor
-from ..ops.tensor.dynamic_slice import dynamic_slice, MAX_INT32
-from . import transform_strided_ops_utils, transform_utils
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice, MAX_INT32
+from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
+
+from aitemplate.utils import graph_utils
 
 
 def _is_supported_gemm(gemm_op: Operator, slice_op: Operator) -> bool:

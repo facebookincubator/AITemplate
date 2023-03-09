@@ -14,9 +14,9 @@
 #
 from typing import Any, List, Optional, Set
 
-from ..base import Operator, Tensor
-from .toposort import toposort
-from .transform_utils import (
+from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.transform.toposort import toposort
+from aitemplate.compiler.transform.transform_utils import (
     copy_tensor_attributes,
     remove_dst_op_from_tensor,
     replace_tensor,

@@ -15,7 +15,9 @@
 """
 conv2d bias relu module
 """
-from .transposed_conv2d_bias_act import ConvTranspose2dBiasAct
+from aitemplate.frontend.nn.conv2d.transposed_conv2d_bias_act import (
+    ConvTranspose2dBiasAct,
+)
 
 
 class ConvTranspose2dBiasRelu(ConvTranspose2dBiasAct):

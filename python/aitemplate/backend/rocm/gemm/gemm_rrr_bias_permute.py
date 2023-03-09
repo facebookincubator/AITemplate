@@ -18,9 +18,9 @@ c[new_dim] = permute(a[m, k] * b[k, n] + bias[n], new_dim), where *new_dim = m*n
 This is used for `torch.nn.functional.linear`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
-from ... import registry
-from . import common, permute_common
-from .layout import RRR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import common, permute_common
+from aitemplate.backend.rocm.gemm.layout import RRR
 
 
 @registry.reg("rocm.gemm_rrr_bias_permute.config")

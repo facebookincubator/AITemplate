@@ -15,7 +15,7 @@
 """
 conv2d bias hardswish module for few channels
 """
-from .special_conv2d_bias_act import SpecialConv2dBiasAct
+from aitemplate.frontend.nn.conv2d.special_conv2d_bias_act import SpecialConv2dBiasAct
 
 
 class Conv2dBiasHardswishFewChannels(SpecialConv2dBiasAct):

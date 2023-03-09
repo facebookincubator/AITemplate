@@ -13,8 +13,8 @@
 #  limitations under the License.
 #
 
-from ... import registry
-from . import bmm_common, common
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.gemm_universal import bmm_common, common
 
 """
 Codegen for 8 bmm_xxx ops, which compute A @ B + bias. The ops differ in

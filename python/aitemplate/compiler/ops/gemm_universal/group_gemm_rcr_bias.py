@@ -20,12 +20,15 @@ from typing import List
 
 import jinja2
 
-from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.base import ExecItem, Tensor
+from aitemplate.compiler.ops.gemm_universal.gemm_rcr_bias import gemm_rcr_bias
+from aitemplate.compiler.ops.gemm_universal.group_gemm_rcr import (
+    group_gemm_rcr,
+    SHAPE_EVAL_TEMPLATE,
+)
 
-from ...base import ExecItem, Tensor
-from ...tensor_accessor import TensorAccessor
-from .gemm_rcr_bias import gemm_rcr_bias
-from .group_gemm_rcr import group_gemm_rcr, SHAPE_EVAL_TEMPLATE
+from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

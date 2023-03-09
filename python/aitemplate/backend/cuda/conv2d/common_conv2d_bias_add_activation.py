@@ -16,7 +16,7 @@
 common functions for conv2d bias act residual add
 """
 
-from . import common
+from aitemplate.backend.cuda.conv2d import common
 
 # pylint: disable=C0301,C0103
 

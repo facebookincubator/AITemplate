@@ -20,13 +20,14 @@ import logging
 from collections import deque
 from typing import Dict, List, Union
 
-from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.base import Operator, Tensor
 
-from ...utils import graph_utils
-from ..base import Operator, Tensor
-from .mark_param_tensor import mark_param_tensor
-from .name_graph import name_graph
-from .remove_unused_ops import remove_unused_ops
+from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.transform.mark_param_tensor import mark_param_tensor
+from aitemplate.compiler.transform.name_graph import name_graph
+from aitemplate.compiler.transform.remove_unused_ops import remove_unused_ops
+
+from aitemplate.utils import graph_utils
 
 
 _LOGGER = logging.getLogger(__name__)

@@ -21,11 +21,11 @@ from typing import Any, Dict
 
 import jinja2
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...common import tensor_accessor_codegen
-from ...target import Target
-from . import layernorm_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import tensor_accessor_codegen
+from aitemplate.backend.cuda.layernorm_sigmoid_mul import layernorm_common
+from aitemplate.backend.target import Target
 
 # pylint: disable=C0301
 

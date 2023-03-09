@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 # flake8: noqa
-from . import (
+from aitemplate.backend.cuda.gemm_universal import (
     bmm_rcr_permute,
     bmm_rrr_permute,
     bmm_xxx,

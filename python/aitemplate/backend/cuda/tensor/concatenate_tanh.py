@@ -17,9 +17,9 @@ Codegen functions for concatenate_tanh.
 """
 import jinja2
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from . import concatenate
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.tensor import concatenate
 
 
 TANH_DEF = jinja2.Template(

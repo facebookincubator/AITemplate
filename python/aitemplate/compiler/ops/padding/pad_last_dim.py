@@ -19,9 +19,9 @@ from typing import List
 
 import jinja2
 
-from .... import backend
-from ....backend import registry
-from ...base import IntImm, Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntImm, Operator, Tensor
 
 # pylint: disable=C0103,W0221
 

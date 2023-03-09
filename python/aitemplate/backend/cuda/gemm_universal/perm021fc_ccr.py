@@ -16,8 +16,8 @@
 Codegen functions for perm021fc_ccr, which computes
 [b, m, n] = bmm([b, k, m], [1, n, k]).
 """
-from ... import registry
-from . import bmm_common, common
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.gemm_universal import bmm_common, common
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

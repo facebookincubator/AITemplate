@@ -21,8 +21,8 @@ from typing import Any, Dict, List
 
 import jinja2
 
-from ...backend_spec import CUDASpec
-from ...target import Target
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.target import Target
 
 FUNC_SIGNATURE = jinja2.Template(
     """

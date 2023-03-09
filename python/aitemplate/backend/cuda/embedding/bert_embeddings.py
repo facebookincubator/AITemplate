@@ -20,8 +20,8 @@ from typing import Any, Dict
 
 import jinja2
 
-from ... import registry
-from ...backend_spec import CUDASpec
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
 
 # pylint: disable=C0301
 

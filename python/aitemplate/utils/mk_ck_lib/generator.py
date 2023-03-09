@@ -15,7 +15,7 @@
 
 import copy
 
-from . import (
+from aitemplate.utils.mk_ck_lib import (
     conv2d_operation as conv,
     gemm_operation as gemm,
     groupnorm_operation as groupnorm,

@@ -16,11 +16,11 @@
 GEMM Specialization: A.permute(0, 2, 1)[col] @ B[col]
 """
 
-from ....utils import alignment
-from ...base import _create_host_zero_tensor, IntImm, Tensor
-from ..tensor import concatenate
-from . import gemm_common as common
-from .bmm import bmm
+from aitemplate.compiler.base import _create_host_zero_tensor, IntImm, Tensor
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
+from aitemplate.compiler.ops.gemm_universal.bmm import bmm
+from aitemplate.compiler.ops.tensor import concatenate
+from aitemplate.utils import alignment
 
 # pylint: disable=C0103, W0223, W0221, W0613
 

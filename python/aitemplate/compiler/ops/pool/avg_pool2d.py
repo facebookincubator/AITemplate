@@ -15,7 +15,7 @@
 """
 Avg_pool2d op.
 """
-from .pool2d import pool2d_base
+from aitemplate.compiler.ops.pool.pool2d import pool2d_base
 
 
 # pylint: disable=C0103

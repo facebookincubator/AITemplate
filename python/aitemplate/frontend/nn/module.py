@@ -15,8 +15,8 @@
 from collections import namedtuple, OrderedDict
 from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 
-from ...compiler.base import Tensor
-from .parameter import Parameter
+from aitemplate.compiler.base import Tensor
+from aitemplate.frontend.nn.parameter import Parameter
 
 
 class _IncompatibleKeys(

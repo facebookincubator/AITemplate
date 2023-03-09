@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 # flake8: noqa
-from .bert_embeddings import bert_embeddings
+from aitemplate.compiler.ops.embedding.bert_embeddings import bert_embeddings
 
 __all__ = [
     "bert_embeddings",

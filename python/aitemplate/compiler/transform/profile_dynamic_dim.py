@@ -19,8 +19,8 @@ import logging
 from copy import deepcopy
 from typing import List, OrderedDict
 
-from ...backend import builder, codegen
-from ..base import Tensor
+from aitemplate.backend import builder, codegen
+from aitemplate.compiler.base import Tensor
 
 # pylint: disable=C0103,W0613,W0102
 

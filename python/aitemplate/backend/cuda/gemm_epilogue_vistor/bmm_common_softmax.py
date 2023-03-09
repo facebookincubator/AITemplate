@@ -17,10 +17,10 @@ Common functions and templates for bmm-family ops
 """
 import jinja2
 
-from ...common import gemm_common
-from ..gemm_universal import common
+from aitemplate.backend.common import gemm_common
 
-from . import common_softmax
+from aitemplate.backend.cuda.gemm_epilogue_vistor import common_softmax
+from aitemplate.backend.cuda.gemm_universal import common
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

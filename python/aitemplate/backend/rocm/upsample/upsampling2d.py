@@ -16,9 +16,9 @@
 ROCM codegen functions for unsampling2d_add.
 """
 
-from ... import registry
-from ...backend_spec import ROCMSpec
-from ...common import upsampling2d_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import ROCMSpec
+from aitemplate.backend.common import upsampling2d_common
 
 # pylint: disable=C0103,C0415,W0613,C0301,W0612
 

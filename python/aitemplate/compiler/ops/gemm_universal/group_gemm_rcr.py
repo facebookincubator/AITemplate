@@ -22,15 +22,15 @@ from typing import List
 
 import jinja2
 
-from aitemplate.compiler.stable_set import StableSet
+from aitemplate.backend import registry
+from aitemplate.backend.target import Target
+from aitemplate.compiler.base import ExecItem, Tensor
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
+from aitemplate.compiler.ops.gemm_universal.gemm_rcr import gemm_rcr
+from aitemplate.compiler.ops.tensor import concatenate
 
-from ....backend import registry
-from ....backend.target import Target
-from ...base import ExecItem, Tensor
-from ...tensor_accessor import TensorAccessor
-from ..tensor import concatenate
-from . import gemm_common as common
-from .gemm_rcr import gemm_rcr
+from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

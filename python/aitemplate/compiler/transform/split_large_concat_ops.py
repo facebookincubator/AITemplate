@@ -22,12 +22,13 @@ import logging
 
 from typing import List
 
-from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import Operator, Tensor
 
-from ...utils import graph_utils
-from .. import ops
-from ..base import Operator, Tensor
-from . import transform_utils
+from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.transform import transform_utils
+
+from aitemplate.utils import graph_utils
 
 
 _LOGGER = logging.getLogger(__name__)

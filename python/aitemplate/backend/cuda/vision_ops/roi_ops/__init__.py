@@ -15,6 +15,6 @@
 """
 CUDA roi_align module init
 """
-from . import multi_level_roi_align, roi_align
+from aitemplate.backend.cuda.vision_ops.roi_ops import multi_level_roi_align, roi_align
 
 __all__ = ["roi_align", "multi_level_roi_align"]

@@ -12,7 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from .transposed_conv2d_bias_act import ConvTranspose2dBiasAct
+from aitemplate.frontend.nn.conv2d.transposed_conv2d_bias_act import (
+    ConvTranspose2dBiasAct,
+)
 
 
 class ConvTranspose2dBias(ConvTranspose2dBiasAct):

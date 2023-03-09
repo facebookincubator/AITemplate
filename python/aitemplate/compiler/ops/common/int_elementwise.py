@@ -18,13 +18,13 @@ Int elementwise operator definition, for integer calcuation on tensor dimensions
 import functools
 from functools import reduce
 
-from .... import backend
-from ....backend import registry
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntVarTensor, Operator, Tensor
+from aitemplate.compiler.op_registry import OP_REGISTRY
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
 
-from ....utils import shape_utils
-from ...base import IntVarTensor, Operator, Tensor
-from ...op_registry import OP_REGISTRY
-from .epilogue import FuncEnum
+from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,C0301,W0223,R1724
 

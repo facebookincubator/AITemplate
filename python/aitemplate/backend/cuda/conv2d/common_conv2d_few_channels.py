@@ -16,8 +16,8 @@
 common functions for conv2d op with few channels(< 8)
 """
 
-from ....utils import alignment
-from . import common
+from aitemplate.backend.cuda.conv2d import common
+from aitemplate.utils import alignment
 
 
 def extract_config(func_attrs, dtype="float16"):

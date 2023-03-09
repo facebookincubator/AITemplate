@@ -16,9 +16,9 @@
 Batch GEMM specialization: C[m, b, n](row) = bmm(A[m, b, k](row), B[b, n, k](col))
 """
 
-from ...base import IntImm, Tensor
-from . import gemm_common as common
-from .bmm import bmm
+from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
+from aitemplate.compiler.ops.gemm_universal.bmm import bmm
 
 # pylint: disable=C0103, W0223, W0221, W0613
 

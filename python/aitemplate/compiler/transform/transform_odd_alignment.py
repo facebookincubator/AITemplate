@@ -18,17 +18,21 @@ Add permute for gemm/bmm if alignment is odd.
 from math import inf
 from typing import Dict, List, Tuple
 
-from ..base import IntImm, IntVar, Operator, Tensor
-from ..ops.common.view_ops import unsqueeze
-from ..ops.gemm_universal import bmm_ccr, bmm_crr, bmm_rcr, bmm_rrr
-from ..ops.tensor import permute021
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.compiler.ops.common.view_ops import unsqueeze
+from aitemplate.compiler.ops.gemm_universal import bmm_ccr, bmm_crr, bmm_rcr, bmm_rrr
+from aitemplate.compiler.ops.tensor import permute021
 
-from .apply_padding import get_padding_length
-from .fuse_utils import extract_only_one_op
-from .toposort import toposort
-from .transform_strided_ops import _is_supported_op as _is_supported_strided_op
-from .transform_strided_slice import _is_supported_op as _is_supported_strided_slice
-from .transform_utils import (
+from aitemplate.compiler.transform.apply_padding import get_padding_length
+from aitemplate.compiler.transform.fuse_utils import extract_only_one_op
+from aitemplate.compiler.transform.toposort import toposort
+from aitemplate.compiler.transform.transform_strided_ops import (
+    _is_supported_op as _is_supported_strided_op,
+)
+from aitemplate.compiler.transform.transform_strided_slice import (
+    _is_supported_op as _is_supported_strided_slice,
+)
+from aitemplate.compiler.transform.transform_utils import (
     can_be_constant_folded,
     copy_src_op_attributes,
     copy_tensor_attributes,

@@ -17,8 +17,8 @@ CUDA codegen for ndhwc3to8 op
 """
 import jinja2
 
-from ... import registry
-from ...backend_spec import CUDASpec
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
 
 # pylint: disable=C0301,W0613,W0612
 

@@ -17,10 +17,10 @@ Codegen functions for depthwise_conv3d_bias.
 """
 import jinja2
 
-from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend import registry
 
-from ... import registry
-from . import common_bias
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.conv3d import common_bias
 
 # pylint: disable=C0103,C0415,W0613,C0301,W0612
 

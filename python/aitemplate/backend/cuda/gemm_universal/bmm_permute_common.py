@@ -15,11 +15,15 @@
 """
 Common functions and templates for bmm_permute-family ops
 """
-from ...backend_spec import CUDASpec
-from ...common import gemm_common
-from ..gemm_universal import common, common_bias
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import gemm_common
 
-from . import bmm_common, common_permute
+from aitemplate.backend.cuda.gemm_universal import (
+    bmm_common,
+    common,
+    common_bias,
+    common_permute,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

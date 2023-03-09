@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 """Dropout/DropPath placeholder"""
-from .module import Module
+from aitemplate.frontend.nn.module import Module
 
 # pylint: disable=C0103
 

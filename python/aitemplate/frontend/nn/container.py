@@ -29,10 +29,10 @@ from typing import (
     Union,
 )
 
-from ...compiler.base import Tensor
+from aitemplate.compiler.base import Tensor
 
-from .module import Module, typename
-from .parameter import Parameter
+from aitemplate.frontend.nn.module import Module, typename
+from aitemplate.frontend.nn.parameter import Parameter
 
 __all__ = ["Sequential", "ModuleList", "ModuleDict", "ParameterList", "ParameterDict"]
 

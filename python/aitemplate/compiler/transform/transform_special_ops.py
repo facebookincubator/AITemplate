@@ -18,20 +18,20 @@ Check each transform function summary for specific pattern to be transformed.
 """
 from typing import Callable, List, Tuple, Type, Union
 
-from aitemplate.utils.shape_utils import is_singleton_dimension
-
-from .. import ops
-from ..base import Operator, Tensor
-from ..ops.gemm_special.gemm_rrr_small_nk import gemm_rrr_small_nk
-from ..ops.gemm_universal.bmm_rcr import bmm_rcr
-from ..ops.gemm_universal.gemm_rrr import gemm_rrr
-from .transform_utils import (
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.ops.gemm_special.gemm_rrr_small_nk import gemm_rrr_small_nk
+from aitemplate.compiler.ops.gemm_universal.bmm_rcr import bmm_rcr
+from aitemplate.compiler.ops.gemm_universal.gemm_rrr import gemm_rrr
+from aitemplate.compiler.transform.transform_utils import (
     copy_src_op_attributes,
     copy_tensor_attributes,
     remove_dst_op_from_tensor,
     replace_tensor,
     sanitize_sorted_graph,
 )
+
+from aitemplate.utils.shape_utils import is_singleton_dimension
 
 # pylint: disable=C0103,C0415,W0612
 

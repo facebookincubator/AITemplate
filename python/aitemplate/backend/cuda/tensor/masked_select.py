@@ -17,10 +17,10 @@ Define masked_select codegen and CUDA kernel
 """
 import jinja2
 
-from ... import registry
+from aitemplate.backend import registry
 
-from ...backend_spec import CUDASpec
-from .. import cuda_common
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda import cuda_common
 
 
 header_files = """

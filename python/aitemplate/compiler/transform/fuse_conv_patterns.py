@@ -12,9 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from ..ops.common import elementwise
-from ..ops.common.epilogue import FuncEnum
-from ..ops.conv import (
+from aitemplate.compiler.ops.common import elementwise
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.compiler.ops.conv import (
     conv2d,
     conv2d_bias,
     conv2d_bias_add,

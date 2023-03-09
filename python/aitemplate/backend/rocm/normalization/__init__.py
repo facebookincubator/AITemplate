@@ -15,4 +15,4 @@
 """
 Common modules for backends
 """
-from . import norm_common, softmax  # noqa
+from aitemplate.backend.rocm.normalization import norm_common, softmax  # noqa

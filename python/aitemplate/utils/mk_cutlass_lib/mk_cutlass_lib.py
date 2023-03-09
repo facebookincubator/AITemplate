@@ -18,7 +18,12 @@ import re
 import shutil
 import tempfile
 
-from . import extra_conv_emit, extra_cutlass_generator, extra_enum, extra_gemm_emit
+from aitemplate.utils.mk_cutlass_lib import (
+    extra_conv_emit,
+    extra_cutlass_generator,
+    extra_enum,
+    extra_gemm_emit,
+)
 
 
 def mk_cutlass_lib(template_path, dst_prefix=None):

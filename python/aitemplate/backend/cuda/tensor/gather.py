@@ -17,8 +17,8 @@ CUDA gather function
 """
 import jinja2
 
-from ... import registry
-from .. import cuda_common
+from aitemplate.backend import registry
+from aitemplate.backend.cuda import cuda_common
 
 CAST_TO_CONST_INDEX_PTR_TEMPLATE = jinja2.Template(
     "reinterpret_cast<const {{index_type}}*>({{name}})"

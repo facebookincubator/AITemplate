@@ -15,7 +15,7 @@
 """
 Roi_align.
 """
-from .roi_ops import roi_ops_base
+from aitemplate.compiler.ops.vision_ops.roi_ops.roi_ops import roi_ops_base
 
 
 # pylint: disable=C0103

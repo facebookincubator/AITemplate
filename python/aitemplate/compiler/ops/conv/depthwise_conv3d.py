@@ -22,10 +22,10 @@ from typing import Any, Dict, List
 
 import jinja2
 
-from .... import backend
-from ....backend import registry
-from ....utils import shape_utils
-from ...base import IntImm, IntVar, Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,R1732,W0102,W1202,C0301,R1716
 

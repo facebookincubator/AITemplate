@@ -15,9 +15,9 @@
 """
 conv2d Module.
 """
-from ....compiler.ops import conv2d
-from ..module import Module
-from ..parameter import Parameter
+from aitemplate.compiler.ops import conv2d
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.parameter import Parameter
 
 # pylint: disable=C0103
 

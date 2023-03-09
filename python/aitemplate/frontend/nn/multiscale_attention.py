@@ -23,14 +23,14 @@ from typing import List, Optional, Tuple
 
 import numpy
 
-from ...compiler import ops
-from ...compiler.ops.common.epilogue import FuncEnum
-from .. import Tensor
-from .conv3d import Conv3d
-from .dropout import Dropout, DropPath
-from .identity import Identity
-from .linear import Linear
-from .module import Module
+from aitemplate.compiler import ops
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.frontend import Tensor
+from aitemplate.frontend.nn.conv3d import Conv3d
+from aitemplate.frontend.nn.dropout import Dropout, DropPath
+from aitemplate.frontend.nn.identity import Identity
+from aitemplate.frontend.nn.linear import Linear
+from aitemplate.frontend.nn.module import Module
 
 _LOGGER = logging.getLogger(__name__)
 

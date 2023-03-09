@@ -19,10 +19,10 @@ where A[RowMajor][M, K], B[RowMajor][K, N]
 """
 import jinja2
 
-from ... import registry
+from aitemplate.backend import registry
 
-from ...backend_spec import CUDASpec
-from . import common
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.gemm_universal import common
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

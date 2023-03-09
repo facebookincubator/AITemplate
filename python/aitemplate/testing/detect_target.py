@@ -19,7 +19,7 @@ import logging
 import os
 from subprocess import PIPE, Popen
 
-from ..backend.target import CUDA, ROCM
+from aitemplate.backend.target import CUDA, ROCM
 
 # pylint: disable=W0702, W0612,R1732
 

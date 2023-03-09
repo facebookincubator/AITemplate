@@ -16,23 +16,23 @@
 """
 CUDA backend codegen functions.
 """
-from . import cuda_common, lib_template, target_def, utils
-from .common import *
-from .conv2d import *
-from .conv3d import *
-from .elementwise import *
-from .embedding import *
-from .gemm_special import *
-from .gemm_universal import *
-from .gemm_epilogue_vistor import *
-from .layernorm_sigmoid_mul import *
-from .padding import *
-from .pool2d import *
-from .reduce import *
-from .softmax import *
-from .tensor import *
-from .upsample import *
-from .view_ops import *
-from .vision_ops import *
-from .attention import *
-from .groupnorm import *
+from aitemplate.backend.cuda import cuda_common, lib_template, target_def, utils
+from aitemplate.backend.cuda.common import *
+from aitemplate.backend.cuda.conv2d import *
+from aitemplate.backend.cuda.conv3d import *
+from aitemplate.backend.cuda.elementwise import *
+from aitemplate.backend.cuda.embedding import *
+from aitemplate.backend.cuda.gemm_special import *
+from aitemplate.backend.cuda.gemm_universal import *
+from aitemplate.backend.cuda.gemm_epilogue_vistor import *
+from aitemplate.backend.cuda.layernorm_sigmoid_mul import *
+from aitemplate.backend.cuda.padding import *
+from aitemplate.backend.cuda.pool2d import *
+from aitemplate.backend.cuda.reduce import *
+from aitemplate.backend.cuda.softmax import *
+from aitemplate.backend.cuda.tensor import *
+from aitemplate.backend.cuda.upsample import *
+from aitemplate.backend.cuda.view_ops import *
+from aitemplate.backend.cuda.vision_ops import *
+from aitemplate.backend.cuda.attention import *
+from aitemplate.backend.cuda.groupnorm import *

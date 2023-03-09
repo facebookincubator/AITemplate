@@ -16,7 +16,9 @@
 GEMM Specialization: Sigmoid(GEMM_RCR(A, B) + Bias) * D0
 """
 
-from .gemm_rcr_bias_broadcast import gemm_rcr_bias_broadcast
+from aitemplate.compiler.ops.gemm_universal.gemm_rcr_bias_broadcast import (
+    gemm_rcr_bias_broadcast,
+)
 
 # pylint: disable=C0103, W0223, W0221
 
