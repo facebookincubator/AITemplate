@@ -19,6 +19,8 @@ import json
 import os
 
 from aitemplate import compiler
+from aitemplate.utils.environ import shorten_tensor_names_for_plots
+from aitemplate.utils.misc import short_str
 from aitemplate.utils.visualization import op_attr_factory, pydot
 from aitemplate.utils.visualization.op_attr_factory import op_to_content
 from aitemplate.utils.visualization.web_template import (
@@ -124,6 +126,10 @@ def plot_graph(tensors, file_path: str) -> None:
     for tensor in sorted_graph:
         tensor_node = None
         tensor_name = tensor._attrs["name"]
+        if shorten_tensor_names_for_plots():
+            if tensor_name is not None and len(tensor_name) > 30:
+                tensor_name = short_str(tensor_name)
+
         if tensor in tensor_set:
             tensor_node = tensor_set[tensor]
         else:
