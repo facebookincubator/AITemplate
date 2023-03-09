@@ -58,3 +58,11 @@ def time_compilation() -> bool:
     Requires to install "time".
     """
     return os.getenv("AIT_TIME_COMPILATION", "0") == "1"
+
+
+def shorten_tensor_names_for_plots() -> bool:
+    """
+    When enabled, long tensor names will be replaced with a hash string,
+    making the graph representation significantly simpler.
+    """
+    return os.getenv("AIT_PLOT_SHORTEN_TENSOR_NAMES", "0") == "1"

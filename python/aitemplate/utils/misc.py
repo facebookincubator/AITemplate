@@ -15,6 +15,7 @@
 """
 miscellaneous utilities
 """
+import hashlib
 import logging
 import os
 
@@ -41,3 +42,11 @@ def setup_logger(name):
     )
     root_logger.setLevel(LOG_LEVEL)
     return root_logger
+
+
+def short_str(s, length=8) -> str:
+    """
+    Returns a hashed string, somewhat similar to URL shortener.
+    """
+    hash_str = hashlib.sha256(s.encode()).hexdigest()
+    return hash_str[0:length]
