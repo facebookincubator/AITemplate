@@ -21,15 +21,15 @@ from copy import deepcopy
 from datetime import datetime
 from typing import List, OrderedDict
 
+from aitemplate.backend import builder, codegen
+
 from aitemplate.backend.profiler_runner import ProfilerRunner
+from aitemplate.compiler.base import DynamicProfileStrategy, Tensor
 
 from aitemplate.compiler.ops.gemm_universal.gemm_common import (
     gemm,
     GemmProfilerPostprocessingDelegate,
 )
-
-from ...backend import builder, codegen
-from ..base import DynamicProfileStrategy, Tensor
 
 # pylint: disable=C0103,W0613,W0102
 

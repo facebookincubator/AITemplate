@@ -18,10 +18,10 @@ Codegen functions for max_pool2d.
 
 import jinja2
 
-from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend import registry
 
-from ... import registry
-from . import pool2d
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.pool2d import pool2d
 
 # pylint: disable=C0103,C0415,W0613,C0301,W0612
 

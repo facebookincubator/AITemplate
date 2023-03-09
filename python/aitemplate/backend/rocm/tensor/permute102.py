@@ -16,9 +16,9 @@
 permute102 for rocm
 """
 
-from ... import registry
-from ...backend_spec import ROCMSpec
-from ...common.tensor import permute102_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import ROCMSpec
+from aitemplate.backend.common.tensor import permute102_common
 
 # pylint: disable=C0301,W0613,W0612
 

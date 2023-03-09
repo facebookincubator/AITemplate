@@ -16,11 +16,10 @@
 Batch GEMM specialization for A[ColMajor], B[RowMajor], C[RowMajor] with Add.
 """
 
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.gemm_universal import bmm_crr
+from aitemplate.compiler.ops.gemm_universal.bmm import is_valid_inputs
 from aitemplate.compiler.tensor_accessor import TensorAccessor
-
-from ...base import Tensor
-from . import bmm_crr
-from .bmm import is_valid_inputs
 
 # pylint: disable=C0103, W0223
 

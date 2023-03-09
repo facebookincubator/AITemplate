@@ -15,12 +15,11 @@
 """
 Operator definition for layernorm_sigmoid_mul.
 """
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import Operator
 from aitemplate.compiler.stable_set import StableSet
-
-from .... import backend
-from ....backend import registry
-from ...base import Operator
-from ...tensor_accessor import TensorAccessor
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0221,W0102,W0223
 

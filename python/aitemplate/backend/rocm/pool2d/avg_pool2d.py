@@ -15,8 +15,8 @@
 """
 ROCM avg_pool2d funcs
 """
-from ... import registry
-from . import pool2d
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.pool2d import pool2d
 
 
 @registry.reg("rocm.avg_pool2d.gen_function")

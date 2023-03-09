@@ -18,11 +18,12 @@ Perform transformations on ops which support strided inputs / outputs.
 import logging
 from typing import List
 
-from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 
-from ...utils import alignment, graph_utils
-from ..base import IntImm, IntVar, Operator, Tensor
-from . import transform_strided_ops_utils, transform_utils
+from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
+
+from aitemplate.utils import alignment, graph_utils
 
 # pylint: disable=W0612
 

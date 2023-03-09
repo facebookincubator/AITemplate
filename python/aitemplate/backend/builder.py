@@ -32,13 +32,14 @@ from typing import Optional
 
 import jinja2
 
+from aitemplate.backend.target import Target
+from aitemplate.backend.task_runner import BaseRunner, Task
+
 from aitemplate.utils import environ
 
 from aitemplate.utils.debug_settings import AITDebugSettings
 
-from ..utils.misc import is_debug
-from .target import Target
-from .task_runner import BaseRunner, Task
+from aitemplate.utils.misc import is_debug
 
 # pylint: disable=W0221,C0103
 

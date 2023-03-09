@@ -21,7 +21,7 @@ import math
 
 import jinja2
 
-from ....compiler.base import IntImm
+from aitemplate.compiler.base import IntImm
 
 
 EXEC_COND_TEMPLATE = jinja2.Template(

@@ -18,8 +18,8 @@ A kernel that implements vector_norm
 
 import jinja2
 
-from ... import registry
-from . import reduce_3d
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.reduce import reduce_3d
 
 
 L2_NORM_PROLOGUE_TEMPLATE = jinja2.Template(

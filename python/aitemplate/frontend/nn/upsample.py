@@ -15,8 +15,8 @@
 """
 Unsampling2d module.
 """
-from ...compiler.ops import upsampling2d, upsampling2d_add
-from .module import Module
+from aitemplate.compiler.ops import upsampling2d, upsampling2d_add
+from aitemplate.frontend.nn.module import Module
 
 
 class Upsampling2d(Module):

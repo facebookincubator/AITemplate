@@ -16,9 +16,9 @@
 Slice scatter CUDA implementation.
 """
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...common.tensor import slice_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common.tensor import slice_common
 
 
 @registry.reg("cuda.slice_scatter.func_decl")

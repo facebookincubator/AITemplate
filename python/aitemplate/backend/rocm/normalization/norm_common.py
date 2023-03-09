@@ -23,7 +23,7 @@ from typing import Any, Dict, OrderedDict
 
 import jinja2
 
-from ...target import Target
+from aitemplate.backend.target import Target
 
 FUNC_CALL_PARAM_TEMPLATE = jinja2.Template("(void *)({{name}})")
 

@@ -16,7 +16,7 @@
 A specialization of gemm_rcr_permute applying ELU + 1 as epilogue.
 """
 
-from . import gemm_rcr_permute
+from aitemplate.compiler.ops.gemm_universal import gemm_rcr_permute
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

@@ -28,10 +28,10 @@ from collections import namedtuple
 from queue import Queue
 from typing import Callable, List, Tuple
 
-from aitemplate.testing import detect_target
+from aitemplate.backend.target import Target
+from aitemplate.backend.task_runner import BaseRunner, Task
 
-from .target import Target
-from .task_runner import BaseRunner, Task
+from aitemplate.testing import detect_target
 
 # pylint: disable=W0221
 

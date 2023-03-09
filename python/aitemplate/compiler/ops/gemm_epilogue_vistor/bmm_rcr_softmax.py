@@ -19,10 +19,10 @@ This is used for `torch.nn.functional.linear`
 When use for `linear`, need set A->Data, B->Weight
 """
 
-from ...base import IntImm, Tensor
-from ...tensor_accessor import TensorAccessor
-from ..gemm_universal import gemm_common as common
-from ..gemm_universal.bmm import bmm
+from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
+from aitemplate.compiler.ops.gemm_universal.bmm import bmm
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103, W0223, W0221, W0613
 

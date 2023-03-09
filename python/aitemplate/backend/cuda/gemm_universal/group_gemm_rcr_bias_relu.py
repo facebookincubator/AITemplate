@@ -15,8 +15,12 @@
 """
 Codegen functions for group_gemm_rcr_bias_relu.
 """
-from ... import registry
-from . import common, group_common_bias, group_gemm_rcr
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.gemm_universal import (
+    common,
+    group_common_bias,
+    group_gemm_rcr,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

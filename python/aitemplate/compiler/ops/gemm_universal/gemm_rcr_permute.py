@@ -21,13 +21,13 @@ When use for `linear`, need set A->Data, B->Weight
 
 from typing import Tuple
 
+from aitemplate.compiler.base import IntImm, IntVar, Tensor
+from aitemplate.compiler.ops.common import reshape
+
+from aitemplate.compiler.ops.gemm_universal import gemm_rcr
+from aitemplate.compiler.tensor_accessor import TensorAccessor
+
 from aitemplate.testing import detect_target
-
-from ...base import IntImm, IntVar, Tensor
-from ...tensor_accessor import TensorAccessor
-from ..common import reshape
-
-from . import gemm_rcr
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

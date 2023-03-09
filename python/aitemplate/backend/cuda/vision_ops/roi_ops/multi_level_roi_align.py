@@ -17,9 +17,9 @@ Codegen functions for multi-level roi align.
 """
 import jinja2
 
-from .... import registry
-from ....backend_spec import CUDASpec
-from ....common.vision_ops import multi_level_roi_align_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common.vision_ops import multi_level_roi_align_common
 
 # pylint: disable=C0103,C0415,W0613,C0301,W0612
 

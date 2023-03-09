@@ -15,7 +15,9 @@
 """
 Fused conv2d_bias_hardswish_few_channels op.
 """
-from .special_conv2d_bias_activation import special_conv2d_bias_activation
+from aitemplate.compiler.ops.conv.special_conv2d_bias_activation import (
+    special_conv2d_bias_activation,
+)
 
 # pylint: disable=C0103
 class conv2d_bias_hardswish_few_channels(special_conv2d_bias_activation):

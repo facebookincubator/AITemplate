@@ -17,5 +17,5 @@ CUDA vision ops
 """
 # flake8: noqa
 
-from .nms import *
-from .roi_ops import *
+from aitemplate.backend.cuda.vision_ops.nms import *
+from aitemplate.backend.cuda.vision_ops.roi_ops import *

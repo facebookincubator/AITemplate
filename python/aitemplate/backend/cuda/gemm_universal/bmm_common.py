@@ -19,9 +19,9 @@ from dataclasses import dataclass
 
 import jinja2
 
-from ...backend_spec import CUDASpec
-from ...common import gemm_common
-from . import common
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.cuda.gemm_universal import common
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

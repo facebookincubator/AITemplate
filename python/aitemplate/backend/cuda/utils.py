@@ -17,9 +17,9 @@ Util functions for CUDA codegen.
 """
 import logging
 
-from aitemplate.utils.mk_cutlass_lib.mk_cutlass_lib import mk_cutlass_lib
+from aitemplate.backend import registry
 
-from .. import registry
+from aitemplate.utils.mk_cutlass_lib.mk_cutlass_lib import mk_cutlass_lib
 
 # pylint: disable=C0103,C0415,W0707
 

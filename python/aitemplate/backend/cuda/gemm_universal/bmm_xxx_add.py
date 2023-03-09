@@ -24,10 +24,10 @@ func_call, and filter for each layout combination under names like
 """
 
 
-from ... import registry
-from ...common import gemm_common
-from . import bmm_common, common
-from .bmm_xxx import _get_problem_args, get_config
+from aitemplate.backend import registry
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.cuda.gemm_universal import bmm_common, common
+from aitemplate.backend.cuda.gemm_universal.bmm_xxx import _get_problem_args, get_config
 
 
 def get_gen_function(a_layout, b_layout, c_layout):

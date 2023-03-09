@@ -15,9 +15,11 @@
 """
 Operator definition for gemm_rcr_bias_softmax.
 """
-from ...base import _create_host_zero_tensor, Tensor
-from ...tensor_accessor import TensorAccessor
-from .gemm_rcr_softmax import gemm_rcr_softmax
+from aitemplate.compiler.base import _create_host_zero_tensor, Tensor
+from aitemplate.compiler.ops.gemm_epilogue_vistor.gemm_rcr_softmax import (
+    gemm_rcr_softmax,
+)
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,R1711,W0102,W0221,E1120,W0223
 

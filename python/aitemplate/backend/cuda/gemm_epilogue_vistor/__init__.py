@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 
-from . import (
+from aitemplate.backend.cuda.gemm_epilogue_vistor import (
     bmm_rcr_softmax,
     dual_bmm_rrr_div,
     dual_gemm_rcr_fast_gelu,

@@ -12,11 +12,17 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from .batch_layernorm_sigmoid_mul import batch_layernorm_sigmoid_mul
-from .group_layernorm import group_layernorm
-from .group_layernorm_sigmoid_mul import group_layernorm_sigmoid_mul
-from .layernorm import layernorm
-from .layernorm_sigmoid_mul import layernorm_sigmoid_mul
+from aitemplate.compiler.ops.layernorm.batch_layernorm_sigmoid_mul import (
+    batch_layernorm_sigmoid_mul,
+)
+from aitemplate.compiler.ops.layernorm.group_layernorm import group_layernorm
+from aitemplate.compiler.ops.layernorm.group_layernorm_sigmoid_mul import (
+    group_layernorm_sigmoid_mul,
+)
+from aitemplate.compiler.ops.layernorm.layernorm import layernorm
+from aitemplate.compiler.ops.layernorm.layernorm_sigmoid_mul import (
+    layernorm_sigmoid_mul,
+)
 
 
 __all__ = [

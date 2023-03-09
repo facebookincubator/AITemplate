@@ -36,7 +36,7 @@ from aitemplate.compiler.base import (
 )
 from aitemplate.utils.shape_utils import convert_shape_to_IntVar
 
-from ....utils.tensor_utils import wrap_dim
+from aitemplate.utils.tensor_utils import wrap_dim
 
 
 # SHAPE_ASSIGNMENT_TEMPLATE is folded in here

@@ -12,8 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from ..compiler.base import DynamicProfileStrategy, IntImm, IntVar, Tensor  # noqa: F401
-from . import nn
-from .nn.parameter import Parameter
+from aitemplate.compiler.base import (  # noqa: F401
+    DynamicProfileStrategy,
+    IntImm,
+    IntVar,
+    Tensor,
+)
+from aitemplate.frontend import nn
+from aitemplate.frontend.nn.parameter import Parameter
 
 __all__ = ["nn", "Parameter"]

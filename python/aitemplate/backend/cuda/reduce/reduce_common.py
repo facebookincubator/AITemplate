@@ -17,8 +17,9 @@ CUDA reduce common functions
 """
 import jinja2
 
-from ....compiler.base import IntImm, IntVar
-from ...backend_spec import CUDASpec
+from aitemplate.backend.backend_spec import CUDASpec
+
+from aitemplate.compiler.base import IntImm, IntVar
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """

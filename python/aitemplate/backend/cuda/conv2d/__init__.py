@@ -16,7 +16,7 @@
 """
 cuda conv2d module init
 """
-from . import (
+from aitemplate.backend.cuda.conv2d import (
     conv2d,
     conv2d_bias,
     conv2d_bias_add,

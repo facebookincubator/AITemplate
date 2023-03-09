@@ -18,7 +18,7 @@ Dummy op codegen for CUDA.
 
 from typing import Any, Dict
 
-from ... import registry
+from aitemplate.backend import registry
 
 
 @registry.reg("cuda.size.gen_function")

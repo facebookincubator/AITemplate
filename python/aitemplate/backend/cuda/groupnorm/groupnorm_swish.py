@@ -14,9 +14,9 @@
 #
 from typing import Any, Dict
 
-from ... import registry
+from aitemplate.backend import registry
 
-from .groupnorm_common import (
+from aitemplate.backend.cuda.groupnorm.groupnorm_common import (
     groupnorm_gen_func_call,
     groupnorm_gen_func_decl,
     groupnorm_gen_function,

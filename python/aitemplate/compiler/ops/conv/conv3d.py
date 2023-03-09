@@ -27,17 +27,23 @@ from typing import Any, Dict, List
 
 import jinja2
 
-from .... import backend
-from ....backend import registry
-from ....backend.target import Target
-from ....utils import alignment, environ, shape_utils
-from ...base import DynamicProfileStrategy, IntImm, IntVar, Operator, Tensor
-from .cache_entry import Conv3dQueryEntry, Conv3dRecordEntry
-from .conv_common import (
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.backend.target import Target
+from aitemplate.compiler.base import (
+    DynamicProfileStrategy,
+    IntImm,
+    IntVar,
+    Operator,
+    Tensor,
+)
+from aitemplate.compiler.ops.conv.cache_entry import Conv3dQueryEntry, Conv3dRecordEntry
+from aitemplate.compiler.ops.conv.conv_common import (
     filter_op_instances,
     generate_profiler_sources,
     get_profiler_filename,
 )
+from aitemplate.utils import alignment, environ, shape_utils
 
 # pylint: disable=C0103,W0221,R1732,W0102,W1202,C0301,R1716
 

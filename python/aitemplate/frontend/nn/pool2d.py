@@ -15,8 +15,8 @@
 """
 pool2d-family modules.
 """
-from ...compiler.ops import avg_pool2d, max_pool2d
-from .module import Module
+from aitemplate.compiler.ops import avg_pool2d, max_pool2d
+from aitemplate.frontend.nn.module import Module
 
 
 class MaxPool2d(Module):

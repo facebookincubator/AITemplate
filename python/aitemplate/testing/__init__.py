@@ -15,8 +15,8 @@
 """
 testing module
 """
-from . import benchmark_ait, benchmark_pt
-from .detect_target import detect_target
+from aitemplate.testing import benchmark_ait, benchmark_pt
+from aitemplate.testing.detect_target import detect_target
 
 __all__ = [
     "benchmark_pt",

@@ -27,15 +27,19 @@ import tempfile
 from pathlib import Path
 from typing import List
 
+from aitemplate.backend import registry
+
 from aitemplate.backend.profiler_cache import ProfileCacheDB
 
-from aitemplate.backend.target import TargetType
+from aitemplate.backend.target import (
+    AIT_STATIC_FILES_PATH,
+    CUTLASS_PATH,
+    Target,
+    TargetType,
+)
 
-from ...utils import environ
-from ...utils.misc import is_debug
-
-from .. import registry
-from ..target import AIT_STATIC_FILES_PATH, CUTLASS_PATH, Target
+from aitemplate.utils import environ
+from aitemplate.utils.misc import is_debug
 
 # pylint: disable=C0415,W0707,W0611,W0702,W1401
 

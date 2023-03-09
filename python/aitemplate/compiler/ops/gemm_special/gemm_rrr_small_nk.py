@@ -25,8 +25,8 @@ B: [K, N]
 C: [M, N]
 """
 
-from ...base import IntImm, Tensor
-from ..gemm_universal import gemm_common as common
+from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

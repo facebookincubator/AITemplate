@@ -12,14 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+from aitemplate.compiler import ops
+from aitemplate.compiler.public import FuncEnum
+from aitemplate.frontend.nn.dropout import Dropout
+from aitemplate.frontend.nn.layer_norm import LayerNorm
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.parameter import Parameter
 from aitemplate.testing import detect_target
-
-from ...compiler import ops
-from ...compiler.public import FuncEnum
-from .dropout import Dropout
-from .layer_norm import LayerNorm
-from .module import Module
-from .parameter import Parameter
 
 
 class Embedding(Module):

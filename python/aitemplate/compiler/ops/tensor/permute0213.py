@@ -18,10 +18,10 @@ Change the dimensions dim1 and dim2 of input 4d tensor.
 """
 from typing import List
 
-from aitemplate.backend import registry
+from aitemplate import backend
 
-from .... import backend
-from ...base import IntVar, Operator, Tensor
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntVar, Operator, Tensor
 
 # pylint: disable=C0103,W0221
 

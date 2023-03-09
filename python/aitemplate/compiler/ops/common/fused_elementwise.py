@@ -17,11 +17,11 @@ Fused elementwise operator definition.
 """
 from typing import List, Set
 
-from .... import backend
-from ....backend import registry
-from ...base import Operator
-from ...tensor_accessor import TensorAccessor
-from .elementwise import elementwise
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import Operator
+from aitemplate.compiler.ops.common.elementwise import elementwise
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0301,C0103,W0223
 

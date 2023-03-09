@@ -15,7 +15,7 @@
 """
 ROCM tensor ops module init
 """
-from . import (  # noqa
+from aitemplate.backend.rocm.tensor import (  # noqa
     argmax,
     batch_gather,
     concatenate,

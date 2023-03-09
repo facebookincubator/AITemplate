@@ -17,12 +17,12 @@ Frontend for vanilla attention module
 """
 from functools import partial
 
-from ...compiler import ops
-from .. import Tensor
-from .dropout import Dropout
-from .linear import Linear
-from .module import Module
-from .parameter import Parameter
+from aitemplate.compiler import ops
+from aitemplate.frontend import Tensor
+from aitemplate.frontend.nn.dropout import Dropout
+from aitemplate.frontend.nn.linear import Linear
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.parameter import Parameter
 
 # pylint: disable=C0103
 

@@ -16,10 +16,12 @@
 Codegen functions for perm102_bmm_rrr, which computes
 C[m, b, n](row) = bmm(A[m, b, k](row), B[b, k, n](row))
 """
-from ... import registry
-from ...backend_spec import CUDASpec
-from . import bmm_common, common
-from .perm102_bmm_rcr import get_output_addr_calculator
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.gemm_universal import bmm_common, common
+from aitemplate.backend.cuda.gemm_universal.perm102_bmm_rcr import (
+    get_output_addr_calculator,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

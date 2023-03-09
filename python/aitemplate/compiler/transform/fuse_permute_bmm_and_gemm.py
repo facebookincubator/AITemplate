@@ -17,12 +17,9 @@ Perform fusions for permute+bmm operators.
 """
 from typing import Callable, List, Optional, Set, Tuple, Type, Union
 
-from aitemplate.compiler.ops.tensor.permute import permute
-
-from ...utils import alignment
-from .. import ops
-from ..base import IntImm, Operator, Tensor
-from ..ops.gemm_universal import (
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import IntImm, Operator, Tensor
+from aitemplate.compiler.ops.gemm_universal import (
     bmm_ccr,
     bmm_crr,
     bmm_rcr,
@@ -32,9 +29,11 @@ from ..ops.gemm_universal import (
     gemm_rrr,
     gemm_rrr_bias,
 )
-from ..ops.tensor import permute021
-from .fuse_utils import extract_only_one_op
-from .transform_utils import (
+from aitemplate.compiler.ops.tensor import permute021
+
+from aitemplate.compiler.ops.tensor.permute import permute
+from aitemplate.compiler.transform.fuse_utils import extract_only_one_op
+from aitemplate.compiler.transform.transform_utils import (
     copy_src_op_attributes,
     copy_tensor_attributes,
     remove_dst_op_from_tensor,
@@ -42,6 +41,8 @@ from .transform_utils import (
     replace_tensor,
     sanitize_sorted_graph,
 )
+
+from aitemplate.utils import alignment
 
 # pylint: disable=C0103,W0612
 

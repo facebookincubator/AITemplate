@@ -16,19 +16,19 @@
 """
 AIT operators.
 """
-from .common import *
-from .conv import *
-from .embedding import *
-from .gemm_special import *
-from .gemm_universal import *
-from .gemm_epilogue_vistor import *
-from .layernorm import *
-from .padding import *
-from .pool import *
-from .reduce import *
-from .softmax import *
-from .tensor import *
-from .upsample import *
-from .vision_ops import *
-from .attention import *
-from .groupnorm import *
+from aitemplate.compiler.ops.common import *
+from aitemplate.compiler.ops.conv import *
+from aitemplate.compiler.ops.embedding import *
+from aitemplate.compiler.ops.gemm_special import *
+from aitemplate.compiler.ops.gemm_universal import *
+from aitemplate.compiler.ops.gemm_epilogue_vistor import *
+from aitemplate.compiler.ops.layernorm import *
+from aitemplate.compiler.ops.padding import *
+from aitemplate.compiler.ops.pool import *
+from aitemplate.compiler.ops.reduce import *
+from aitemplate.compiler.ops.softmax import *
+from aitemplate.compiler.ops.tensor import *
+from aitemplate.compiler.ops.upsample import *
+from aitemplate.compiler.ops.vision_ops import *
+from aitemplate.compiler.ops.attention import *
+from aitemplate.compiler.ops.groupnorm import *

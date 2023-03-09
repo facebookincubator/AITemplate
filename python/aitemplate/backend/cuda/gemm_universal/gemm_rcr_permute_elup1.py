@@ -19,8 +19,8 @@ where A[RowMajor][M, K], B[ColMajor][N, K], bias[RowMajor][N]
 """
 import jinja2
 
-from ... import registry
-from . import gemm_rcr_permute
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.gemm_universal import gemm_rcr_permute
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

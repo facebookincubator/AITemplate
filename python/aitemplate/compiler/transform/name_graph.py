@@ -18,7 +18,7 @@ Graph pass to assign names to a sorted graph.
 import re
 from typing import List
 
-from ..base import IntImm, IntVarTensor, JaggedIntVar, Tensor
+from aitemplate.compiler.base import IntImm, IntVarTensor, JaggedIntVar, Tensor
 
 # pylint: disable=C0103
 

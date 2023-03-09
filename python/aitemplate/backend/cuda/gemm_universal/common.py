@@ -25,13 +25,13 @@ from typing import Any, Dict, List, Tuple
 
 import jinja2
 
-from ....compiler.base import IntImm
-from ....utils import alignment
+from aitemplate.backend.backend_spec import CUDASpec
 
-from ...backend_spec import CUDASpec
+from aitemplate.backend.common import gemm_common, tensor_accessor_codegen
+from aitemplate.backend.target import Target
 
-from ...common import gemm_common, tensor_accessor_codegen
-from ...target import Target
+from aitemplate.compiler.base import IntImm
+from aitemplate.utils import alignment
 
 # pylint: disable=C0301,C0415,R1705
 

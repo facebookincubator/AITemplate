@@ -22,8 +22,9 @@ from typing import Dict, List
 
 import jinja2
 
-from ..compiler.ops.common.epilogue import FuncEnum
-from .target import Target
+from aitemplate.backend.target import Target
+
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
 
 
 class BackendSpec:

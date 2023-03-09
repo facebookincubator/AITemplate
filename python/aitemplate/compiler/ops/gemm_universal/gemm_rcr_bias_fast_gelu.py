@@ -15,7 +15,7 @@
 """
 GEMM Specialization: FastGELU(GEMM_RCR(A, B) + Bias)
 """
-from . import gemm_rcr_bias
+from aitemplate.compiler.ops.gemm_universal import gemm_rcr_bias
 
 # pylint: disable=C0103,W0223,W0221
 

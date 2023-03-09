@@ -24,8 +24,8 @@ reduce_3d for non-neg-dim cases, because reduce_3d can take prologue and
 epilogue so it is more general than reduce_common.
 """
 
-from ... import registry
-from . import reduce_3d, reduce_common
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.reduce import reduce_3d, reduce_common
 
 
 def _is_last_reduction_dim(func_attrs):

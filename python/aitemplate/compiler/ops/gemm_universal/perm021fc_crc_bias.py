@@ -16,10 +16,9 @@
 GEMM Specialization: (A.permute(0, 2, 1)[col] @ B[row] + Bias)
 """
 
+from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.ops.gemm_universal import perm021fc_crc
 from aitemplate.compiler.tensor_accessor import TensorAccessor
-
-from ...base import IntImm, Tensor
-from . import perm021fc_crc
 
 # pylint: disable=C0103, W0223, W0221
 

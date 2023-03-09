@@ -13,4 +13,4 @@
 #  limitations under the License.
 #
 # flake8: noqa
-from .bert_embeddings import *
+from aitemplate.backend.cuda.embedding.bert_embeddings import *

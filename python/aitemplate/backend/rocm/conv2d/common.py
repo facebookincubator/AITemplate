@@ -22,7 +22,7 @@ from hashlib import sha1
 
 import jinja2
 
-from ...target import Target
+from aitemplate.backend.target import Target
 
 # pylint: disable=C0103,C0415,W0611,C0301
 

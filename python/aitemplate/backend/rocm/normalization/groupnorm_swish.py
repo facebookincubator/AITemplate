@@ -14,9 +14,9 @@
 #
 from typing import Any, Dict
 
-from ... import registry
+from aitemplate.backend import registry
 
-from .groupnorm import (
+from aitemplate.backend.rocm.normalization.groupnorm import (
     groupnorm_extract_config,
     groupnorm_gen_func_call,
     groupnorm_gen_func_decl,

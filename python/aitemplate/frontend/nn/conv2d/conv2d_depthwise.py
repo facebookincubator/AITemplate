@@ -15,8 +15,8 @@
 """
 conv2d depthwise module
 """
-from ....compiler.ops import conv2d_depthwise
-from .conv2d import Conv2d
+from aitemplate.compiler.ops import conv2d_depthwise
+from aitemplate.frontend.nn.conv2d.conv2d import Conv2d
 
 
 class Conv2dDepthwise(Conv2d):

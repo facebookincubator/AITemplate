@@ -16,9 +16,9 @@
 Batch GEMM specialization: C[m, b, n](row) = bmm(A[m, b, k](row), B[b, n, k](col))
 """
 
-from ...base import IntImm, Tensor
-from ...tensor_accessor import TensorAccessor
-from . import perm102_bmm_rcr
+from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.ops.gemm_universal import perm102_bmm_rcr
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103, W0223, W0221
 

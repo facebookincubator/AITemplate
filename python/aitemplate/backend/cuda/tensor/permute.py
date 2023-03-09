@@ -20,10 +20,10 @@ from typing import Any, Dict
 
 import jinja2
 
-from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend import registry
 
-from ... import registry
-from ...target import Target
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.target import Target
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """

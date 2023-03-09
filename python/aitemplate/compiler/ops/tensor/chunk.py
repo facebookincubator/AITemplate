@@ -19,8 +19,8 @@ import math
 
 from typing import List
 
-from ...base import Tensor
-from .split import split
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.tensor.split import split
 
 
 class chunk(split):

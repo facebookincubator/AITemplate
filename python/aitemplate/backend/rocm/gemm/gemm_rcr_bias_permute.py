@@ -18,9 +18,9 @@ c[m, n] = a[m, k] * b[n, k] + bias[n]
 This is used for `torch.nn.functional.linear`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
-from ... import registry
-from . import common, permute_common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import common, permute_common
+from aitemplate.backend.rocm.gemm.layout import RCR
 
 
 @registry.reg("rocm.gemm_rcr_bias_permute.config")

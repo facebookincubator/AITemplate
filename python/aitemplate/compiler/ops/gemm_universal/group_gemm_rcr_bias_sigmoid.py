@@ -15,7 +15,7 @@
 """Grouped GEMM Specialization: Sigmoid(GEMM_RCR(A, B) + Bias)
 """
 
-from . import group_gemm_rcr_bias
+from aitemplate.compiler.ops.gemm_universal import group_gemm_rcr_bias
 
 # pylint: disable=C0103,W0223
 

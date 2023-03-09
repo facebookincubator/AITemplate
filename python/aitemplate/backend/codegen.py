@@ -29,17 +29,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 
+from aitemplate.backend import registry
+
 from aitemplate.backend.main_templates import MODEL_CONTAINER_TEMPLATE, MODEL_TEMPLATE
-from aitemplate.compiler.base import Operator
+from aitemplate.backend.target import Target
+
+from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 from aitemplate.compiler.dtype import dtype_to_enumerator, get_dtype_size
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.utils.debug_settings import AITDebugSettings
-
-from ..compiler.base import IntImm, IntVar, IntVarTensor, Tensor
-from . import registry
-from .target import Target
 
 # pylint: disable=C0103,W0613,C0301
 

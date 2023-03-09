@@ -18,7 +18,7 @@ Dummy op codegen for ROCM.
 
 from typing import Any, Dict
 
-from ... import registry
+from aitemplate.backend import registry
 
 
 @registry.reg("rocm.size.gen_function")

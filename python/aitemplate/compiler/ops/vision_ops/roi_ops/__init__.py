@@ -15,7 +15,9 @@
 """
 Roi-align module init.
 """
-from .multi_level_roi_align import multi_level_roi_align
-from .roi_align import roi_align
+from aitemplate.compiler.ops.vision_ops.roi_ops.multi_level_roi_align import (
+    multi_level_roi_align,
+)
+from aitemplate.compiler.ops.vision_ops.roi_ops.roi_align import roi_align
 
 __all__ = ["roi_align", "multi_level_roi_align"]

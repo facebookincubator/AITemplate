@@ -15,9 +15,9 @@
 """
 Operator definition for gather.
 """
-from .... import backend
-from ....backend import registry
-from ...base import Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import Operator, Tensor
 
 # pylint: disable=C0103,W0221,W0102,W0223
 

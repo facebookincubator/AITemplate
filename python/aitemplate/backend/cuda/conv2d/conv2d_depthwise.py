@@ -17,11 +17,11 @@ Codegen for conv2d_depthwise.
 """
 from collections import OrderedDict
 
-from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend import registry
 
-from ... import registry
-from ...target import Target
-from . import common
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.conv2d import common
+from aitemplate.backend.target import Target
 
 # pylint: disable=C0103,C0415,W0613,C0301
 

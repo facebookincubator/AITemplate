@@ -21,11 +21,11 @@ from typing import Any, Dict, OrderedDict
 
 import jinja2
 
-from ....compiler.base import IntImm
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.normalization import norm_common
+from aitemplate.backend.target import Target
 
-from ... import registry
-from ...target import Target
-from . import norm_common
+from aitemplate.compiler.base import IntImm
 
 EXTRA_HEADERS = jinja2.Template(
     """

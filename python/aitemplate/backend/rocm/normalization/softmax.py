@@ -20,10 +20,10 @@ from typing import Any, Dict
 
 import jinja2
 
-from ....compiler.base import IntImm
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.normalization import norm_common
 
-from ... import registry
-from . import norm_common
+from aitemplate.compiler.base import IntImm
 
 EXTRA_HEADERS = jinja2.Template(
     """

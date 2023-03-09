@@ -17,14 +17,14 @@ permute op
 """
 from typing import List, Sequence
 
-from .... import backend
-from ....backend import registry
-from ....utils.tensor_utils import wrap_dim
-from ...base import IntImm, IntVar, Operator, Tensor
-from .permute021 import permute021
-from .permute0213 import permute0213
-from .permute102 import permute102
-from .permute210 import permute210
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.compiler.ops.tensor.permute021 import permute021
+from aitemplate.compiler.ops.tensor.permute0213 import permute0213
+from aitemplate.compiler.ops.tensor.permute102 import permute102
+from aitemplate.compiler.ops.tensor.permute210 import permute210
+from aitemplate.utils.tensor_utils import wrap_dim
 
 
 class permute(Operator):

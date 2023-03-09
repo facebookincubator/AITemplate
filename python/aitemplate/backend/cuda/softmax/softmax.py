@@ -21,11 +21,11 @@ from typing import Any, Dict
 
 import jinja2
 
-from ....compiler.base import IntImm
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.target import Target
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...target import Target
+from aitemplate.compiler.base import IntImm
 
 # pylint: disable=C0301, C0116
 

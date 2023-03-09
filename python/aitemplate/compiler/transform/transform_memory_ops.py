@@ -18,11 +18,12 @@ Perform memory operator related transformations.
 import copy
 from typing import List
 
-from aitemplate.compiler.tensor_accessor import TensorAccessor
+from aitemplate.compiler.base import Operator, Tensor
 
-from ...utils import graph_utils, shape_utils
-from ..base import Operator, Tensor
-from . import transform_utils
+from aitemplate.compiler.tensor_accessor import TensorAccessor
+from aitemplate.compiler.transform import transform_utils
+
+from aitemplate.utils import graph_utils, shape_utils
 
 
 def _eliminate_cat(sorted_graph: List[Tensor]) -> List[Tensor]:

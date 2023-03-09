@@ -16,7 +16,7 @@
 common functions for conv_bias_activation subgraph
 """
 
-from . import common
+from aitemplate.backend.cuda.conv2d import common
 
 # pylint: disable=C0103,C0301
 

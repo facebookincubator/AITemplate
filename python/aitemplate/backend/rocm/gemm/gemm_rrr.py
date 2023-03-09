@@ -18,9 +18,9 @@ c[m, n] = a[m, k] * b[k, n]
 This is used for `torch.mm`
 When used for `mm`, need to set A->Data, B->Weight
 """
-from ... import registry
-from . import common
-from .layout import RRR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import common
+from aitemplate.backend.rocm.gemm.layout import RRR
 
 # pylint: disable=C0415,W0613
 

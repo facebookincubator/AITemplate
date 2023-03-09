@@ -21,7 +21,7 @@ from typing import Any, Dict
 
 import jinja2
 
-from .efficient_nms_kernel import kernel
+from aitemplate.backend.common.vision_ops.efficient_nms_kernel import kernel
 
 # pylint: disable=C0301
 

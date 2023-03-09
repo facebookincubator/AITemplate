@@ -15,7 +15,7 @@
 """
 CUDA view_ops module init
 """
-from . import make_jagged, view_ops
+from aitemplate.backend.cuda.view_ops import make_jagged, view_ops
 
 __all__ = [
     "view_ops",

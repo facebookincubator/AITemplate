@@ -19,10 +19,10 @@ Elementwise codegen for CUDA.
 import os
 from typing import Any, Dict
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...common import elementwise_common
-from ...target import Target
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import elementwise_common
+from aitemplate.backend.target import Target
 
 HEAD_TEMPLATE = """
 #include <cuda_fp16.h>

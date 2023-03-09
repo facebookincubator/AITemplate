@@ -20,14 +20,15 @@ import logging
 import os
 from typing import Callable, List, OrderedDict, Set
 
-from ...utils import graph_utils
-from ...utils.shape_utils import all_static_dimensions
-from .. import ops
-from ..base import Operator, Tensor
-from ..ops.gemm_universal.gemm_common import default_align_ab
-from . import transform_utils
-from .fuse_split import _can_fuse_split_op
-from .toposort import toposort
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.ops.gemm_universal.gemm_common import default_align_ab
+from aitemplate.compiler.transform import transform_utils
+from aitemplate.compiler.transform.fuse_split import _can_fuse_split_op
+from aitemplate.compiler.transform.toposort import toposort
+
+from aitemplate.utils import graph_utils
+from aitemplate.utils.shape_utils import all_static_dimensions
 
 
 _LOGGER = logging.getLogger(__name__)

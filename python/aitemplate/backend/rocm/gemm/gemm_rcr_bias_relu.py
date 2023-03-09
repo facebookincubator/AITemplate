@@ -18,9 +18,9 @@ c[m, n] = RELU(a[m, k] * b[n, k] + bias[n])
 This is used for `torch.nn.functional.linear + relu`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
-from ... import registry
-from . import common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import common
+from aitemplate.backend.rocm.gemm.layout import RCR
 
 # pylint: disable=C0415,W0613
 

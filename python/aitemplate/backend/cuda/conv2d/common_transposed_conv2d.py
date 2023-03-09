@@ -18,7 +18,7 @@ common functions for transposed conv2d
 
 import re
 
-from . import common
+from aitemplate.backend.cuda.conv2d import common
 
 
 def _conv_transpose_instance(op_def):

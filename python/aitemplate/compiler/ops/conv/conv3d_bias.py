@@ -18,8 +18,9 @@ Conv3d with bias.
 """
 from typing import List
 
-from ...base import Tensor
-from .conv3d import conv3d
+from aitemplate.compiler.base import Tensor
+
+from aitemplate.compiler.ops.conv.conv3d import conv3d
 
 
 class conv3d_bias(conv3d):
