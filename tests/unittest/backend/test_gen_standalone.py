@@ -25,6 +25,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -164,13 +165,11 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         self._test_gen_standalone("gen_standalone_f16", "float16")
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gen_standalone_f32(self):
+    def test_gen_standalone_f32_sm80(self):
         self._test_gen_standalone("gen_standalone_f32", "float32")
 
+
+filter_test_cases_by_test_env(StridedOpCatPatternTestCase)
 
 if __name__ == "__main__":
     unittest.main()
