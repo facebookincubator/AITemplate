@@ -27,7 +27,7 @@ setup_env: &setup_env
           python3.8 setup.py bdist_wheel &&
           sudo python3.8 -m pip install --no-input dist/*.whl &&
           cd /home/circleci/project &&
-          python3.8 -m pip install pycuda &&
+          python3.8 -m pip install 'cuda-python<12.0.0' &&
           python3.8 -m pip install pytest &&
           python3.8 -m pip install torch &&
           python3.8 -m pip install numpy &&
