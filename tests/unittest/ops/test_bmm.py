@@ -21,6 +21,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -160,11 +161,7 @@ class BMMTestCase(unittest.TestCase):
             self._test_ccr([1, 9, 101], M=256, N=64, K=128, test_name="dynamic_b")
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_float(self):
+    def test_bmm_fp32_sm80(self):
         self._test_rcr([128], [64], N=8, K=64, test_name="static_float", dtype="float")
         self._test_rcr(
             [1, 5, 77, 128],
@@ -190,11 +187,7 @@ class BMMTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_bfloat16(self):
+    def test_bmm_bf16(self):
         self._test_rcr(
             [128], [64], N=8, K=64, test_name="static_bfloat16", dtype="bfloat16"
         )
@@ -450,11 +443,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         self._test_ccr([8, 16], [8, 32, 8], "2d_broadcastable_a")
         self._test_ccr([8, 8, 16], [32, 8], "2d_broadcastable_b")
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_broadcast_float(self):
+    def test_bmm_broadcast_fp32_sm80(self):
         self._test_rcr_with_accessors(dtype="float")
         self._test_rcr_merge_with_accessors(dtype="float")
         self._test_rcr([2, 16, 8], [1, 32, 8], "broadcastable_b", dtype="float")
@@ -466,11 +455,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         self._test_ccr([1, 8, 16], [2, 32, 8], "broadcastable_a", dtype="float")
         self._test_ccr([8, 8, 16], [32, 8], "2d_broadcastable_b", dtype="float")
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_broadcast_bfloat16(self):
+    def test_bmm_broadcast_bf16(self):
         self._test_rcr_with_accessors(dtype="bfloat16")
         self._test_rcr_merge_with_accessors(dtype="bfloat16")
         self._test_rcr(
@@ -554,6 +539,9 @@ class BMMBroadcastTestCase(unittest.TestCase):
         except RuntimeError:
             pass
 
+
+filter_test_cases_by_test_env(BMMBroadcastTestCase)
+filter_test_cases_by_test_env(BMMTestCase)
 
 if __name__ == "__main__":
     unittest.main()

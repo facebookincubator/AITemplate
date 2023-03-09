@@ -20,6 +20,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -145,22 +146,14 @@ class BMMAddTestCase(unittest.TestCase):
     def test_crr(self):
         self._test_crr(B=32, M=256, K=256, N=512)
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_add_float(self):
+    def test_bmm_add_fp32_sm80(self):
         self._test_rrr(B=8, M=32, K=8, N=64, dtype="float")
         self._test_ccr(
             B=8, M=32, N=64, K=16, test_name="bmm_ccr_add_float", dtype="float"
         )
         self._test_crr(B=8, M=32, K=16, N=64, dtype="float")
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_add_bfloat16(self):
+    def test_bmm_add_bf16(self):
         self._test_rrr(B=8, M=32, K=8, N=64, dtype="bfloat16")
         self._test_ccr(
             B=8, M=32, N=64, K=16, test_name="bmm_ccr_add_bfloat16", dtype="bfloat16"
@@ -320,11 +313,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
             test_name="broadcastable_bias3d",
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_add_broadcast_float(self):
+    def test_bmm_add_broadcast_fp32_sm80(self):
         self._test_crr(
             [1, 8, 16],
             [2, 8, 32],
@@ -347,11 +336,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
             dtype="float",
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_add_broadcast_bfloat16(self):
+    def test_bmm_add_broadcast_bf16(self):
         self._test_crr(
             [1, 8, 16],
             [2, 8, 32],
@@ -374,6 +359,9 @@ class BMMBroadcastTestCase(unittest.TestCase):
             dtype="bfloat16",
         )
 
+
+filter_test_cases_by_test_env(BMMAddTestCase)
+filter_test_cases_by_test_env(BMMBroadcastTestCase)
 
 if __name__ == "__main__":
     unittest.main()

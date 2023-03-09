@@ -19,7 +19,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -58,14 +61,13 @@ class BMMRrrK1TanhTestCase(unittest.TestCase):
     def test_bmm_rrr_k1_tanh_float32(self):
         self._test_rrr(B=1024, M=32, K=1, N=32, test_name="bmm_rrr_k1", dtype="float32")
 
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80, "bf16 is supported with CUDA sm80+"
-    )
-    def test_bmm_rrr_k1_tanh_bfloat16(self):
+    def test_bmm_rrr_k1_tanh_bf16(self):
         self._test_rrr(
             B=1024, M=32, K=1, N=32, test_name="bmm_rrr_k1", dtype="bfloat16"
         )
 
+
+filter_test_cases_by_test_env(BMMRrrK1TanhTestCase)
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,7 +22,10 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 from aitemplate.utils import shape_utils
 
 
@@ -122,10 +125,7 @@ class BMMRcrN1TestCase(unittest.TestCase):
             [1, 5, 8], [100], 1, 123, False, "static_float32", dtype="float32"
         )
 
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80, "bf16 is supported with CUDA sm80+"
-    )
-    def test_bmm_rcr_n1_bfloat16(self):
+    def test_bmm_rcr_n1_bf16(self):
         self._test_rcr_n1(
             [1],
             [1000000],
@@ -147,6 +147,8 @@ class BMMRcrN1TestCase(unittest.TestCase):
             [1, 5, 8], [100], 1, 123, False, "static_bfloat16", dtype="bfloat16"
         )
 
+
+filter_test_cases_by_test_env(BMMRcrN1TestCase)
 
 if __name__ == "__main__":
     unittest.main()

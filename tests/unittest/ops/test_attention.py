@@ -27,7 +27,10 @@ from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import benchmark_pt, detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 from einops import rearrange, repeat
@@ -144,7 +147,7 @@ def ref_attention_bmhk(q, k, v, attn_bias):
     return out.permute((0, 2, 1, 3))
 
 
-class attentionTestCase(unittest.TestCase):
+class AttentionTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         torch.manual_seed(0)
@@ -602,11 +605,7 @@ class attentionTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_mem_eff_attention_fp32(self):
+    def test_mem_eff_attention_fp32_sm80(self):
         for use_perm in [False, True]:
             self._test_mem_eff_attention(
                 use_perm=use_perm,
@@ -621,10 +620,6 @@ class attentionTestCase(unittest.TestCase):
             )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_mem_eff_attention_bf16(self):
         for use_perm in [False, True]:
             self._test_mem_eff_attention(
@@ -775,11 +770,7 @@ class attentionTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_cross_attention_fp32(self):
+    def test_cross_attention_fp32_sm80(self):
         self._test_cross_attention(
             test_name="cross_attention_fp32",
             dtype="float32",
@@ -794,10 +785,6 @@ class attentionTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_cross_attention_bf16(self):
         self._test_cross_attention(
             test_name="cross_attention_bf16",
@@ -815,6 +802,9 @@ class attentionTestCase(unittest.TestCase):
             atol=1e-2,
             rtol=1e-2,
         )
+
+
+filter_test_cases_by_test_env(AttentionTestCase)
 
 
 if __name__ == "__main__":
