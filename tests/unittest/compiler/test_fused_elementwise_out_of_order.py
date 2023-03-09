@@ -24,8 +24,10 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 
 from parameterized import parameterized
@@ -33,7 +35,14 @@ from torch import nn
 
 
 class FusedElementwiseOutOfOrderTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_fused_elementwise_out_of_order(self, dtype):
         r"""
            X0   X1

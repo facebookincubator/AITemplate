@@ -24,8 +24,10 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import graph_utils
 
@@ -286,7 +288,14 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(r2, r2_pt, atol=1e-2, rtol=1e-2))
         self.assertTrue(torch.allclose(r4, r4_pt, atol=1e-2, rtol=1e-2))
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_fused_elementwise_indirect_input_dependency(self, dtype):
         r"""
             X0   X1
@@ -365,11 +374,14 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [r3])
         self.assertTrue(torch.allclose(r3, r3_pt, atol=1e-2, rtol=1e-2))
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
     )
-    @parameterized.expand([("float16"), ("float")])
     def test_fused_elementwise_indirect_input_dependency_split_subgraph(self, dtype):
         r"""
                 X0[M,K] X1[]
@@ -464,11 +476,14 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(r3, r3_pt, atol=1e-2, rtol=1e-2))
         self.assertTrue(torch.allclose(r4, r4_pt, atol=1e-2, rtol=1e-2))
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
     )
-    @parameterized.expand([("float16"), ("float")])
     def test_fused_elementwise_multi_dependency(self, dtype):
         r"""
             X0   X1                X3
@@ -575,11 +590,14 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [r7])
         self.assertTrue(torch.allclose(r7, r7_pt, atol=1e-2, rtol=1e-2))
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
     )
-    @parameterized.expand([("float16"), ("float")])
     def test_fused_elementwise_find_fusable_graph(self, dtype):
         r"""
                      X0

@@ -20,13 +20,24 @@ from aitemplate.compiler import compile_model, ops
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target, test_utils
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
 
 from parameterized import parameterized
 
 
 class FusePermuteGemmTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_no_fusion_odd_alignment(self, dtype):
         target = detect_target()
         if dtype == "float" and (int(target._arch) < 80 or target.name == "rocm"):
@@ -59,7 +70,14 @@ class FusePermuteGemmTestCase(unittest.TestCase):
         else:
             raise RuntimeError("invalid {dtype=}")
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_gemm_rrr_to_rcr(self, dtype):
         target = detect_target()
         if dtype == "float" and (int(target._arch) < 80 or target.name == "rocm"):
@@ -86,7 +104,14 @@ class FusePermuteGemmTestCase(unittest.TestCase):
 
         torch.testing.assert_close(z_ait, z_pt, atol=1e-1, rtol=1e-1)
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_gemm_rcr_to_rrr(self, dtype):
         target = detect_target()
         if dtype == "float" and (int(target._arch) < 80 or target.name == "rocm"):

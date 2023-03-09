@@ -20,6 +20,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
     has_op,
@@ -129,7 +130,7 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
         detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
         "Not supported by CUDA < SM80.",
     )
-    def test_rcr_0213_float(self):
+    def test_rcr_0213_float_sm80(self):
         self._test_rcr_0213(
             [29, 29 * 8],
             256,
@@ -142,6 +143,8 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
             should_fuse=False,
         )
 
+
+filter_test_cases_by_test_env(GEMMReshapePermuteTestCase)
 
 if __name__ == "__main__":
     unittest.main()
