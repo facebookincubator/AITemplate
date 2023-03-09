@@ -25,8 +25,10 @@ from aitemplate.compiler.transform.transform_utils import check_graph_validity
 
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 
 from parameterized import parameterized
@@ -81,7 +83,14 @@ class ConstantFoldingTestCase(unittest.TestCase):
         # and add one constant, so the total size should be 3.
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=3)
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_pad_constant_weight(self, dtype):
         target = detect_target()
         if dtype == "float" and (int(target._arch) < 80 or target.name == "rocm"):
@@ -128,7 +137,14 @@ class ConstantFoldingTestCase(unittest.TestCase):
             expected_num_nodes=expected_num_nodes,
         )
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_fold_long_chain(self, dtype):
         target = detect_target()
         if dtype == "float" and (target.name == "rocm" or int(target._arch) < 80):
@@ -171,7 +187,14 @@ class ConstantFoldingTestCase(unittest.TestCase):
         # The entire graph is turned into a constant.
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=1)
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_constant_folding_through_views(self, dtype):
         target = detect_target()
         if dtype == "float" and target.name == "rocm":
@@ -203,7 +226,14 @@ class ConstantFoldingTestCase(unittest.TestCase):
         # The entire graph is eliminated.
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=1)
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_late_binding(self, dtype):
         target = detect_target()
         if dtype == "float" and (target.name == "rocm" or int(target._arch) < 80):

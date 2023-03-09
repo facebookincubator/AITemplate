@@ -21,8 +21,11 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import shape_utils
 
@@ -119,11 +122,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_misalign_bmm_float(self):
+    def test_misalign_bmm_float_sm80(self):
         self._test_missing_alignment_bmm(
             [2, 4, 7],
             [2, 7, 8],
@@ -311,11 +310,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_ccr_to_rrr_float(self):
+    def test_ccr_to_rrr_float_sm80(self):
         B = [1]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -355,11 +350,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_ccr_to_crr_float(self):
+    def test_ccr_to_crr_float_sm80(self):
         B = [1, 3]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -399,11 +390,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_ccr_to_rcr_float(self):
+    def test_ccr_to_rcr_float_sm80(self):
         B = [1]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -443,11 +430,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_crr_to_ccr_float(self):
+    def test_crr_to_ccr_float_sm80(self):
         B = [1]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -487,11 +470,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_crr_to_rrr_float(self):
+    def test_crr_to_rrr_float_sm80(self):
         B = [1]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -531,11 +510,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_rcr_to_ccr_float(self):
+    def test_rcr_to_ccr_float_sm80(self):
         B = [1, 3]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -575,11 +550,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_rcr_to_rrr_float(self):
+    def test_rcr_to_rrr_float_sm80(self):
         B = [1]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -619,11 +590,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_rrr_to_crr_float(self):
+    def test_rrr_to_crr_float_sm80(self):
         B = [1]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -658,11 +625,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_rrr_to_rcr_float(self):
+    def test_rrr_to_rcr_float_sm80(self):
         B = [1, 3]
         batch_dim = shape_utils.gen_int_var_min_max(B)
         self._test_permute_bmm(
@@ -795,15 +758,18 @@ class FusePermuteBmmCase(unittest.TestCase):
         self._test_gemm_broadcast_rrr_to_crr(False)
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_broadcast_float(self):
+    def test_gemm_broadcast_float_sm80(self):
         self._test_gemm_broadcast_rcr_to_ccr(True, dtype="float")
         self._test_gemm_broadcast_rrr_to_crr(False, dtype="float")
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_permute_multiple_consumer(self, dtype):
         target = detect_target()
         if dtype == "float" and (int(target._arch) < 80 or target.name == "rocm"):
@@ -858,7 +824,14 @@ class FusePermuteBmmCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_permute_multiple_only_bmm_consumer(self, dtype):
         target = detect_target()
         if dtype == "float" and (int(target._arch) < 80 or target.name == "rocm"):
@@ -919,5 +892,6 @@ class FusePermuteBmmCase(unittest.TestCase):
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
 
+filter_test_cases_by_test_env(FusePermuteBmmCase)
 if __name__ == "__main__":
     unittest.main()
