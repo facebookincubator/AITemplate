@@ -19,14 +19,13 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-@unittest.skipIf(
-    (detect_target().name() == "cuda" and int(detect_target()._arch) < 80),
-    "Not supported by CUDA arch < 80.",
-)
 class Conv2dTransposeBiasReluTestCase(unittest.TestCase):
     def _test_transpose_conv2d_bias_relu(
         self,
@@ -96,11 +95,7 @@ class Conv2dTransposeBiasReluTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_fp32(self):
+    def test_fp32_sm80(self):
         self._test_transpose_conv2d_bias_relu(
             test_name="transpose_conv2d_bias_relu_fp32",
             dtype="float32",
@@ -111,6 +106,8 @@ class Conv2dTransposeBiasReluTestCase(unittest.TestCase):
             dtype="float32",
         )
 
+
+filter_test_cases_by_test_env(Conv2dTransposeBiasReluTestCase)
 
 if __name__ == "__main__":
     torch.manual_seed(0)
