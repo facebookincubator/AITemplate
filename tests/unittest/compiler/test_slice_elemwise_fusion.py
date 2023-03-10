@@ -258,7 +258,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             is_input=True,
         )
 
-        Y1 = ops.elementwise(FuncEnum.TANH)(X2)
+        Y1 = ops.elementwise(FuncEnum.RELU)(X2)
         Y2 = ops.elementwise(FuncEnum.SUB)(Y1, X2)
         Y = ops.elementwise(FuncEnum.ADD)(slice_output, Y2)
         Y._attrs["name"] = "y"
@@ -305,7 +305,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
                 slice(i, j) for i, j in zip(slice_start_indices, slice_end_indices)
             ]
             slice_output_pt = x1_pt[slice_indices]
-            y1_pt = torch.tanh(x2_pt)
+            y1_pt = torch.relu(x2_pt)
             y2_pt = y1_pt - x2_pt
             y_pt = slice_output_pt + y2_pt
 
@@ -319,10 +319,6 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
             self.test_count += 1
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
-    )
     def test_slice_elemwise_fusion_dynamic(self):
         self._test_slice_elemwise_fusion_dynamic(
             slice_input_shape=([5, 16], 10),
@@ -352,10 +348,6 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
             expected_data_t="half",
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
-    )
     def test_slice_elemwise_fusion_dynamic_broadcast(self):
         # slice_output broadcasts to input_x2
         self._test_slice_elemwise_fusion_dynamic(

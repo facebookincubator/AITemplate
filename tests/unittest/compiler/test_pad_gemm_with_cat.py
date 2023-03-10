@@ -23,8 +23,10 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 
 from parameterized import parameterized
@@ -34,7 +36,14 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class PadGemmWithCatTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_pad_gemm_rcr_with_cat(self, dtype):
         target = detect_target()
         if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):

@@ -23,8 +23,10 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import graph_utils
 
@@ -35,7 +37,14 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class RefineGraphTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
+        )
+    )
     def test_elementwise_ops(self, dtype):
         target = detect_target()
         if dtype == "float32" and target.name == "rocm":
@@ -116,10 +125,6 @@ class RefineGraphTestCase(unittest.TestCase):
         assert len(sorted_ops) == 2
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
-    )
     def test_elementwise_ops_single_input(self):
         dtype = "float16"
         M = 10
@@ -201,7 +206,14 @@ class RefineGraphTestCase(unittest.TestCase):
 
         return mul_tensor
 
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
+        )
+    )
     def test_gemm_ops(self, dtype):
         target = detect_target()
         if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
@@ -230,7 +242,14 @@ class RefineGraphTestCase(unittest.TestCase):
         assert len(sorted_ops) == 2
         assert sorted_ops[0]._attrs["name"] == sorted_ops[1]._attrs["name"]
 
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
+        )
+    )
     def test_bmm_ops_accessor(self, dtype):
         target = detect_target()
         if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
@@ -280,7 +299,14 @@ class RefineGraphTestCase(unittest.TestCase):
         assert len(sorted_ops) == 2
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
+        )
+    )
     def test_refine_graph_group_gemms(self, dtype):
         target = detect_target()
         if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
