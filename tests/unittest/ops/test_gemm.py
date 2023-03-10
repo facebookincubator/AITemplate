@@ -21,6 +21,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -28,15 +29,11 @@ from aitemplate.utils import shape_utils
 from parameterized import parameterized
 
 
-def _tolerance_limits(dtype):
-    if dtype == "float16":
-        return {"atol": 1e-2, "rtol": 1e-2}
-    elif dtype in ("float", "float32"):
-        return {"atol": 3e-2, "rtol": 3e-2}
-    elif dtype == "bfloat16":
-        return {"atol": 2e-1, "rtol": 2e-1}
-    else:
-        return {}
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-2, "rtol": 1e-2},
+    "float32": {"atol": 3e-2, "rtol": 3e-2},
+    "bfloat16": {"atol": 2e-1, "rtol": 2e-1},
+}
 
 
 class GEMMTestCase(unittest.TestCase):
@@ -50,7 +47,7 @@ class GEMMTestCase(unittest.TestCase):
 
     def _test_rcr(self, ms, k, n, test_name, dtype="float16"):
         target = detect_target()
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         X = Tensor(
             shape=[shape_utils.gen_int_var_min_max(ms), k],
             dtype=dtype,
@@ -83,7 +80,9 @@ class GEMMTestCase(unittest.TestCase):
     def test_rcr_simple_static(self) -> None:
         self._test_rcr([1024], 256, 512, "static")
 
-    @unittest.skipIf(detect_target().name() != "cuda", "Only supported by CUDA.")
+    def test_rcr_simple_static_rocm(self) -> None:
+        self._test_rcr([1024], 256, 512, "static")
+
     @parameterized.expand(
         [
             ("dynamic1", [1, 1024], 256, 512),
@@ -101,7 +100,7 @@ class GEMMTestCase(unittest.TestCase):
 
     def _test_rcr_dynamic_n(self, ms, k, ns, test_name, dtype="float16"):
         target = detect_target()
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         X = Tensor(
             shape=[shape_utils.gen_int_var_min_max(ms), k],
             dtype=dtype,
@@ -144,9 +143,15 @@ class GEMMTestCase(unittest.TestCase):
             [16, 1 * 29, 64], 256, [100000, 300000], "einsum_dynamic_n"
         )
 
+    def test_rcr_dynamic_n_rocm(self):
+        self._test_rcr([16, 1 * 29, 64], 256, 300000, "einsum_1")
+        self._test_rcr_dynamic_n(
+            [16, 1 * 29, 64], 256, [100000, 300000], "einsum_dynamic_n"
+        )
+
     def _test_3d_2d_rcr(self, m0s, m1s, k, n, test_name, dtype="float16"):
         target = detect_target()
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         if dtype == "float16":
             tolerance_limits["atol"] = 2e-2
             tolerance_limits["rtol"] = 2e-2
@@ -181,7 +186,6 @@ class GEMMTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_3d_2d_rcr(self):
         self._test_3d_2d_rcr([1024], [2], 256, 512, "static")
         self._test_3d_2d_rcr([1, 1024], [2], 256, 512, "dynamic1")
@@ -190,7 +194,7 @@ class GEMMTestCase(unittest.TestCase):
 
     def _test_rrr(self, ms, k, n, test_name, dtype="float16"):
         target = detect_target()
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         if dtype == "float16":
             tolerance_limits["atol"] = 2e-2
             tolerance_limits["rtol"] = 2e-2
@@ -221,8 +225,10 @@ class GEMMTestCase(unittest.TestCase):
 
     def test_rrr(self):
         self._test_rrr([256], 128, 32, "static")
-        if detect_target().name() == "cuda":
-            self._test_rrr([1, 99, 1024, 2048], 256, 16, "dynamic")
+        self._test_rrr([1, 99, 1024, 2048], 256, 16, "dynamic")
+
+    def test_rrr_rocm(self):
+        self._test_rrr([256], 128, 32, "static")
 
     def _test_3d_2d_rrr(self, m0s, m1s, k, n, test_name, dtype="float16"):
         target = detect_target()
@@ -257,29 +263,17 @@ class GEMMTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_3d_2d_rrr(self):
         self._test_3d_2d_rrr([256], [2], 128, 32, "static")
         self._test_3d_2d_rrr([1, 128], [3], 256, 16, "dynamic1")
         self._test_3d_2d_rrr([2], [24, 36], 256, 16, "dynamic2")
         self._test_3d_2d_rrr([2, 34, 48], [1, 3, 5], 256, 16, "dynamic3")
 
-    @parameterized.expand(("float16", "float32", "bfloat16"))
-    def test_h_rcr(self, ait_dtype):
+    def _test_h_rcr(self, ait_dtype):
         M = 256
         K = 256
         N = 512
         target = detect_target(use_fp16_acc=(ait_dtype == "float16"))
-        if target.name() != "cuda" and ait_dtype != "float16":
-            self.skipTest(
-                f"{ait_dtype} input type is not supported for {target.name()}"
-            )
-        if (
-            target.name() == "cuda"
-            and int(target._arch) < 80
-            and ait_dtype != "float16"
-        ):
-            self.skipTest(f"{ait_dtype} is not supported for cuda sm < 80")
         X = Tensor(shape=[M, K], dtype=ait_dtype, name="input_0", is_input=True)
         W = Tensor(shape=[N, K], dtype=ait_dtype, name="input_1", is_input=True)
         OP = ops.gemm_rcr()
@@ -299,37 +293,37 @@ class GEMMTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         torch.testing.assert_close(Y_pt, y, atol=1e-1, rtol=1e-1)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_float(self):
-        self._test_rcr([1024], 256, 512, "static_float", dtype="float")
-        self._test_rcr([1, 1024], 256, 512, "dynamic1_float", dtype="float")
-        self._test_rcr([16, 1 * 29, 64], 256, 300000, "einsum_1_float", dtype="float")
+    def test_h_rcr_float16(self):
+        self._test_h_rcr(ait_dtype="float16")
 
-        self._test_3d_2d_rcr([1024], [2], 256, 512, "static_float", dtype="float")
+    def test_h_rcr_float16_rocm(self):
+        self._test_h_rcr(ait_dtype="float16")
+
+    def test_h_rcr_float32_sm80(self):
+        self._test_h_rcr(ait_dtype="float32")
+
+    def test_h_rcr_bfloat16_bf16(self):
+        self._test_h_rcr(ait_dtype="bfloat16")
+
+    def test_gemm_float32_sm80(self):
+        self._test_rcr([1024], 256, 512, "static_float", dtype="float32")
+        self._test_rcr([1, 1024], 256, 512, "dynamic1_float", dtype="float32")
+        self._test_rcr([16, 1 * 29, 64], 256, 300000, "einsum_1_float", dtype="float32")
+
+        self._test_3d_2d_rcr([1024], [2], 256, 512, "static_float", dtype="float32")
         self._test_3d_2d_rcr(
-            [1, 99, 1024], [1, 2], 128, 8, "dynamic3_float", dtype="float"
+            [1, 99, 1024], [1, 2], 128, 8, "dynamic3_float", dtype="float32"
         )
 
-        self._test_rrr([256], 128, 32, "static_float", dtype="float")
-        self._test_rrr([1, 99, 1024, 2048], 256, 16, "dynamic_float", dtype="float")
+        self._test_rrr([256], 128, 32, "static_float", dtype="float32")
+        self._test_rrr([1, 99, 1024, 2048], 256, 16, "dynamic_float", dtype="float32")
 
-        self._test_3d_2d_rrr([256], [2], 128, 32, "static_float", dtype="float")
+        self._test_3d_2d_rrr([256], [2], 128, 32, "static_float", dtype="float32")
         self._test_3d_2d_rrr(
-            [2, 34, 48], [1, 3, 5], 256, 16, "dynamic3_float", dtype="float"
+            [2, 34, 48], [1, 3, 5], 256, 16, "dynamic3_float", dtype="float32"
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "rocm", "bfloat16 is not supported by ROCm."
-    )
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "bfloat16 is not supported by CUDA < SM80.",
-    )
-    def test_gemm_bfloat16(self):
+    def test_gemm_bfloat16_bf16(self):
         self._test_rcr([1024], 256, 512, "static_bfloat16", dtype="bfloat16")
         self._test_rcr([1, 1024], 256, 512, "dynamic1_bfloat16", dtype="bfloat16")
         self._test_rcr(
@@ -350,6 +344,9 @@ class GEMMTestCase(unittest.TestCase):
         self._test_3d_2d_rrr(
             [2, 34, 48], [1, 3, 5], 256, 16, "dynamic3_bfloat16", dtype="bfloat16"
         )
+
+
+filter_test_cases_by_test_env(GEMMTestCase)
 
 
 if __name__ == "__main__":

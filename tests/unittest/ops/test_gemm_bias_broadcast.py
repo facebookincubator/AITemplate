@@ -20,6 +20,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -76,9 +77,11 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_mul_add(self):
         self._test_bias_rcr_mul_add(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_mul_add(None, 2, 32, 256, 128)
-            self._test_bias_rcr_mul_add(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_mul_add(None, 2, 32, 256, 128)
+        self._test_bias_rcr_mul_add(None, 21, 5, 1024, 512)
+
+    def test_bias_rcr_mul_add_rocm(self):
+        self._test_bias_rcr_mul_add(8, None, None, 8, 8)
 
     def _test_bias_rcr_sigmoid_mul(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -104,9 +107,11 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_sigmoid_mul(self):
         self._test_bias_rcr_sigmoid_mul(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128)
-            self._test_bias_rcr_sigmoid_mul(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128)
+        self._test_bias_rcr_sigmoid_mul(None, 21, 5, 1024, 512)
+
+    def test_bias_rcr_sigmoid_mul_rocm(self):
+        self._test_bias_rcr_sigmoid_mul(8, None, None, 8, 8)
 
     def _test_bias_rcr_sigmoid_mul_tanh(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -132,10 +137,12 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_sigmoid_mul_tanh(self):
         self._test_bias_rcr_sigmoid_mul_tanh(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128)
-            self._test_bias_rcr_sigmoid_mul_tanh(None, 21, 5, 1024, 512)
-            self._test_bias_rcr_sigmoid_mul_tanh(None, 21, 5, 1024, 0)
+        self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128)
+        self._test_bias_rcr_sigmoid_mul_tanh(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_sigmoid_mul_tanh(None, 21, 5, 1024, 0)
+
+    def test_bias_rcr_sigmoid_mul_tanh_rocm(self):
+        self._test_bias_rcr_sigmoid_mul_tanh(8, None, None, 8, 8)
 
     def _test_bias_rcr_add(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -159,9 +166,11 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_add(self):
         self._test_bias_rcr_add(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_add(None, 2, 32, 256, 128)
-            self._test_bias_rcr_add(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_add(None, 2, 32, 256, 128)
+        self._test_bias_rcr_add(None, 21, 5, 1024, 512)
+
+    def test_bias_rcr_add_rocm(self):
+        self._test_bias_rcr_add(8, None, None, 8, 8)
 
     def _test_bias_rcr_add_relu(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -185,9 +194,11 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_add_relu(self):
         self._test_bias_rcr_add_relu(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_add_relu(None, 2, 32, 256, 128)
-            self._test_bias_rcr_add_relu(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128)
+        self._test_bias_rcr_add_relu(None, 21, 5, 1024, 512)
+
+    def test_bias_rcr_add_relu_rocm(self):
+        self._test_bias_rcr_add_relu(8, None, None, 8, 8)
 
     def _test_bias_rcr_add_add_relu(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -211,17 +222,19 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         self._test_and_verify(module, Y_pt, dtype, has_d1=True)
 
     def test_bias_rcr_add_add_relu(self):
-        target = detect_target()
         self._test_bias_rcr_add_add_relu(8, None, None, 8, 8)
-        if target.name() == "cuda":
-            self._test_bias_rcr_add_add_relu(None, 2, 32, 256, 128)
-            self._test_bias_rcr_add_add_relu(None, 21, 5, 1024, 512)
-            self._test_bias_rcr_add_add_relu(None, 21, 5, 1024, 0)
-            # This test triggered a c10 assertion failure internally
-            # caffe2/c10/util/SmallVector.h:338:
-            # Assertion `idx < size()' failed
-            if type(target).__name__ != "FBCUDA":
-                self._test_bias_rcr_add_add_relu(21, None, None, 0, 512)
+        self._test_bias_rcr_add_add_relu(None, 2, 32, 256, 128)
+        self._test_bias_rcr_add_add_relu(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_add_add_relu(None, 21, 5, 1024, 0)
+        # This test triggered a c10 assertion failure internally
+        # caffe2/c10/util/SmallVector.h:338:
+        # Assertion `idx < size()' failed
+        target = detect_target()
+        if type(target).__name__ != "FBCUDA":
+            self._test_bias_rcr_add_add_relu(21, None, None, 0, 512)
+
+    def test_bias_rcr_add_add_relu_rocm(self):
+        self._test_bias_rcr_add_add_relu(8, None, None, 8, 8)
 
     def _test_bias_rcr_mul(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -245,9 +258,11 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_mul(self):
         self._test_bias_rcr_mul(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_mul(None, 2, 32, 256, 128)
-            self._test_bias_rcr_mul(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_mul(None, 2, 32, 256, 128)
+        self._test_bias_rcr_mul(None, 21, 5, 1024, 512)
+
+    def test_bias_rcr_mul_rocm(self):
+        self._test_bias_rcr_mul(8, None, None, 8, 8)
 
     def _test_bias_rcr_add_add(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -272,10 +287,12 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_add_add(self):
         self._test_bias_rcr_add_add(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_add_add(None, 2, 32, 256, 128)
-            self._test_bias_rcr_add_add(None, 21, 5, 1024, 512)
-            self._test_bias_rcr_add_add(None, 0, 5, 1024, 512)
+        self._test_bias_rcr_add_add(None, 2, 32, 256, 128)
+        self._test_bias_rcr_add_add(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_add_add(None, 0, 5, 1024, 512)
+
+    def test_bias_rcr_add_add_rocm(self):
+        self._test_bias_rcr_add_add(8, None, None, 8, 8)
 
     def _test_bias_rcr_mul_tanh(self, m, m0, m1, k, n, dtype="float16"):
         target = detect_target()
@@ -299,33 +316,25 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
 
     def test_bias_rcr_mul_tanh(self):
         self._test_bias_rcr_mul_tanh(8, None, None, 8, 8)
-        if detect_target().name() == "cuda":
-            self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128)
-            self._test_bias_rcr_mul_tanh(None, 21, 5, 1024, 512)
+        self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128)
+        self._test_bias_rcr_mul_tanh(None, 21, 5, 1024, 512)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_bias_broadcast_float(self):
-        self._test_bias_rcr_mul_add(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_add(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_add_add_relu(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="float")
-        self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="float")
+    def test_bias_rcr_mul_tanh_rocm(self):
+        self._test_bias_rcr_mul_tanh(8, None, None, 8, 8)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_bias_broadcast_bfloat16(self):
+    def test_gemm_bias_broadcast_float32_sm80(self):
+        self._test_bias_rcr_mul_add(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_add(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_add_add_relu(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="float32")
+        self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="float32")
+
+    def test_gemm_bias_broadcast_bfloat16_bf16(self):
         self._test_bias_rcr_mul_add(None, 2, 32, 256, 128, dtype="bfloat16")
         self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128, dtype="bfloat16")
         self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128, dtype="bfloat16")
@@ -336,6 +345,9 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="bfloat16")
         self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="bfloat16")
         self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="bfloat16")
+
+
+filter_test_cases_by_test_env(GEMMBiasBroadcastTestCase)
 
 
 if __name__ == "__main__":
