@@ -94,7 +94,7 @@ class TestReshapeConverter(AITTestCase):
         )
 
     def test_with_getitem_reshape_dim0_dynamic(self) -> None:
-        class TestModule(torch.nn.Module):
+        class TestSimpleModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 d0 = x.size(dim=0)
                 d1 = x.size(dim=1)
@@ -102,7 +102,7 @@ class TestReshapeConverter(AITTestCase):
                 d = d1 * d2
                 return x.reshape(d0, d)
 
-        model = TestModule().cuda()
+        model = TestSimpleModule().cuda()
         inputs_spec = TensorSpec.create_spec_from_shapes(
             inputs_min=[
                 [2, 3, 4],
@@ -120,25 +120,59 @@ class TestReshapeConverter(AITTestCase):
             expected_ops={acc_ops.reshape, acc_ops.size, acc_ops.getitem},
         )
 
-    ###TODO dim=0,1 dynamic has problem due to output size is not IntVar for dim1(P537903486).
-    # def test_with_getitem_reshape_dim01_dynamic(self) -> None:
-    #     class TestModule(torch.nn.Module):
-    #         def forward(self, x: torch.Tensor) -> torch.Tensor:
-    #             d0 = x.size(dim=0)
-    #             d1 = x.size(dim=1)
-    #             d2 = x.size(dim=2)
-    #             d = d1 * d2
-    #             return x.reshape(d0, d)
+        class TestComplexModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                d0 = x.size(dim=0)
+                d1 = x.size(dim=1)
+                d2 = x.size(dim=2)
+                d = d1 * (d2 + d1 - 3)  # d2+d1-3=d2
+                return x.reshape(d0, d)
 
-    #     model = TestModule().cuda()
-    #     inputs = [
-    #         [
-    #             torch.randn(2, 3, 4).half().cuda(),
-    #         ],
-    #         [
-    #             torch.randn(20, 30, 4).half().cuda(),
-    #         ],
-    #     ]
-    #     self.run_test_with_dynamic_shape(
-    #         model, inputs, expected_ops={acc_ops.reshape, acc_ops.size, acc_ops.getitem}
-    #     )
+        model = TestComplexModule().cuda()
+        self.run_test_with_dynamic_shape(
+            model,
+            inputs_spec,
+            expected_ops={acc_ops.reshape, acc_ops.size, acc_ops.getitem},
+        )
+
+    def test_with_getitem_reshape_dim01_dynamic(self) -> None:
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                d0 = x.size(dim=0)
+                d1 = x.size(dim=1)
+                d2 = x.size(dim=2)
+                d = d1 * d2
+                return x.reshape(d0, d)
+
+        model = TestModule().cuda()
+        inputs_spec = TensorSpec.create_spec_from_shapes(
+            inputs_min=[
+                [2, 3, 4],
+            ],
+            inputs_max=[
+                [20, 30, 4],
+            ],
+            dtype_list=[
+                torch.float16,
+            ],
+        )
+        self.run_test_with_dynamic_shape(
+            model,
+            inputs_spec,
+            expected_ops={acc_ops.reshape, acc_ops.size, acc_ops.getitem},
+        )
+
+        class TestComplexModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                d0 = x.size(dim=0)
+                d1 = x.size(dim=1)
+                d2 = x.size(dim=2)
+                d = d1 * (d2 - d0 + d0)
+                return x.reshape(d0, d)
+
+        model = TestComplexModule().cuda()
+        self.run_test_with_dynamic_shape(
+            model,
+            inputs_spec,
+            expected_ops={acc_ops.reshape, acc_ops.size, acc_ops.getitem},
+        )

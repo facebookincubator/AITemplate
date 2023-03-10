@@ -21,6 +21,7 @@ from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor
 from aitemplate.compiler.public import (
     elementwise,
     FuncEnum,
+    int_elementwise,
     permute,
     Tensor as AITTensor,
 )
@@ -83,6 +84,14 @@ def create_binary_op(
         )
         return res
 
+    if isinstance(lhs, IntVarTensor) or isinstance(rhs, IntVarTensor):
+        lhs = IntVarTensor(IntImm(lhs)) if isinstance(lhs, int) else lhs
+        rhs = IntVarTensor(IntImm(rhs)) if isinstance(rhs, int) else rhs
+
+        if not (isinstance(lhs, IntVarTensor) and isinstance(rhs, IntVarTensor)):
+            raise RuntimeError(f"Unexpected right operand {type(rhs)} on {name}: {rhs}")
+
+        return int_elementwise(op_type)(lhs, rhs)
     return elementwise(op_type)(lhs, rhs)
 
 
