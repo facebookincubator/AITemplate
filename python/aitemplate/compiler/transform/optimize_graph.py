@@ -40,6 +40,9 @@ from aitemplate.compiler.transform.transform_memory_ops import transform_memory_
 from aitemplate.compiler.transform.transform_odd_alignment import (
     transform_odd_alignment,
 )
+from aitemplate.compiler.transform.transform_permute_to_reshape import (
+    transform_permute_to_reshape,
+)
 from aitemplate.compiler.transform.transform_special_ops import transform_special_ops
 from aitemplate.compiler.transform.transform_strided_ops import transform_strided_ops
 
@@ -95,6 +98,7 @@ def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
         split_large_slice_scatter_ops,
         split_large_concat_ops,
         split_large_split_ops,
+        transform_permute_to_reshape,
         transform_memory_ops,
     ]
 
