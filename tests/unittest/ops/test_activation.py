@@ -38,6 +38,7 @@ TORCH_EQUIVALENTS = {
     FuncEnum.SQRT: torch.sqrt,
     FuncEnum.SIGMOID: torch.sigmoid,
     FuncEnum.RELU: torch.relu,
+    FuncEnum.CELU: torch.celu,
 }
 
 TORCH_FP_DTYPES = [torch.float16]
@@ -327,6 +328,45 @@ class FusedElementwiseTestCase(unittest.TestCase):
             module.run_with_tensors([x1_pt], [x2])
             self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
 
+    def _test_celu(
+        self,
+        input_size,
+        alpha=1.0,
+        test_name="celu",
+        copy_op=False,
+    ):
+        for torch_dtype in TORCH_FP_DTYPES:
+            dtype = torch_dtype_to_string(torch_dtype)
+            assert len(input_size) == 2
+            X1 = Tensor(
+                shape=[IntImm(input_size[0]), IntImm(input_size[1])],
+                dtype=dtype,
+                name="input0",
+                is_input=True,
+            )
+            X_alpha = Tensor(
+                shape=[],
+                dtype=dtype,
+                name="alpha",
+                value=alpha,
+            )
+            X2_op = ops.elementwise(FuncEnum.CELU)
+            if copy_op:
+                X2_op = ops.elementwise(**X2_op._get_op_attributes())
+            X2 = X2_op(X1, X_alpha)
+            X2._attrs["is_output"] = True
+            X2._attrs["name"] = "output0"
+
+            target = detect_target()
+            module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+            x1_pt = torch.randn(input_size, dtype=torch_dtype).cuda()
+            OP_pt = torch.nn.CELU(alpha=alpha)
+            x2_pt = OP_pt(x1_pt)
+
+            x2 = torch.empty_like(x2_pt)
+            module.run_with_tensors([x1_pt], [x2])
+            self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+
     def test_lrelu(self):
         self._test_leaky_relu([512, 512], test_name="leaky_relu_1")
         self._test_leaky_relu(
@@ -451,6 +491,17 @@ class FusedElementwiseTestCase(unittest.TestCase):
             [1024, 1024],
             dividend=3,
             test_name="test_floor_div_2_copy_op",
+            copy_op=True,
+        )
+
+    def test_celu(self):
+        self._test_celu([63, 63], alpha=1.0, test_name="celu_1")
+        self._test_celu([128, 128], alpha=4.0, test_name="celu_2")
+        self._test_celu([128, 256], alpha=0.4, test_name="celu_3")
+        self._test_celu(
+            [256, 128],
+            alpha=1.0,
+            test_name="celu_3_copy_op",
             copy_op=True,
         )
 

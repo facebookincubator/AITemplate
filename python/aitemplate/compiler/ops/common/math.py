@@ -113,3 +113,7 @@ def softsign(tensor: Any) -> Tensor:
 
 def floor_div(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("FLOOR_DIV")(tensor)
+
+
+def celu(tensor: Any) -> Tensor:
+    return OP_REGISTRY.get("CELU")(tensor)

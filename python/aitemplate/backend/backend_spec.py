@@ -300,6 +300,13 @@ class GPUBackendSpec(BackendSpec):
                 "bfloat16": "floor_div",
                 "bfloat16_2": "floor_div",
             },
+            FuncEnum.CELU: {
+                "float": "fcelu",
+                "half": "hcelu",
+                "half2": "h2celu",
+                "bfloat16": "hcelu",
+                "bfloat16_2": "h2celu",
+            },
         }
     )
 
