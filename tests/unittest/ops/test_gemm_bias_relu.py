@@ -19,31 +19,19 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from parameterized import parameterized
 
 
-def _tolerance_limits(dtype):
-    if dtype == "float16":
-        return {"atol": 1e-1, "rtol": 1e-1}
-    elif dtype == "float32":
-        return {"atol": 1e-1, "rtol": 1e-1}
-    elif dtype == "bfloat16":
-        return {"atol": 2e-1, "rtol": 2e-1}
-    else:
-        return {}
-
-
-def _skip_target(target, ait_dtype):
-    if ait_dtype == "float16":
-        return None
-    if target.name() != "cuda":
-        return "Not supported for non-CUDA target"
-    if int(target._arch) < 80:
-        return "Not supported for CUDA SM<80."
-    return None
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-1, "rtol": 1e-1},
+    "float32": {"atol": 1e-1, "rtol": 1e-1},
+    "bfloat16": {"atol": 2e-1, "rtol": 2e-1},
+}
 
 
 class GEMMBiasReluTestCase(unittest.TestCase):
@@ -55,7 +43,7 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         M = 128
         K = 1024
         N = 64
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         X = Tensor(shape=[M, K], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(shape=[N, K], dtype=dtype, name="input_1", is_input=True)
         B = Tensor(shape=[N], dtype=dtype, name="input_2", is_input=True)
@@ -77,19 +65,24 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
-    @parameterized.expand(("float16", "float32", "bfloat16"))
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
     def test_gemm_rcr_bias_relu(self, ait_dtype):
         target = detect_target()
-        skipped_reason = _skip_target(target, ait_dtype)
-        if skipped_reason is not None:
-            self.skipTest(skipped_reason)
         self._test_gemm_rcr_bias_relu(ait_dtype, target)
 
     def _test_gemm_rcr_bias_add_relu(self, dtype="float16", target=None):
         M = 128
         K = 1024
         N = 64
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         X = Tensor(shape=[M, K], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(shape=[N, K], dtype=dtype, name="input_1", is_input=True)
         B = Tensor(shape=[N], dtype=dtype, name="input_2", is_input=True)
@@ -113,12 +106,17 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
-    @parameterized.expand(("float16", "float32", "bfloat16"))
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
     def test_gemm_rcr_bias_add_relu(self, ait_dtype):
         target = detect_target()
-        skipped_reason = _skip_target(target, ait_dtype)
-        if skipped_reason is not None:
-            self.skipTest(skipped_reason)
         self._test_gemm_rcr_bias_add_relu(ait_dtype, target)
 
 
