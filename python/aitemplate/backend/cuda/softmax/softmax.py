@@ -36,7 +36,7 @@ from aitemplate.compiler.base import IntImm
 #
 # For each K, whether to use wrapReduce or blockReduce was done by experiment
 # Please refer to this post: https://github.com/facebookincubator/AITemplate/wiki/How-to-write-a-fast-Softmax-CUDA-kernel%3F
-# and this experiment log [fb internal only]: https://github.com/facebookincubator/AITemplate/wiki/How-to-write-a-fast-Softmax-CUDA-kernel%3F
+# and this experiment log [fb internal only]: https://docs.google.com/spreadsheets/d/1bl3GCLQ67p27kXOSVJikEob38fojqaZIS--mPdQxeo0/edit#gid=931264442
 FUNC_TEMPLATE = jinja2.Template(
     """
 {{custom_libs}}
