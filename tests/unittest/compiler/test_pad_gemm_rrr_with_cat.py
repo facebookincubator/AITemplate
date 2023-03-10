@@ -21,6 +21,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -85,11 +86,7 @@ class PadGemmWithCatTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_pad_gemm_rrr_with_cat_float32(self):
+    def test_pad_gemm_rrr_with_cat_float32_sm80(self):
         self._test_pad_gemm_rrr_with_cat(
             "static_odd_k", ms=[128], n=32, k1=3, k2=10, dtype="float32"
         )
@@ -102,6 +99,8 @@ class PadGemmWithCatTestCase(unittest.TestCase):
             dtype="float32",
         )
 
+
+filter_test_cases_by_test_env(PadGemmWithCatTestCase)
 
 if __name__ == "__main__":
     torch.manual_seed(0)

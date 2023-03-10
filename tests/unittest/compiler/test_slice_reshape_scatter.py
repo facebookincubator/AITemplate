@@ -22,6 +22,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -121,11 +122,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
         self.test_count += 1
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
-    )
-    def test_slice_scatter_reshape(self):
+    def test_slice_scatter_reshape_sm80(self):
         self._run_one_test(
             input_shapes=[[1, 2], [1, 2]],
             input_start_indices=[[0, 0], [0, 0]],
@@ -240,6 +237,8 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
 
+
+filter_test_cases_by_test_env(SliceScatterReshapeCatTestCase)
 
 if __name__ == "__main__":
     torch.manual_seed(0)
