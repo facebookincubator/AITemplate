@@ -22,7 +22,10 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import DynamicProfileStrategy
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -79,12 +82,7 @@ class ConvDynamicTestCase(unittest.TestCase):
             dtype="float16",
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_fp32(self):
+    def test_fp32_sm80(self):
         self._test_conv_dynamic(
             test_name="conv_dynamic_fp32",
             dtype="float32",
@@ -231,15 +229,14 @@ class ConvDynamicTestCase(unittest.TestCase):
             y_transpose = y.permute((0, 4, 1, 2, 3))
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=0.05, rtol=0.05))
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_conv3d_fp16(self):
+    def test_conv3d_fp16_sm80(self):
         self._test_conv3d_dynamic(
             test_name="conv3d_dynamic_fp16",
             dtype="float16",
         )
+
+
+filter_test_cases_by_test_env(ConvDynamicTestCase)
 
 
 if __name__ == "__main__":
