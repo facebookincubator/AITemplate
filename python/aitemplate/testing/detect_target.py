@@ -54,10 +54,16 @@ def _detect_cuda_with_nvidia_smi():
 
 def _detect_cuda():
     try:
-        import pycuda.driver as drv
+        from cuda import cuda
 
-        drv.init()
-        major, minor = drv.Device(0).compute_capability()
+        def assert_cuda(res):
+            if res[0].value != 0:
+                raise RuntimeError(f"CUDA error code={res[0].value}")
+            return res[1:]
+
+        assert_cuda(cuda.cuInit(0))
+        # Get Compute Capability of the first Visible device
+        major, minor = assert_cuda(cuda.cuDeviceComputeCapability(0))
         comp_cap = major * 10 + minor
         if comp_cap >= 90:
             return "90"
