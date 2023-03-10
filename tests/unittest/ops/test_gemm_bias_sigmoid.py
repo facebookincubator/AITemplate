@@ -19,31 +19,19 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from parameterized import parameterized
 
 
-def _tolerance_limits(dtype):
-    if dtype == "float16":
-        return {"atol": 1e-1, "rtol": 1e-1}
-    elif dtype == "float32":
-        return {"atol": 1e-1, "rtol": 1e-1}
-    elif dtype == "bfloat16":
-        return {"atol": 3e-1, "rtol": 3e-1}
-    else:
-        return {}
-
-
-def _skip_target(target, ait_dtype):
-    if ait_dtype == "float16":
-        return None
-    if target.name() != "cuda":
-        return "Not supported for non-CUDA target"
-    if int(target._arch) < 80:
-        return "Not supported for CUDA SM<80."
-    return None
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-1, "rtol": 1e-1},
+    "float32": {"atol": 1e-1, "rtol": 1e-1},
+    "bfloat16": {"atol": 3e-1, "rtol": 3e-1},
+}
 
 
 class GEMMBiasSigmoidTestCase(unittest.TestCase):
@@ -75,13 +63,18 @@ class GEMMBiasSigmoidTestCase(unittest.TestCase):
         inputs = {"input_0": X_pt, "input_1": W_pt, "input_2": B_pt}
         y = get_torch_empty_tensor([M, N], dtype)
         module.run_with_tensors(inputs, [y])
-        torch.testing.assert_close(Y_pt, y, **_tolerance_limits(dtype))
+        torch.testing.assert_close(Y_pt, y, **_TOLERANCE_LIMITS[dtype])
 
-    @parameterized.expand(("float16", "float32", "bfloat16"))
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
     def test_rcr(self, dtype):
-        skipped_reason = _skip_target(detect_target(), dtype)
-        if skipped_reason is not None:
-            self.skipTest(skipped_reason)
         self._test_rcr(dtype)
 
 
