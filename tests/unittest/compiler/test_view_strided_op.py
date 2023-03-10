@@ -23,6 +23,7 @@ from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target, test_utils
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -396,11 +397,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
         self._test_multi_view_and_multi_bmm_fusible()
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_multi_view_and_multi_bmm_fusible_float(self):
+    def test_multi_view_and_multi_bmm_fusible_fp32_sm80(self):
         self._test_multi_view_and_multi_bmm_fusible(dtype="float")
 
     @parameterized.expand(
@@ -585,13 +582,11 @@ class ViewStridedOpTestCase(unittest.TestCase):
         self._test_single_view_and_gemm_fusible()
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_single_view_and_gemm_fusible_float(self):
+    def test_single_view_and_gemm_fusible_fp32_sm80(self):
         self._test_single_view_and_gemm_fusible(dtype="float")
 
+
+filter_test_cases_by_test_env(ViewStridedOpTestCase)
 
 if __name__ == "__main__":
     unittest.main()
