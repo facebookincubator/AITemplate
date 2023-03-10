@@ -515,7 +515,8 @@ class ModelContainerGenerator:
                 )
             )
             self._codegen_bound_constant(tensor)
-            self.reset_constants.append(const_slice)
+            if not tensor._attrs.get("is_internal_constant", False):
+                self.reset_constants.append(const_slice)
             if self.constants_data_file is not None:
                 self._add_owned_constant(tensor)
         elif tensor._attrs["constant_folding_output_idx"] is not None:
@@ -526,7 +527,8 @@ class ModelContainerGenerator:
                 )
             )
             self.tensor_slice.append(const_slice)
-            self.reset_constants.append(const_slice)
+            if not tensor._attrs.get("is_internal_constant", False):
+                self.reset_constants.append(const_slice)
         elif not isinstance(tensor, IntVarTensor):
             # Unbound constant. We will expect the user to set this via SetConstant.
             self.set_up_constant_names.append(
