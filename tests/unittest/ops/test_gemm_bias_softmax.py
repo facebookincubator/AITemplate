@@ -22,6 +22,7 @@ from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -30,9 +31,8 @@ from aitemplate.testing.test_utils import (
 _LOGGER = logging.getLogger(__name__)
 
 
-# @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 @unittest.skip("GEMM + Softmax is disabled for now")
-class GEMMTestCase(unittest.TestCase):
+class GEMMBiasSoftmaxTestCase(unittest.TestCase):
     def _test_gemm_rcr_bias_softmax(
         self, M=16, K=64, N=24, rebuild=True, dtype="float16"
     ):
@@ -74,15 +74,14 @@ class GEMMTestCase(unittest.TestCase):
             rtol=1e-1,
         )
 
-    def test_gemm_bias_softmax(self):
-        self._test_gemm_rcr_bias_softmax(N=81)
+    def test_gemm_bias_softmax_float16(self):
+        self._test_gemm_rcr_bias_softmax(N=81, dtype="float16")
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_bias_softmax_float(self):
-        self._test_gemm_rcr_bias_softmax(N=81, dtype="float")
+    def test_gemm_bias_softmax_float32_sm80(self):
+        self._test_gemm_rcr_bias_softmax(N=81, dtype="float16")
+
+
+filter_test_cases_by_test_env(GEMMBiasSoftmaxTestCase)
 
 
 if __name__ == "__main__":
