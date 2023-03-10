@@ -19,10 +19,12 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 
 
-@unittest.skipIf(detect_target().name() == "cuda", "Not supported by CUDA.")
 class GEMMBiasPermuteTestCase(unittest.TestCase):
     def _test_gemm_rcr_bias_permute_m2n3(
         self,
@@ -79,7 +81,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_gemm_rcr_bias_permute_m2n3_fp16(self):
+    def test_gemm_rcr_bias_permute_m2n3_fp16_rocm(self):
         self._test_gemm_rcr_bias_permute_m2n3(
             test_name="gemm_rcr_bias_permute_m2n3_fp16",
             dtype="float16",
@@ -144,7 +146,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_gemm_rcr_bias_permute_m3n2_fp16(self):
+    def test_gemm_rcr_bias_permute_m3n2_fp16_rocm(self):
         self._test_gemm_rcr_bias_permute_m3n2(
             test_name="gemm_rcr_bias_permute_m3n2_fp16",
             dtype="float16",
@@ -203,7 +205,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_gemm_rcr_permute_m2n3_fp16(self):
+    def test_gemm_rcr_permute_m2n3_fp16_rocm(self):
         self._test_gemm_rcr_permute_m2n3(
             test_name="test_gemm_rcr_permute_m2n3_fp16",
             dtype="float16",
@@ -215,7 +217,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         )
 
     # ========== enable them after fix profiler =========
-    # def test_gemm_rcr_bias_relu(self):
+    # def test_gemm_rcr_bias_relu_rocm(self):
     #     M0 = 4
     #     M1 = 32
     #     M2 = 128
@@ -246,7 +248,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
     #     module.run_with_tensors(inputs, [y])
     #     self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    # def test_gemm_rrr_bias_relu(self):
+    # def test_gemm_rrr_bias_relu_rocm(self):
     #     M0 = 4
     #     M1 = 32
     #     M2 = 128
@@ -276,6 +278,9 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
     #     y = torch.empty(Y_pt.shape).cuda().half()
     #     module.run_with_tensors(inputs, [y])
     #     self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
+
+
+filter_test_cases_by_test_env(GEMMBiasPermuteTestCase)
 
 
 if __name__ == "__main__":
