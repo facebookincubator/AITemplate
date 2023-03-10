@@ -136,6 +136,9 @@ tags
 # macOS dir files
 .DS_Store
 
+# PyCharm files
+.idea
+
 # vscode
 .vscode
 
