@@ -19,7 +19,13 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
+
+from parameterized import parameterized
 
 
 def hard_swish(x):
@@ -91,31 +97,23 @@ class ConvBiasAddHardswishTestCase(unittest.TestCase):
         else:
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
-    def test_fp16(self):
-        self._test_conv_bias_add_hardswish(
-            test_name="conv2d_bias_add_hardswish_fp16",
-            dtype="float16",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
         )
-        self._test_conv_bias_add_hardswish(
-            copy_op=True,
-            test_name="conv2d_bias_add_hardswish_fp16_copy_op",
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
     )
-    def test_fp32(self):
+    def test_conv_bias_add_hardswish(self, dtype):
         self._test_conv_bias_add_hardswish(
-            test_name="conv2d_bias_add_hardswish_fp32",
-            dtype="float32",
+            test_name=f"conv2d_bias_add_hardswish_{dtype}",
+            dtype=dtype,
         )
         self._test_conv_bias_add_hardswish(
             copy_op=True,
-            test_name="conv2d_bias_add_hardswish_fp32_copy_op",
-            dtype="float32",
+            test_name="conv2d_bias_add_hardswish_{dtype}_copy_op",
+            dtype=dtype,
         )
 
 
