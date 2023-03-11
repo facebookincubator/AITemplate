@@ -524,6 +524,7 @@ def acc_ops_unbind(
     return res
 
 
+@ait_converter(operator.getitem)
 @ait_converter(acc_ops.getitem)
 def acc_ops_getitem(
     target: Target,
@@ -531,8 +532,8 @@ def acc_ops_getitem(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    input_val = kwargs["input"]
-    idx = kwargs["idx"]
+    input_val = kwargs["input"] if "input" in kwargs else args[0]
+    idx = kwargs["idx"] if "idx" in kwargs else args[1]
     if isinstance(idx, Sequence) and any(isinstance(x, Sequence) for x in idx):
         count = 0
         dim = None
@@ -581,11 +582,12 @@ def acc_ops_getitem(
     if isinstance(input_val, AITTensor):
         return acc_ops_slice(target, args, kwargs, name)
 
-    if isinstance(kwargs["idx"], int):
+    idx_org = kwargs["idx"] if "idx" in kwargs else args[1]
+    if isinstance(idx_org, int):
         idx = get_positive_dim(idx, len(input_val))
 
     if all(isinstance(i, IntImm) for i in input_val):
-        return operator.getitem(input_val, kwargs["idx"])
+        return operator.getitem(input_val, idx_org)
     else:
         return getitem()(input_val, idx)
 
