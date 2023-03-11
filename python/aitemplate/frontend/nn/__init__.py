@@ -30,6 +30,7 @@ from aitemplate.frontend.nn.attention import (
     CrossAttention,
     FlashAttention,
     MultiheadAttention,
+    ScaledDotProductAttention,
 )
 from aitemplate.frontend.nn.identity import Identity
 from aitemplate.frontend.nn.multiscale_attention import MultiScaleBlock
