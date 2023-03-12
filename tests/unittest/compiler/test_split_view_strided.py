@@ -21,6 +21,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target, test_utils
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -177,11 +178,7 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_split_view_bmm_rcr_fusion_float(self):
+    def test_split_view_bmm_rcr_fusion_fp32_sm80(self):
         b_dim = shape_utils.gen_int_var([1, 1024], "batch_size")
         m_dim = shape_utils.gen_int_var([100, 200], "emb_pool_size")
 
@@ -218,6 +215,8 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
             dtype="float",
         )
 
+
+filter_test_cases_by_test_env(SplitViewStridedOpTestCase)
 
 if __name__ == "__main__":
     unittest.main()

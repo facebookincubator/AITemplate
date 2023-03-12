@@ -28,6 +28,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -541,11 +542,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_float(self):
+    def test_gemm_fp32_sm80(self):
         self._fused_gemm_e2e_helper(m=1024, k=256, n1=5, n2=32, n3=4, dtype="float")
         self._fused_gemm_e2e_helper(
             m=1024, k=256, n1=8, n2=16, n3=32, m2=8, cat_dim=2, dtype="float"
@@ -682,11 +679,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_alignment_float(self):
+    def test_gemm_alignment_fp32_sm80(self):
         self._fused_gemm_alignment_e2e_helper(
             gemm_op=ops.gemm_rcr_bias_add(), input_n=1, m=2, k=2, n=4, dtype="float"
         )
@@ -729,12 +722,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 os.environ["FORCE_PROFILE"] = old_force_ci
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     # Tests to ensure that we correctly update epilogue alignment values
-    def test_gemm_update_epilogue_alignment_float(self):
+    def test_gemm_update_epilogue_alignment_fp32_sm80(self):
         # Note that we have to force profiling in ci. Otherwise, we would not
         # be able to fetch cached config.
         target = detect_target()
@@ -1611,11 +1600,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_cat_fusion_float(self):
+    def test_bmm_cat_fusion_fp32_sm80(self):
         self._test_bmm_xxx_cat_fusion(
             B=1,
             M=8,
@@ -1810,11 +1795,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         self._test_bmm_rcr_update_epilogue_alignment_common()
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_rcr_update_epilogue_alignment_float(self):
+    def test_bmm_rcr_update_epilogue_alignment_fp32_sm80(self):
         self._test_bmm_rcr_update_epilogue_alignment_common(dtype="float")
 
     def _test_reduce_cat_fusion_1(
@@ -2406,6 +2387,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         self._test_strided_op_multiple_cats(dtype="float")
         self._test_strided_op_multiple_cats_2(dtype="float")
 
+
+filter_test_cases_by_test_env(StridedOpCatPatternTestCase)
 
 if __name__ == "__main__":
     unittest.main()
