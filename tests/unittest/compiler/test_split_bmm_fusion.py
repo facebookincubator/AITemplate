@@ -21,6 +21,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
     has_op,
@@ -30,6 +31,10 @@ from aitemplate.utils import graph_utils
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class SplitBmmFusionTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        torch.manual_seed(0)
+
     def _test_split_bmm_rcr_fusion(
         self,
         bmm_rcr_op,
@@ -290,17 +295,13 @@ class SplitBmmFusionTestCase(unittest.TestCase):
 
         y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors({"input0": a}, [y])
-        self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
+        torch.testing.assert_close(y, y_pt, atol=1e-2, rtol=1e-2)
 
-    def test_split_bmm_rcr_fusion_qkv(self):
+    def test_split_bmm_rcr_fusion_qkv_sm80(self):
         self._test_split_bmm_rcr_fusion_qkv(3, 4096, 4096, 512, 1, 1)
         self._test_split_bmm_rcr_fusion_qkv(3 * 16, 1024, 1024, 256, 16, 16)
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_split_bmm_fusion_float(self):
+    def test_split_bmm_fusion_fp32_sm80(self):
         # bmm_rcr (K with an odd value) with padding:
         # in this case, split and bmm_rcr are not going to be fused actually because
         # of the padding applied to bmm_rcr.
@@ -378,6 +379,8 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         )
         self._test_split_bmm_rcr_fusion_qkv(3 * 16, 10, 10, 8, 16, 16, dtype="float")
 
+
+filter_test_cases_by_test_env(SplitBmmFusionTestCase)
 
 if __name__ == "__main__":
     unittest.main()
