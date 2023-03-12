@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, List
+from typing import Any, List, Set
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
@@ -196,8 +196,9 @@ class TensorSpec:
         cls,
         inputs: List[torch.Tensor],
         max_batch_size: int,
-        max_batch_size_jagged_tensor: int,
-        tag_val=None,
+        max_sequence_length: int,
+        jagged_tensor_batch_dims: Set[int],
+        jagged_offsets_batch_dims: Set[int],
     ) -> List["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
@@ -210,14 +211,30 @@ class TensorSpec:
         left_inputs: List = []
         left_inputs_ind: List = []
         for ind, t in enumerate(inputs):
-            if t.shape[0] == tag_val:
+            batch_dim: int = t.shape[0]
+            batch_dim_lower_bound: int = 0
+            batch_dim_upper_bound: int = 0
+            batch_dim_name: str = ""
+            if batch_dim in jagged_tensor_batch_dims:
+                batch_dim_lower_bound = 0  # when all sequences are empty
+                batch_dim_upper_bound = max_batch_size * max_sequence_length
+                batch_dim_name = f"batch_size_jagged_tensor_{batch_dim}"
+            elif batch_dim in jagged_offsets_batch_dims:
+                batch_dim_lower_bound = 2  # prefix 0 + at least one offset
+                batch_dim_upper_bound = max_batch_size + 1
+                batch_dim_name = f"batch_size_jagged_offsets_{batch_dim}"
+
+            if batch_dim_upper_bound > 0:
                 shape: List[IntVar] = []
                 for i, d in enumerate(t.shape):
                     if i == 0:
                         shape.append(
                             IntVar(
-                                [1, max_batch_size_jagged_tensor],
-                                "batch_size_jagged_tensor",
+                                values=[
+                                    batch_dim_lower_bound,
+                                    batch_dim_upper_bound,
+                                ],
+                                name=batch_dim_name,
                             )
                         )
                     else:
