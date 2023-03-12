@@ -21,22 +21,27 @@ from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target, test_utils
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import graph_utils
 
 from parameterized import parameterized
 
 
-SKIP_FLOAT = detect_target().name() == "rocm" or int(detect_target()._arch) < 80
-
-
 class SliceViewStridedOpTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [],
+            }
+        )
+    )
     def test_slice_view_gemm_fusible(self, dtype):
-        if dtype == "float" and SKIP_FLOAT:
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
         N = 4
         batch_dim = IntVar([1, 2, 3], "batch_size")
 
@@ -87,10 +92,16 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
                 f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
             )
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [],
+            }
+        )
+    )
     def test_slice_view_gemm_non_fusible(self, dtype):
-        if dtype == "float" and SKIP_FLOAT:
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         N = 4
         batch_dim = IntVar([1, 2, 3], "batch_size")
@@ -123,7 +134,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             input0_pt = get_random_torch_tensor([batch_size, N, 2 * N], dtype)
             x0_pt = input0_pt[:, :, :N]
             x1_pt = torch.reshape(x0_pt, [-1, N * N])
-            input1_pt = get_random_torch_tensor([N, N * N], dtype)
+            input1_pt = get_random_torch_tensor([N, N * N], dtype) * 0.5
             y_pt = torch.nn.functional.linear(x1_pt, input1_pt)
             y = get_torch_empty_tensor(y_pt.shape, dtype)
 
@@ -137,15 +148,18 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            self.assertTrue(
-                torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2),
-                f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
-            )
+            torch.testing.assert_close(y, y_pt, atol=1e-2, rtol=1e-2)
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [],
+            }
+        )
+    )
     def test_slice_flatten_concat_fusible_1(self, dtype):
-        if dtype == "float" and SKIP_FLOAT:
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         test_name = f"slice_flatten_concat_fusible_{dtype}"
         batch_dim = IntVar([3, 10], "batch_size")
@@ -219,10 +233,16 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
                 f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
             )
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [],
+            }
+        )
+    )
     def test_slice_flatten_concat_fusible_2(self, dtype):
-        if dtype == "float" and SKIP_FLOAT:
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         test_name = f"slice_flatten_concat_fusible_{dtype}_2"
         batch_dim = IntVar([1, 2], "batch_size")
@@ -290,10 +310,16 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
                 f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
             )
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [],
+            }
+        )
+    )
     def test_slice_reshape_concat_fusible_1(self, dtype):
-        if dtype == "float" and SKIP_FLOAT:
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         test_name = f"slice_reshape_concat_fusible_{dtype}_1"
         batch_dim = IntVar([1, 2], "batch_size")
@@ -360,10 +386,16 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
                 f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
             )
 
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [],
+            }
+        )
+    )
     def test_slice_reshape_concat_fusible_2(self, dtype):
-        if dtype == "float" and SKIP_FLOAT:
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         test_name = "slice_reshape_concat_fusible_{dtype}_2"
         batch_dim = IntVar([1, 8], "batch_size")
