@@ -73,11 +73,11 @@ class Decoder(nn.Module):
                 in_channels=prev_output_channel,
                 out_channels=output_channel,
                 prev_output_channel=None,
+                temb_channels=None,
                 add_upsample=not is_final_block,
                 resnet_eps=1e-6,
                 resnet_act_fn=act_fn,
                 attn_num_head_channels=None,
-                temb_channels=None,
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel

@@ -195,16 +195,27 @@ class SpatialTransformer(nn.Module):
     """
 
     def __init__(
-        self, in_channels, n_heads, d_head, depth=1, dropout=0.0, context_dim=None
+        self,
+        in_channels,
+        n_heads,
+        d_head,
+        depth=1,
+        dropout=0.0,
+        context_dim=None,
+        use_linear_projection=False,
     ):
         super().__init__()
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
         self.norm = Normalize(in_channels)  # Group Norm
+        self.use_linear_projection = use_linear_projection
 
-        self.proj_in = nn.Conv2dBias(
-            in_channels, inner_dim, kernel_size=1, stride=1, padding=0
-        )
+        if use_linear_projection:
+            self.proj_in = nn.Linear(in_channels, inner_dim)
+        else:
+            self.proj_in = nn.Conv2dBias(
+                in_channels, inner_dim, kernel_size=1, stride=1, padding=0
+            )
 
         self.transformer_blocks = nn.ModuleList(
             [
@@ -215,21 +226,34 @@ class SpatialTransformer(nn.Module):
             ]
         )
 
-        self.proj_out = nn.Conv2dBias(
-            inner_dim, in_channels, kernel_size=1, stride=1, padding=0
-        )
+        if use_linear_projection:
+            self.proj_out = nn.Linear(inner_dim, in_channels)
+        else:
+            self.proj_out = nn.Conv2dBias(
+                inner_dim, in_channels, kernel_size=1, stride=1, padding=0
+            )
 
     def forward(self, x, context=None):
         # note: if no context is given, cross-attention defaults to self-attention
         b, h, w, c = get_shape(x)
         x_in = x
         x = self.norm(x)
-        x = self.proj_in(x)
-        x = ops.reshape()(x, [b, -1, c])
+        if self.use_linear_projection:
+            x = ops.reshape()(x, [b, -1, c])
+            x = self.proj_in(x)
+        else:
+            x = self.proj_in(x)
+            x = ops.reshape()(x, [b, -1, c])
+
         for block in self.transformer_blocks:
             x = block(x, context=context)
-        x = ops.reshape()(x, [b, h, w, c])
-        x = self.proj_out(x)
+
+        if self.use_linear_projection:
+            x = self.proj_out(x)
+            x = ops.reshape()(x, [b, h, w, c])
+        else:
+            x = ops.reshape()(x, [b, h, w, c])
+            x = self.proj_out(x)
         return x + x_in
 
 
