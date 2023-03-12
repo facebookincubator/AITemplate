@@ -532,8 +532,15 @@ def acc_ops_getitem(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    input_val = kwargs["input"] if "input" in kwargs else args[0]
-    idx = kwargs["idx"] if "idx" in kwargs else args[1]
+    # operator.getitem does not have kwargs. We copy args to kwargs so the downstream like acc_ops_slice can use it.
+    new_kwargs = dict(kwargs)
+    if "input" not in kwargs:
+        new_kwargs["input"] = args[0]
+    if "idx" not in kwargs:
+        new_kwargs["idx"] = args[1]
+    kwargs = new_kwargs
+    input_val = kwargs["input"]
+    idx = kwargs["idx"]
     if isinstance(idx, Sequence) and any(isinstance(x, Sequence) for x in idx):
         count = 0
         dim = None
@@ -582,12 +589,11 @@ def acc_ops_getitem(
     if isinstance(input_val, AITTensor):
         return acc_ops_slice(target, args, kwargs, name)
 
-    idx_org = kwargs["idx"] if "idx" in kwargs else args[1]
-    if isinstance(idx_org, int):
+    if isinstance(kwargs["idx"], int):
         idx = get_positive_dim(idx, len(input_val))
 
     if all(isinstance(i, IntImm) for i in input_val):
-        return operator.getitem(input_val, idx_org)
+        return operator.getitem(input_val, kwargs["idx"])
     else:
         return getitem()(input_val, idx)
 
