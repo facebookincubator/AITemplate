@@ -109,7 +109,22 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             feature_extractor=feature_extractor,
         )
 
-        workdir = "tmp/"
+        """
+        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
+        has AITemplate compiled artifacts the model(s). Make sure the OS user running this script has read and write 
+        permissions to this directory. By default, the it will look for compiled artifacts under tmp/ folder of the 
+        current working directory. 
+        """
+
+        env_name = "AITEMPLATE_WORK_DIR"
+        try:
+            if os.environ[env_name]:
+                workdir = os.environ[env_name]
+                print("The value of", env_name, " is ", workdir)
+        except KeyError:
+            workdir = "tmp/"
+            print("The value of", env_name, " is ", workdir)
+            
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir
         )

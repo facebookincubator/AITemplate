@@ -15,6 +15,7 @@
 
 import click
 import torch
+import os
 
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from aitemplate.utils.import_path import import_parent
@@ -39,6 +40,25 @@ from src.pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
 def run(local_dir, width, height, prompt, benchmark):
+    
+    
+    """
+        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
+        will be used to save the AIT compiled model artifacts. Make sure the OS user running this script has read and write 
+        permissions to this directory. By default, the artifacts will be saved under tmp/ folder of the 
+        current working directory. 
+    """
+
+    env_name = "AITEMPLATE_WORK_DIR"
+    try:
+        if os.environ[env_name]:
+            local_dir = os.path.join(os.environ[env_name], 'diffusers-pipeline', 'stabilityai','stable-diffusion-v2')
+            print("The value of", env_name, " is ", local_dir)
+    except KeyError:
+        print("AITEMPLATE_WORK_DIR environment variable is not set. Using default local dir as ",local_dir)
+
+    
+    
     pipe = StableDiffusionAITPipeline.from_pretrained(
         local_dir,
         scheduler=EulerDiscreteScheduler.from_pretrained(

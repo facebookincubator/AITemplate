@@ -15,6 +15,7 @@
 import logging
 
 import click
+import os
 import torch
 from aitemplate.testing import detect_target
 from aitemplate.utils.import_path import import_parent
@@ -44,6 +45,21 @@ def compile_diffusers(
 ):
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
+    
+    """
+        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
+        will be used to save the AIT compiled model artifacts. Make sure the OS user running this script has read and write 
+        permissions to this directory. By default, the artifacts will be saved under tmp/ folder of the 
+        current working directory. 
+    """
+    
+    env_name = "AITEMPLATE_WORK_DIR"
+    try:
+        if os.environ[env_name]:
+            local_dir = os.path.join(os.environ[env_name], 'diffusers-pipeline', 'stabilityai','stable-diffusion-v2')
+            print("The value of", env_name, " is ", local_dir)
+    except KeyError:
+        print("AITEMPLATE_WORK_DIR environment variable is not set. Using default local dir as ",local_dir)
 
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False

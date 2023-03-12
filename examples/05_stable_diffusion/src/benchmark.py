@@ -16,6 +16,7 @@
 import logging
 
 import click
+import os
 
 import numpy as np
 import torch
@@ -56,7 +57,22 @@ def benchmark_unet(
     verify=False,
 ):
 
-    exe_module = Model("./tmp/UNet2DConditionModel/test.so")
+    """
+        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
+        has AITemplate compiled artifacts the model(s). Make sure the OS user running this script has read and write 
+        permissions to this directory. By default, the it will look for compiled artifacts under tmp/ folder of the 
+        current working directory. 
+    """
+
+    env_name = "AITEMPLATE_WORK_DIR"
+    try:
+        if os.environ[env_name]:
+            file_name = os.path.join(os.environ[env_name], 'UNet2DConditionModel', 'test.so')
+            print("The value of", env_name, " is ", file_name)
+    except KeyError:
+        file_name = "./tmp/UNet2DConditionModel/test.so"
+        print("The value of", env_name, " is ", file_name)
+    exe_module = Model(file_name)
     if exe_module is None:
         print("Error!! Cannot find compiled module for UNet2DConditionModel.")
         exit(-1)
@@ -131,7 +147,17 @@ def benchmark_clip(
 ):
     mask_seq = 0
 
-    exe_module = Model("./tmp/CLIPTextModel/test.so")
+    env_name = "AITEMPLATE_WORK_DIR"
+    try:
+        if os.environ[env_name]:
+            file_name = os.path.join(os.environ[env_name], 'CLIPTextModel', 'test.so')
+            print("The value of", env_name, " is ", file_name)
+    except KeyError:
+        file_name = "./tmp/CLIPTextModel/test.so"
+        print("The value of", env_name, " is ", file_name)
+        
+    exe_module = Model(file_name)
+    
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
@@ -205,7 +231,16 @@ def benchmark_vae(
 
     latent_channels = 4
 
-    exe_module = Model("./tmp/AutoencoderKL/test.so")
+    env_name = "AITEMPLATE_WORK_DIR"
+    try:
+        if os.environ[env_name]:
+            file_name = os.path.join(os.environ[env_name], 'AutoencoderKL', 'test.so')
+            print("The value of", env_name, " is ", file_name)
+    except KeyError:
+        file_name = "./tmp/AutoencoderKL/test.so"
+        print("The value of", env_name, " is ", file_name)
+        
+    exe_module = Model(file_name)
     if exe_module is None:
         print("Error!! Cannot find compiled module for AutoencoderKL.")
         exit(-1)
@@ -281,6 +316,13 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
+    env_name = "AITEMPLATE_WORK_DIR"
+    try:
+        if os.environ[env_name]:
+            local_dir = os.path.join(os.environ[env_name], 'diffusers-pipeline', 'stabilityai','stable-diffusion-v2')
+            print("The value of", env_name, " is ", local_dir)
+    except KeyError:
+        print("AITEMPLATE_WORK_DIR environment variable is not set. Using default local dir as ",local_dir)
 
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
