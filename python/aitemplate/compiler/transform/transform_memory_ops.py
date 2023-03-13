@@ -422,7 +422,7 @@ def _merge_split_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noqa: C
         elif first_op_type == "concatenate":
             _try_merge_cat_cat(ops[0], ops[1])
         else:
-            assert False, f"unsupported {first_op_type=} for merging with cat"
+            raise AssertionError(f"unsupported {first_op_type=} for merging with cat")
 
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 

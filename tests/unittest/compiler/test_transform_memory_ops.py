@@ -813,7 +813,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
             if sorted_op._attrs["op"] == "concatenate":
                 concat_cnt += 1
         self.assertEqual(concat_cnt, 1)
-        output_tensors = set(op._attrs["outputs"][0] for op in sorted_ops)
+        output_tensors = {op._attrs["outputs"][0] for op in sorted_ops}
         self.assertEqual(len(output_tensors), 1)
 
         for batch in [1, self.BATCH_SIZE]:
@@ -946,7 +946,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
             if sorted_op._attrs["op"] == "concatenate":
                 concat_cnt += 1
         self.assertEqual(concat_cnt, 1)
-        output_tensors = set(op._attrs["outputs"][0] for op in sorted_ops)
+        output_tensors = {op._attrs["outputs"][0] for op in sorted_ops}
         self.assertEqual(len(output_tensors), 1)
 
         for batch in [1, self.BATCH_SIZE]:
@@ -1056,7 +1056,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
             if sorted_op._attrs["op"] == "concatenate":
                 concat_cnt += 1
         self.assertEqual(concat_cnt, 1)
-        output_tensors = set(op._attrs["outputs"][0] for op in sorted_ops)
+        output_tensors = {op._attrs["outputs"][0] for op in sorted_ops}
         self.assertEqual(len(output_tensors), 1)
 
         for batch in [1, self.BATCH_SIZE]:
@@ -1145,7 +1145,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
             if sorted_op._attrs["op"] == "concatenate":
                 concat_cnt += 1
         self.assertEqual(concat_cnt, 1)
-        output_tensors = set(op._attrs["outputs"][0] for op in sorted_ops)
+        output_tensors = {op._attrs["outputs"][0] for op in sorted_ops}
         self.assertEqual(len(output_tensors), 1)
 
         for batch in [1, self.BATCH_SIZE]:
@@ -1232,7 +1232,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
             if sorted_op._attrs["op"] == "concatenate":
                 concat_cnt += 1
         self.assertEqual(concat_cnt, 1)
-        output_tensors = set(op._attrs["outputs"][0] for op in sorted_ops)
+        output_tensors = {op._attrs["outputs"][0] for op in sorted_ops}
         self.assertEqual(len(output_tensors), 1)
 
         for batch in [1, self.BATCH_SIZE]:
