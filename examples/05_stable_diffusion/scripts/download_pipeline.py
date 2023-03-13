@@ -16,6 +16,9 @@ import click
 import torch
 import os
 from diffusers import StableDiffusionPipeline
+from aitemplate.utils.import_path import import_parent
+import_parent(filepath=__file__, level=1)
+from src.compile_lib.util import get_work_dir_location_diffusers
 
 
 @click.command()
@@ -28,19 +31,15 @@ from diffusers import StableDiffusionPipeline
 def download_pipeline_files(token, save_directory) -> None:
     
     """
-        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
-        will be used to save the AIT compiled model artifacts. Make sure the OS user running this script has read and write 
-        permissions to this directory. By default, the artifacts will be saved under tmp/ folder of the 
-        current working directory. 
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the it will look for compiled artifacts under 
+    tmp/ folder of the current working directory. 
+    
     """
 
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            save_directory = os.path.join(os.environ[env_name], 'diffusers-pipeline', 'stabilityai','stable-diffusion-v2')
-            print("The value of", env_name, " is ", save_directory)
-    except KeyError:
-        print("AITEMPLATE_WORK_DIR environment variable is not set. Using default local dir as ",save_directory)
+    save_directory = get_work_dir_location_diffusers()  
 
     StableDiffusionPipeline.from_pretrained(
         "stabilityai/stable-diffusion-2-1-base",

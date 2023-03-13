@@ -22,6 +22,7 @@ from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.vae import AutoencoderKL as ait_AutoencoderKL
+from .util import get_work_dir_location
 from .util import mark_output
 
 
@@ -134,20 +135,14 @@ def compile_vae(
     
     
     """
-        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
-        will be used to save the AIT compiled model artifacts. Make sure the OS user running this script has read and write 
-        permissions to this directory. By default, the artifacts will be saved under tmp/ folder of the 
-        current working directory. 
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the artifacts will be saved under tmp/ folder of 
+    the current working directory. 
     """
-
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            workdir = os.environ[env_name]
-            print("The value of", env_name, " is ", workdir)
-    except KeyError:
-        workdir = "tmp/"
-        print("The value of", env_name, " is ", workdir)   
+    
+    workdir = get_work_dir_location()
         
     compile_model(
         Y,

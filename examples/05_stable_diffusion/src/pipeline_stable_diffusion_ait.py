@@ -14,10 +14,10 @@
 #
 import inspect
 
-import os
+
 import warnings
 from typing import List, Optional, Union
-
+import os
 import torch
 from aitemplate.compiler import Model
 
@@ -39,6 +39,7 @@ from diffusers.pipelines.stable_diffusion import (
 )
 
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
+from src.compile_lib.util import get_work_dir_location
 
 
 class StableDiffusionAITPipeline(StableDiffusionPipeline):
@@ -97,21 +98,15 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             feature_extractor=feature_extractor,
             requires_safety_checker=requires_safety_checker,
         )
+        
         """
-        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
-        has AITemplate compiled artifacts the model(s). Make sure the OS user running this script has read and write 
-        permissions to this directory. By default, the it will look for compiled artifacts under tmp/ folder of the 
-        current working directory. 
+        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+        path to a directory which has AITemplate compiled artifacts the model(s). 
+        Make sure the OS user running this script has read and write permissions to 
+        this directory. By default, the it will look for compiled artifacts under 
+        tmp/ folder of the current working directory. 
         """
-
-        env_name = "AITEMPLATE_WORK_DIR"
-        try:
-            if os.environ[env_name]:
-                workdir = os.environ[env_name]
-                print("The value of", env_name, " is ", workdir)
-        except KeyError:
-            workdir = "tmp/"
-            print("The value of", env_name, " is ", workdir)
+        workdir = get_work_dir_location() 
 
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir

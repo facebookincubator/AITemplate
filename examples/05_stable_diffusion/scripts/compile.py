@@ -27,6 +27,7 @@ if __name__ == "__main__":
 from src.compile_lib.compile_clip import compile_clip
 from src.compile_lib.compile_unet import compile_unet
 from src.compile_lib.compile_vae import compile_vae
+from src.compile_lib.util import get_work_dir_location_diffusers
 
 
 @click.command()
@@ -47,20 +48,15 @@ def compile_diffusers(
     torch.manual_seed(4896)
     
     """
-        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
-        will be used to save the AIT compiled model artifacts. Make sure the OS user running this script has read and write 
-        permissions to this directory. By default, the artifacts will be saved under tmp/ folder of the 
-        current working directory. 
-    """
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the it will look for compiled artifacts under 
+    tmp/ folder of the current working directory. 
     
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            local_dir = os.path.join(os.environ[env_name], 'diffusers-pipeline', 'stabilityai','stable-diffusion-v2')
-            print("The value of", env_name, " is ", local_dir)
-    except KeyError:
-        print("AITEMPLATE_WORK_DIR environment variable is not set. Using default local dir as ",local_dir)
-
+    """
+    local_dir = get_work_dir_location_diffusers()
+    
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 

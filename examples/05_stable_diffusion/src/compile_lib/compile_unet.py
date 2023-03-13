@@ -22,6 +22,7 @@ import os
 from ..modeling.unet_2d_condition import (
     UNet2DConditionModel as ait_UNet2DConditionModel,
 )
+from .util import get_work_dir_location
 from .util import mark_output
 
 
@@ -86,19 +87,14 @@ def compile_unet(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
+    
     """
-        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
-        will be used to save the AIT compiled model artifacts. Make sure the OS user running this script has read and write 
-        permissions to this directory. By default, the artifacts will be saved under tmp/ folder of the 
-        current working directory. 
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the artifacts will be saved under tmp/ folder of 
+    the current working directory. 
     """
-
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            workdir = os.environ[env_name]
-            print("The value of", env_name, " is ", workdir)
-    except KeyError:
-        workdir = "tmp/"
-        print("The value of", env_name, " is ", workdir)   
-    compile_model(Y, target,workdir, "UNet2DConditionModel", constants=params_ait)
+    workdir = get_work_dir_location()
+    
+    compile_model(Y, target, workdir, "UNet2DConditionModel", constants=params_ait)

@@ -16,9 +16,10 @@
 import logging
 
 import click
-import os
+
 
 import numpy as np
+import os
 import torch
 from aitemplate.compiler import Model
 from aitemplate.testing import detect_target
@@ -27,6 +28,11 @@ from diffusers import StableDiffusionPipeline
 
 from torch import autocast
 from transformers import CLIPTokenizer
+from compile_lib.util import get_work_dir_location_diffusers
+from compile_lib.util import get_file_location_CLIP
+from compile_lib.util import get_file_location_Autoencoder
+from compile_lib.util import get_file_location_Unet
+
 
 USE_CUDA = detect_target().name() == "cuda"
 
@@ -58,20 +64,15 @@ def benchmark_unet(
 ):
 
     """
-        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute path to a directory which 
-        has AITemplate compiled artifacts the model(s). Make sure the OS user running this script has read and write 
-        permissions to this directory. By default, the it will look for compiled artifacts under tmp/ folder of the 
-        current working directory. 
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the it will look for compiled artifacts under 
+    tmp/ folder of the current working directory. 
     """
 
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            file_name = os.path.join(os.environ[env_name], 'UNet2DConditionModel', 'test.so')
-            print("The value of", env_name, " is ", file_name)
-    except KeyError:
-        file_name = "./tmp/UNet2DConditionModel/test.so"
-        print("The value of", env_name, " is ", file_name)
+    file_name = get_file_location_Unet()
+    
     exe_module = Model(file_name)
     if exe_module is None:
         print("Error!! Cannot find compiled module for UNet2DConditionModel.")
@@ -147,14 +148,16 @@ def benchmark_clip(
 ):
     mask_seq = 0
 
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            file_name = os.path.join(os.environ[env_name], 'CLIPTextModel', 'test.so')
-            print("The value of", env_name, " is ", file_name)
-    except KeyError:
-        file_name = "./tmp/CLIPTextModel/test.so"
-        print("The value of", env_name, " is ", file_name)
+    """
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the it will look for compiled artifacts under 
+    tmp/ folder of the current working directory. 
+    
+    """
+    
+    file_name = get_file_location_CLIP()
         
     exe_module = Model(file_name)
     
@@ -231,14 +234,15 @@ def benchmark_vae(
 
     latent_channels = 4
 
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            file_name = os.path.join(os.environ[env_name], 'AutoencoderKL', 'test.so')
-            print("The value of", env_name, " is ", file_name)
-    except KeyError:
-        file_name = "./tmp/AutoencoderKL/test.so"
-        print("The value of", env_name, " is ", file_name)
+    """
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the it will look for compiled artifacts under 
+    tmp/ folder of the current working directory. 
+    
+    """
+    file_name = get_file_location_Autoencoder()
         
     exe_module = Model(file_name)
     if exe_module is None:
@@ -316,13 +320,16 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
-    env_name = "AITEMPLATE_WORK_DIR"
-    try:
-        if os.environ[env_name]:
-            local_dir = os.path.join(os.environ[env_name], 'diffusers-pipeline', 'stabilityai','stable-diffusion-v2')
-            print("The value of", env_name, " is ", local_dir)
-    except KeyError:
-        print("AITEMPLATE_WORK_DIR environment variable is not set. Using default local dir as ",local_dir)
+
+    """
+    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
+    path to a directory which has AITemplate compiled artifacts the model(s). 
+    Make sure the OS user running this script has read and write permissions to 
+    this directory. By default, the it will look for compiled artifacts under 
+    tmp/ folder of the current working directory. 
+    
+    """
+    local_dir = get_work_dir_location_diffusers()
 
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
