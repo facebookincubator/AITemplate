@@ -15,7 +15,6 @@
 import logging
 
 import click
-import os
 import torch
 from aitemplate.testing import detect_target
 from aitemplate.utils.import_path import import_parent
@@ -47,14 +46,6 @@ def compile_diffusers(
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
     
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
-    tmp/ folder of the current working directory. 
-    
-    """
     local_dir = get_work_dir_location_diffusers()
     
     if detect_target().name() == "rocm":

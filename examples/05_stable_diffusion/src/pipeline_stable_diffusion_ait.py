@@ -98,14 +98,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             feature_extractor=feature_extractor,
             requires_safety_checker=requires_safety_checker,
         )
-        
-        """
-        Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-        path to a directory which has AITemplate compiled artifacts the model(s). 
-        Make sure the OS user running this script has read and write permissions to 
-        this directory. By default, the it will look for compiled artifacts under 
-        tmp/ folder of the current working directory. 
-        """
+
         workdir = get_work_dir_location() 
 
         self.clip_ait_exe = self.init_ait_module(

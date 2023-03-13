@@ -19,7 +19,6 @@ import click
 
 
 import numpy as np
-import os
 import torch
 from aitemplate.compiler import Model
 from aitemplate.testing import detect_target
@@ -29,9 +28,9 @@ from diffusers import StableDiffusionPipeline
 from torch import autocast
 from transformers import CLIPTokenizer
 from compile_lib.util import get_work_dir_location_diffusers
-from compile_lib.util import get_file_location_CLIP
-from compile_lib.util import get_file_location_Autoencoder
-from compile_lib.util import get_file_location_Unet
+from compile_lib.util import get_file_location_clip
+from compile_lib.util import get_file_location_autoencoder
+from compile_lib.util import get_file_location_unet
 
 
 USE_CUDA = detect_target().name() == "cuda"
@@ -63,15 +62,7 @@ def benchmark_unet(
     verify=False,
 ):
 
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
-    tmp/ folder of the current working directory. 
-    """
-
-    file_name = get_file_location_Unet()
+    file_name = get_file_location_unet()
     
     exe_module = Model(file_name)
     if exe_module is None:
@@ -148,16 +139,7 @@ def benchmark_clip(
 ):
     mask_seq = 0
 
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
-    tmp/ folder of the current working directory. 
-    
-    """
-    
-    file_name = get_file_location_CLIP()
+    file_name = get_file_location_clip()
         
     exe_module = Model(file_name)
     
@@ -234,15 +216,7 @@ def benchmark_vae(
 
     latent_channels = 4
 
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
-    tmp/ folder of the current working directory. 
-    
-    """
-    file_name = get_file_location_Autoencoder()
+    file_name = get_file_location_autoencoder()
         
     exe_module = Model(file_name)
     if exe_module is None:
@@ -321,14 +295,6 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     np.random.seed(0)
     torch.manual_seed(4896)
 
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
-    tmp/ folder of the current working directory. 
-    
-    """
     local_dir = get_work_dir_location_diffusers()
 
     pipe = StableDiffusionPipeline.from_pretrained(

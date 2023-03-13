@@ -14,7 +14,6 @@
 #
 import click
 import torch
-import os
 from diffusers import StableDiffusionPipeline
 from aitemplate.utils.import_path import import_parent
 import_parent(filepath=__file__, level=1)
@@ -30,15 +29,6 @@ from src.compile_lib.util import get_work_dir_location_diffusers
 )
 def download_pipeline_files(token, save_directory) -> None:
     
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
-    tmp/ folder of the current working directory. 
-    
-    """
-
     save_directory = get_work_dir_location_diffusers()  
 
     StableDiffusionPipeline.from_pretrained(

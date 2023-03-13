@@ -15,7 +15,6 @@
 from collections import OrderedDict
 
 import numpy as np
-import os
 import torch
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import Tensor
@@ -132,15 +131,6 @@ def compile_vae(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    
-    
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the artifacts will be saved under tmp/ folder of 
-    the current working directory. 
-    """
     
     workdir = get_work_dir_location()
         

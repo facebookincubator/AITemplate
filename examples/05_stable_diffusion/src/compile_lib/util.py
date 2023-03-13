@@ -48,9 +48,8 @@ def get_work_dir_location_diffusers():
     Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
     path to a directory which has AITemplate compiled artifacts the model(s). 
     Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
+    this directory. By default, it will look for compiled artifacts under 
     tmp/ folder of the current working directory. 
-    
     """
     
     env_name = "AITEMPLATE_WORK_DIR"
@@ -62,14 +61,13 @@ def get_work_dir_location_diffusers():
     print("The value of {} is {}".format(env_name, local_dir)) 
     return local_dir
 
-def get_file_location_CLIP():
+def get_file_location_clip():
     """
     Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
     path to a directory which has AITemplate compiled artifacts the model(s). 
     Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
+    this directory. By default, it will look for compiled artifacts under 
     tmp/ folder of the current working directory. 
-    
     """
     
     env_name = "AITEMPLATE_WORK_DIR"
@@ -81,15 +79,14 @@ def get_file_location_CLIP():
     print("The value of {} is {}".format(env_name, file_name)) 
     return file_name
 
-def get_file_location_Autoencoder():
+def get_file_location_autoencoder():
     
     """
     Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
     path to a directory which has AITemplate compiled artifacts the model(s). 
     Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
+    this directory. By default, it will look for compiled artifacts under 
     tmp/ folder of the current working directory. 
-    
     """
     
     env_name = "AITEMPLATE_WORK_DIR"
@@ -102,13 +99,13 @@ def get_file_location_Autoencoder():
     
     return file_name
 
-def get_file_location_Unet():
+def get_file_location_unet():
     
     """
     Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
     path to a directory which has AITemplate compiled artifacts the model(s). 
     Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
+    this directory. By default, it will look for compiled artifacts under 
     tmp/ folder of the current working directory. 
     """
 

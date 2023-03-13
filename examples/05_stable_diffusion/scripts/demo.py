@@ -15,7 +15,6 @@
 
 import click
 import torch
-import os
 
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from aitemplate.utils.import_path import import_parent
@@ -42,16 +41,6 @@ from src.compile_lib.util import get_work_dir_location_diffusers
 )
 def run(local_dir, width, height, prompt, benchmark):
     
-    
-    """
-    Set the OS environment variable AITEMPLATE_WORK_DIR to point to an absolute
-    path to a directory which has AITemplate compiled artifacts the model(s). 
-    Make sure the OS user running this script has read and write permissions to 
-    this directory. By default, the it will look for compiled artifacts under 
-    tmp/ folder of the current working directory. 
-    
-    """
-
     local_dir = get_work_dir_location_diffusers()  
     
     pipe = StableDiffusionAITPipeline.from_pretrained(
