@@ -39,6 +39,43 @@ AIT_DEFAULT_NUM_RUNTIMES = 1
 TorchTensor = TypeVar("TorchTensor")
 
 
+class AITemplateMemcpyKind(enum.Enum):
+    HostToDevice = 0
+    DeviceToHost = 1
+    DeviceToDevice = 2
+
+
+class AITemplateAllocatorKind(enum.Enum):
+    DEFAULT = 0
+    TRACKING = 1
+
+
+class AITData(NamedTuple):
+    """
+    Input or output tensor for Model.run. We require the extra data for safety
+    checks inside the runtime.
+    """
+
+    data_ptr: int
+    shape: List[int]
+    dtype: str
+
+
+class _AITemplateShape(ctypes.Structure):
+    _fields_ = [
+        ("shape_data", ctypes.POINTER(ctypes.c_longlong)),
+        ("size", ctypes.c_size_t),
+    ]
+
+
+class _CFormatAITData(ctypes.Structure):
+    _fields_ = [
+        ("pointer", ctypes.c_void_p),
+        ("shape", _AITemplateShape),
+        ("dtype", ctypes.c_int),
+    ]
+
+
 def _dlclose(dll: ctypes.CDLL):
     syms = ctypes.CDLL(None)
     if hasattr(syms, "dlclose"):
@@ -84,7 +121,7 @@ def _check_tensors_contiguous_and_on_host(
     _check_tensors(tensors, is_bad_tensor, name, "contiguous and on host")
 
 
-def torch_to_ait_data(tensor):
+def torch_to_ait_data(tensor: TorchTensor) -> AITData:
     """
     Convert a torch Tensor to a AITData.
     """
@@ -93,7 +130,7 @@ def torch_to_ait_data(tensor):
     )
 
 
-def _convert_tensor_args(params):
+def _convert_tensor_args(params: Union[List[TorchTensor], Dict[str, TorchTensor]]):
     """
     Helper function for the WithTensors APIs.
     """
@@ -115,43 +152,6 @@ def _reshape_tensor(tensor: TorchTensor, shape: List[int]) -> TorchTensor:
     numel = math.prod(shape)
     new_tensor = tensor.flatten()[:numel]
     return new_tensor.reshape(shape)
-
-
-class AITemplateMemcpyKind(enum.Enum):
-    HostToDevice = 0
-    DeviceToHost = 1
-    DeviceToDevice = 2
-
-
-class AITemplateAllocatorKind(enum.Enum):
-    DEFAULT = 0
-    TRACKING = 1
-
-
-class AITData(NamedTuple):
-    """
-    Input or output tensor for Model.run. We require the extra data for safety
-    checks inside the runtime.
-    """
-
-    data_ptr: int
-    shape: List[int]
-    dtype: str
-
-
-class _AITemplateShape(ctypes.Structure):
-    _fields_ = [
-        ("shape_data", ctypes.POINTER(ctypes.c_longlong)),
-        ("size", ctypes.c_size_t),
-    ]
-
-
-class _CFormatAITData(ctypes.Structure):
-    _fields_ = [
-        ("pointer", ctypes.c_void_p),
-        ("shape", _AITemplateShape),
-        ("dtype", ctypes.c_int),
-    ]
 
 
 class Model(object):
@@ -328,7 +328,7 @@ class Model(object):
                 f"Did not get correct number of {'inputs' if is_inputs else 'outputs'} expected {len(index_map)}, got {len(params)}"
             )
 
-        result = [None for i in range(len(index_map))]
+        result = [None] * len(index_map)
         for name, tensor in params.items():
             if name not in index_map:
                 raise ValueError(
@@ -341,7 +341,7 @@ class Model(object):
 
     def _make_ait_outputs(
         self, outputs: List[AITData], c_output_shapes
-    ) -> Dict[str, List[int]]:
+    ) -> Dict[str, AITData]:
         output_shapes = []
         for i, c_shape in enumerate(c_output_shapes):
             shape = []
@@ -545,7 +545,7 @@ class Model(object):
     def _run_with_outputs_on_host(
         self,
         inputs: Union[Dict[str, AITData], List[AITData]],
-        outputs: Union[Dict[str, int], List[int]],
+        outputs: Union[Dict[str, AITData], List[AITData]],
         stream_ptr: Optional[int] = None,
         graph_mode: bool = False,
     ) -> Dict[str, AITData]:
@@ -592,7 +592,7 @@ class Model(object):
     def benchmark(
         self,
         inputs: Union[Dict[str, AITData], List[AITData]],
-        outputs: Union[Dict[str, int], List[int]],
+        outputs: Union[Dict[str, AITData], List[AITData]],
         stream_ptr: Optional[int] = None,
         graph_mode: bool = False,
         count: int = 10,
@@ -799,7 +799,7 @@ class Model(object):
             self.handle, ctypes.c_void_p(stream_ptr), c_names, c_tensors, num_tensors
         )
 
-    def set_many_constants_with_tensors(self, tensors: Dict[str, AITData]):
+    def set_many_constants_with_tensors(self, tensors: Dict[str, TorchTensor]):
         ait_tensors = {}
         for name, tensor in tensors.items():
             if not tensor.is_contiguous() or not tensor.is_cuda:
@@ -822,7 +822,7 @@ class Model(object):
         self.set_double_buffer_constant(name, torch_to_ait_data(tensor), stream_ptr)
 
     def set_many_double_buffer_constants_with_tensors(
-        self, tensors: Dict[str, AITData], stream_ptr: Optional[int] = None
+        self, tensors: Dict[str, TorchTensor], stream_ptr: Optional[int] = None
     ):
         ait_tensors = {}
         for name, tensor in tensors.items():
