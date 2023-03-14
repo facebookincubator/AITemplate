@@ -31,6 +31,10 @@ Profiling
 
 **FORCE_PROFILE**: If set to "1", it will do profiling regarless in_ci_env and disable_profiler_codegen. For non-NIGHTLY CI, we do not do profiling, and we could use FORCE_PROFILE=1 in these CI to do runs with codegen, compile, and profile.
 
+**COMBINE_PROFILER_MULTI_SOURCES**: Whether to combine multiple profiler sources per target. "0" - Disabled, "1" - Enabled (default).
+
+**FORCE_ONE_PROFILER_SOURCE_PER_TARGET**: Whether to combine multiple profiler sources per target into one. "0" - Disabled (default), "1" - Enabled.
+
 OSS CI
 ------
 
