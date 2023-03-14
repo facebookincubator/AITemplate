@@ -67,7 +67,10 @@ def _decline_if_would_trigger_extra_copies(
 
 
 def create_ait_operator_support(
-    use_implicit_batch_dim=True, op_lowering_disallow_list=None, allow_int_inputs=False
+    use_implicit_batch_dim=True,
+    op_lowering_disallow_list=None,
+    allow_int_inputs=False,
+    allow_op_supports=None,
 ) -> ops.OperatorSupportBase:
     """Creates an `OperatorSupportBase` instance used for AIT splitting purpose."""
     # Create an `OperatorSupport` that declares a node supported if it
@@ -102,7 +105,8 @@ def create_ait_operator_support(
         # optimization.
         _decline_if_would_trigger_extra_copies(supported_if_converter_registered),
     ]
-
+    if allow_op_supports:
+        return ops.any_chain(ops.chain(*chained_not_supported_ops), *allow_op_supports)
     return ops.chain(*chained_not_supported_ops)
 
 
