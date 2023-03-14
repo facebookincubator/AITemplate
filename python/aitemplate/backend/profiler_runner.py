@@ -125,14 +125,12 @@ def process_task(task: Task) -> None:
         if not single_file_profiler:
             task._failed = True
             return
-        cmd = task._cmd
-        if Target.current().name() == "rocm":
-            cmd = " ".join(cmd)
+
         _LOGGER.debug(
             "Failed: [{name}][{algo}]\ncmd:\n{cmd}\nstderr:\n{stderr}".format(
                 name=task._name,
                 algo=task._idx,
-                cmd=cmd,
+                cmd=task._cmd,
                 stderr=stderr,
             ),
         )
@@ -313,7 +311,8 @@ class ProfilerRunner:
                     )
             finally:
                 # unblock one future in `join()`
-                self._done_queue.put(stdout)
+                if stdout is not None:
+                    self._done_queue.put(stdout)
 
         future.add_done_callback(callback_when_done)
         self._futures.append(future)

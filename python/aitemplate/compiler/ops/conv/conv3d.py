@@ -510,8 +510,13 @@ class conv3d(Operator):
             raise RuntimeError(
                 "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
-        out = min(result, key=lambda x: x[1].duration)
-        best_algo = out[0]
+        if target.name() == "rocm":
+            out = min(result, key=lambda x: x[1].duration)
+            best_algo = out[0]
+        else:
+            from operator import itemgetter
+            out = min(result, key=itemgetter(1))
+            best_algo = out[1].op_config
         workspace = out[1].workspace
         ## cache
         cache_record = Conv3dRecordEntry(
