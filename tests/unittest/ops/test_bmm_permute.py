@@ -21,7 +21,6 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
-    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -29,6 +28,10 @@ from aitemplate.utils import shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
 class BMMPermuteTestCase(unittest.TestCase):
     def _test_rrr(self, bs, ms, N, K, d1, test_name, copy_op=False, dtype="float16"):
         target = detect_target()
@@ -117,7 +120,7 @@ class BMMPermuteTestCase(unittest.TestCase):
             )
             self._test_rcr([24], [80], N=96, K=0, d1=12, test_name="permute1_zero_k")
 
-    def test_bmm_permute_fp32_sm80(self):
+    def test_bmm_permute_fp32(self):
         self._test_rrr(
             [10], [8], N=88, K=64, d1=10, test_name="permute3_float", dtype="float"
         )
@@ -165,8 +168,6 @@ class BMMPermuteTestCase(unittest.TestCase):
             dtype="bfloat16",
         )
 
-
-filter_test_cases_by_test_env(BMMPermuteTestCase)
 
 if __name__ == "__main__":
     torch.manual_seed(0)
