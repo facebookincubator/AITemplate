@@ -46,7 +46,7 @@ class Permute021Test(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", f"perm021_{self._test_id}")
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         batch_dim = input_shape[0]
@@ -64,54 +64,54 @@ class Permute021Test(unittest.TestCase):
 
     @parameterized.expand(
         [
-            param((2, 384, 262), (0, 2, 1)),
-            param((2, 3, 384, 262), (0, 1, 3, 2)),
-            param((2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
-            param((IntVar([2, 3]), 384, 262), (0, 2, 1)),
-            param((IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
+            param(1, (2, 384, 262), (0, 2, 1)),
+            param(2, (2, 3, 384, 262), (0, 1, 3, 2)),
+            param(3, (2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
+            param(4, (IntVar([2, 3]), 384, 262), (0, 2, 1)),
+            param(5, (IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
         ]
     )
-    def test_permute021_fp16(self, input_shape, dims):
+    def test_permute021_fp16(self, id, input_shape, dims):
         self._test_permute_021(
             input_shape=input_shape,
             dims=dims,
-            test_name="permute021_fp16",
+            test_name=f"permute021_fp16_{id}",
             dtype="float16",
         )
 
     @parameterized.expand(
         [
-            param((2, 384, 262), (0, 2, 1)),
-            param((2, 3, 384, 262), (0, 1, 3, 2)),
-            param((2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
-            param((IntVar([2, 3]), 384, 262), (0, 2, 1)),
-            param((IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
+            param(1, (2, 384, 262), (0, 2, 1)),
+            param(2, (2, 3, 384, 262), (0, 1, 3, 2)),
+            param(3, (2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
+            param(4, (IntVar([2, 3]), 384, 262), (0, 2, 1)),
+            param(5, (IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
         ]
     )
     @unittest.skipIf(detect_target().name() == "rocm", "FP32 is not supported on ROCm")
-    def test_permute021_fp32(self, input_shape, dims):
+    def test_permute021_fp32(self, id, input_shape, dims):
         self._test_permute_021(
             input_shape=input_shape,
             dims=dims,
-            test_name="permute021_fp32",
+            test_name=f"permute021_fp32_{id}",
             dtype="float32",
         )
 
     @parameterized.expand(
         [
-            param((2, 384, 262), (0, 2, 1)),
-            param((2, 3, 384, 262), (0, 1, 3, 2)),
-            param((2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
-            param((IntVar([2, 3]), 384, 262), (0, 2, 1)),
-            param((IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
+            param(1, (2, 384, 262), (0, 2, 1)),
+            param(2, (2, 3, 384, 262), (0, 1, 3, 2)),
+            param(3, (2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
+            param(4, (IntVar([2, 3]), 384, 262), (0, 2, 1)),
+            param(5, (IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
         ]
     )
     @unittest.skipIf(detect_target().name() == "rocm", "bf16 is not supported on ROCm")
-    def test_permute021_bf16(self, input_shape, dims):
+    def test_permute021_bf16(self, id, input_shape, dims):
         self._test_permute_021(
             input_shape=input_shape,
             dims=dims,
-            test_name="permute021_bf16",
+            test_name=f"permute021_bf16_{id}",
             dtype="bfloat16",
         )
 
