@@ -30,18 +30,13 @@ from src.compile_lib.util import get_work_dir_location_diffusers
 
 
 @click.command()
-@click.option(
-    "--local-dir",
-    default="./tmp/diffusers-pipeline/stabilityai/stable-diffusion-v2",
-    help="the local diffusers pipeline directory",
-)
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
 @click.option("--batch-size", default=1, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile_diffusers(
-    local_dir, width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True
+    width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True
 ):
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)

@@ -28,18 +28,13 @@ from src.compile_lib.util import get_work_dir_location_diffusers
 
 
 @click.command()
-@click.option(
-    "--local-dir",
-    default="./tmp/diffusers-pipeline/stabilityai/stable-diffusion-v2",
-    help="the local diffusers pipeline directory",
-)
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
-def run(local_dir, width, height, prompt, benchmark):
+def run(width, height, prompt, benchmark):
     
     local_dir = get_work_dir_location_diffusers()  
     
