@@ -13,18 +13,31 @@
 #  limitations under the License.
 #
 # flake8: noqa
-from aitemplate.compiler.ops.gemm_universal.bmm_ccr import bmm_ccr
-from aitemplate.compiler.ops.gemm_universal.bmm_ccr_add import bmm_ccr_add
-from aitemplate.compiler.ops.gemm_universal.bmm_crr import bmm_crr
-from aitemplate.compiler.ops.gemm_universal.bmm_crr_add import bmm_crr_add
-from aitemplate.compiler.ops.gemm_universal.bmm_rcr import bmm_rcr
 from aitemplate.compiler.ops.gemm_universal.bmm_rcr_permute import bmm_rcr_permute
-from aitemplate.compiler.ops.gemm_universal.bmm_rrr import bmm_rrr
-from aitemplate.compiler.ops.gemm_universal.bmm_rrr_add import bmm_rrr_add
 from aitemplate.compiler.ops.gemm_universal.bmm_rrr_permute import bmm_rrr_permute
 from aitemplate.compiler.ops.gemm_universal.bmm_softmax_bmm import bmm_softmax_bmm
 from aitemplate.compiler.ops.gemm_universal.bmm_softmax_bmm_permute import (
     bmm_softmax_bmm_permute,
+)
+from aitemplate.compiler.ops.gemm_universal.bmm_xxx import (
+    bmm_ccc,
+    bmm_ccr,
+    bmm_crc,
+    bmm_crr,
+    bmm_rcc,
+    bmm_rcr,
+    bmm_rrc,
+    bmm_rrr,
+)
+from aitemplate.compiler.ops.gemm_universal.bmm_xxx_add import (
+    bmm_ccc_add,
+    bmm_ccr_add,
+    bmm_crc_add,
+    bmm_crr_add,
+    bmm_rcc_add,
+    bmm_rcr_add,
+    bmm_rrc_add,
+    bmm_rrr_add,
 )
 from aitemplate.compiler.ops.gemm_universal.gemm_rcr import gemm_rcr
 from aitemplate.compiler.ops.gemm_universal.gemm_rcr_bias import gemm_rcr_bias
