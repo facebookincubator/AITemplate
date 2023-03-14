@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import unittest
 
 import torch
 from fx2ait.acc_tracer import acc_ops
@@ -83,7 +82,6 @@ class TestSoftmaxConverter(AITTestCase):
             param("neg", dim=-3),
         ]
     )
-    @unittest.expectedFailure
     def test_softmax_expected_failure(self, name, dim=None):
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -94,7 +92,8 @@ class TestSoftmaxConverter(AITTestCase):
         inputs = [
             torch.randn(2, 3, 5, 2, 1).half().cuda(),
         ]
-        self.run_test(model, inputs, expected_ops={acc_ops.softmax})
+        with self.assertRaises(ValueError):
+            self.run_test(model, inputs, expected_ops={acc_ops.softmax})
 
     @parameterized.expand(
         [
@@ -102,7 +101,6 @@ class TestSoftmaxConverter(AITTestCase):
             param("neg", dim=-3),
         ]
     )
-    @unittest.expectedFailure
     def test_softmax_expected_failure_dynamic(self, name, dim=None):
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -121,8 +119,9 @@ class TestSoftmaxConverter(AITTestCase):
                 torch.float16,
             ],
         )
-        self.run_test_with_dynamic_shape(
-            model,
-            inputs_spec,
-            expected_ops={acc_ops.softmax},
-        )
+        with self.assertRaises(ValueError):
+            self.run_test_with_dynamic_shape(
+                model,
+                inputs_spec,
+                expected_ops={acc_ops.softmax},
+            )
