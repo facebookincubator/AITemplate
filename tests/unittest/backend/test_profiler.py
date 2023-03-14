@@ -19,8 +19,6 @@ from unittest.mock import patch
 
 from aitemplate.backend.profiler_runner import ProfilerRunner
 
-from aitemplate.testing import detect_target
-
 
 def dice():
     return randrange(1, 10) / 4
@@ -53,28 +51,20 @@ class ProfilerTestCase(unittest.TestCase):
             "aitemplate.backend.profiler_runner.extract_profile_result"
         ) as mock_extract_profile_result:
             mock_extract_profile_result.return_value = ("", False)
-            with detect_target() as _:
-                pr = ProfilerRunner(
-                    devices=[str(i) for i in range(12)],
-                    timeout=60,
-                    postprocessing_delegate=Delegate(test_instance=self),
+            pr = ProfilerRunner(
+                devices=[str(i) for i in range(12)],
+                timeout=60,
+                postprocessing_delegate=Delegate(test_instance=self),
+            )
+
+            for i, _ in enumerate(pr._postprocessing_delegate.results):
+                sleep_for = 0
+                pr.push(
+                    cmds=["sleep", f"{sleep_for}"],
+                    process_result_callback=delegate_cb_wrapper(i, sleep_for),
                 )
 
-                for i, _ in enumerate(pr._postprocessing_delegate.results):
-                    sleep_for = 0
-                    pr.push(
-                        cmds=["sleep", f"{sleep_for}"],
-                        process_result_callback=delegate_cb_wrapper(i, sleep_for),
-                    )
-
-                    for i, _ in enumerate(pr._postprocessing_delegate.results):
-                        sleep_for = 0
-                        pr.push(
-                            cmds=["sleep", f"{sleep_for}"],
-                            process_result_callback=delegate_cb_wrapper(i, sleep_for),
-                        )
-
-                    pr.join()
+            pr.join()
 
 
 if __name__ == "__main__":

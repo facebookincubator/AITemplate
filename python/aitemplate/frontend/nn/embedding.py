@@ -60,8 +60,6 @@ class BertEmbeddings(Module):
         dtype="float16",
     ):
         super().__init__()
-        if BertEmbeddings.USE_CUDA is None:
-            BertEmbeddings.USE_CUDA = detect_target().name() == "cuda"
         assert (
             hidden_dropout_prob == 0.0
         ), "Dropout rate larger than 0 is not supported yet."
