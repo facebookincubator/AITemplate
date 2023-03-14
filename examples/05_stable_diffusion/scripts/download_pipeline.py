@@ -23,7 +23,6 @@ from src.compile_lib.util import get_work_dir_location_diffusers
 
 @click.command()
 @click.option("--token", default="", help="access token")
-
 def download_pipeline_files(token) -> None:
     
     save_directory = get_work_dir_location_diffusers()  
