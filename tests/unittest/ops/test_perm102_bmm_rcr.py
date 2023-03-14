@@ -28,21 +28,25 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
 from parameterized import parameterized
-
-
-def cuda_skip_condition(dtype, arch):
-    return dtype != "float16" and int(arch) < 80
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMM_RCR_TestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32"), ("bfloat16")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+            }
+        )
+    )
     def test_perm102_bmm_rrr(self, dtype):
-        arch_ = detect_target()._arch
-        if cuda_skip_condition(dtype, arch_):
-            self.skipTest(f"BMM with float32 inputs not supported on CUDA SM{arch_}")
         B = 25
         M = 128
         K = 256
@@ -70,11 +74,15 @@ class Perm102BMM_RCR_TestCase(unittest.TestCase):
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMM_RCR_BiasTestCase(unittest.TestCase):
-    @parameterized.expand([("float16"), ("float32"), ("bfloat16")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+            }
+        )
+    )
     def test_perm102_bmm_rrr_bias(self, dtype):
-        arch_ = detect_target()._arch
-        if cuda_skip_condition(dtype, arch_):
-            self.skipTest(f"BMM with float32 inputs not supported on CUDA SM{arch_}")
         B = 25
         M = 128
         K = 256

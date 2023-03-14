@@ -25,7 +25,13 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
+from parameterized import parameterized
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -81,32 +87,18 @@ class Perm021FCCRCBiasTestCase(unittest.TestCase):
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_perm021fc_crc_bias_fp16(self):
-        self._test_perm021fc_crc_bias(
-            test_name="perm021fc_crc_bias_fp16",
-            dtype="float16",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+            }
         )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80,
-        f"fp32 BMM not supported in {detect_target()._arch}",
     )
-    def test_perm021fc_crc_bias_fp32(self):
+    def test_perm021fc_crc_bias(self, dtype):
         self._test_perm021fc_crc_bias(
-            test_name="perm021fc_crc_bias_fp32",
-            dtype="float32",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80,
-        f"bf16 BMM not supported in {detect_target()._arch}",
-    )
-    def test_perm021fc_crc_bias_bf16(self):
-        self._test_perm021fc_crc_bias(
-            test_name="perm021fc_crc_bias_bf16",
-            dtype="bfloat16",
+            test_name=f"perm021fc_crc_bias_{dtype}",
+            dtype=dtype,
         )
 
 
