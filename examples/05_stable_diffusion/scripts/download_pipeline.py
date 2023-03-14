@@ -16,7 +16,8 @@ import click
 import torch
 from diffusers import StableDiffusionPipeline
 from aitemplate.utils.import_path import import_parent
-import_parent(filepath=__file__, level=1)
+if __name__ == "__main__":
+    import_parent(filepath=__file__, level=1)
 from src.compile_lib.util import get_work_dir_location_diffusers
 
 
