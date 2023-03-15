@@ -22,7 +22,12 @@ from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
 
-from aitemplate.compiler.base import DynamicProfileStrategy, Tensor
+from aitemplate.compiler.base import (
+    DynamicProfileStrategy,
+    IntImm,
+    JaggedIntVar,
+    Tensor,
+)
 
 from aitemplate.compiler.model import (
     AIT_DEFAULT_NUM_RUNTIMES,
@@ -89,6 +94,43 @@ def _verify_outputs_still_in_graph(sorted_graph: List[Tensor], outputs: List[Ten
             raise ValueError(
                 f"Output {tensor} was not found in the graph after opitmizations."
             )
+
+
+def _mark_isolated_int_vars(sorted_graph: List[Tensor]):
+    """
+    Mark the IntVars that are not present in any input's shape
+    with the _attrs["isolated"] = True flag. The purpose is to
+    be able to distinguish these dynamic dims in the codegen
+    of some of the functions which should set them instead of
+    relying on / validating the pre-set value. To this end,
+    this function must be invoked right before the back-end
+    code generation of the ops.
+
+    One example is the jagged_to_dense op that must set the
+    total_length dimension of the resulting jagged Tensor if
+    it hasn't been set from any of the model input's shape.
+    Another example is the make_jagged op that should set the
+    batch_dim within the JaggedIntVar of the resulting jagged
+    Tensor, unless it has been set already from the inputs.
+    """
+    int_vars = {}
+    int_var_names_in_input_shapes = set()
+    for tensor in sorted_graph:
+        for dim in tensor._attrs["shape"]:
+            if not isinstance(dim, IntImm):
+                name = dim._attrs["name"]
+                int_vars[name] = dim
+                if isinstance(dim, JaggedIntVar):
+                    batch_dim = dim.batch_dim()
+                    int_vars[batch_dim._attrs["name"]] = batch_dim
+                    total_length = dim.total_length()
+                    int_vars[total_length._attrs["name"]] = total_length
+                if tensor._attrs["is_input"]:
+                    int_var_names_in_input_shapes.add(name)
+
+    for name, dim in int_vars.items():
+        if name not in int_var_names_in_input_shapes:
+            dim._attrs["isolated"] = True
 
 
 _DEBUG_SETTINGS = AITDebugSettings()
@@ -225,6 +267,7 @@ def compile_model(
                 workspace,
             ) = compiler.transform.memory_planning(graph)
             _verify_outputs_still_in_graph(graph, output_tensors)
+            _mark_isolated_int_vars(graph)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "memory_planning")
 
             file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
