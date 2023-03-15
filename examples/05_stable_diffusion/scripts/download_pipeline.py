@@ -14,20 +14,17 @@
 #
 import click
 import torch
-from aitemplate.utils.import_path import import_parent
 from diffusers import StableDiffusionPipeline
-
-if __name__ == "__main__":
-    import_parent(filepath=__file__, level=1)
-from src.compile_lib.util import get_work_dir_location_diffusers
 
 
 @click.command()
 @click.option("--token", default="", help="access token")
-def download_pipeline_files(token) -> None:
-
-    save_directory = get_work_dir_location_diffusers()
-
+@click.option(
+    "--save_directory",
+    default="./tmp/diffusers-pipeline/stabilityai/stable-diffusion-v2",
+    help="pipeline files local directory",
+)
+def download_pipeline_files(token, save_directory) -> None:
     StableDiffusionPipeline.from_pretrained(
         "stabilityai/stable-diffusion-2-1-base",
         revision="fp16",

@@ -23,21 +23,22 @@ from diffusers import EulerDiscreteScheduler
 if __name__ == "__main__":
     import_parent(filepath=__file__, level=1)
 
-from src.compile_lib.util import get_work_dir_location_diffusers
 from src.pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 
 
 @click.command()
+@click.option(
+    "--local-dir",
+    default="./tmp/diffusers-pipeline/stabilityai/stable-diffusion-v2",
+    help="the local diffusers pipeline directory",
+)
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
-def run(width, height, prompt, benchmark):
-
-    local_dir = get_work_dir_location_diffusers()
-
+def run(local_dir, width, height, prompt, benchmark):
     pipe = StableDiffusionAITPipeline.from_pretrained(
         local_dir,
         scheduler=EulerDiscreteScheduler.from_pretrained(

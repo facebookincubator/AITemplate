@@ -13,8 +13,8 @@
 #  limitations under the License.
 #
 import inspect
-import os
 
+import os
 import warnings
 from typing import List, Optional, Union
 
@@ -37,7 +37,6 @@ from diffusers.pipelines.stable_diffusion import (
     StableDiffusionPipelineOutput,
     StableDiffusionSafetyChecker,
 )
-from src.compile_lib.util import get_work_dir_location
 
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
@@ -99,8 +98,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             requires_safety_checker=requires_safety_checker,
         )
 
-        workdir = get_work_dir_location()
-
+        workdir = "tmp/"
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir
         )
