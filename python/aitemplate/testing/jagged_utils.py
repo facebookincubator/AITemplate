@@ -312,3 +312,64 @@ def generate_offsets(
 
     torch_offsets_dtype = string_to_torch_dtype(offsets_dtype)
     return torch.tensor(offsets, dtype=torch_offsets_dtype).cuda()
+
+
+def batched_dense_vec_jagged_2d_mul_ref(
+    vectors: torch.Tensor,  # [B, H, N]
+    matrices: torch.Tensor,  # [sum_B(N_B), H, D]
+    offsets: torch.Tensor,  # [B + 1]
+):
+    """
+    Reference function for fbgemm batched_dense_vec_jagged_2d_mul.
+    https://pytorch.org/FBGEMM/python-api/jagged_tensor_ops.html#torch.ops.fbgemm.batched_dense_vec_jagged_2d_mul
+
+    Parameters
+    ----------
+    vecrors: torch.Tensor
+        Batch of vectors of the shape [B, H, N]. N is the maximum
+        sequence length in the jagged Tensor `matrices`. Each vector
+        in the batch is N-sized. The effective batch size is B * H.
+    matrices: torch.Tensor
+        Batch of jagged matrices (in a jagged Tensor) of the shape
+        [sum_B(N_B), H, D]. The first dimension encodes the batch
+        B of sequneces of variable length: from 0 to N. The matrices
+        have variable number of rows (determined by the variable
+        sequence lengths) and fixed number of columns: D. H is a
+        factor of the effective batch size, just pulled to the
+        right of the sum_B(N_B) dimension.
+    offsets: torch.Tensor
+        Rank-1 offsets Tensor describing the single jagged dimension
+        (from 0 to N) in the jagged `matrices`.
+
+    Returns
+    -------
+    torch.Tensor
+        Batch of vectors resulting from the batched vector x jagged
+        matrix multiplication. Shape: [B, H, D] (as N in the `vectors`
+        is contracted with the variable sequence length encoded in the
+        sum_B(N_B) dimension of the `matrices`).
+    """
+    assert vectors.dim() == 3
+    B, H, N = vectors.size()
+
+    assert matrices.dim() == 3
+    assert matrices.size(1) == H
+    D = matrices.size(2)
+
+    assert offsets.dim() == 1
+    assert offsets.size(0) == B + 1
+
+    # pad the jagged matrices with zeros
+    padded_matrices = jagged_to_dense(
+        jagged=matrices,
+        offsets_list=[offsets],
+        dense_shape=[B, N, H, D],
+        padding_value=0.0,
+    )  # [B, N, H, D]
+
+    return torch.matmul(
+        vectors.unsqueeze(dim=2),  # [B, H, 1, N]
+        padded_matrices.permute([0, 2, 1, 3]),  # [B, H, N, D]
+    ).squeeze(
+        dim=2
+    )  # [B, H, D]
