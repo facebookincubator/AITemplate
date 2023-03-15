@@ -106,9 +106,9 @@ def _mark_isolated_int_vars(sorted_graph: List[Tensor]):
     this function must be invoked right before the back-end
     code generation of the ops.
 
-    One example is the jagged_to_dense op that must set the
-    total_length dimension of the resulting jagged Tensor if
-    it hasn't been set from any of the model input's shape.
+    One example is the padded_dense_to_jagged op that must set
+    the total_length dimension of the resulting jagged Tensor
+    if it hasn't been set from any of the model input's shape.
     Another example is the make_jagged op that should set the
     batch_dim within the JaggedIntVar of the resulting jagged
     Tensor, unless it has been set already from the inputs.

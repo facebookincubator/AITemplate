@@ -14,7 +14,7 @@
 #
 
 """
-Define jagged_to_dense op
+Define jagged_to_padded_dense op
 """
 import logging
 from typing import List
@@ -28,14 +28,24 @@ from aitemplate.compiler.base import IntVar, Operator, Tensor
 _LOGGER = logging.getLogger(__name__)
 
 
-class jagged_to_dense(Operator):
+class jagged_to_padded_dense(Operator):
     """
-    Returns a tensor containing the dense format of the input jagged tensor.
+    Returns a dense Tensor "expanded" from the input jagged Tensor.
+    For each of the jagged dimensions (JaggedDims) in the jagged
+    Tensor's first dimension (JaggedIntVar), a separate static
+    dimension (IntImm) equal to the max_value of the jagged
+    dimension is created in the output dense Tensor's shape.
+
+    The values in the output dense Tensor that don't have corresponding
+    values in the input jagged Tensor are set to the padding_value.
+
     Args:
-        x (Tensor): input jagged tensor
-        padding_value (float): the padding value for elements out of jagged shape.
+        x (Tensor): input jagged Tensor.
+        padding_value (float): the padding value for the output dense
+            Tensor's elements that don't have counterparts in the input
+            jagged Tensor.
     Returns:
-        y: a tensor containing the dense format of input jagged tensor.
+        y (Tensor): a dense Tensor expanded from the input jagged Tensor x.
     """
 
     def __init__(
@@ -43,7 +53,7 @@ class jagged_to_dense(Operator):
         padding_value: float = 0,
     ):
         super().__init__()
-        self._attrs["op"] = "jagged_to_dense"
+        self._attrs["op"] = "jagged_to_padded_dense"
         self._attrs["padding_value"] = padding_value
 
     def _infer_shape(self, x: Tensor) -> List[IntVar]:
@@ -64,9 +74,7 @@ class jagged_to_dense(Operator):
         x: Tensor,
     ) -> Tensor:
         if not x.is_jagged():
-            raise RuntimeError(
-                "Input tensor x is expected to be jagged, but actually dense for jagged_to_dense."
-            )
+            raise RuntimeError("Input tensor x must be jagged.")
 
         self._attrs["inputs"] = [x]
         self._set_depth()

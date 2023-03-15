@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 """
-Unittests for the jagged_to_dense op.
+Unittests for the padded_dense_to_jagged op.
 """
 
 import json
@@ -22,7 +22,7 @@ import tempfile
 import unittest
 from typing import List
 
-import aitemplate.testing.jagged_utils as jagged_utils_ref
+import aitemplate.testing.jagged_utils as jagged_utils
 
 import torch
 
@@ -39,8 +39,8 @@ from aitemplate.utils.torch_utils import string_to_torch_dtype
 from parameterized import param, parameterized
 
 
-class DenseToJaggedTestCase(unittest.TestCase):
-    def _test_dense_to_jagged(
+class PaddedDenseToJaggedTestCase(unittest.TestCase):
+    def _test_padded_dense_to_jagged(
         self,
         jagged_max_shape: List[int],
         offsets_list: List[List[int]],
@@ -95,7 +95,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
             is_input=True,
         )
 
-        JAGGED = ops.dense_to_jagged(total_length=total_length_dim)(
+        JAGGED = ops.padded_dense_to_jagged(total_length=total_length_dim)(
             x=DENSE,
             offsets_list=OFFSETS_LIST,
         )
@@ -118,7 +118,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
             [RESULT],
             detect_target(use_jagged_space_indexing=use_jagged_space_indexing),
             "./tmp",
-            f"test_dense_to_jagged_{test_suffix}",
+            f"test_padded_dense_to_jagged_{test_suffix}",
         )
 
         torch_offsets_dtype = string_to_torch_dtype(offsets_dtype)
@@ -127,7 +127,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
             for i, offsets in enumerate(offsets_list)
         }
         dense_pt = get_random_torch_tensor(jagged_max_shape, dtype)
-        result_pt = jagged_utils_ref.dense_to_jagged(
+        result_pt = jagged_utils.dense_to_jagged(
             dense=dense_pt,
             offsets_list=list(offsets_pt.values()),
         )
@@ -151,7 +151,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
             param(7, "int64", [4, 3, 1], "float32"),
         ]
     )
-    def test_dense_to_jagged_single_offsets(
+    def test_padded_dense_to_jagged_single_offsets(
         self,
         i,
         offsets_dtype,
@@ -159,7 +159,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
         dtype,
     ):
         for use_jagged_space_indexing in [False, True]:
-            self._test_dense_to_jagged(
+            self._test_padded_dense_to_jagged(
                 jagged_max_shape=jagged_max_shape,
                 offsets_list=[[0, 1, 4, 6, 7]],
                 dtype=dtype,
@@ -179,7 +179,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
             param(7, "int64", [3, 4, 5, 150, 3, 1], "float32"),
         ]
     )
-    def test_dense_to_jagged_multiple_offsets(
+    def test_padded_dense_to_jagged_multiple_offsets(
         self,
         i,
         offsets_dtype,
@@ -187,7 +187,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
         dtype,
     ):
         for use_jagged_space_indexing in [False, True]:
-            self._test_dense_to_jagged(
+            self._test_padded_dense_to_jagged(
                 jagged_max_shape=jagged_max_shape,
                 offsets_list=[
                     [0, 1, 3, 5],
@@ -200,7 +200,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
                 test_suffix=f"multiple_offsets_{dtype}_{i}",
             )
 
-    def _benchmark_dense_to_jagged(
+    def _benchmark_padded_dense_to_jagged(
         self,
         B: int,
         N: int,
@@ -238,7 +238,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
             )
         ]
 
-        JAGGED = ops.dense_to_jagged(total_length=total_length_dim)(
+        JAGGED = ops.padded_dense_to_jagged(total_length=total_length_dim)(
             x=DENSE,
             offsets_list=OFFSETS_LIST,
         )
@@ -269,13 +269,13 @@ class DenseToJaggedTestCase(unittest.TestCase):
             [RESULT],
             detect_target(use_jagged_space_indexing=use_jagged_space_indexing),
             "./tmp",
-            f"benchmark_dense_to_jagged_{test_suffix}",
+            f"benchmark_padded_dense_to_jagged_{test_suffix}",
         )
 
         random.seed(0)
         load_factors = [i / 20 for i in range(1, 21)]
         offset_tensors = [
-            jagged_utils_ref.generate_offsets(
+            jagged_utils.generate_offsets(
                 batch_size=B,
                 max_seq_len=N,
                 load_factor=load_factor,
@@ -301,13 +301,13 @@ class DenseToJaggedTestCase(unittest.TestCase):
                     filename=f.name,
                 )
                 profiling_data = json.loads(f.read())
-                dense_to_jagged_records = [
+                padded_dense_to_jagged_records = [
                     profiling_data[func_name]
                     for func_name in profiling_data
-                    if func_name.startswith("dense_to_jagged")
+                    if func_name.startswith("padded_dense_to_jagged")
                 ]
-                assert len(dense_to_jagged_records) == 1
-                runtime_ms = dense_to_jagged_records[0]["ms_per_iter"]
+                assert len(padded_dense_to_jagged_records) == 1
+                runtime_ms = padded_dense_to_jagged_records[0]["ms_per_iter"]
 
             dense_item = total_length * D  # total items to read: the jagged volume
             jagged_item = total_length * D  # total items to read: the jagged volume
@@ -328,8 +328,8 @@ class DenseToJaggedTestCase(unittest.TestCase):
                 f"bandwidth: {round(bandwidth, 3)} GB/s"
             )
 
-    def _test_benchmark_dense_to_jagged(self):
-        self._benchmark_dense_to_jagged(
+    def _test_benchmark_padded_dense_to_jagged(self):
+        self._benchmark_padded_dense_to_jagged(
             B=1024,
             N=260,
             D=256,
@@ -337,7 +337,7 @@ class DenseToJaggedTestCase(unittest.TestCase):
             offsets_dtype="int32",
             use_jagged_space_indexing=False,
             isolated_total_length=True,
-            test_suffix="esuhm",
+            test_suffix="benchmark",
         )
 
 

@@ -14,7 +14,7 @@
 #
 
 """
-The front-end definition of the dense_to_jagged op.
+The front-end definition of the padded_dense_to_jagged op.
 """
 from typing import List
 
@@ -24,7 +24,7 @@ from aitemplate.compiler.base import IntImm, IntVar, JaggedDim, Operator, Tensor
 from aitemplate.compiler.ops import make_jagged
 
 
-class dense_to_jagged(Operator):
+class padded_dense_to_jagged(Operator):
     """
     Returns a jagged Tensor "extracted" from the input dense Tensor,
     given the offsets list. The resulting jagged Tensor contains the
@@ -49,7 +49,7 @@ class dense_to_jagged(Operator):
             )
 
         super().__init__()
-        self._attrs["op"] = "dense_to_jagged"
+        self._attrs["op"] = "padded_dense_to_jagged"
         self._attrs["total_length"] = total_length
 
     def _infer_shape(
@@ -102,13 +102,13 @@ class dense_to_jagged(Operator):
         source = Tensor(output_shape, src_ops={self}, dtype=x._attrs["dtype"])
         self._attrs["outputs"] = [source]
 
-        # in the AIT graph, the output of the dense_to_jagged op is set to the
-        # source Tensor, which is still not a jagged Tensor. The source Tensor
+        # in the AIT graph, the output of the padded_dense_to_jagged op is set to
+        # the source Tensor, which is still not a jagged Tensor. The source Tensor
         # is passed through the make_jagged op to obtain the jagged Tensor returned
         # from the __call__: this way, the chain of ops in the graph looks like:
         #
-        #      x --> dense_to_jagged --> source --> make_jagged --> y
-        #                    \------ offsets_list -------/
+        #      x --> padded_dense_to_jagged --> source --> make_jagged --> y
+        #                    \--------- offsets_list ----------/
 
         # the resulting jagged Tensor
         jagged_output = make_jagged(
@@ -124,7 +124,7 @@ class dense_to_jagged(Operator):
 
         # we keep the resulting jagged Tensor's JaggedIntVar around,
         # as we'll need it for the back-end code generation of the
-        # dense_to_jagged op
+        # padded_dense_to_jagged op
         self._attrs["jagged_int_var"] = jagged_output._attrs["shape"][0]
 
         return jagged_output
