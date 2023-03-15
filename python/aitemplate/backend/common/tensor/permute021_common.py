@@ -24,6 +24,7 @@ i.e. Output[d0, ..., dn-3, dn-1, dn-2] = Input[d0, ..., dn-3, dn-2, dn-1]
 from typing import Any, Dict
 
 import jinja2
+from aitemplate.backend.common import tensor_accessor_codegen
 
 # pylint: disable=C0301,W0613,W0612
 
@@ -57,11 +58,13 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 EXEC_TEMPLATE = jinja2.Template(
     """
+{{input_accessor_def}}
 {{indent}}permute021_launcher(
 {{indent}}    in_ptr,
 {{indent}}    out_ptr,
 {{indent}}    rank,
 {{indent}}    x_dims,
+{{indent}}    input_accessor,
 {{indent}}    stream
 {{indent}});
 {{indent}}return;
@@ -78,13 +81,17 @@ SRC_TEMPLATE = jinja2.Template(
 #define CH_K 4
 
 namespace {
+
+{{tensor_accessor_libs}}
+
 template <typename T>
 __global__ void permute021_kernel(T *output,
                                   const T *input,
                                   const int64_t n,
                                   const int32_t h,
                                   const int32_t w,
-                                  const int32_t c) {
+                                  const int32_t c,
+                                  TensorAccessor input_accessor) {
 
   const int32_t hw = h * w;
   const int32_t hwc = hw * c;
@@ -98,24 +105,26 @@ __global__ void permute021_kernel(T *output,
   const int32_t hwi0 = blockIdx.y * TILE_SIZE;
   const int32_t ci0  = blockIdx.x * TILE_SIZE;
 
-  const size_t input_idx = ni * hwc + (hwi0 + wid) * c + ci0;
-  const T *A = input + input_idx;
+  size_t input_idx = ni * hwc + (hwi0 + wid) * c + ci0;
+
+  const T *A = input_accessor.get<const T, const T>(input, input_idx);
+
   if (ci0 + lid < c) {
     const int lid_x_33 = lid * (TILE_SIZE + 1);
     if ((hwi0 + TILE_SIZE) <= hw) {
       int hwi = wid;  // between 0 and 7
       #pragma unroll
       for (int cLoopIdx = 0; cLoopIdx < CH_K; cLoopIdx++) {
-        shbuf[lid_x_33 + hwi] = A[lid];
-        A                     = &A[TILE_SIZE / CH_K * c];
+        shbuf[lid_x_33 + hwi] = *input_accessor.get<const T, const T>(input, input_idx + lid);
+        input_idx += TILE_SIZE / CH_K * c;
         hwi += TILE_SIZE / CH_K;
       }
     } else {
       for (int hwi = wid; hwi < TILE_SIZE; hwi += TILE_SIZE / CH_K) {
         if (hwi + hwi0 < hw) {
-          shbuf[lid_x_33 + hwi] = A[lid];
+          shbuf[lid_x_33 + hwi] = *input_accessor.get<const T, const T>(input, input_idx + lid);
         }
-        A = &A[TILE_SIZE / CH_K * c];
+        input_idx += TILE_SIZE / CH_K * c;
       }
     }
   }
@@ -145,6 +154,7 @@ void permute021_launcher(const void* in_ptr,
                          void* out_ptr,
                          int64_t rank,
                          const int64_t* x_dims,
+                         TensorAccessor input_accessor,
                          {{prefix}}Stream_t stream) {
   int64_t x_dim0 = 1;
   for (int i = 0; i < rank - 2; i++) {
@@ -174,7 +184,8 @@ void permute021_launcher(const void* in_ptr,
     n,
     h,
     w,
-    c
+    c,
+    input_accessor
   );
 }
 } // namespace
@@ -223,14 +234,22 @@ def gen_function(
     """
     func_name = func_attrs["name"]
     x = func_attrs["inputs"][0]
+    tensor_accessor = func_attrs["input_accessors"][0]
     xdtype = x._attrs["dtype"]
-    exec_paths = EXEC_TEMPLATE.render()
+    tensor_accessor_libs = tensor_accessor_codegen.get_libs()
+    input_accessor_name = "input_accessor"
+    input_accessor = tensor_accessor_codegen.TENSOR_ACCESSOR_TEMPLATE.render(
+        name=input_accessor_name, tensor_accessor=tensor_accessor
+    )
+    exec_paths = EXEC_TEMPLATE.render(input_accessor_def=input_accessor)
+
     return SRC_TEMPLATE.render(
         function_name=func_name,
         exec_paths=exec_paths,
         header_files=header_files,
         lib_dtype=backend_spec.dtype_to_lib_type(xdtype),
         prefix=backend_spec.prefix,
+        tensor_accessor_libs=tensor_accessor_libs,
     )
 
 
@@ -281,7 +300,8 @@ def gen_function_call(
     x = func_attrs["inputs"][0]
     y = func_attrs["outputs"][0]
 
-    xshape = x._attrs["shape"]
+    input_accessor = func_attrs["input_accessors"][0]
+    xshape = input_accessor.original_shapes
     x_dims = [dim._attrs["name"] for dim in xshape]
 
     return FUNC_CALL_TEMPLATE.render(

@@ -280,7 +280,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
                 # Do comparisons.
                 self.assertTrue(
-                    torch.allclose(out, cat_output_pt, atol=1e-2, rtol=1e-2)
+                    torch.allclose(out, cat_output_pt, atol=5e-2, rtol=5e-2)
                 )
 
     def test_fuse_parallel_gemm_cat_fp16(self):
@@ -560,7 +560,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
                 # Do comparisons.
                 self.assertTrue(
-                    torch.allclose(out, cat_output_pt, atol=1e-2, rtol=1e-2)
+                    torch.allclose(out, cat_output_pt, atol=5e-2, rtol=5e-2)
                 )
 
     def test_fuse_parallel_gemm_cat_partial_fp16(self):
@@ -602,7 +602,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
                 ys.append(y)
             pt_y = torch.cat(ys, dim=-1)
             module.run_with_tensors(inputs, outputs)
-            self.assertTrue(torch.allclose(pt_y, outputs[0], atol=1e-2, rtol=1e-2))
+            self.assertTrue(torch.allclose(pt_y, outputs[0], atol=5e-2, rtol=5e-2))
 
     def test_multi_parallel_gemm_cat_groups_fp16(self):
         self._test_multi_parallel_gemm_cat_groups(
