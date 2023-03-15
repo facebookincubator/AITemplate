@@ -27,7 +27,7 @@ from aitemplate.utils.mk_cutlass_lib.mk_cutlass_lib import mk_cutlass_lib
 _LOGGER = logging.getLogger(__name__)
 
 
-class Args(object):
+class Args:
     def __init__(self, arch):
         self.operations = "all"
         self.build_dir = ""

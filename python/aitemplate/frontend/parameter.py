@@ -18,7 +18,7 @@ Parameter definition.
 from aitemplate.compiler.base import Tensor
 
 
-class Parameter(object):
+class Parameter:
     def __init__(self, shape, dtype, name=None, value=None):
         self._tensor = Tensor(shape=shape, dtype=dtype, name=name)
         self._value = value

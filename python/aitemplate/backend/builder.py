@@ -268,7 +268,7 @@ class Runner(BaseRunner):
         return ret
 
 
-class Builder(object):
+class Builder:
     """Builder is a module to compile generated source code
     files into binary objects.
     """

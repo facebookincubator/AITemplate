@@ -30,7 +30,7 @@ from aitemplate.compiler.base import IntImm, IntVar, Tensor
 _LOGGER = logging.getLogger(__name__)
 
 
-class TensorAccessor(object):
+class TensorAccessor:
     """
     A tensor accessor which manages how to access a Tensor.
     Must always be used together with a Tensor.

@@ -49,7 +49,7 @@ class TargetType(IntEnum):
     rocm = 2
 
 
-class Target(object):
+class Target:
     def __init__(self, static_files_path: str):
         """
         Parameters

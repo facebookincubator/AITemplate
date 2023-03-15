@@ -36,7 +36,7 @@ from aitemplate.compiler.transform.toposort import toposort
 _LOGGER = logging.getLogger(__name__)
 
 
-class SimpleDisjointSet(object):
+class SimpleDisjointSet:
     def __init__(self):
         self.node_to_list_mapping: Dict[Any, List[Any]] = {}
 
