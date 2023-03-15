@@ -21,12 +21,12 @@ from aitemplate.compiler.ops.tensor.batch_gather import batch_gather
 from aitemplate.compiler.ops.tensor.chunk import chunk
 from aitemplate.compiler.ops.tensor.concatenate import concatenate
 from aitemplate.compiler.ops.tensor.concatenate_tanh import concatenate_tanh
-from aitemplate.compiler.ops.tensor.dense_to_jagged import dense_to_jagged
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice
 from aitemplate.compiler.ops.tensor.expand import expand
 from aitemplate.compiler.ops.tensor.gather import gather
-from aitemplate.compiler.ops.tensor.jagged_to_dense import jagged_to_dense
+from aitemplate.compiler.ops.tensor.jagged_to_padded_dense import jagged_to_padded_dense
 from aitemplate.compiler.ops.tensor.masked_select import masked_select
+from aitemplate.compiler.ops.tensor.padded_dense_to_jagged import padded_dense_to_jagged
 from aitemplate.compiler.ops.tensor.permute import permute
 from aitemplate.compiler.ops.tensor.permute021 import permute021
 from aitemplate.compiler.ops.tensor.permute0213 import permute0213

@@ -29,6 +29,7 @@ from aitemplate.compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Ten
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.utils import alignment as alignment_utils, shape_utils
 
+
 CONSTANT_TEMPLATE = jinja2.Template(
     """
 #define FUSED_ELE_THREAD_SIZE 256
@@ -103,6 +104,7 @@ KERNEL_COMPUTE_DENSE_IDX_THEN_JAGGED_IDX_TEMPLATE = jinja2.Template(
     if (dense_coord >= next_offset - prev_offset) {
         // this element of the dense volume is
         // out of bounds of the jagged Tensor
+        {{out_of_bounds_action}}
         return;
     }
     jagged_coord = prev_offset;
@@ -663,10 +665,10 @@ def _get_alignments_and_sizes_and_dtype(
     return alignments, input_broadcast_sizes, dtype
 
 
-def _get_dynamic_dims(output_accessors: List[TensorAccessor]) -> List[IntVar]:
+def get_dynamic_dims(*shapes: List[List[IntVar]]) -> List[IntVar]:
     res = {}
-    for output_accessor in output_accessors:
-        for dim in output_accessor.original_shapes:
+    for shape in shapes:
+        for dim in shape:
             if not isinstance(dim, IntImm):
                 res[dim._attrs["name"]] = dim
                 if isinstance(dim, JaggedIntVar):
@@ -769,7 +771,7 @@ def _parse_func_metadata(
     sub_func_metadata, op_type = _get_sub_func_metadata(
         ops, data_type, op_type, backend_spec
     )
-    dynamic_dims = _get_dynamic_dims(output_accessors)
+    dynamic_dims = get_dynamic_dims(*[acc.original_shapes for acc in output_accessors])
 
     return FusedElementwiseMetaData(
         inputs,
@@ -791,7 +793,7 @@ def _parse_func_metadata(
     )
 
 
-def _gen_int_var_product_str(
+def gen_int_var_product_str(
     int_vars: List[IntVar],
 ) -> str:
     res = []
@@ -804,6 +806,7 @@ def _gen_int_var_product_str(
             raise RuntimeError(
                 "A dim must be an IntVar! Current type: {}".format(type(int_var))
             )
+
     return " * ".join(res) if res else "1"
 
 
@@ -845,9 +848,9 @@ def _gen_input_broadcast_calculator_str(
         res.append(
             "{} % ({}) / ({}) * ({})".format(
                 idx_str,
-                _gen_int_var_product_str(output_num_element),
-                _gen_int_var_product_str(output_stride),
-                _gen_int_var_product_str(input_stride),
+                gen_int_var_product_str(output_num_element),
+                gen_int_var_product_str(output_stride),
+                gen_int_var_product_str(input_stride),
             )
         )
 
@@ -890,37 +893,56 @@ def _gen_input_broadcast_size_str(
     return res
 
 
-def _gen_dynamic_dim_str(
-    index_type: str, dynamic_dims: List[IntVar], has_type: bool
+def gen_dynamic_dim_str(
+    index_type: str,
+    dynamic_dims: List[IntVar],
+    has_type: bool,
 ) -> str:
     type_str = index_type + " " if has_type else ""
     res = ", ".join([type_str + dim._attrs["name"] for dim in dynamic_dims])
     if res:
         res += ", "
+
     return res
 
 
-def _gen_offsets_str(
-    fused_elementwise_metadata: FusedElementwiseMetaData,
+def gen_offsets_str(
+    jagged_int_var: JaggedIntVar,
     has_type: bool,
     const_ref: bool,
     name: Optional[str] = None,
 ) -> str:
-    offsets = ""
+    offsets_var_name = jagged_int_var.offsets_var_name()
+    offsets_struct_type = jagged_int_var.offsets_struct_type()
+
+    ref_prefix = "const " if const_ref else ""
+    ref_suffix = "&" if const_ref else ""
+    arg_type = f"{ref_prefix}{offsets_struct_type}{ref_suffix} " if has_type else ""
+    arg_name = name if name is not None else offsets_var_name
+    offsets = f"{arg_type}{arg_name}, "
+
+    return offsets
+
+
+def _gen_offsets_str_from_metadata(
+    fused_elementwise_metadata: FusedElementwiseMetaData,
+    has_type: bool,
+    const_ref: bool,
+    name: Optional[str] = None,
+):
     if fused_elementwise_metadata.mixed_jagged_dense_indexing:
         inputs = fused_elementwise_metadata.inputs
         jagged_input = [t for t in inputs if t.is_jagged()][0]
         jagged_int_var = jagged_input._attrs["shape"][0]
-        offsets_var_name = jagged_int_var.offsets_var_name()
-        offsets_struct_type = jagged_int_var.offsets_struct_type()
 
-        ref_prefix = "const " if const_ref else ""
-        ref_suffix = "&" if const_ref else ""
-        arg_type = f"{ref_prefix}{offsets_struct_type}{ref_suffix} " if has_type else ""
-        arg_name = name if name is not None else offsets_var_name
-        offsets = f"{arg_type}{arg_name}, "
-
-    return offsets
+        return gen_offsets_str(
+            jagged_int_var=jagged_int_var,
+            has_type=has_type,
+            const_ref=const_ref,
+            name=name,
+        )
+    else:
+        return ""
 
 
 def _gen_num_elements_calculator(
@@ -931,7 +953,7 @@ def _gen_num_elements_calculator(
             # for the jagged space indexing, the num_elements
             # is the number of elements in the output jagged Tensor, hence
             # the usage of the output shape here, not the output volume
-            return _gen_int_var_product_str(
+            return gen_int_var_product_str(
                 fused_elementwise_metadata.output_accessors[0].original_shapes,
             )
         else:
@@ -939,13 +961,13 @@ def _gen_num_elements_calculator(
             # is the number of elements in the output volume: the smallest
             # rectangular volume that fits the output jagged Tensor, hence
             # the usage of the output volume here, not the output shape
-            return _gen_int_var_product_str(
+            return gen_int_var_product_str(
                 fused_elementwise_metadata.output_volume,
             )
     else:
         # all inputs and outputs are treated as dense:
         # use the output shape for computing num_elements
-        return _gen_int_var_product_str(
+        return gen_int_var_product_str(
             fused_elementwise_metadata.output_accessors[0].original_shapes,
         )
 
@@ -1033,18 +1055,16 @@ def _gen_write_outputs_str(
     return write_outputs_str
 
 
-def _get_output_volume_strides(
-    output_volume: List[IntVar],
-) -> List[str]:
+def get_stride_expressions(shape: List[IntVar]) -> List[str]:
     """
     Generate the stride expressions for each of the dimensions
-    of the output volume. A stride expression here means the
+    of the shape. A stride expression here means the
     product of all dimensions following the given dimension.
     The order of the stride expressions in the returned list
-    is the same as of the dimensions of the output volume.
+    is the same as of the dimensions of the shape.
     """
     strides = []
-    for dim in reversed(output_volume[1:]):
+    for dim in reversed(shape[1:]):
         str_dim = str(dim.value()) if isinstance(dim, IntImm) else dim._attrs["name"]
         if strides:
             strides.append(f"{strides[-1]} * {str_dim}")
@@ -1076,7 +1096,7 @@ def _gen_compute_idx(
         return compute_idx_template.render(
             index_type=index_type,
             num_offsets=num_offsets,
-            strides=_get_output_volume_strides(
+            strides=get_stride_expressions(
                 fused_elementwise_metadata.output_volume,
             ),
             offsets_type=jagged_int_var.offsets_type(),
@@ -1152,12 +1172,12 @@ def _gen_kernel_function(
         index_type=index_type,
         output_params=output_params_decl,
         input_params=input_params_decl,
-        dynamic_dims=_gen_dynamic_dim_str(
+        dynamic_dims=gen_dynamic_dim_str(
             index_type,
             fused_elementwise_metadata.dynamic_dims,
             has_type=True,
         ),
-        offsets=_gen_offsets_str(
+        offsets=_gen_offsets_str_from_metadata(
             fused_elementwise_metadata,
             has_type=True,
             # the offsets are passed
@@ -1267,17 +1287,17 @@ def fused_elementwise_gen_function(
         func_name=func_attrs["name"],
         output_params=output_params_decl,
         input_params=input_params_decl,
-        dynamic_dims_decl=_gen_dynamic_dim_str(
+        dynamic_dims_decl=gen_dynamic_dim_str(
             backend_spec.index_type,
             fused_elementwise_metadata.dynamic_dims,
             has_type=True,
         ),
-        dynamic_dims_call=_gen_dynamic_dim_str(
+        dynamic_dims_call=gen_dynamic_dim_str(
             backend_spec.index_type,
             fused_elementwise_metadata.dynamic_dims,
             has_type=False,
         ),
-        offsets_decl=_gen_offsets_str(
+        offsets_decl=_gen_offsets_str_from_metadata(
             fused_elementwise_metadata,
             has_type=True,
             # the offsets are passed
@@ -1285,7 +1305,7 @@ def fused_elementwise_gen_function(
             const_ref=True,
             name="offsets",
         ),
-        offsets_call=_gen_offsets_str(
+        offsets_call=_gen_offsets_str_from_metadata(
             fused_elementwise_metadata,
             has_type=False,
             const_ref=False,
@@ -1340,12 +1360,12 @@ def fused_elementwise_gen_function_decl(
         func_name=func_name,
         output_params=output_params_decl,
         input_params=input_params_decl,
-        dynamic_dims=_gen_dynamic_dim_str(
+        dynamic_dims=gen_dynamic_dim_str(
             backend_spec.index_type,
             fused_elementwise_metadata.dynamic_dims,
             has_type=True,
         ),
-        offsets=_gen_offsets_str(
+        offsets=_gen_offsets_str_from_metadata(
             fused_elementwise_metadata,
             has_type=True,
             const_ref=True,
@@ -1392,12 +1412,12 @@ def fused_elementwise_gen_function_call(
         ),
         output_params=output_params,
         input_params=input_params,
-        dynamic_dims=_gen_dynamic_dim_str(
+        dynamic_dims=gen_dynamic_dim_str(
             backend_spec.index_type,
             fused_elementwise_metadata.dynamic_dims,
             has_type=False,
         ),
-        offsets=_gen_offsets_str(
+        offsets=_gen_offsets_str_from_metadata(
             fused_elementwise_metadata,
             has_type=False,
             const_ref=False,
