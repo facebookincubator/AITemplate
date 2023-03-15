@@ -18,11 +18,13 @@ import unittest
 
 import torch
 
+from aitemplate import compiler
 from aitemplate.compiler import compile_model, ops
-from aitemplate.compiler.base import IntVar, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, JaggedDim, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op
+from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op, has_op
+from aitemplate.utils import graph_utils
 from parameterized import param, parameterized
 
 
@@ -165,6 +167,53 @@ class ExpandTestCase(unittest.TestCase):
             test_name="no_op_expands_removed_size_op_fp32",
             dtype="float32",
         )
+
+    def test_no_op_expand_elementwise_jagged_dense_inputs(self):
+        total_length = IntVar([1, 100])
+        batch_dim = IntVar([1, 10])
+        offsets_dim = IntVar([2, 11])
+        embedding_dim = IntImm(128)
+        max_seq_len = 10
+
+        X = Tensor(
+            [batch_dim, 1, embedding_dim],
+            name="x",
+            is_input=True,
+            dtype="float16",
+        )
+        SOURCE = Tensor(
+            [total_length, embedding_dim],
+            name="source",
+            is_input=True,
+            dtype="float16",
+        )
+        OFFSETS_LIST = [
+            Tensor(
+                shape=[offsets_dim],
+                name="offsets",
+                is_input=True,
+                dtype="int32",
+            )
+        ]
+
+        JAGGED = ops.make_jagged(
+            batch_dim=batch_dim,
+            jagged_dims=[
+                JaggedDim(0, max_seq_len),
+            ],
+        )(
+            source=SOURCE,
+            offsets_list=OFFSETS_LIST,
+        )
+
+        Y = ops.expand()(X, [batch_dim, max_seq_len, -1])
+        Z = ops.elementwise(FuncEnum.MUL)(JAGGED, Y)
+
+        graph = compiler.transform.toposort([Z])
+        compiler.transform.remove_no_ops(graph)
+        sorted_ops = graph_utils.get_sorted_ops(graph)
+
+        assert not has_op(sorted_ops, "expand")
 
     @parameterized.expand(
         [
