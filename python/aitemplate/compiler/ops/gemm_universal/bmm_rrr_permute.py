@@ -20,7 +20,7 @@ from typing import Tuple
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common import reshape
-from aitemplate.compiler.ops.gemm_universal import bmm_rrr
+from aitemplate.compiler.ops.gemm_universal.bmm_xxx import bmm_rrr
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0223,W0221,W0613
