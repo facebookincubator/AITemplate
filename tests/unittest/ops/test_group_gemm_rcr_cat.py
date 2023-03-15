@@ -20,7 +20,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 from parameterized import param, parameterized
 
 
@@ -32,7 +35,7 @@ class GroupGEMMRcrCatTestCase(unittest.TestCase):
     @parameterized.expand(
         [
             param("group_gemm_rcr_cat_fp16", "float16"),
-            param("group_gemm_rcr_cat_fp32", "float32"),
+            param("group_gemm_rcr_cat_fp32_sm80", "float32"),
             param("group_gemm_rcr_cat_bf16", "bfloat16"),
         ]
     )
@@ -43,9 +46,6 @@ class GroupGEMMRcrCatTestCase(unittest.TestCase):
         K2 = 192
         N2 = 64
         target = detect_target()
-        if int(target._arch) < 80:
-            _LOGGER.warning("Group Gemm need SM80 HW")
-            return
         X1 = Tensor(shape=[M, K1], dtype=dtype, name="x1", is_input=True)
         X2 = Tensor(shape=[M, K2], dtype=dtype, name="x2", is_input=True)
         W1 = Tensor(shape=[N1, K1], dtype=dtype, name="w1", is_input=True)
@@ -78,6 +78,8 @@ class GroupGEMMRcrCatTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         torch.testing.assert_close(Y_pt, y, atol=1e-1, rtol=1e-1)
 
+
+filter_test_cases_by_test_env(GroupGEMMRcrCatTestCase)
 
 if __name__ == "__main__":
     unittest.main()
