@@ -15,14 +15,13 @@
 from collections import OrderedDict
 
 import numpy as np
-
 import torch
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.vae import AutoencoderKL as ait_AutoencoderKL
-from .util import mark_output
+from .util import get_work_dir_location, mark_output
 
 
 def map_vae_params(ait_module, pt_module, batch_size, seq_len):
@@ -131,10 +130,13 @@ def compile_vae(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
+
+    workdir = get_work_dir_location()
+
     compile_model(
         Y,
         target,
-        "./tmp",
+        workdir,
         "AutoencoderKL",
         constants=params_ait,
     )

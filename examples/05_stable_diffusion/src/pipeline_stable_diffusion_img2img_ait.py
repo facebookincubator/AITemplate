@@ -36,6 +36,7 @@ from diffusers.pipelines.stable_diffusion import (
     StableDiffusionPipelineOutput,
     StableDiffusionSafetyChecker,
 )
+from src.compile_lib.util import get_work_dir_location
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
 
@@ -109,7 +110,8 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             feature_extractor=feature_extractor,
         )
 
-        workdir = "tmp/"
+        workdir = get_work_dir_location()
+
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir
         )

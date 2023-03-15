@@ -21,7 +21,7 @@ from aitemplate.testing import detect_target
 from ..modeling.unet_2d_condition import (
     UNet2DConditionModel as ait_UNet2DConditionModel,
 )
-from .util import mark_output
+from .util import get_work_dir_location, mark_output
 
 
 def map_unet_params(pt_mod, dim):
@@ -85,4 +85,7 @@ def compile_unet(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    compile_model(Y, target, "./tmp", "UNet2DConditionModel", constants=params_ait)
+
+    workdir = get_work_dir_location()
+
+    compile_model(Y, target, workdir, "UNet2DConditionModel", constants=params_ait)

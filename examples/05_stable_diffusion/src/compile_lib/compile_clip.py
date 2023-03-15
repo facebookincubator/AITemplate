@@ -19,7 +19,7 @@ from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
-from .util import mark_output
+from .util import get_work_dir_location, mark_output
 
 
 def map_clip_params(pt_mod, batch_size, seqlen, depth):
@@ -117,4 +117,7 @@ def compile_clip(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    compile_model(Y, target, "./tmp", "CLIPTextModel", constants=params_ait)
+
+    workdir = get_work_dir_location()
+
+    compile_model(Y, target, workdir, "CLIPTextModel", constants=params_ait)
