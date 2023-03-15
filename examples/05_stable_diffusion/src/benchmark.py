@@ -22,17 +22,10 @@ import torch
 from aitemplate.compiler import Model
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
-from compile_lib.util import (
-    get_file_location_autoencoder,
-    get_file_location_clip,
-    get_file_location_unet,
-    get_work_dir_location_diffusers,
-)
 from diffusers import StableDiffusionPipeline
 
 from torch import autocast
 from transformers import CLIPTokenizer
-
 
 USE_CUDA = detect_target().name() == "cuda"
 
@@ -63,9 +56,7 @@ def benchmark_unet(
     verify=False,
 ):
 
-    file_name = get_file_location_unet()
-
-    exe_module = Model(file_name)
+    exe_module = Model("./tmp/UNet2DConditionModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for UNet2DConditionModel.")
         exit(-1)
@@ -140,10 +131,7 @@ def benchmark_clip(
 ):
     mask_seq = 0
 
-    file_name = get_file_location_clip()
-
-    exe_module = Model(file_name)
-
+    exe_module = Model("./tmp/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
         exit(-1)
@@ -217,9 +205,7 @@ def benchmark_vae(
 
     latent_channels = 4
 
-    file_name = get_file_location_autoencoder()
-
-    exe_module = Model(file_name)
+    exe_module = Model("./tmp/AutoencoderKL/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for AutoencoderKL.")
         exit(-1)
@@ -295,8 +281,6 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
-
-    local_dir = get_work_dir_location_diffusers()
 
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
