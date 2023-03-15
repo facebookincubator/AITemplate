@@ -94,7 +94,7 @@ class IntVar(Node):
 
         Parameters
         ----------
-        values : list[int]
+        values : List[int]
             A list of possible values of this dynamic dimension.
             len(values) must be >= 2.
 

@@ -25,10 +25,9 @@ import os
 import re
 import shlex
 import subprocess
-import typing
 from hashlib import sha1
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional, Tuple, Union
 
 import jinja2
 
@@ -224,12 +223,12 @@ class Runner(BaseRunner):
     Runner is inherited from BaseRunner.
     """
 
-    def __init__(self, devs: list[int], timeout: int = 10):
+    def __init__(self, devs: List[int], timeout: int = 10):
         """Initialize a parallel runner for building
 
         Parameters
         ----------
-        devs : list[int]
+        devs : List[int]
             CPU ids for compiling
         timeout : int, optional
             Compiling timeout, by default 10 (seconds)
@@ -241,7 +240,7 @@ class Runner(BaseRunner):
         self._ftask_proc = process_task
         self._fret_proc = process_return
 
-    def push(self, idx: typing.Union[int, str], cmd: str, target: Target) -> None:
+    def push(self, idx: Union[int, str], cmd: str, target: Target) -> None:
         """Push a building task into runner
 
         Parameters
@@ -255,7 +254,7 @@ class Runner(BaseRunner):
         """
         self._queue.append(Task(idx, cmd, target, shell=True))
 
-    def pull(self) -> list[None]:
+    def pull(self) -> List:
         """Pull building results.
         Check whether all building tasks are successful.
 
@@ -296,7 +295,7 @@ class Builder(object):
 
     def build_objs(
         self,
-        files: list[typing.Tuple[str, str]],
+        files: List[Tuple[str, str]],
         cc_cmd: str,
         binary_cc_cmd: Optional[str] = None,
     ):
@@ -304,7 +303,7 @@ class Builder(object):
 
         Parameters
         ----------
-        files : list[Tuple[str, str]]
+        files : List[Tuple[str, str]]
             list of tuples of source code path and object file path
         cc_cmd : str
             command line template for building objects
@@ -345,14 +344,14 @@ class Builder(object):
         self._runner.join()
         self._runner.pull()
 
-    def build_so(self, target: Target, objs: list[str]):
+    def build_so(self, target: Target, objs: List[str]):
         """Generate a task to build all objects into a dynamic library
 
         Parameters
         ----------
         target : Target
             Device target of dynamic library
-        objs : list[str]
+        objs : List[str]
             List of all object file paths for building the dynamic library.
         """
         _LOGGER.info("Building " + target)

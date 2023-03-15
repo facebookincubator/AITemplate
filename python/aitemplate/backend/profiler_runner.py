@@ -23,10 +23,9 @@ import os
 
 import re
 import subprocess
-import typing
 from collections import namedtuple
 from queue import Queue
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Union
 
 from aitemplate.backend.target import Target
 from aitemplate.backend.task_runner import BaseRunner, Task
@@ -57,7 +56,7 @@ def optimization_key(result):
 def extract_profile_result(
     stdout,
     return_ops=None,
-) -> Tuple[ProfileResult | List[ProfileResult], bool]:
+) -> Tuple[Union[ProfileResult, List[ProfileResult]], bool]:
     failed = False
     try:
         runtimes = PROF_RUNTIME_PATTERN.findall(stdout)
@@ -148,7 +147,7 @@ def process_task(task: Task) -> None:
             )
 
 
-def process_return(task: Task) -> typing.Tuple[typing.Union[int, str], ProfileResult]:
+def process_return(task: Task) -> Tuple[Union[int, str], ProfileResult]:
     """Generate profile result from a profiling task
 
     Parameters
@@ -169,14 +168,14 @@ class Runner(BaseRunner):
     Runner is inherited from BaseRunner.
     """
 
-    def __init__(self, devs: list[int], op_name: str, timeout: int = 30):
+    def __init__(self, devs: List[int], op_name: str, timeout: int = 30):
         _LOGGER.info("Using {n} GPU for profiling {op}".format(n=len(devs), op=op_name))
         super().__init__(devs, op_name, timeout)
         self._dev_flag = Target.current().dev_select_flag()
         self._ftask_proc = process_task
         self._fret_proc = process_return
 
-    def push(self, idx: typing.Union[int, str], cmd: str, return_ops: List[str] = None):
+    def push(self, idx: Union[int, str], cmd: str, return_ops: List[str] = None):
         """Push a new profiling task into runner's queue
 
         Parameters
@@ -185,7 +184,7 @@ class Runner(BaseRunner):
             Profiling task id (usually is algorithm id or name)
         cmd : str
             Bash command to execute the profiling task
-        return_ops : list[str]
+        return_ops : List[str]
             Names of the ops to return the profiling results for. If specified,
             instead of a single (best) ProfileResult instance, a list with the
             ProfileResults for each op in the return_ops is returned from `pull`.
@@ -205,7 +204,7 @@ class Runner(BaseRunner):
 
         Returns
         -------
-        list[Tuple[Union[int, str], ProfileResult]]
+        List[Tuple[Union[int, str], ProfileResult]]
             Profiling results of all successful tasks.
         """
         ret = super().pull(self._ftask_proc, self._fret_proc)
