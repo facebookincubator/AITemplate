@@ -103,6 +103,46 @@ class SlicePermute021FusionTestCase(unittest.TestCase):
         self._test_slice_permute021_fusion(
             N=2,
             K=2,
+            slice_input_shape=(2, 2, 8),
+            slice_start_indices=(0, 1, 0),
+            slice_end_indices=(2, 3, 8),
+            dims=(0, 2, 1),
+            test_name="slice_permute021",
+            dtype="float16",
+        )
+        self._test_slice_permute021_fusion(
+            N=2,
+            K=2,
+            slice_input_shape=[2, 9, 4],
+            slice_start_indices=[0, 0, 1],
+            slice_end_indices=[None, None, 3],
+            dims=(0, 2, 1),
+            test_name="slice_permute021",
+            dtype="float16",
+        )
+        self._test_slice_permute021_fusion(
+            N=2,
+            K=2,
+            slice_input_shape=[120, 1211, 1200],
+            slice_start_indices=[0, 0, 3],
+            slice_end_indices=[None, None, 1100],
+            dims=(0, 2, 1),
+            test_name="slice_permute021",
+            dtype="float16",
+        )
+        self._test_slice_permute021_fusion(
+            N=2,
+            K=2,
+            slice_input_shape=[123, 1211, 1200],
+            slice_start_indices=[0, 5, 0],
+            slice_end_indices=[None, 1200, None],
+            dims=(0, 2, 1),
+            test_name="slice_permute021",
+            dtype="float16",
+        )
+        self._test_slice_permute021_fusion(
+            N=2,
+            K=2,
             slice_input_shape=(2, 3, 8, 62),
             slice_start_indices=(0, 0, 0, 2),
             slice_end_indices=(2, 3, 8, 50),
