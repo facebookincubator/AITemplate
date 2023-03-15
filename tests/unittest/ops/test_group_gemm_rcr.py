@@ -20,7 +20,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 from parameterized import param, parameterized
 
 
@@ -92,6 +95,8 @@ class GroupGEMMRcrTestCase(unittest.TestCase):
         if run_twice:
             torch.testing.assert_close(Y1_pt, outputs["y3"], atol=1e-1, rtol=1e-1)
 
+
+filter_test_cases_by_test_env(GroupGEMMRcrTestCase)
 
 if __name__ == "__main__":
     unittest.main()
