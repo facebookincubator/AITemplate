@@ -15,19 +15,21 @@
 
 """
 A stable set is like a Python set which produces deterministic results.
-It also tries to preserve the original element order as much as possible, which could
+It also tries to preserve the original element order by using OrderedDict, which could
 potentially make debugging (e.g. comparison with the original graph, comparison between
 AIT GPU trace and other GPU traces) easier.
 """
 
+from collections import OrderedDict
 from typing import Any, Sequence
 
 
 class StableSet:
     def __init__(self, s: Sequence[Any] = None):
-        if s is None:
-            s = []
-        self._d = {item: None for item in s}
+        self._d = OrderedDict()
+        if s:
+            for item in s:
+                self._d[item] = None
 
     def add(self, value) -> None:
         self._d[value] = None
