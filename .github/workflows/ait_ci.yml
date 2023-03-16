@@ -33,7 +33,7 @@ jobs:
         rocm-smi
         rocminfo | grep "gfx"
         export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
-        git clone --recursive -b $GIT_BRANCH https://github.com/ROCmSoftwarePlatform/AITemplate.git
+        git clone --recursive -b $GIT_BRANCH https://github.com/facebookincubator/AITemplate.git
         cd AITemplate
         DOCKER_BUILDKIT=1 ./docker/build.sh rocm
         docker run --network=host --device=/dev/kfd --device=/dev/dri --ipc=host --group-add video --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v $HOME:/dockerx/ ait:latest
