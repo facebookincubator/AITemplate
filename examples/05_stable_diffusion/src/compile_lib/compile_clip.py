@@ -23,14 +23,7 @@ from .util import mark_output
 
 
 def map_clip_params(pt_mod, batch_size, seqlen, depth):
-
-    params_pt = list(pt_mod.named_parameters())
-
     params_ait = {}
-    pt_params = {}
-    for key, arr in params_pt:
-        pt_params[key.replace("text_model.", "")] = arr
-
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():
         name = key.replace("text_model.", "")
@@ -67,11 +60,11 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
             continue
         params_ait[ait_name] = arr
 
-        if detect_target().name() == "cuda":
-            for i in range(depth):
-                prefix = "encoder_layers_%d_self_attn_cu_length" % (i)
-                cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
-                params_ait[prefix] = torch.from_numpy(cu_len).cuda()
+    if detect_target().name() == "cuda":
+        for i in range(depth):
+            prefix = f"encoder_layers_{i}_self_attn_cu_length"
+            cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
+            params_ait[prefix] = torch.from_numpy(cu_len).cuda()
 
     return params_ait
 
