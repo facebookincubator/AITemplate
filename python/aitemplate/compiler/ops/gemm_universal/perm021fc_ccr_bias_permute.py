@@ -55,7 +55,9 @@ class perm021fc_ccr_bias_permute(perm021fc_ccr_bias):
     def __call__(self, a: Tensor, b: Tensor, bias: Tensor) -> Tensor:
         a, b = self._align_ab(a, b)
         self._attrs["inputs"] = [a, b, bias]
-        self._attrs["input_accessors"] = [TensorAccessor(a), TensorAccessor(b)]
+        self._attrs["input_accessors"] = [
+            TensorAccessor(tensor) for tensor in self._attrs["inputs"]
+        ]
         self._set_depth()
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b, bias)
