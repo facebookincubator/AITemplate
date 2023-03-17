@@ -20,8 +20,14 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
 from aitemplate.utils import shape_utils
+from parameterized import parameterized
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -87,30 +93,18 @@ class SplitGetItemTestCase(unittest.TestCase):
             module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_split_getitem_fp16(self):
-        self._test_split_getitem(
-            test_name="split_getitem_fp16",
-            dtype="float16",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
         )
-        self._test_split_getitem(
-            batch_size=[5],
-            X_shape=(16, 32),
-            split_sections=[8, 20, 4],
-            split_dim=2,
-            item_idx=1,
-            test_name="split_getitem_fp16",
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80,
-        f"fp32 BMM not supported in {detect_target()._arch}",
     )
-    def test_split_getitem_fp32(self):
+    def test_split_getitem(self, dtype):
         self._test_split_getitem(
-            test_name="split_getitem_fp32",
-            dtype="float32",
+            test_name=f"split_getitem_{dtype}",
+            dtype=dtype,
         )
         self._test_split_getitem(
             batch_size=[5],
@@ -118,8 +112,8 @@ class SplitGetItemTestCase(unittest.TestCase):
             split_sections=[8, 20, 4],
             split_dim=2,
             item_idx=1,
-            test_name="split_getitem_fp32",
-            dtype="float32",
+            test_name=f"split_getitem_{dtype}",
+            dtype=dtype,
         )
 
     def _test_split_getitem_output(
@@ -161,10 +155,18 @@ class SplitGetItemTestCase(unittest.TestCase):
             module.run_with_tensors([X_pt], [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_split_getitem_output_fp16(self):
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
+        )
+    )
+    def test_split_getitem_output(self, dtype):
         self._test_split_getitem_output(
             test_name="split_getitem_output",
-            dtype="float16",
+            dtype=dtype,
         )
         self._test_split_getitem_output(
             batch_size=[10],
@@ -173,23 +175,7 @@ class SplitGetItemTestCase(unittest.TestCase):
             split_dim=2,
             item_idx=1,
             test_name="split_getitem_output",
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_split_getitem_output_fp32(self):
-        self._test_split_getitem_output(
-            test_name="split_getitem_output_fp32",
-            dtype="float32",
-        )
-        self._test_split_getitem_output(
-            batch_size=[10],
-            X_shape=(16, 31),
-            split_sections=[9, 19, 3],
-            split_dim=2,
-            item_idx=1,
-            test_name="split_getitem_output_fp32",
-            dtype="float32",
+            dtype=dtype,
         )
 
     def _test_split_multiple_getitems(
@@ -259,33 +245,26 @@ class SplitGetItemTestCase(unittest.TestCase):
             module.run_with_tensors({"input_0": X_pt, "input_2": X2_pt}, [y])
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_split_mutiple_getitems_fp16(self):
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
+        )
+    )
+    def test_split_mutiple_getitems(self, dtype):
         self._test_split_multiple_getitems(
-            test_name="split_multiple_getitems_fp16",
-            dtype="float16",
+            test_name=f"split_multiple_getitems_{dtype}",
+            dtype=dtype,
         )
         self._test_split_multiple_getitems(
             batch_size=[10],
             X_shape=(16, 31),
             split_sections=[9, 9, 13],
             split_dim=2,
-            test_name="split_multiple_getitems_fp16",
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_split_mutiple_getitems_fp32(self):
-        self._test_split_multiple_getitems(
-            test_name="split_multiple_getitems_fp32",
-            dtype="float32",
-        )
-        self._test_split_multiple_getitems(
-            batch_size=[10],
-            X_shape=(16, 31),
-            split_sections=[9, 9, 13],
-            split_dim=2,
-            test_name="split_multiple_getitems_fp32",
-            dtype="float32",
+            test_name=f"split_multiple_getitems_{dtype}",
+            dtype=dtype,
         )
 
 

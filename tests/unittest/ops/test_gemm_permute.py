@@ -27,9 +27,29 @@ from aitemplate.utils import shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class GEMMTestCase(unittest.TestCase):
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
+class GEMMPermuteTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
+    def __init__(self, *args, **kwargs):
+        super(GEMMPermuteTestCase, self).__init__(*args, **kwargs)
+        self._test_id = 0
+
     def _test_rcr(
-        self, ms, k, n, shape, test_name, has_bias=False, copy_op=False, dtype="float16"
+        self,
+        ms,
+        k,
+        n,
+        shape,
+        test_name,
+        has_bias=False,
+        copy_op=False,
+        dtype="float16",
     ):
         target = detect_target()
         X = Tensor(
@@ -52,7 +72,8 @@ class GEMMTestCase(unittest.TestCase):
             Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"gemm_rcr_{test_name}")
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         for m in ms:
             X_pt = get_random_torch_tensor([m, k], dtype)
@@ -80,7 +101,7 @@ class GEMMTestCase(unittest.TestCase):
                     32,
                     96,
                     (5, 3, 2),
-                    "permute1",
+                    f"test_rcr_float16_{has_bias}_{copy_op}_1",
                     has_bias=has_bias,
                     copy_op=copy_op,
                 )
@@ -89,7 +110,7 @@ class GEMMTestCase(unittest.TestCase):
                     64,
                     256,
                     (8, 4, 4),
-                    "permute2",
+                    f"test_rcr_float16_{has_bias}_{copy_op}_2",
                     has_bias=has_bias,
                     copy_op=copy_op,
                 )
@@ -127,7 +148,8 @@ class GEMMTestCase(unittest.TestCase):
             Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"gemm_rcr_{test_name}")
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         for m in ms:
             X_pt = get_random_torch_tensor([m, k], dtype)
@@ -168,7 +190,7 @@ class GEMMTestCase(unittest.TestCase):
             256,
             4000000,
             [54, 1000000],
-            "permute_0213_1",
+            "test_rcr_0213_float16_1",
             has_bias=False,
             copy_op=False,
             layout="0213",
@@ -178,13 +200,22 @@ class GEMMTestCase(unittest.TestCase):
             256,
             300000,
             [29, 100000],
-            "permute_0213_2",
+            "test_rcr_0213_float16_2",
             has_bias=False,
             copy_op=False,
             layout="0213",
         )
 
-    def _test_rrr(self, ms, k, n, shape, test_name, copy_op=False, dtype="float16"):
+    def _test_rrr(
+        self,
+        ms,
+        k,
+        n,
+        shape,
+        test_name,
+        copy_op=False,
+        dtype="float16",
+    ):
         target = detect_target()
         X = Tensor(
             shape=[shape_utils.gen_int_var_min_max(ms), k],
@@ -199,7 +230,8 @@ class GEMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "gemm_rrr_{}".format(test_name))
+        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        self._test_id += 1
 
         for m in ms:
             X_pt = get_random_torch_tensor([m, k], dtype)
@@ -213,85 +245,86 @@ class GEMMTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
     def test_rrr(self):
-        self._test_rrr([80], 32, 96, (5, 3, 2), "permute1")
-        self._test_rrr([128], 64, 256, (8, 4, 4), "permute2")
-        self._test_rrr([128], 64, 256, (8, 4, 4), "permute2_copy_op", copy_op=True)
-
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_permute_float(self):
-        for has_bias in (True, False):
-            for copy_op in (True, False):
-                self._test_rcr(
-                    [80],
-                    32,
-                    96,
-                    (5, 3, 2),
-                    "permute1_float",
-                    has_bias=has_bias,
-                    copy_op=copy_op,
-                    dtype="float",
-                )
-        self._test_rcr_0213(
-            [29, 29 * 8],
-            256,
-            300000,
-            [29, 100000],
-            "permute_0213_2_float",
-            has_bias=False,
-            copy_op=False,
-            layout="0213",
-            dtype="float",
+        self._test_rrr(
+            [80],
+            32,
+            96,
+            (5, 3, 2),
+            "test_rrr_float16_1",
         )
-        self._test_rrr([128], 64, 256, (8, 4, 4), "permute2_float", dtype="float")
         self._test_rrr(
             [128],
             64,
             256,
             (8, 4, 4),
-            "permute2_copy_op_float",
+            "test_rrr_float16_2",
+        )
+        self._test_rrr(
+            [128],
+            64,
+            256,
+            (8, 4, 4),
+            "test_rrr_float16_2_copy_op",
             copy_op=True,
-            dtype="float",
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_permute_bfloat16(self):
+    def test_permute_float32(self):
         for has_bias in (True, False):
-            for copy_op in (True, False):
-                self._test_rcr(
-                    [80],
-                    32,
-                    96,
-                    (5, 3, 2),
-                    "permute1_bfloat16",
-                    has_bias=has_bias,
-                    copy_op=copy_op,
-                    dtype="bfloat16",
-                )
+            self._test_rcr(
+                [80],
+                32,
+                96,
+                (5, 3, 2),
+                f"test_rcr_float32_{has_bias}",
+                has_bias=has_bias,
+                dtype="float32",
+            )
         self._test_rcr_0213(
             [29, 29 * 8],
             256,
             300000,
             [29, 100000],
-            "permute_0213_2_bfloat16",
+            "test_rcr_0213_float32",
             has_bias=False,
-            copy_op=False,
+            layout="0213",
+            dtype="float32",
+        )
+        self._test_rrr(
+            [128],
+            64,
+            256,
+            (8, 4, 4),
+            "test_rrr_float32",
+            dtype="float32",
+        )
+
+    def test_gemm_permute_bfloat16(self):
+        for has_bias in (True, False):
+            self._test_rcr(
+                [80],
+                32,
+                96,
+                (5, 3, 2),
+                f"test_rcr_bfloat16_{has_bias}",
+                has_bias=has_bias,
+                dtype="bfloat16",
+            )
+        self._test_rcr_0213(
+            [29, 29 * 8],
+            256,
+            300000,
+            [29, 100000],
+            "test_rcr_0213_bfloat16",
+            has_bias=False,
             layout="0213",
             dtype="bfloat16",
         )
-        self._test_rrr([128], 64, 256, (8, 4, 4), "permute2_bfloat16", dtype="bfloat16")
         self._test_rrr(
             [128],
             64,
             256,
             (8, 4, 4),
-            "permute2_copy_op_bfloat16",
-            copy_op=True,
+            "test_rrr_bfloat16",
             dtype="bfloat16",
         )
 

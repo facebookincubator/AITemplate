@@ -15,11 +15,10 @@
 """
 Linear module.
 """
+from aitemplate.compiler import ops
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.parameter import Parameter
 from aitemplate.testing import detect_target
-
-from ...compiler import ops
-from .module import Module
-from .parameter import Parameter
 
 
 class Linear(Module):

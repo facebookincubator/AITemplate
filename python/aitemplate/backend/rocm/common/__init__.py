@@ -16,4 +16,4 @@
 """
 ROCM Common module init
 """
-from .dummy_op import *
+from aitemplate.backend.rocm.common.dummy_op import *

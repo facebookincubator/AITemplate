@@ -17,14 +17,14 @@ Fuse conv + elementwise ops.
 """
 from typing import List
 
-from ..base import Tensor
+from aitemplate.compiler.base import Tensor
 
-from .fuse_conv_patterns import (
+from aitemplate.compiler.transform.fuse_conv_patterns import (
     get_conv2d_bias_elementwise_patterns,
     get_conv2d_bias_pattern,
     get_cuda_only_conv2d_bias_elementwise_patterns,
 )
-from .fuse_utils import transform_simple_fusion_patterns
+from aitemplate.compiler.transform.fuse_utils import transform_simple_fusion_patterns
 
 # pylint: disable=C0103,C0415,W0612
 

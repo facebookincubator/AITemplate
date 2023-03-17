@@ -13,28 +13,33 @@
 #  limitations under the License.
 #
 # flake8: noqa
-from .container import ModuleDict, ModuleList, Sequential
-from .embedding import BertEmbeddings, Embedding
-from .module import Module
-from .conv2d import *
-from .conv3d import *
-from .linear import *
-from .padding import *
-from .pool2d import *
-from .fpn_proposal import FPNProposal
-from .proposal import Proposal
-from .roi_ops import *
-from .upsample import *
-from .view_ops import *
-from .attention import CrossAttention, FlashAttention, MultiheadAttention
-from .identity import Identity
-from .multiscale_attention import MultiScaleBlock
-from .vanilla_attention import (
+from aitemplate.frontend.nn.container import ModuleDict, ModuleList, Sequential
+from aitemplate.frontend.nn.embedding import BertEmbeddings, Embedding
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.conv2d import *
+from aitemplate.frontend.nn.conv3d import *
+from aitemplate.frontend.nn.linear import *
+from aitemplate.frontend.nn.padding import *
+from aitemplate.frontend.nn.pool2d import *
+from aitemplate.frontend.nn.fpn_proposal import FPNProposal
+from aitemplate.frontend.nn.proposal import Proposal
+from aitemplate.frontend.nn.roi_ops import *
+from aitemplate.frontend.nn.upsample import *
+from aitemplate.frontend.nn.view_ops import *
+from aitemplate.frontend.nn.attention import (
+    CrossAttention,
+    FlashAttention,
+    MultiheadAttention,
+    ScaledDotProductAttention,
+)
+from aitemplate.frontend.nn.identity import Identity
+from aitemplate.frontend.nn.multiscale_attention import MultiScaleBlock
+from aitemplate.frontend.nn.vanilla_attention import (
     vanilla_attention,
     VanillaCrossAttention,
     VanillaMultiheadAttention,
 )
-from .dropout import *
-from .layer_norm import *
-from .group_norm import *
-from .dual_gemm import T5DenseGatedGeluDense
+from aitemplate.frontend.nn.dropout import *
+from aitemplate.frontend.nn.layer_norm import *
+from aitemplate.frontend.nn.group_norm import *
+from aitemplate.frontend.nn.dual_gemm import T5DenseGatedGeluDense

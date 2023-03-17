@@ -16,8 +16,8 @@
 transpose op
 """
 
-from ...base import Tensor
-from .permute import permute
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.tensor.permute import permute
 
 
 class transpose(permute):

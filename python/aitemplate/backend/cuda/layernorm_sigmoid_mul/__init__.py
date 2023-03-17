@@ -15,7 +15,7 @@
 """
 (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 """
-from . import (
+from aitemplate.backend.cuda.layernorm_sigmoid_mul import (
     batch_layernorm_sigmoid_mul,
     group_layernorm_sigmoid_mul,
     layernorm_sigmoid_mul,

@@ -29,15 +29,25 @@ from typing import Any, Dict, List, Union
 
 import jinja2
 
-from aitemplate.backend.profiler_runner import ProfileResult
+from aitemplate import backend
+from aitemplate.backend import registry
 
-from .... import backend
-from ....backend import registry
-from ....utils import alignment, environ
-from ...base import DynamicProfileStrategy, ExecItem, IntImm, IntVar, Operator, Tensor
-from ...dtype import is_same_dtype
-from ...tensor_accessor import TensorAccessor
-from .cache_entry import GemmQueryEntry, GemmRecordEntry
+from aitemplate.backend.profiler_runner import ProfileResult
+from aitemplate.compiler.base import (
+    DynamicProfileStrategy,
+    ExecItem,
+    IntImm,
+    IntVar,
+    Operator,
+    Tensor,
+)
+from aitemplate.compiler.dtype import is_same_dtype
+from aitemplate.compiler.ops.gemm_universal.cache_entry import (
+    GemmQueryEntry,
+    GemmRecordEntry,
+)
+from aitemplate.compiler.tensor_accessor import TensorAccessor
+from aitemplate.utils import alignment, environ
 
 # pylint: disable=C0103,R1711,W0102,W0221,E1120
 

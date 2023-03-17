@@ -15,7 +15,7 @@
 
 # flake8: noqa
 
-from . import (
+from aitemplate.utils import (
     alignment,
     environ,
     graph_utils,

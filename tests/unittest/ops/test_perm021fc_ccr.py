@@ -25,10 +25,12 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 
 
-@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm021FCCCRTestCase(unittest.TestCase):
     def _test_perm021fc_ccr(
         self,
@@ -77,27 +79,20 @@ class Perm021FCCCRTestCase(unittest.TestCase):
             dtype="float16",
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80,
-        f"fp32 BMM not supported in {detect_target()._arch}",
-    )
-    def test_perm021fc_ccr_fp32(self):
+    def test_perm021fc_ccr_float32_sm80(self):
         self._test_perm021fc_ccr(
             test_name="perm021fc_ccr_fp32",
             dtype="float32",
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80,
-        f"bf16 BMM not supported in {detect_target()._arch}",
-    )
     def test_perm021fc_ccr_bf16(self):
         self._test_perm021fc_ccr(
             test_name="perm021fc_ccr_bf16",
             dtype="bfloat16",
         )
+
+
+filter_test_cases_by_test_env(Perm021FCCCRTestCase)
 
 
 if __name__ == "__main__":

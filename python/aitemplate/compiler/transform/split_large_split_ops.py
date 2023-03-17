@@ -20,11 +20,12 @@ import logging
 
 from typing import List
 
-from ...utils import graph_utils
-from .. import ops
-from ..base import Operator, Tensor
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import Operator, Tensor
 
-from . import toposort, transform_utils
+from aitemplate.compiler.transform import toposort, transform_utils
+
+from aitemplate.utils import graph_utils
 
 
 _LOGGER = logging.getLogger(__name__)

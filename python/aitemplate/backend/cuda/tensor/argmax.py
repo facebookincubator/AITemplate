@@ -18,9 +18,9 @@ argmax kernel codegen for CUDA.
 
 from typing import Any, Dict
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...common.tensor import argmax_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common.tensor import argmax_common
 
 # pylint: disable=C0301
 

@@ -18,13 +18,111 @@ Elementwise operator definition, which covers UNARY / Binary / Ternary operators
 import functools
 from typing import Any, List
 
-from ....utils import shape_utils
-from ...base import IntVar, IntVarTensor, Operator, Tensor
-from ...dtype import normalize_dtype
-from ...op_registry import OP_REGISTRY
-from .epilogue import FuncEnum
+from aitemplate.compiler.base import IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.compiler.dtype import normalize_dtype
+from aitemplate.compiler.op_registry import OP_REGISTRY
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+
+from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,C0301,W0223,R1724
+
+
+def _broadcast_dense_shapes(shapes: List[List[IntVar]]) -> List[IntVar]:
+    if len(shapes) == 1:
+        return list(shapes[0])
+
+    max_shape = None
+    for shape in shapes:
+        if max_shape is None:
+            max_shape = list(shape)
+        broadcastable, new_max_shape = shape_utils.get_broadcast_max_shape(
+            max_shape, shape
+        )
+        if not broadcastable:
+            raise ValueError(
+                "Input shapes of the elementwise op are not compatible! "
+                f"Shape1: {max_shape}, shape2: {shape}"
+            )
+        max_shape = new_max_shape
+
+    return max_shape
+
+
+def _broadcast_jagged_shapes(shapes: List[List[IntVar]]) -> List[IntVar]:
+    if len(shapes) == 1:
+        return list(shapes[0])
+
+    rank = len(shapes[0])
+    first_dim = shapes[0][0]
+    for shape in shapes[1:]:
+        other_first_dim = shape[0]
+        if other_first_dim != first_dim:
+            raise ValueError(
+                "All jagged inputs of an elementwise op must "
+                "have the same first dim (JaggedIntVar), but got "
+                f"{first_dim} != {other_first_dim}"
+            )
+        other_rank = len(shape)
+        if other_rank != rank:
+            raise ValueError(
+                "All jagged inputs of an elementwise op "
+                "must have the same rank, but got "
+                f"{rank} != {other_rank}"
+            )
+
+    suffix_shapes = [shape[1:] for shape in shapes]
+    max_suffix_shape = suffix_shapes[0]
+    for suffix_shape in suffix_shapes[1:]:
+        broadcastable, new_max_shape = shape_utils.get_broadcast_max_shape(
+            max_suffix_shape, suffix_shape
+        )
+        if not broadcastable:
+            raise ValueError(
+                "Jagged input suffix shapes of the elementwise op are not compatible! "
+                f"Shape1: {max_suffix_shape}, shape2: {suffix_shape}"
+            )
+        max_suffix_shape = new_max_shape
+
+    return [first_dim] + max_suffix_shape
+
+
+def _broadcast_dense_and_jagged_shape(
+    dense_shape: List[IntVar],
+    jagged_shape: List[IntVar],
+) -> List[IntVar]:
+    jagged_first_dim = jagged_shape[0]
+    jagged_suffix_shape = jagged_shape[1:]
+    dense_suffix_shape = dense_shape[-len(jagged_suffix_shape) :]
+    broadcastable, max_suffix_shape = shape_utils.get_broadcast_max_shape(
+        jagged_suffix_shape, dense_suffix_shape
+    )
+    if not broadcastable:
+        raise ValueError(
+            "The suffix shapes of jagged and dense inputs of the elementwise op are not compatible! "
+            f"Jagged suffix shape: {jagged_suffix_shape}, dense suffix shape: {dense_suffix_shape}"
+        )
+
+    if len(dense_shape) >= len(jagged_shape):
+        dense_prefix_shape = dense_shape[: -len(dense_suffix_shape)]
+        jagged_max_dense_prefix_shape = jagged_first_dim.get_max_dense_shape()
+        if len(dense_prefix_shape) > len(jagged_max_dense_prefix_shape):
+            raise ValueError(
+                "The rank of dense inputs of an elementwise op can't be "
+                "higher than the rank of the jagged inputs (when treating "
+                "the jagged dims as separate dims)."
+            )
+
+        broadcastable, _ = shape_utils.get_broadcast_max_shape(
+            jagged_max_dense_prefix_shape, dense_prefix_shape
+        )
+        if not broadcastable:
+            raise ValueError(
+                f"JaggedIntVar of the jagged inputs ({jagged_first_dim}) is not compatible "
+                f"with the broadcasted prefix shape of the dense inputs ({dense_prefix_shape})."
+            )
+
+    return [jagged_first_dim] + max_suffix_shape
 
 
 class elementwise(Operator):
@@ -58,22 +156,19 @@ class elementwise(Operator):
             raise RuntimeError(
                 "Elementwise op {} doesn't have inputs!".format(self._attrs["func"])
             )
-        max_shape = None
-        for tensor in args:
-            shape = tensor._attrs["shape"]
-            if max_shape is None:
-                max_shape = list(shape)
-            broadcastable, new_max_shape = shape_utils.get_broadcast_max_shape(
-                max_shape, shape
-            )
-            if not broadcastable:
-                raise RuntimeError(
-                    "Tensor shapes of elementwise ops are not compatible! Shape1: {}, shape2: {}".format(
-                        max_shape, shape
-                    )
-                )
-            max_shape = new_max_shape
-        return max_shape
+
+        dense_shapes = [arg._attrs["shape"] for arg in args if not arg.is_jagged()]
+        jagged_shapes = [arg._attrs["shape"] for arg in args if arg.is_jagged()]
+
+        max_dense_shape = _broadcast_dense_shapes(dense_shapes)
+        if not jagged_shapes:
+            return max_dense_shape
+
+        max_jagged_shape = _broadcast_jagged_shapes(jagged_shapes)
+        if not dense_shapes:
+            return max_jagged_shape
+
+        return _broadcast_dense_and_jagged_shape(max_dense_shape, max_jagged_shape)
 
     def __call__(self, *args: Tensor) -> Tensor:
         converted_args = []
@@ -95,7 +190,6 @@ class elementwise(Operator):
                     raise NotImplementedError(
                         f"Type promotions are not supported; got dtype {arg.dtype()}, but expected {common_dtype}"
                     )
-
             else:
                 raise RuntimeError(
                     f"Unsupported data type {arg} in elementwise {self}!"

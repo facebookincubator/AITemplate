@@ -40,6 +40,9 @@ RUN bash /Install/install_doc_dep.sh
 # install Pytorch
 RUN pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113
 
+# install NVIDIA cuda-python
+RUN pip3 install 'cuda-python<12.0.0'
+
 # for detection
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
 RUN bash /Install/install_detection_deps.sh

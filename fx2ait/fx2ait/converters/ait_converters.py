@@ -430,6 +430,33 @@ def acc_ops_softmax(
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
 
     dim = kwargs["dim"]
+    rank = len(input_val.shape())
+    if dim < 0:
+        dim = rank + dim
+    if dim != rank - 1:
+        for i in range(dim + 1, rank):
+            unsupported = False
+            if isinstance(input_val.shape()[i], IntImm):
+                if input_val.shape()[i].value() != 1:
+                    unsupported = True
+            elif isinstance(input_val.shape()[i], IntVar):
+                unsupported = True
+            else:
+                raise RuntimeError(
+                    f"unknown dimension type={type(i)} in AITTensor={input_val}"
+                )
+
+            if unsupported:
+                raise ValueError(
+                    f"AIT softmax only supports dim=rank-1, got AITTensor={input_val}, "
+                    f"where dim={dim}, rank={rank}"
+                )
+        reshape_dim = size()(input_val)[: dim + 1]
+        reshape_val = reshape()(input_val, reshape_dim)
+        softmax_val = softmax()(reshape_val, -1)
+        return reshape()(
+            softmax_val, reshape_dim + [IntVarTensor(IntImm(1))] * (rank - dim - 1)
+        )
 
     return softmax()(input_val, dim)
 
@@ -516,6 +543,7 @@ def acc_ops_unbind(
     return res
 
 
+@ait_converter(operator.getitem)
 @ait_converter(acc_ops.getitem)
 def acc_ops_getitem(
     target: Target,
@@ -523,6 +551,13 @@ def acc_ops_getitem(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
+    # operator.getitem does not have kwargs. We copy args to kwargs so the downstream like acc_ops_slice can use it.
+    new_kwargs = dict(kwargs)
+    if "input" not in kwargs:
+        new_kwargs["input"] = args[0]
+    if "idx" not in kwargs:
+        new_kwargs["idx"] = args[1]
+    kwargs = new_kwargs
     input_val = kwargs["input"]
     idx = kwargs["idx"]
     if isinstance(idx, Sequence) and any(isinstance(x, Sequence) for x in idx):
@@ -894,6 +929,7 @@ def acc_ops_group_norm(
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
+    input_val = ait_nchw2nhwc(kwargs["input"])
     num_groups = kwargs["num_groups"]
     weight_val = kwargs["weight"]
     bias_val = kwargs["bias"]
@@ -902,7 +938,8 @@ def acc_ops_group_norm(
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     num_channels = input_val.shape()[-1].value()
     op = group_norm(num_groups, num_channels)
-    return op(input_val, weight_val, bias_val, eps_val)
+    result = op(input_val, weight_val, bias_val, eps_val)
+    return ait_nhwc2nchw(result)
 
 
 @ait_converter(acc_ops.layer_norm)
@@ -921,6 +958,7 @@ def acc_ops_layer_norm(
         raise ValueError(f"Unexpected normalized shape value in {name}: {shape}")
     weight = kwargs["weight"]
     bias = kwargs["bias"]
+    eps = kwargs["eps"]
     normalized_shape = []
     if all(isinstance(i, int) for i in shape):
         for i in shape:
@@ -929,7 +967,7 @@ def acc_ops_layer_norm(
         normalized_shape = shape
     else:
         raise ValueError(f"Unexpected normalized shape value in {name}: {shape}")
-    return layernorm()(input_val, weight, bias, normalized_shape)
+    return layernorm()(input_val, weight, bias, normalized_shape, eps)
 
 
 @ait_converter(acc_ops.flatten)

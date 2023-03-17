@@ -24,13 +24,20 @@ from typing import Any, List, Union
 
 import jinja2
 
-from aitemplate.testing import detect_target
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.backend.target import Target
+from aitemplate.compiler.base import (
+    DynamicProfileStrategy,
+    ExecItem,
+    IntImm,
+    IntVar,
+    Operator,
+    Tensor,
+)
+from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
 
-from .... import backend
-from ....backend import registry
-from ....backend.target import Target
-from ...base import DynamicProfileStrategy, ExecItem, IntImm, IntVar, Operator, Tensor
-from ..softmax.cache_entry import NormQueryEntry, NormRecordEntry
+from aitemplate.testing import detect_target
 
 # pylint: disable=C0103,W0221,W0102,W0223
 

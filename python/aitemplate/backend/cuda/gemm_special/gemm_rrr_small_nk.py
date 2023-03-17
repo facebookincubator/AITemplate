@@ -27,11 +27,11 @@ C: [M, N]
 
 import jinja2
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...common import gemm_common
-from ...target import Target
-from ..gemm_universal import common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.cuda.gemm_universal import common
+from aitemplate.backend.target import Target
 
 # pylint: disable=C0301,W0613,W0612
 

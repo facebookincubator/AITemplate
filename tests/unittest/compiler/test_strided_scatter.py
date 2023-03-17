@@ -20,13 +20,14 @@ import torch
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
-from aitemplate.frontend import IntImm, Tensor
+from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
-from aitemplate.utils import graph_utils, shape_utils
+from aitemplate.utils import graph_utils
+from aitemplate.utils.shape_utils import gen_int_var_min_max as gen_IntVar
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,10 +44,7 @@ class StridedScatterTestCase(unittest.TestCase):
         input_name,
         input_type="float16",
     ):
-        x_shape = [
-            shape_utils.gen_int_var_min_max(d) if isinstance(d, list) else IntImm(d)
-            for d in input_shape
-        ]
+        x_shape = [d if isinstance(d, IntVar) else IntImm(d) for d in input_shape]
         X = Tensor(shape=x_shape, dtype=input_type, name=input_name, is_input=True)
         return X
 
@@ -54,8 +52,7 @@ class StridedScatterTestCase(unittest.TestCase):
         self, input_shape, input_0_name, input_1_name, output_name, input_type="float16"
     ):
         input_add_shape = [
-            shape_utils.gen_int_var_min_max(d) if isinstance(d, list) else IntImm(d)
-            for d in input_shape
+            d if isinstance(d, IntVar) else IntImm(d) for d in input_shape
         ]
         input_Add_0 = Tensor(
             shape=input_add_shape,
@@ -244,8 +241,8 @@ class StridedScatterTestCase(unittest.TestCase):
         self.assertEqual(fused_op._attrs["op"], "concatenate")
 
         for d in input_shapes[0]:
-            if isinstance(d, list):
-                Ms = d
+            if isinstance(d, IntVar):
+                Ms = d._attrs["values"]
                 break
         assert Ms is not None, "expected to have at least one dynamic dim"
         for idx in range(len(Ms)):
@@ -256,7 +253,8 @@ class StridedScatterTestCase(unittest.TestCase):
                 input_shapes, start_indices, end_indices
             ):
                 input_shape_pt = [
-                    d[idx] if isinstance(d, list) else d for d in input_shape
+                    d._attrs["values"][idx] if isinstance(d, IntVar) else d
+                    for d in input_shape
                 ]
                 x_pt = get_random_torch_tensor(input_shape_pt, dtype)
                 xs_pt.append(x_pt)
@@ -276,15 +274,20 @@ class StridedScatterTestCase(unittest.TestCase):
             self.test_count += 1
 
     def test_strided_scatter_dynamic(self):
+        dynamic_dim_1 = gen_IntVar([5, 16], name="dynamic_dim_1")
         self._test_strided_scatter_dynamic(
-            input_shapes=([[5, 16], 5], [[5, 16], 10]),
+            input_shapes=([dynamic_dim_1, 5], [dynamic_dim_1, 10]),
             start_indices=([0, 1], [0, 2]),
             end_indices=([None, 3], [None, 10]),
             scatter_dim=1,
             test_name="strided_scatter_dynamic",
         )
+        dynamic_dim_2 = gen_IntVar([10, 20], name="dynamic_dim_2")
         self._test_strided_scatter_dynamic(
-            input_shapes=([[5, 16], [10, 20], 4], [[5, 16], [10, 20], 10]),
+            input_shapes=(
+                [dynamic_dim_1, dynamic_dim_2, 4],
+                [dynamic_dim_1, dynamic_dim_2, 10],
+            ),
             start_indices=([0, 0, 2], [0, 0, 2]),
             end_indices=([None, None, 4], [None, None, 10]),
             scatter_dim=2,
@@ -292,19 +295,22 @@ class StridedScatterTestCase(unittest.TestCase):
         )
 
     def test_strided_scatter_partial(self):
+        dynamic_dim_1 = gen_IntVar([5, 16], name="dynamic_dim_1")
         self._test_strided_scatter_dynamic(
-            input_shapes=([[5, 16], 5], [[5, 16], 10]),
+            input_shapes=([dynamic_dim_1, 5], [dynamic_dim_1, 10]),
             start_indices=([0, 1], [0, 2]),
             end_indices=([None, 3], [None, 10]),
             scatter_dim=1,
             test_name="strided_scatter_partial",
             make_slices=[True, False],
         )
+        dynamic_dim_2 = gen_IntVar([5, 7], name="dynamic_dim_2")
+        dynamic_dim_3 = gen_IntVar([1, 10], name="dynamic_dim_3")
         self._test_strided_scatter_dynamic(
             input_shapes=(
-                [[5, 7], [1, 10], 4],
-                [[5, 7], [1, 10], 6],
-                [[5, 7], [1, 10], 8],
+                [dynamic_dim_2, dynamic_dim_3, 4],
+                [dynamic_dim_2, dynamic_dim_3, 6],
+                [dynamic_dim_2, dynamic_dim_3, 8],
             ),
             start_indices=([0, 0, 2], [0, 0, 4], [0, 0, 6]),
             end_indices=([None, None, 4], [None, None, 6], [None, None, 8]),
@@ -314,14 +320,14 @@ class StridedScatterTestCase(unittest.TestCase):
         )
         self._test_strided_scatter_dynamic(
             input_shapes=(
-                [[5, 7], [1, 10], 4],
-                [[5, 7], [1, 10], 6],
-                [[5, 7], [1, 10], 8],
+                [dynamic_dim_2, dynamic_dim_3, 4],
+                [dynamic_dim_2, dynamic_dim_3, 6],
+                [dynamic_dim_2, dynamic_dim_3, 8],
             ),
             start_indices=([0, 0, 2], [0, 0, 4], [0, 0, 6]),
             end_indices=([None, None, 4], [None, None, 6], [None, None, 8]),
             scatter_dim=2,
-            test_name="strided_scatter_partial",
+            test_name="strided_scatter_partial_1",
             make_slices=[False, False, True],
         )
 
@@ -430,7 +436,7 @@ class StridedScatterTestCase(unittest.TestCase):
             start_indices=[[0, 1, 0], [0, 1, 0]],
             end_indices=[[None, 2, None], [None, 7, None]],
             scatter_dim=1,
-            test_name="strided_scatter_partial",
+            test_name="strided_scatter_multi_dsts_2",
         )
 
     def _test_strided_scatter_input_masks(
@@ -452,8 +458,9 @@ class StridedScatterTestCase(unittest.TestCase):
             f"{start_indices=}, {end_indices=}"
         )
 
+        Ms_IntVar = gen_IntVar(Ms, name="Ms")
         input_A_name = "input_a"
-        input_A = self._make_tensor([list(Ms), K], input_A_name, dtype)
+        input_A = self._make_tensor([Ms_IntVar, K], input_A_name, dtype)
         input_B_name = "input_b"
         input_B = self._make_tensor([N, K], input_B_name, dtype)
         input_Bias_name = "input_bias"
@@ -464,7 +471,7 @@ class StridedScatterTestCase(unittest.TestCase):
         input_Add_0_name = "input_add_0"
         input_Add_1_name = "input_add_1"
         add_output = self._make_add(
-            [list(Ms), N], input_Add_0_name, input_Add_1_name, "add_output", dtype
+            [Ms_IntVar, N], input_Add_0_name, input_Add_1_name, "add_output", dtype
         )
         # A, B, bias, add_0 and add_1
         num_extra_inputs = 5
@@ -533,7 +540,8 @@ class StridedScatterTestCase(unittest.TestCase):
                 input_shapes, start_indices, end_indices
             ):
                 input_shape_pt = [
-                    d[idx] if isinstance(d, list) else d for d in input_shape
+                    d._attrs["values"][idx] if isinstance(d, IntVar) else d
+                    for d in input_shape
                 ]
                 x_pt = get_random_torch_tensor(input_shape_pt, dtype)
                 xs_pt.append(x_pt)
@@ -560,11 +568,13 @@ class StridedScatterTestCase(unittest.TestCase):
 
     def test_strided_scatter_input_masks(self):
         # gemm_output[Ms, N]
+        # This dynamic_dim_1 is actually the same as Ms..
+        dynamic_dim_1 = gen_IntVar([5, 16], name="Ms")
         self._test_strided_scatter_input_masks(
             Ms=(5, 16),
             N=4,
             K=10,
-            input_shapes=([[5, 16], 5], [[5, 16], 10]),
+            input_shapes=([dynamic_dim_1, 5], [dynamic_dim_1, 10]),
             start_indices=([0, 1], [0, 2]),
             end_indices=([None, 3], [None, 10]),
             scatter_dim=1,
@@ -575,7 +585,7 @@ class StridedScatterTestCase(unittest.TestCase):
             Ms=(5, 16),
             N=4,
             K=10,
-            input_shapes=([[5, 16], 5], [[5, 16], 10]),
+            input_shapes=([dynamic_dim_1, 5], [dynamic_dim_1, 10]),
             start_indices=([0, 1], [0, 2]),
             end_indices=([None, 2], [None, 10]),
             scatter_dim=1,
@@ -685,8 +695,11 @@ class StridedScatterTestCase(unittest.TestCase):
 
         add_0_input_name_0 = "add_0_input_0"
         add_0_input_name_1 = "add_0_input_1"
+        Ms0_IntVar = gen_IntVar(Ms0, name="Ms0")
+        # This is not ideal, we should have "check" against the start/end/scatter_dim when we construct the test case instead.
+        Ms1_IntVar = Ms0_IntVar if Ms0 == Ms1 else gen_IntVar(Ms1, name="Ms1")
         add_output0 = self._make_add(
-            [list(Ms0), N0],
+            [Ms0_IntVar, N0],
             add_0_input_name_0,
             add_0_input_name_1,
             "add_0_output",
@@ -695,7 +708,7 @@ class StridedScatterTestCase(unittest.TestCase):
         add_1_input_name_0 = "add_1_input_0"
         add_1_input_name_1 = "add_1_input_1"
         add_output1 = self._make_add(
-            [list(Ms1), N1],
+            [Ms1_IntVar, N1],
             add_1_input_name_0,
             add_1_input_name_1,
             "add_1_output",
@@ -916,19 +929,26 @@ class StridedScatterTestCase(unittest.TestCase):
             test_name="strided_scatter_basic_float",
             dtype="float",
         )
+        dynamic_dim_1 = gen_IntVar([5, 16], name="dynamic_dim_1")
+        dynamic_dim_2 = gen_IntVar([10, 20], name="dynamic_dim_2")
         self._test_strided_scatter_dynamic(
-            input_shapes=([[5, 16], [10, 20], 4], [[5, 16], [10, 20], 10]),
+            input_shapes=(
+                [dynamic_dim_1, dynamic_dim_2, 4],
+                [dynamic_dim_1, dynamic_dim_2, 10],
+            ),
             start_indices=([0, 0, 2], [0, 0, 2]),
             end_indices=([None, None, 4], [None, None, 10]),
             scatter_dim=2,
             test_name="strided_scatter_dynamic_float",
             dtype="float",
         )
+        dynamic_dim_3 = gen_IntVar([5, 7], name="dynamic_dim_3")
+        dynamic_dim_4 = gen_IntVar([1, 10], name="dynamic_dim_4")
         self._test_strided_scatter_dynamic(
             input_shapes=(
-                [[5, 7], [1, 10], 4],
-                [[5, 7], [1, 10], 6],
-                [[5, 7], [1, 10], 8],
+                [dynamic_dim_3, dynamic_dim_4, 4],
+                [dynamic_dim_3, dynamic_dim_4, 6],
+                [dynamic_dim_3, dynamic_dim_4, 8],
             ),
             start_indices=([0, 0, 2], [0, 0, 4], [0, 0, 6]),
             end_indices=([None, None, 4], [None, None, 6], [None, None, 8]),
@@ -993,11 +1013,12 @@ class StridedScatterTestCase(unittest.TestCase):
         )
         target = detect_target()
         if int(target._arch) >= 80:
+            dynamic_dim_1 = gen_IntVar([5, 16], name="Ms")
             self._test_strided_scatter_input_masks(
                 Ms=(5, 16),
                 N=4,
                 K=10,
-                input_shapes=([[5, 16], 5], [[5, 16], 10]),
+                input_shapes=([dynamic_dim_1, 5], [dynamic_dim_1, 10]),
                 start_indices=([0, 1], [0, 2]),
                 end_indices=([None, 2], [None, 10]),
                 scatter_dim=1,

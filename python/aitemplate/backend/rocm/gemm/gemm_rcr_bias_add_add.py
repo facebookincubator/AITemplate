@@ -20,9 +20,9 @@ bias[RowMajor][N], D0[RowMajor][M, N], D1[RowMajor][M, N]
 """
 import jinja2
 
-from ... import registry
-from . import common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import common
+from aitemplate.backend.rocm.gemm.layout import RCR
 
 
 EXTRA_CODE = jinja2.Template(

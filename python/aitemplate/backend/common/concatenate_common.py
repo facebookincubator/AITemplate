@@ -17,9 +17,9 @@ backend concatenate function common templates.
 """
 import jinja2
 
-from ...compiler.ops.tensor import concatenate
+from aitemplate.backend.common import tensor_accessor_codegen
 
-from . import tensor_accessor_codegen
+from aitemplate.compiler.ops.tensor import concatenate
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """

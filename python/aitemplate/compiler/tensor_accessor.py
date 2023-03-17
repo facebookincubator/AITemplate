@@ -24,9 +24,7 @@ import logging
 from pprint import pformat
 from typing import Any, List, Optional
 
-from aitemplate.compiler.base import IntVar
-
-from .base import IntImm, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, Tensor
 
 
 _LOGGER = logging.getLogger(__name__)

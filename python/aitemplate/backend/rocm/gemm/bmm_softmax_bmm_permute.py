@@ -24,10 +24,10 @@ This is used for `ops.bmm_softmax_bmm_permute`.
 """
 import jinja2
 
-from ... import registry
-from ...common import gemm_common
-from . import bmm_common, common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.rocm.gemm import bmm_common, common
+from aitemplate.backend.rocm.gemm.layout import RCR
 
 INPUT_ADDR_CALCULATOR = jinja2.Template(
     """

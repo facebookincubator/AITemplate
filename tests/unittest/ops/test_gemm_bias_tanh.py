@@ -21,32 +21,20 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import shape_utils
 from parameterized import parameterized
 
 
-def _tolerance_limits(dtype):
-    if dtype == "float16":
-        return {"atol": 1e-1, "rtol": 1e-1}
-    elif dtype == "float32":
-        return {"atol": 3e-2, "rtol": 2e-2}
-    elif dtype == "bfloat16":
-        return {"atol": 2e-1, "rtol": 2e-1}
-    else:
-        return {}
-
-
-def _skip_target(target, ait_dtype):
-    if ait_dtype == "float16":
-        return None
-    if target.name() != "cuda":
-        return "Not supported for non-CUDA target"
-    if int(target._arch) < 80:
-        return "Not supported for CUDA SM<80."
-    return None
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-1, "rtol": 1e-1},
+    "float32": {"atol": 3e-2, "rtol": 2e-2},
+    "bfloat16": {"atol": 2e-1, "rtol": 2e-1},
+}
 
 
 class GEMMBiasTanhTestCase(unittest.TestCase):
@@ -58,7 +46,7 @@ class GEMMBiasTanhTestCase(unittest.TestCase):
         K = 1024
         N = 64
         target = detect_target()
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
         X = Tensor(shape=[MDim, IntImm(K)], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(
@@ -86,12 +74,17 @@ class GEMMBiasTanhTestCase(unittest.TestCase):
             )
             torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
-    @parameterized.expand(("float16", "float32", "bfloat16"))
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
     def test_rcr_bias_tanh_floats(self, dtype):
-        skipped_reason = _skip_target(detect_target(), dtype)
-        if skipped_reason is not None:
-            self.skipTest(skipped_reason)
-        self._test_rcr([128], "static")
+        self._test_rcr([128], f"static_m_{dtype}", dtype=dtype)
         self._test_rcr([1, 7, 64, 127], f"dynamic_m_{dtype}", dtype=dtype)
 
 

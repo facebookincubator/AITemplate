@@ -25,13 +25,13 @@ from typing import Any, Dict, List, Tuple
 
 import jinja2
 
-from ....compiler.base import IntImm
-from ....utils import alignment
+from aitemplate.backend.backend_spec import CUDASpec
 
-from ...backend_spec import CUDASpec
+from aitemplate.backend.common import gemm_common, tensor_accessor_codegen
+from aitemplate.backend.target import Target
 
-from ...common import gemm_common, tensor_accessor_codegen
-from ...target import Target
+from aitemplate.compiler.base import IntImm
+from aitemplate.utils import alignment
 
 # pylint: disable=C0301,C0415,R1705
 
@@ -1160,6 +1160,16 @@ def default_fproc(
     if "use_fp16_acc" in Target.current()._kwargs and data_type == "cutlass::half_t":
         if Target.current()._kwargs["use_fp16_acc"]:
             acc_type = cutlass_lib.library.DataType.f16
+
+    # For column-major C layouts, filter out GEMM tiling configs introducted by
+    # extra_cutlass_generator.py - those will cause a build error.
+    threadblock_mxn = op.tile_description.threadblock_shape[:2]
+    is_nonstandard_theadblock_shape = threadblock_mxn == [128, 32]
+    filter_extra_tile_configs = (
+        is_nonstandard_theadblock_shape
+        and c_layout == cutlass_lib.library.LayoutType.ColumnMajor
+    )
+
     if (
         cutlass_lib.library.DataTypeTag[op.A.element] == data_type
         and cutlass_lib.library.DataTypeTag[op.B.element] == data_type
@@ -1167,6 +1177,7 @@ def default_fproc(
         and op.accumulator_type() == acc_type
         and op.A.layout == a_layout
         and op.B.layout == b_layout
+        and not filter_extra_tile_configs
     ):
         op = copy.deepcopy(op)
         # set output major
@@ -1224,6 +1235,8 @@ def function_filter(cfg, func_attrs, ab_alignment):
     bool
         If input cfg should be filtered.
     """
+    # example:
+    # cfg="cutlass_tensorop_f16_s16816gemm_f16_128x32_64x4_nn_align_8_8"
     tmp = cfg.split("_")
     align_c = int(tmp[-1])
     align_ab = int(tmp[-2])

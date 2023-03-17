@@ -15,8 +15,8 @@
 """
 Upsampling module init.
 """
-from .upsampling2d import upsampling2d
-from .upsampling2d_add import upsampling2d_add
+from aitemplate.compiler.ops.upsample.upsampling2d import upsampling2d
+from aitemplate.compiler.ops.upsample.upsampling2d_add import upsampling2d_add
 
 
 __all__ = ["upsampling2d", "upsampling2d_add"]

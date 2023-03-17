@@ -18,10 +18,11 @@ IntElementwise codegen for CUDA.
 
 import jinja2
 
-from ....compiler.base import IntVarTensor
-from ... import registry
+from aitemplate.backend import registry
 
-from ...backend_spec import CPUBackendSpec
+from aitemplate.backend.backend_spec import CPUBackendSpec
+
+from aitemplate.compiler.base import IntVarTensor
 
 
 INT_VAR_FUNC_TEMPLATE = jinja2.Template(

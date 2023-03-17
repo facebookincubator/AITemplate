@@ -19,9 +19,9 @@ This is used for `torch.nn.functional.linear`
 When use for `linear`, need set A->Data, B->Weight
 """
 
-from ...base import _create_host_zero_tensor, IntImm, Tensor
-from ...tensor_accessor import TensorAccessor
-from ..gemm_universal.gemm_rcr import gemm_rcr
+from aitemplate.compiler.base import _create_host_zero_tensor, IntImm, Tensor
+from aitemplate.compiler.ops.gemm_universal.gemm_rcr import gemm_rcr
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

@@ -18,8 +18,8 @@ Multi level roi_align.
 
 from typing import List
 
-from ....base import Tensor
-from .roi_ops import roi_ops_base
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.vision_ops.roi_ops.roi_ops import roi_ops_base
 
 # pylint: disable=C0103
 

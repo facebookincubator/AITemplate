@@ -20,9 +20,12 @@ When use for `linear`, need set A->Data, B->Weight
 """
 import jinja2
 
-from ... import registry
-from ..gemm_universal import common
-from . import common_softmax, gemm_rcr_softmax
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.gemm_epilogue_vistor import (
+    common_softmax,
+    gemm_rcr_softmax,
+)
+from aitemplate.backend.cuda.gemm_universal import common
 
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703

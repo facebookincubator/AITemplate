@@ -22,8 +22,10 @@ from aitemplate.compiler.base import IntImm, IntVar, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target, test_utils
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import graph_utils
 from parameterized import param, parameterized
@@ -41,15 +43,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=2,
                 new_shape=[-1, 2, 2],
                 cat_dim=2,
-                expected_num_tensors=11,
-                expected_num_ops=9,
-            ),
-            param(
-                "gemm_reshape_cat_fusible_expand_1",
-                n=2,
-                new_shape=[-1, 2, 1, 2],
-                cat_dim=3,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -57,7 +51,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=4,
                 new_shape=[-1, 4, 4, 1],
                 cat_dim=2,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -65,7 +59,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=2,
                 new_shape=[-1, 2, 2, 1],
                 cat_dim=2,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -73,7 +67,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 n=4,
                 new_shape=[-1, 4, 2, 2],
                 cat_dim=2,
-                expected_num_tensors=11,
+                expected_num_tensors=10,
                 expected_num_ops=9,
             ),
             param(
@@ -92,32 +86,6 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 expected_num_tensors=14,
                 expected_num_ops=9,
             ),
-            param(
-                "gemm_reshape_cat_non_fusible_expand",
-                n=4,
-                new_shape=[-1, 4, 2, 2],
-                cat_dim=3,
-                expected_num_tensors=16,
-                expected_num_ops=9,
-            ),
-            param(
-                "gemm_reshape_cat_fusible_expand_float_1",
-                n=2,
-                new_shape=[-1, 2, 1, 2],
-                cat_dim=3,
-                expected_num_tensors=11,
-                expected_num_ops=9,
-                dtype="float",
-            ),
-            param(
-                "gemm_reshape_cat_non_fusible_expand_float",
-                n=4,
-                new_shape=[-1, 4, 2, 2],
-                cat_dim=3,
-                expected_num_tensors=16,
-                expected_num_ops=9,
-                dtype="float",
-            ),
         ],
         name_func=custom_name_func,
     )
@@ -131,9 +99,56 @@ class StridedViewCatOpTestCase(unittest.TestCase):
         expected_num_ops: int,
         dtype: str = "float16",
     ):
+        self._test_strided_gemm_view_cat_fusible(
+            test_name,
+            n,
+            new_shape,
+            cat_dim,
+            expected_num_tensors,
+            expected_num_ops,
+            dtype,
+        )
+
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_strided_gemm_view_cat_fusible_dtype(self, dtype):
+        self._test_strided_gemm_view_cat_fusible(
+            f"gemm_reshape_cat_non_fusible_expand_{dtype}",
+            n=4,
+            new_shape=[-1, 4, 2, 2],
+            cat_dim=3,
+            expected_num_tensors=16,
+            expected_num_ops=9,
+            dtype=dtype,
+        )
+        self._test_strided_gemm_view_cat_fusible(
+            f"gemm_reshape_cat_fusible_expand_{dtype}",
+            n=2,
+            new_shape=[-1, 2, 1, 2],
+            cat_dim=3,
+            expected_num_tensors=10,
+            expected_num_ops=9,
+            dtype=dtype,
+        )
+
+    def _test_strided_gemm_view_cat_fusible(
+        self,
+        test_name: str,
+        n: int,
+        new_shape: List[int],
+        cat_dim: int,
+        expected_num_tensors: int,
+        expected_num_ops: int,
+        dtype: str = "float16",
+    ):
         target = detect_target()
-        if dtype == "float" and (target.name() != "cuda" or int(target._arch) < 80):
-            self.skipTest("Only supported with CUDA >= 80")
 
         batch_dim = IntVar([1, 2, 3], "batch_size")
         input0 = test_utils.gen_input_tensor(
@@ -157,9 +172,6 @@ class StridedViewCatOpTestCase(unittest.TestCase):
         X2 = ops.gemm_rcr_bias_add()(input0, input1, input3, input4)
         X3 = ops.gemm_rcr_bias_add_add()(input0, input1, input3, input4, input4)
         X4 = ops.bmm_rcr()(input0, input2)
-
-        # For now these ops do not support output_accessors yet.
-        # TODO: enable these checks once these ops support output_accessors.
         X5 = ops.bmm_rrr_add()(input0, input2, input3)
 
         # [m, b, k] x [b, n, k] -> [m, b, n] b = n, k = n
@@ -344,12 +356,17 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                     f"batch_size: {batch_size}, z: {z}, z_pt: {z_pt}",
                 )
 
-    def test_strided_layernorm_view_cat_fusible(self):
-        self._test_strided_layernorm_view_cat_fusible()
-
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_strided_layernorm_view_cat_fusible_float(self):
-        self._test_strided_layernorm_view_cat_fusible(dtype="float")
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [],
+            }
+        )
+    )
+    def test_strided_layernorm_view_cat_fusible(self, dtype):
+        self._test_strided_layernorm_view_cat_fusible(dtype)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ mark tensors which are parameters
 """
 from typing import List
 
-from ..base import Tensor
+from aitemplate.compiler.base import Tensor
 
 # pylint: disable=C0103,W0613
 

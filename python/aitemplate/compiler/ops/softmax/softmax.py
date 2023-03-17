@@ -24,15 +24,21 @@ from typing import Dict, List, Union
 
 import jinja2
 
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.backend.target import Target
+from aitemplate.compiler.base import (
+    DynamicProfileStrategy,
+    ExecItem,
+    IntVar,
+    Operator,
+    Tensor,
+)
+from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
+
 from aitemplate.testing import detect_target
 
-from .... import backend
-from ....backend import registry
-from ....backend.target import Target
-
-from ....utils.tensor_utils import wrap_dim
-from ...base import DynamicProfileStrategy, ExecItem, IntVar, Operator, Tensor
-from .cache_entry import NormQueryEntry, NormRecordEntry
+from aitemplate.utils.tensor_utils import wrap_dim
 
 
 _LOGGER = logging.getLogger(__name__)

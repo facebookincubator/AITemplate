@@ -18,15 +18,16 @@ Fuse parallel gemms into bmm op.
 
 from typing import Callable, List, Tuple
 
-from ...utils import graph_utils
-from ...utils.shape_utils import is_static_dimension
-from .. import ops
-from ..base import Operator, Tensor
-from ..ops.gemm_universal.gemm_common import default_align_ab
-from ..tensor_accessor import TensorAccessor
-from . import transform_utils
-from .toposort import toposort
-from .transform_strided_ops import _is_supported_op
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.ops.gemm_universal.gemm_common import default_align_ab
+from aitemplate.compiler.tensor_accessor import TensorAccessor
+from aitemplate.compiler.transform import transform_utils
+from aitemplate.compiler.transform.toposort import toposort
+from aitemplate.compiler.transform.transform_strided_ops import _is_supported_op
+
+from aitemplate.utils import graph_utils
+from aitemplate.utils.shape_utils import is_static_dimension
 
 
 def _is_same_shape(gemm_op1: Operator, gemm_op2: Operator) -> bool:

@@ -15,10 +15,10 @@
 """
 Frontend for attention module
 """
-from ...compiler import ops
-from .linear import Linear
-from .module import Module
-from .parameter import Parameter
+from aitemplate.compiler import ops
+from aitemplate.frontend.nn.linear import Linear
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.parameter import Parameter
 
 # pylint: disable=C0103
 

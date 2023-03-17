@@ -16,9 +16,9 @@
 Dynamic slice ROCM implementation.
 """
 
-from ... import registry
-from ...backend_spec import ROCMSpec
-from ...common.tensor import slice_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import ROCMSpec
+from aitemplate.backend.common.tensor import slice_common
 
 
 @registry.reg("rocm.dynamic_slice.func_decl")

@@ -19,7 +19,7 @@ import functools
 
 import jinja2
 
-from . import slice_common
+from aitemplate.backend.common.tensor import slice_common
 
 OUTPUT_DIM_DEF_TEMPLATE = jinja2.Template(
     """

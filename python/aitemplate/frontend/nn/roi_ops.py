@@ -15,8 +15,8 @@
 """
 RoiAlign-family modules.
 """
-from ...compiler.ops import multi_level_roi_align, roi_align
-from .module import Module
+from aitemplate.compiler.ops import multi_level_roi_align, roi_align
+from aitemplate.frontend.nn.module import Module
 
 
 class RoiAlign(Module):

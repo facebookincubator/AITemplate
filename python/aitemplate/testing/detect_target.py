@@ -19,7 +19,7 @@ import logging
 import os
 from subprocess import PIPE, Popen
 
-from ..backend.target import CUDA, ROCM
+from aitemplate.backend.target import CUDA, ROCM
 
 # pylint: disable=W0702, W0612,R1732
 
@@ -30,7 +30,7 @@ IS_CUDA = None
 FLAG = ""
 
 
-def _detect_cuda():
+def _detect_cuda_with_nvidia_smi():
     try:
         proc = Popen(
             ["nvidia-smi", "--query-gpu=gpu_name", "--format=csv"],
@@ -48,6 +48,36 @@ def _detect_cuda():
         if "T4" in stdout:
             return "75"
         return None
+    except Exception:
+        return None
+
+
+def _detect_cuda():
+    try:
+        from cuda import cuda
+
+        def assert_cuda(res):
+            if res[0].value != 0:
+                raise RuntimeError(f"CUDA error code={res[0].value}")
+            return res[1:]
+
+        assert_cuda(cuda.cuInit(0))
+        # Get Compute Capability of the first Visible device
+        major, minor = assert_cuda(cuda.cuDeviceComputeCapability(0))
+        comp_cap = major * 10 + minor
+        if comp_cap >= 90:
+            return "90"
+        elif comp_cap >= 80:
+            return "80"
+        elif comp_cap >= 75:
+            return "75"
+        elif comp_cap >= 70:
+            return "70"
+        else:
+            return None
+    except ImportError:
+        # go back to old way to detect the CUDA arch
+        return _detect_cuda_with_nvidia_smi()
     except Exception:
         return None
 

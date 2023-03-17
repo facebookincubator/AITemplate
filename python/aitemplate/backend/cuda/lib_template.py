@@ -17,7 +17,7 @@ Common function templates for CUDA codegen.
 """
 import jinja2
 
-from .. import registry
+from aitemplate.backend import registry
 
 # pylint: disable=C0301
 

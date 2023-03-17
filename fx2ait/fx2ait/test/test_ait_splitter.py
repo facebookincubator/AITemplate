@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import torch
-from fx2ait.acc_tracer import acc_tracer
+from fx2ait.acc_tracer import acc_ops, acc_tracer
 from fx2ait.ait_splitter import (  # @manual=//aitemplate/AITemplate/fx2ait/fx2ait:fx2ait
     AITSplitter,
     AITSplitterSettings,
@@ -21,6 +21,7 @@ from fx2ait.ait_splitter import (  # @manual=//aitemplate/AITemplate/fx2ait/fx2a
 )
 from fx2ait.tools.common_fx2ait import AITTestCase
 from torch.fx.passes import operator_support as op_support
+from torch.fx.passes.operator_support import OperatorSupportBase
 
 
 class TestSplit(AITTestCase):
@@ -145,4 +146,90 @@ class TestSplit(AITTestCase):
         self.assertEqual(
             dict(split_results_double.split_module.named_children()).keys(),
             {"_run_on_gpu_0"},
+        )
+
+        # nodes w/ integer input should not be lowered
+        mod = acc_tracer.trace(test_mod, [x])
+        splitter = AITSplitter(
+            mod,
+            (x.int().cuda(),),
+            operator_support,
+            settings,
+        )
+
+        split_results_int = splitter.generate_split_results()
+
+        self.assertTrue(len(split_results_int), 1)
+        self.assertEqual(
+            dict(split_results_int.split_module.named_children()).keys(),
+            {"_run_on_gpu_0"},
+        )
+
+        # nodes w/ integer input should be lowered
+        mod = acc_tracer.trace(test_mod, [x])
+        settings.allow_int_inputs = True
+        splitter = AITSplitter(
+            mod,
+            (x.int().cuda(),),
+            settings=settings,
+        )
+
+        split_results_int_allowed = splitter.generate_split_results()
+
+        self.assertTrue(len(split_results_int_allowed), 1)
+        self.assertEqual(
+            dict(split_results_int_allowed.split_module.named_children()).keys(),
+            {"_run_on_acc_0"},
+        )
+
+    def test_accept_if_allow_op_support(self):
+        operator_support = create_ait_operator_support()
+
+        class TestModule(torch.nn.Module):
+            def forward(self, a):
+                b = torch.relu(a)
+                return b
+
+        test_mod = TestModule().cuda().eval()
+        x = torch.randn(2, 3)
+        settings = AITSplitterSettings()
+        settings.min_acc_module_size = 0
+
+        # nodes w/ int input should not be lowered
+        mod = acc_tracer.trace(test_mod, [x])
+        splitter = AITSplitter(
+            mod,
+            (x.int().cuda(),),
+            operator_support,
+            settings,
+        )
+        split_results_int = splitter.generate_split_results()
+        self.assertTrue(len(split_results_int), 1)
+        self.assertEqual(
+            dict(split_results_int.split_module.named_children()).keys(),
+            {"_run_on_gpu_0"},
+        )
+
+        class JaggedOperatorSupport(OperatorSupportBase):
+            def is_node_supported(self, submodules, node: torch.fx.Node) -> bool:
+                return node.op == "call_function" and node.target in [
+                    acc_ops.relu,
+                ]
+
+        operator_support = create_ait_operator_support(
+            allow_op_supports=[JaggedOperatorSupport()]
+        )
+        # node relu should be lowered
+        mod = acc_tracer.trace(test_mod, [x])
+        splitter = AITSplitter(
+            mod,
+            (x.int().cuda(),),
+            operator_support,
+            settings,
+        )
+        split_results_relu_allowed = splitter.generate_split_results()
+        self.assertTrue(len(split_results_relu_allowed), 1)
+        self.assertEqual(
+            dict(split_results_relu_allowed.split_module.named_children()).keys(),
+            {"_run_on_acc_0"},
         )

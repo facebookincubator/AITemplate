@@ -22,6 +22,7 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -83,11 +84,7 @@ class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
             self._test_rcr([1, 7, 64, 127], "dynamic_m", use_fast_gelu=False)
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_rcr_float(self):
+    def test_rcr_float_sm80(self):
         self._test_rcr(
             [1, 7, 64, 127], "fast_dynamic_m_float", use_fast_gelu=True, dtype="float"
         )
@@ -96,11 +93,7 @@ class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_rcr_bias_fast_gelu_bfloat16(self):
+    def test_gemm_rcr_bias_fast_gelu_bfloat16_sm80(self):
         self._test_rcr(
             [1, 7, 64, 127],
             "fast_dynamic_m_bfloat16",
@@ -113,6 +106,8 @@ class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
             [1, 7, 64, 127], "dynamic_m_bfloat16", use_fast_gelu=False, dtype="bfloat16"
         )
 
+
+filter_test_cases_by_test_env(GEMMRcrBiasFastGeluTestCase)
 
 if __name__ == "__main__":
     unittest.main()

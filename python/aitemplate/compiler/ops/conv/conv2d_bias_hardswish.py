@@ -15,7 +15,9 @@
 """
 Fused conv2d_bias_hardswish op.
 """
-from .common_conv2d_bias_activation import conv2d_bias_activation
+from aitemplate.compiler.ops.conv.common_conv2d_bias_activation import (
+    conv2d_bias_activation,
+)
 
 
 # pylint: disable=C0103

@@ -24,6 +24,7 @@ from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     count_ops,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
     has_op,
@@ -657,11 +658,7 @@ class GroupOpTestCase(unittest.TestCase):
         self._test_group_gemm_fusion(1024, [[16, 44], [32, 32]], should_fail=True)
         self._test_group_gemm_fusion(1024, [[16, 13], [32, 1]], should_fail=True)
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_group_gemm_fusion_float32(self):
+    def test_group_gemm_fusion_float32_sm80(self):
         self._test_group_gemm_fusion(32, [[16, 64], [32, 32]], dtype="float32")
         self._test_group_gemm_fusion(
             32, [[16, 64], [32, 40]], has_bias=False, dtype="float32"
@@ -774,11 +771,7 @@ class GroupOpTestCase(unittest.TestCase):
             num_group_ops=1,
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_split_group_gemm_fusion_float32(self):
+    def test_split_group_gemm_fusion_float32_sm80(self):
         self._test_split_group_gemm_fusion(
             32,
             [[16, 64], [16, 40], [16, 128]],
@@ -796,6 +789,8 @@ class GroupOpTestCase(unittest.TestCase):
             dtype="float32",
         )
 
+
+filter_test_cases_by_test_env(GroupOpTestCase)
 
 if __name__ == "__main__":
     unittest.main()

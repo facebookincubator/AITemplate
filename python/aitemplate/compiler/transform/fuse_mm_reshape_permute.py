@@ -17,11 +17,12 @@ Fuse GEMM + reshape + permute0213
 """
 from typing import List, Sequence
 
-from ...utils import graph_utils
-from ..base import IntImm, Operator, Tensor
-from ..ops import gemm_rcr_permute
-from . import transform_utils
-from .toposort import toposort
+from aitemplate.compiler.base import IntImm, Operator, Tensor
+from aitemplate.compiler.ops import gemm_rcr_permute
+from aitemplate.compiler.transform import transform_utils
+from aitemplate.compiler.transform.toposort import toposort
+
+from aitemplate.utils import graph_utils
 
 
 def _check_reshape(op: Operator) -> bool:

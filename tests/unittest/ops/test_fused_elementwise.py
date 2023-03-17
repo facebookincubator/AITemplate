@@ -30,18 +30,22 @@ from aitemplate.compiler.transform.fuse_ops import _get_inputs_outputs
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
     get_torch_full_tensor,
+    TestEnv,
 )
 from aitemplate.utils import shape_utils
 from parameterized import parameterized
 
-ait_dtype_to_pytorch = {"float16": torch.float16}
-if detect_target().name() != "rocm":
-    ait_dtype_to_pytorch["float32"] = torch.float32
-    if int(detect_target()._arch) >= 80:
-        ait_dtype_to_pytorch["bfloat16"] = torch.bfloat16
+
+_AIT_DTYPE_TO_PYTORCH_DTYPE = {
+    "float16": torch.float16,
+    "float32": torch.float32,
+    "bfloat16": torch.bfloat16,
+}
 
 
 class FusedElementwiseTestCase(unittest.TestCase):
@@ -103,12 +107,20 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self.assertEqual(X1._attrs["depth"], 0)
         self.assertEqual(X4._attrs["depth"], 2)
 
-    def test_fused_elementwise_constructor(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_fused_elementwise_constructor(ait_dtype)
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_fused_elementwise_constructor(self, ait_dtype):
+        self._test_fused_elementwise_constructor(ait_dtype)
 
     def _test_fused_elementwise_e2e(self, batch_sizes, ms, ks, test_name, ait_dtype):
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=[
                 shape_utils.gen_int_var_min_max(batch_sizes),
@@ -149,43 +161,51 @@ class FusedElementwiseTestCase(unittest.TestCase):
                     module.run_with_tensors([x1_pt], [x4])
                     self.assertTrue(torch.allclose(x4, x4_pt, atol=1e-2, rtol=1e-2))
 
-    def test_fused_elementwise_e2e(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_fused_elementwise_e2e(
-                batch_sizes=[1024],
-                ms=[256],
-                ks=[128],
-                test_name=f"static_shapes_{ait_dtype}",
-                ait_dtype=ait_dtype,
-            )
-            self._test_fused_elementwise_e2e(
-                batch_sizes=[1, 99, 998, 1024],
-                ms=[256],
-                ks=[128],
-                test_name=f"dynamic_batch_size_{ait_dtype}",
-                ait_dtype=ait_dtype,
-            )
-            self._test_fused_elementwise_e2e(
-                batch_sizes=[1024],
-                ms=[1, 128, 256],
-                ks=[128],
-                test_name=f"dynamic_m_{ait_dtype}",
-                ait_dtype=ait_dtype,
-            )
-            self._test_fused_elementwise_e2e(
-                batch_sizes=[1024],
-                ms=[256],
-                ks=[1, 3, 8, 128],
-                test_name=f"dynamic_k_{ait_dtype}",
-                ait_dtype=ait_dtype,
-            )
-            self._test_fused_elementwise_e2e(
-                batch_sizes=[700, 80, 1024],
-                ms=[23, 78, 256],
-                ks=[10, 30, 128],
-                test_name=f"dynamic_all_{ait_dtype}",
-                ait_dtype=ait_dtype,
-            )
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_fused_elementwise_e2e(self, ait_dtype):
+        self._test_fused_elementwise_e2e(
+            batch_sizes=[1024],
+            ms=[256],
+            ks=[128],
+            test_name=f"static_shapes_{ait_dtype}",
+            ait_dtype=ait_dtype,
+        )
+        self._test_fused_elementwise_e2e(
+            batch_sizes=[1, 99, 998, 1024],
+            ms=[256],
+            ks=[128],
+            test_name=f"dynamic_batch_size_{ait_dtype}",
+            ait_dtype=ait_dtype,
+        )
+        self._test_fused_elementwise_e2e(
+            batch_sizes=[1024],
+            ms=[1, 128, 256],
+            ks=[128],
+            test_name=f"dynamic_m_{ait_dtype}",
+            ait_dtype=ait_dtype,
+        )
+        self._test_fused_elementwise_e2e(
+            batch_sizes=[1024],
+            ms=[256],
+            ks=[1, 3, 8, 128],
+            test_name=f"dynamic_k_{ait_dtype}",
+            ait_dtype=ait_dtype,
+        )
+        self._test_fused_elementwise_e2e(
+            batch_sizes=[700, 80, 1024],
+            ms=[23, 78, 256],
+            ks=[10, 30, 128],
+            test_name=f"dynamic_all_{ait_dtype}",
+            ait_dtype=ait_dtype,
+        )
 
     def _test_fused_elementwise_kernel1(self, ait_dtype):
         BATCH_SIZE = 1024
@@ -231,12 +251,20 @@ class FusedElementwiseTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [x9])
         torch.testing.assert_close(x9, x9_pt, atol=1e-2, rtol=1e-2)
 
-    def test_fused_elementwise_kernel1(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_fused_elementwise_kernel1(ait_dtype)
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_fused_elementwise_kernel1(self, ait_dtype):
+        self._test_fused_elementwise_kernel1(ait_dtype)
 
     def _test_sigmoid(self, input_size, test_name, ait_dtype):
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=[IntImm(input_size[0]), IntImm(input_size[1])],
             dtype=ait_dtype,
@@ -262,15 +290,23 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self.assertEqual(torch.sum(x2 < 0), 0)
         self.assertEqual(torch.sum(x2 > 1), 0)
 
-    def test_sigmoid(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_sigmoid([1024, 2 * 1496], f"sigmoid_1_{ait_dtype}", ait_dtype)
-            self._test_sigmoid([1024, 23744], f"sigmoid_2_{ait_dtype}", ait_dtype)
-            self._test_sigmoid([1024, 70144], f"sigmoid_3_{ait_dtype}", ait_dtype)
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_sigmoid(self, ait_dtype):
+        self._test_sigmoid([1024, 2 * 1496], f"sigmoid_1_{ait_dtype}", ait_dtype)
+        self._test_sigmoid([1024, 23744], f"sigmoid_2_{ait_dtype}", ait_dtype)
+        self._test_sigmoid([1024, 70144], f"sigmoid_3_{ait_dtype}", ait_dtype)
 
     def _test_tanh(self, input_size, test_name, ait_dtype):
         assert len(input_size) == 2
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=[IntImm(input_size[0]), IntImm(input_size[1])],
             dtype=ait_dtype,
@@ -291,15 +327,24 @@ class FusedElementwiseTestCase(unittest.TestCase):
         module.run_with_tensors([x1_pt], [x2])
         self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
 
-    def test_tanh(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_tanh([1024, 22400], f"tanh_1_{ait_dtype}", ait_dtype)
-            self._test_tanh([1024, 70144], f"tanh_2_{ait_dtype}", ait_dtype)
-            self._test_tanh([1024, 23744], f"tanh_3_{ait_dtype}", ait_dtype)
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                # float16 device function is different for SM80 and lower
+                TestEnv.CUDA_SM80: [("float16"), ("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_tanh(self, ait_dtype):
+        self._test_tanh([1024, 22400], f"tanh_1_{ait_dtype}", ait_dtype)
+        self._test_tanh([1024, 70144], f"tanh_2_{ait_dtype}", ait_dtype)
+        self._test_tanh([1024, 23744], f"tanh_3_{ait_dtype}", ait_dtype)
 
     def _test_gelu(self, input_size, test_name, ait_dtype, fast_gelu=False):
         assert len(input_size) == 2
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=[IntImm(input_size[0]), IntImm(input_size[1])],
             dtype=ait_dtype,
@@ -323,80 +368,18 @@ class FusedElementwiseTestCase(unittest.TestCase):
         module.run_with_tensors([x1_pt], [x2])
         self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
 
-    def test_gelu(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_gelu([1024, 22400], f"gelu_1_{ait_dtype}", ait_dtype)
-            self._test_gelu([1024, 70144], f"fast_gelu_1_{ait_dtype}", ait_dtype, True)
-
-    def _test_power(self, input_size, exp, test_name, ait_dtype):
-        print(f"Running test {test_name} with exp = {exp}")
-        assert len(input_size) == 2
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
-        X1 = Tensor(
-            shape=[IntImm(input_size[0]), IntImm(input_size[1])],
-            dtype=ait_dtype,
-            name="input0",
-            is_input=True,
-        )
-        X2 = ops.elementwise(FuncEnum.POW)(X1, exp)
-        X2._attrs["is_output"] = True
-        X2._attrs["name"] = "output0"
-
-        target = detect_target()
-        module = compile_model(X2, target, "./tmp", test_name)
-
-        if abs(exp) < 1.0:
-            x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype) + 0.5
-        else:
-            x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
-        x2_pt = torch.pow(x1_pt, exp)
-
-        x2 = torch.empty(input_size).cuda().to(dtype=torch_dtype)
-        module.run_with_tensors([x1_pt], [x2])
-        # t, _, _ = module.benchmark_with_tensors([x1_pt], [x2], count=1000)
-        # bw = input_size[0] * input_size[1] * 2 * 2 / (t * 1e9 * 1e-3)
-        # print(f"BW: {bw} GB/s")
-        torch.testing.assert_close(x2, x2_pt, atol=1e-3, rtol=1e-3, equal_nan=True)
-
     @parameterized.expand(
-        itertools.product(
-            (0, 1, -1, 0.5, -0.5, 2, -2, 1.4, 3),
-            ([1024, 1024], [1025, 1025]),
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
         )
     )
-    def test_power_float16(self, exp, shape):
-        dtype = "float16"
-        self._test_power(
-            shape,
-            exp,
-            f"pow_{shape[0]}_{shape[1]}_{exp}_{dtype}",
-            dtype,
-        )
-
-    @unittest.skipIf(
-        detect_target().name() != "cuda", "float32 dtype only supported in CUDA"
-    )
-    def test_power_float32(self):
-        self._test_power(
-            (1024, 1024),
-            2.5,
-            "pow_float32",
-            "float32",
-        )
-
-    @unittest.skipIf(
-        detect_target().name() != "cuda", "bfloat16 dtype only supported in CUDA"
-    )
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80, "bfloat16 dtype only supported in CUDA sm80+"
-    )
-    def test_power_bfloat16(self):
-        self._test_power(
-            (1024, 1024),
-            1.2,
-            "pow_bfloat16",
-            "bfloat16",
-        )
+    def test_gelu(self, ait_dtype):
+        self._test_gelu([1024, 22400], f"gelu_1_{ait_dtype}", ait_dtype)
+        self._test_gelu([1024, 70144], f"fast_gelu_1_{ait_dtype}", ait_dtype, True)
 
     def _test_min_max(
         self,
@@ -451,39 +434,55 @@ class FusedElementwiseTestCase(unittest.TestCase):
 
         torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2, equal_nan=True)
 
-    def test_min(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_min_max(
-                [512, 512],
-                test_name=f"min_nonan_{ait_dtype}",
-                is_min=True,
-                add_nans=False,
-                ait_dtype=ait_dtype,
-            )
-            self._test_min_max(
-                [512, 512],
-                test_name=f"min_nan_{ait_dtype}",
-                is_min=True,
-                add_nans=True,
-                ait_dtype=ait_dtype,
-            )
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_min(self, ait_dtype):
+        self._test_min_max(
+            [512, 512],
+            test_name=f"min_nonan_{ait_dtype}",
+            is_min=True,
+            add_nans=False,
+            ait_dtype=ait_dtype,
+        )
+        self._test_min_max(
+            [512, 512],
+            test_name=f"min_nan_{ait_dtype}",
+            is_min=True,
+            add_nans=True,
+            ait_dtype=ait_dtype,
+        )
 
-    def test_max(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_min_max(
-                [512, 512],
-                test_name=f"max_nonan_{ait_dtype}",
-                is_min=False,
-                add_nans=False,
-                ait_dtype=ait_dtype,
-            )
-            self._test_min_max(
-                [512, 512],
-                test_name=f"max_nan_{ait_dtype}",
-                is_min=False,
-                add_nans=True,
-                ait_dtype=ait_dtype,
-            )
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_max(self, ait_dtype):
+        self._test_min_max(
+            [512, 512],
+            test_name=f"max_nonan_{ait_dtype}",
+            is_min=False,
+            add_nans=False,
+            ait_dtype=ait_dtype,
+        )
+        self._test_min_max(
+            [512, 512],
+            test_name=f"max_nan_{ait_dtype}",
+            is_min=False,
+            add_nans=True,
+            ait_dtype=ait_dtype,
+        )
 
     def _test_clamp(
         self,
@@ -494,7 +493,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         ait_dtype,
     ) -> None:
         assert len(input_size) == 2 or len(input_size) == 0
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X0 = Tensor(
             shape=[IntImm(input_size[0]), IntImm(input_size[1])] if input_size else [],
             dtype=ait_dtype,
@@ -517,17 +516,25 @@ class FusedElementwiseTestCase(unittest.TestCase):
 
         self.assertTrue(torch.allclose(x1, x1_pt, atol=1e-2, rtol=1e-2))
 
-    def test_clamp(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_clamp([512, 106], -1, 1, f"clamp_0_{ait_dtype}", ait_dtype)
-            self._test_clamp([128, 46], None, 1, f"clamp_1_{ait_dtype}", ait_dtype)
-            self._test_clamp([56, 265], -1, None, f"clamp_2_{ait_dtype}", ait_dtype)
-            self._test_clamp([17, 123], 1, -1, f"clamp_3_{ait_dtype}", ait_dtype)
-            self._test_clamp([], 1, -1, f"clamp_4_{ait_dtype}", ait_dtype)
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_clamp(self, ait_dtype):
+        self._test_clamp([512, 106], -1, 1, f"clamp_0_{ait_dtype}", ait_dtype)
+        self._test_clamp([128, 46], None, 1, f"clamp_1_{ait_dtype}", ait_dtype)
+        self._test_clamp([56, 265], -1, None, f"clamp_2_{ait_dtype}", ait_dtype)
+        self._test_clamp([17, 123], 1, -1, f"clamp_3_{ait_dtype}", ait_dtype)
+        self._test_clamp([], 1, -1, f"clamp_4_{ait_dtype}", ait_dtype)
 
     def _test_operator_overload(self, ait_dtype):
         input_size = [4, 2]
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=input_size,
             dtype=ait_dtype,
@@ -555,13 +562,21 @@ class FusedElementwiseTestCase(unittest.TestCase):
         module.run_with_tensors([x1_pt, x2_pt], [output])
         self.assertTrue(torch.allclose(output, output_pt, atol=1e-2, rtol=1e-2))
 
-    def test_operator_overload(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_operator_overload(ait_dtype)
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_operator_overload(self, ait_dtype):
+        self._test_operator_overload(ait_dtype)
 
     def _test_operator_overload_with_constant_number(self, ait_dtype):
         input_size = [4, 2]
-        torch_dtype = ait_dtype_to_pytorch[ait_dtype]
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=input_size,
             dtype=ait_dtype,
@@ -581,9 +596,87 @@ class FusedElementwiseTestCase(unittest.TestCase):
         module.run_with_tensors([x1_pt], [output])
         self.assertTrue(torch.allclose(output, output_pt, atol=1e-2, rtol=1e-2))
 
-    def test_operator_overload_with_constant_number(self):
-        for ait_dtype in ait_dtype_to_pytorch.keys():
-            self._test_operator_overload_with_constant_number(ait_dtype)
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_operator_overload_with_constant_number(self, ait_dtype):
+        self._test_operator_overload_with_constant_number(ait_dtype)
+
+
+class FusedElementwisePowerTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
+    def _test_power(self, input_size, exp, test_name, ait_dtype):
+        print(f"Running test {test_name} with exp = {exp}")
+        assert len(input_size) == 2
+        torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
+        X1 = Tensor(
+            shape=[IntImm(input_size[0]), IntImm(input_size[1])],
+            dtype=ait_dtype,
+            name="input0",
+            is_input=True,
+        )
+        X2 = ops.elementwise(FuncEnum.POW)(X1, exp)
+        X2._attrs["is_output"] = True
+        X2._attrs["name"] = "output0"
+
+        target = detect_target()
+        module = compile_model(X2, target, "./tmp", test_name)
+
+        if abs(exp) < 1.0:
+            x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype) + 0.5
+        else:
+            x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
+        x2_pt = torch.pow(x1_pt, exp)
+
+        x2 = torch.empty(input_size).cuda().to(dtype=torch_dtype)
+        module.run_with_tensors([x1_pt], [x2])
+        # t, _, _ = module.benchmark_with_tensors([x1_pt], [x2], count=1000)
+        # bw = input_size[0] * input_size[1] * 2 * 2 / (t * 1e9 * 1e-3)
+        # print(f"BW: {bw} GB/s")
+        torch.testing.assert_close(x2, x2_pt, atol=1e-3, rtol=1e-3, equal_nan=True)
+
+    @parameterized.expand(
+        itertools.product(
+            (0, 1, -1, 0.5, -0.5, 2, -2, 1.4, 3),
+            ([1024, 1024], [1025, 1025]),
+        )
+    )
+    def test_power_float16(self, exp, shape):
+        dtype = "float16"
+        self._test_power(
+            shape,
+            exp,
+            f"pow_{shape[0]}_{shape[1]}_{exp}_{dtype}",
+            dtype,
+        )
+
+    def test_power_float32_sm80(self):
+        self._test_power(
+            (1024, 1024),
+            2.5,
+            "pow_float32",
+            "float32",
+        )
+
+    def test_power_bfloat16_bf16(self):
+        self._test_power(
+            (1024, 1024),
+            1.2,
+            "pow_bfloat16",
+            "bfloat16",
+        )
+
+
+filter_test_cases_by_test_env(FusedElementwisePowerTestCase)
 
 
 if __name__ == "__main__":

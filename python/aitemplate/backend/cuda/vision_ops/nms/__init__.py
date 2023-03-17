@@ -15,4 +15,8 @@
 """
 (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 """
-from . import batched_nms, efficient_nms, nms  # noqa
+from aitemplate.backend.cuda.vision_ops.nms import (  # noqa
+    batched_nms,
+    efficient_nms,
+    nms,
+)

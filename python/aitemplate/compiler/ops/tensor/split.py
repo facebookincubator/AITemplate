@@ -18,11 +18,11 @@ Split.
 import itertools
 from typing import List, Sequence, Union
 
-from .... import backend
-from ....backend import registry
-from ....utils import shape_utils
-from ....utils.tensor_utils import wrap_dim
-from ...base import IntImm, IntVar, Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.utils import shape_utils
+from aitemplate.utils.tensor_utils import wrap_dim
 
 # pylint: disable=C0103,W0221
 

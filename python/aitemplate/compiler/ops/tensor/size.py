@@ -21,7 +21,7 @@ from aitemplate import backend
 
 from aitemplate.backend import registry
 
-from ...base import IntImm, IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 
 # pylint: disable=C0103,W0221,R1732,W0613
 

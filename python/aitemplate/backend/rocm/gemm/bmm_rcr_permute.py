@@ -19,9 +19,9 @@ This is used for `ops.bmm_rcr`.
 """
 import jinja2
 
-from ... import registry
-from . import bmm_common, bmm_permute_common, common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import bmm_common, bmm_permute_common, common
+from aitemplate.backend.rocm.gemm.layout import RCR
 
 
 ARGS_PARSER_TEMPLATE = jinja2.Template(

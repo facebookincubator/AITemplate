@@ -28,6 +28,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -475,7 +476,6 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             "./tmp",
             f"fused_gemm_m_{m}_k_{k}_n1_{n1}_n2_{n2}_n3_{n3}_{dtype}",
         ) as module:
-
             if not no_fuse:
                 # Verify the generated graph.
                 sorted_graph = module.debug_sorted_graph
@@ -542,11 +542,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_float(self):
+    def test_gemm_fp32_sm80(self):
         self._fused_gemm_e2e_helper(m=1024, k=256, n1=5, n2=32, n3=4, dtype="float")
         self._fused_gemm_e2e_helper(
             m=1024, k=256, n1=8, n2=16, n3=32, m2=8, cat_dim=2, dtype="float"
@@ -620,7 +616,6 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             "./tmp",
             f"fused_{gemm_op_kind}_alignment_input_n_{input_n}_m_{m}_n_{n}_k_{k}_{dtype}",
         ) as module:
-
             # Verify the generated graph.
             sorted_graph = module.debug_sorted_graph
             if gemm_op_kind == "gemm_rcr_bias_add":
@@ -684,11 +679,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_gemm_alignment_float(self):
+    def test_gemm_alignment_fp32_sm80(self):
         self._fused_gemm_alignment_e2e_helper(
             gemm_op=ops.gemm_rcr_bias_add(), input_n=1, m=2, k=2, n=4, dtype="float"
         )
@@ -731,12 +722,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 os.environ["FORCE_PROFILE"] = old_force_ci
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     # Tests to ensure that we correctly update epilogue alignment values
-    def test_gemm_update_epilogue_alignment_float(self):
+    def test_gemm_update_epilogue_alignment_fp32_sm80(self):
         # Note that we have to force profiling in ci. Otherwise, we would not
         # be able to fetch cached config.
         target = detect_target()
@@ -1277,13 +1264,55 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                 dtype="float",
             )
 
-    def _test_bmm_rcr_cat_fusion(
+    def _bmm_parameters(self, bmm_op_name, B, M, N, K):
+        """
+        Return a dict of parameters used for constructing bmm ops
+        """
+        bmm_op_name = bmm_op_name[:7]
+        bmm_rcr_dict = {
+            "a_shape": [B, M, K],
+            "b_shape": [B, N, K],
+            "c_shape": [B, M, N],
+            "a_permute": None,
+            "b_permute": [0, 2, 1],
+        }
+        bmm_crr_dict = {
+            "a_shape": [B, K, M],
+            "b_shape": [B, K, N],
+            "c_shape": [B, M, N],
+            "a_permute": [0, 2, 1],
+            "b_permute": None,
+        }
+        bmm_ccr_dict = {
+            "a_shape": [B, K, M],
+            "b_shape": [B, N, K],
+            "c_shape": [B, M, N],
+            "a_permute": [0, 2, 1],
+            "b_permute": [0, 2, 1],
+        }
+        bmm_rrr_dict = {
+            "a_shape": [B, M, K],
+            "b_shape": [B, K, N],
+            "c_shape": [B, M, N],
+            "a_permute": None,
+            "b_permute": None,
+        }
+        bmm_permutes = {
+            "bmm_rcr": bmm_rcr_dict,
+            "bmm_crr": bmm_crr_dict,
+            "bmm_ccr": bmm_ccr_dict,
+            "bmm_rrr": bmm_rrr_dict,
+        }
+        return bmm_permutes.get(bmm_op_name)
+
+    def _test_bmm_xxx_cat_fusion(
         self,
         B,
         M,
         Ns,
         Ks,
         cat_dim,
+        bmm_op_maker,
         test_name,
         expected_num_tensors,
         expected_num_ops,
@@ -1298,27 +1327,36 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         for i in range(n):
             N = Ns[i]
             K = Ks[i]
+            bmm_op = bmm_op_maker()
+            bmm_params = self._bmm_parameters(bmm_op._attrs["op"], B, M, N, K)
+            x_shape = bmm_params["a_shape"]
+            y_shape = bmm_params["b_shape"]
             X = Tensor(
-                shape=[B, M, K],
+                shape=x_shape,
                 dtype=dtype,
                 name=f"X{i}",
                 is_input=True,
             )
             Y = Tensor(
-                shape=[B, N, K],
+                shape=y_shape,
                 dtype=dtype,
                 name=f"Y{i}",
                 is_input=True,
             )
-            if N > 1:
-                C = ops.bmm_rcr()(X, Y)
-            else:
-                C = ops.bmm_rcr_n1()(X, Y)
+            C = bmm_op(X, Y)
             Cs.append(C)
 
-            x = get_random_torch_tensor([B, M, K], dtype)
-            y = get_random_torch_tensor([B, N, K], dtype)
-            c = torch.bmm(x, y.permute([0, 2, 1]))
+            x = get_random_torch_tensor(x_shape, dtype)
+            bmm_x = x
+            x_permute = bmm_params["a_permute"]
+            if x_permute is not None:
+                bmm_x = x.permute(x_permute)
+            y = get_random_torch_tensor(y_shape, dtype)
+            bmm_y = y
+            y_permute = bmm_params["b_permute"]
+            if y_permute is not None:
+                bmm_y = y.permute(y_permute)
+            c = torch.bmm(bmm_x, bmm_y)
             Xs_pt.append(x)
             Ys_pt.append(y)
             Cs_pt.append(c)
@@ -1347,142 +1385,111 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
     def test_bmm_rcr_cat_fusion(self):
-        self._test_bmm_rcr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=1,
             M=8,
             Ns=[2, 2, 2],
             Ks=[4, 5, 32],
             cat_dim=2,
+            bmm_op_maker=ops.bmm_rcr,
             test_name="test_bmm_rcr_cat_1",
             expected_num_tensors=11,
             expected_num_ops=5,
         )
-        self._test_bmm_rcr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=1,
             M=16,
             Ns=[1, 1, 1],
             Ks=[32, 16, 32],
+            bmm_op_maker=ops.bmm_rcr_n1,
             cat_dim=1,
             test_name="test_bmm_rcr_cat_2",
             expected_num_tensors=7,
             expected_num_ops=3,
         )
-        self._test_bmm_rcr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=1,
             M=16,
             Ns=[1, 1, 1],
             Ks=[32, 16, 32],
+            bmm_op_maker=ops.bmm_rcr_n1,
             cat_dim=2,
             test_name="test_bmm_rcr_cat_3",
             expected_num_tensors=7,
             expected_num_ops=3,
         )
-        self._test_bmm_rcr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=1,
             M=16,
             Ns=[1, 1, 1],
             Ks=[32, 16, 32],
+            bmm_op_maker=ops.bmm_rcr_n1,
             cat_dim=-1,
             test_name="test_bmm_rcr_cat_4",
             expected_num_tensors=7,
             expected_num_ops=3,
         )
 
-    def _test_bmm_crr_cat_fusion(
-        self,
-        B,
-        M,
-        Ns,
-        Ks,
-        cat_dim,
-        test_name,
-        expected_num_tensors,
-        expected_num_ops,
-        dtype="float16",
-    ):
-        n = len(Ns)
-        Cs = []
-
-        Xs_pt = []
-        Ys_pt = []
-        Cs_pt = []
-        for i in range(n):
-            N = Ns[i]
-            K = Ks[i]
-            X = Tensor(
-                shape=[B, K, M],
-                dtype=dtype,
-                name=f"X{i}",
-                is_input=True,
-            )
-            Y = Tensor(
-                shape=[B, K, N],
-                dtype=dtype,
-                name=f"Y{i}",
-                is_input=True,
-            )
-            C = ops.bmm_crr()(X, Y)
-            Cs.append(C)
-
-            x = get_random_torch_tensor([B, K, M], dtype)
-            y = get_random_torch_tensor([B, K, N], dtype)
-            c = torch.bmm(x.permute([0, 2, 1]), y)
-            Xs_pt.append(x)
-            Ys_pt.append(y)
-            Cs_pt.append(c)
-
-        Y = ops.concatenate()(Cs, dim=cat_dim)
-        Y._attrs["name"] = "output"
-        Y._attrs["is_output"] = True
-        y_pt = torch.cat(Cs_pt, dim=cat_dim)
-
-        # Gen module.
-        target = detect_target()
-        with compile_model(Y, target, "./tmp", test_name) as module:
-            input_name_to_index = module.get_input_name_to_index_map()
-            inputs = [0 for i in range(2 * n)]
-            for i in range(n):
-                inputs[input_name_to_index[f"X{i}"]] = Xs_pt[i]
-                inputs[input_name_to_index[f"Y{i}"]] = Ys_pt[i]
-            y = get_torch_empty_tensor(y_pt.size(), dtype)
-            module.run_with_tensors(inputs, [y])
-
-            sorted_graph = module.debug_sorted_graph
-            self.assertEqual(len(sorted_graph), expected_num_tensors)
-            sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
-            self.assertEqual(len(sorted_ops), expected_num_ops)
-
-            self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
-
     def test_bmm_crr_cat_fusion(self):
         # [B, K, M] x [B, K, N] = [B, M, N]
-        self._test_bmm_crr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=1,
             M=8,
             Ns=[2, 4, 10],
             Ks=[4, 5, 32],
+            bmm_op_maker=ops.bmm_crr,
             cat_dim=2,
             test_name="test_bmm_crr_cat_1",
             expected_num_tensors=7,
             expected_num_ops=3,
         )
-        self._test_bmm_crr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=8,
             M=16,
             Ns=[4, 4, 4],
             Ks=[3, 16, 9],
+            bmm_op_maker=ops.bmm_crr,
             cat_dim=1,
             test_name="test_bmm_crr_cat_2",
             expected_num_tensors=7,
             expected_num_ops=3,
         )
 
-    def _test_bmm_crr_add_cat_fusion(
+    def test_bmm_ccr_cat_fusion(self):
+        # [B, K, M] x [B, N, K] = [B, M, N]
+        self._test_bmm_xxx_cat_fusion(
+            B=1,
+            M=8,
+            Ns=[2, 4, 10],
+            Ks=[4, 8, 14],
+            bmm_op_maker=ops.bmm_ccr,
+            cat_dim=2,
+            test_name="test_bmm_ccr_cat_1",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+        )
+
+    def test_bmm_rrr_cat_fusion(self):
+        # [B, M, K] x [B, K, N] = [B, M, N]
+        self._test_bmm_xxx_cat_fusion(
+            B=1,
+            M=8,
+            Ns=[2, 4, 10],
+            Ks=[4, 8, 14],
+            bmm_op_maker=ops.bmm_rrr,
+            cat_dim=2,
+            test_name="test_bmm_rrr_cat_1",
+            expected_num_tensors=7,
+            expected_num_ops=3,
+        )
+
+    def _test_bmm_xxx_add_cat_fusion(
         self,
         B,
         M,
         Ns,
         Ks,
+        bmm_op_maker,
         cat_dim,
         test_name,
         expected_num_tensors,
@@ -1499,31 +1506,45 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         for i in range(n):
             N = Ns[i]
             K = Ks[i]
+            bmm_op = bmm_op_maker()
+            bmm_params = self._bmm_parameters(bmm_op._attrs["op"], B, M, N, K)
+            x_shape = bmm_params["a_shape"]
+            y_shape = bmm_params["b_shape"]
+            d_shape = bmm_params["c_shape"]
             X = Tensor(
-                shape=[B, K, M],
+                shape=x_shape,
                 dtype=dtype,
                 name=f"X{i}",
                 is_input=True,
             )
             Y = Tensor(
-                shape=[B, K, N],
+                shape=y_shape,
                 dtype=dtype,
                 name=f"Y{i}",
                 is_input=True,
             )
             D = Tensor(
-                shape=[B, M, N],
+                shape=d_shape,
                 dtype=dtype,
                 name=f"D{i}",
                 is_input=True,
             )
-            C = ops.bmm_crr_add()(X, Y, D)
+            C = bmm_op(X, Y, D)
             Cs.append(C)
 
-            x = get_random_torch_tensor([B, K, M], dtype)
-            y = get_random_torch_tensor([B, K, N], dtype)
-            d = get_random_torch_tensor([B, M, N], dtype)
-            c = torch.bmm(x.permute([0, 2, 1]), y)
+            x = get_random_torch_tensor(x_shape, dtype)
+            y = get_random_torch_tensor(y_shape, dtype)
+            d = get_random_torch_tensor(d_shape, dtype)
+            bmm_x = x
+            x_permute = bmm_params["a_permute"]
+            if x_permute is not None:
+                bmm_x = x.permute(x_permute)
+            y = get_random_torch_tensor(y_shape, dtype)
+            bmm_y = y
+            y_permute = bmm_params["b_permute"]
+            if y_permute is not None:
+                bmm_y = y.permute(y_permute)
+            c = torch.bmm(bmm_x, bmm_y)
             c = c + d
             Xs_pt.append(x)
             Ys_pt.append(y)
@@ -1555,21 +1576,23 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
     def test_bmm_crr_add_cat_fusion(self):
-        self._test_bmm_crr_add_cat_fusion(
+        self._test_bmm_xxx_add_cat_fusion(
             B=7,
             M=10,
             Ns=[2, 12, 8],
             Ks=[4, 5, 6],
+            bmm_op_maker=ops.bmm_crr_add,
             cat_dim=2,
             test_name="test_bmm_crr_add_cat_1",
             expected_num_tensors=10,
             expected_num_ops=3,
         )
-        self._test_bmm_crr_add_cat_fusion(
+        self._test_bmm_xxx_add_cat_fusion(
             B=8,
             M=4,
             Ns=[10, 10, 10],
             Ks=[4, 5, 6],
+            bmm_op_maker=ops.bmm_crr_add,
             cat_dim=1,
             test_name="test_bmm_crr_add_cat_2",
             expected_num_tensors=10,
@@ -1577,49 +1600,49 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_cat_fusion_float(self):
-        self._test_bmm_rcr_cat_fusion(
+    def test_bmm_cat_fusion_fp32_sm80(self):
+        self._test_bmm_xxx_cat_fusion(
             B=1,
             M=8,
             Ns=[2, 2, 2],
             Ks=[4, 5, 32],
+            bmm_op_maker=ops.bmm_rcr,
             cat_dim=2,
             test_name="test_bmm_rcr_cat_float_1",
             expected_num_tensors=7,
             expected_num_ops=3,
             dtype="float",
         )
-        self._test_bmm_rcr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=1,
             M=16,
             Ns=[1, 1, 1],
             Ks=[32, 16, 32],
+            bmm_op_maker=ops.bmm_rcr_n1,
             cat_dim=2,
             test_name="test_bmm_rcr_cat_float_3",
             expected_num_tensors=7,
             expected_num_ops=3,
             dtype="float",
         )
-        self._test_bmm_crr_cat_fusion(
+        self._test_bmm_xxx_cat_fusion(
             B=8,
             M=16,
             Ns=[4, 4, 4],
             Ks=[3, 16, 9],
+            bmm_op_maker=ops.bmm_crr,
             cat_dim=1,
             test_name="test_bmm_crr_cat_float_2",
             expected_num_tensors=7,
             expected_num_ops=3,
             dtype="float",
         )
-        self._test_bmm_crr_add_cat_fusion(
+        self._test_bmm_xxx_add_cat_fusion(
             B=7,
             M=10,
             Ns=[2, 12, 8],
             Ks=[4, 5, 6],
+            bmm_op_maker=ops.bmm_crr_add,
             cat_dim=2,
             test_name="test_bmm_crr_add_cat_float_1",
             expected_num_tensors=10,
@@ -1772,11 +1795,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         self._test_bmm_rcr_update_epilogue_alignment_common()
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_rcr_update_epilogue_alignment_float(self):
+    def test_bmm_rcr_update_epilogue_alignment_fp32_sm80(self):
         self._test_bmm_rcr_update_epilogue_alignment_common(dtype="float")
 
     def _test_reduce_cat_fusion_1(
@@ -2368,6 +2387,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         self._test_strided_op_multiple_cats(dtype="float")
         self._test_strided_op_multiple_cats_2(dtype="float")
 
+
+filter_test_cases_by_test_env(StridedOpCatPatternTestCase)
 
 if __name__ == "__main__":
     unittest.main()

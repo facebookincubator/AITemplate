@@ -17,7 +17,7 @@ Templates for different GeMM epilogues.
 """
 from typing import Dict, List, NamedTuple
 
-from ....compiler.ops.common.epilogue import EpilogueOp
+from aitemplate.compiler.ops.common.epilogue import EpilogueOp
 
 
 class GeMMEpilogueSpec(NamedTuple):

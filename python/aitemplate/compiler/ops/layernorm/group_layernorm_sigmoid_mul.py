@@ -17,8 +17,8 @@ Operator definition for group_layernorm_sigmoid_mul.
 """
 from typing import List
 
-from ...base import IntImm
-from .group_layernorm import group_layernorm
+from aitemplate.compiler.base import IntImm
+from aitemplate.compiler.ops.layernorm.group_layernorm import group_layernorm
 
 # pylint: disable=C0103,W0221,W0102,W0223
 

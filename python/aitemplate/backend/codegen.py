@@ -29,17 +29,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
 
+from aitemplate.backend import registry
+
 from aitemplate.backend.main_templates import MODEL_CONTAINER_TEMPLATE, MODEL_TEMPLATE
-from aitemplate.compiler.base import Operator
+from aitemplate.backend.target import Target
+
+from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 from aitemplate.compiler.dtype import dtype_to_enumerator, get_dtype_size
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.utils.debug_settings import AITDebugSettings
-
-from ..compiler.base import IntImm, IntVar, IntVarTensor, Tensor
-from . import registry
-from .target import Target
 
 # pylint: disable=C0103,W0613,C0301
 
@@ -515,7 +515,8 @@ class ModelContainerGenerator:
                 )
             )
             self._codegen_bound_constant(tensor)
-            self.reset_constants.append(const_slice)
+            if not tensor._attrs.get("is_internal_constant", False):
+                self.reset_constants.append(const_slice)
             if self.constants_data_file is not None:
                 self._add_owned_constant(tensor)
         elif tensor._attrs["constant_folding_output_idx"] is not None:
@@ -526,7 +527,8 @@ class ModelContainerGenerator:
                 )
             )
             self.tensor_slice.append(const_slice)
-            self.reset_constants.append(const_slice)
+            if not tensor._attrs.get("is_internal_constant", False):
+                self.reset_constants.append(const_slice)
         elif not isinstance(tensor, IntVarTensor):
             # Unbound constant. We will expect the user to set this via SetConstant.
             self.set_up_constant_names.append(

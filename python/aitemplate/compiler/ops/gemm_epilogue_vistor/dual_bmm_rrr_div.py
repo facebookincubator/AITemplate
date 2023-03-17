@@ -15,9 +15,9 @@
 """
 Batch GEMM specialization: BMM_RRR(A, B0) / BMM_RRR(A, B1)
 """
-from ...base import Tensor
-from ...tensor_accessor import TensorAccessor
-from ..gemm_universal.bmm_rrr import bmm_rrr
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.gemm_universal import bmm_rrr
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0223,W0221,W0613
 

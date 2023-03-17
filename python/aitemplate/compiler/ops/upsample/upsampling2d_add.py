@@ -17,8 +17,8 @@ Upsampling2d_add op.
 """
 from typing import List
 
-from ...base import Tensor
-from .upsampling_common import upsampling2d_base
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.upsample.upsampling_common import upsampling2d_base
 
 
 # pylint: disable=C0103

@@ -24,10 +24,10 @@ from typing import List
 import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.gemm_universal.common import add_profiler, build_profiler
+from aitemplate.backend.target import Target
 
-from ....utils import alignment
-from ...target import Target
-from ..gemm_universal.common import add_profiler, build_profiler
+from aitemplate.utils import alignment
 
 
 KERNEL_KEY_TEMPLATE = jinja2.Template(

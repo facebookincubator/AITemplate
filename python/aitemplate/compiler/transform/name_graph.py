@@ -18,7 +18,7 @@ Graph pass to assign names to a sorted graph.
 import re
 from typing import List
 
-from ..base import IntImm, IntVarTensor, JaggedIntVar, Tensor
+from aitemplate.compiler.base import IntImm, IntVarTensor, JaggedIntVar, Tensor
 
 # pylint: disable=C0103
 
@@ -99,11 +99,6 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
                 dim_name = "{tname}_dim_{idx}".format(tname=tensor_name, idx=i)
                 dim._attrs["name"] = dim_name
 
-    dim_names_in_shapes = set()
-    for tensor in sorted_graph:
-        for dim in tensor._attrs["shape"]:
-            dim_names_in_shapes.add(dim._attrs["name"])
-
     for tensor in sorted_graph:
         if tensor.is_jagged():
             jagged_int_var = tensor._attrs["shape"][0]
@@ -113,18 +108,13 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
             # the name in the JaggedIntVar class. as a result, we must resort to a hack here
             # to reset the name of the JaggedIntVar to the name of the total_length after
             # the latter might have been changed (e.g., from None) by the code above.
-            # TODO: wrap _attrs["name"] (and other frequently used _attrs members) in
-            # @properties and override the "name" property in the JaggedIntVar to return
-            # total_length().name.
+            # TODO (T146653032): wrap _attrs["name"] (and other frequently used _attrs
+            # members) in @properties and override the "name" property in the JaggedIntVar
+            # to return total_length().name.
             jagged_int_var._attrs["name"] = jagged_int_var.total_length()._attrs["name"]
 
             batch_dim = jagged_int_var.batch_dim()
-            if batch_dim._attrs["name"] not in dim_names_in_shapes:
-                # The batch_dim set inside the jagged_int_var is not present in any other
-                # Tensor's shape directly. We mark it as isolated batch dim here to set
-                # the dim to "offsets.length[0] - 1" in the make_jagged backend code.
-                batch_dim._attrs["isolated"] = True
-                if batch_dim._attrs["name"] is None:
-                    # the batch_dim wasn't named above, so we name it here
-                    jagged_int_var_name = jagged_int_var._attrs["name"]
-                    batch_dim._attrs["name"] = f"{jagged_int_var_name}_jagged_batch_dim"
+            if batch_dim._attrs["name"] is None:
+                # the batch_dim wasn't named above, so we name it here
+                jagged_int_var_name = jagged_int_var._attrs["name"]
+                batch_dim._attrs["name"] = f"{jagged_int_var_name}_jagged_batch_dim"

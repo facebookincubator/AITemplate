@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, List
+from typing import Any, List, Set
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
@@ -196,8 +196,9 @@ class TensorSpec:
         cls,
         inputs: List[torch.Tensor],
         max_batch_size: int,
-        max_batch_size_jagged_tensor: int,
-        tag_val=None,
+        max_sequence_length: int,
+        jagged_tensor_batch_dims: Set[int],
+        jagged_offsets_batch_dims: Set[int],
     ) -> List["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
@@ -210,14 +211,30 @@ class TensorSpec:
         left_inputs: List = []
         left_inputs_ind: List = []
         for ind, t in enumerate(inputs):
-            if t.shape[0] == tag_val:
+            batch_dim: int = t.shape[0]
+            batch_dim_lower_bound: int = 0
+            batch_dim_upper_bound: int = 0
+            batch_dim_name: str = ""
+            if batch_dim in jagged_tensor_batch_dims:
+                batch_dim_lower_bound = 0  # when all sequences are empty
+                batch_dim_upper_bound = max_batch_size * max_sequence_length
+                batch_dim_name = f"batch_size_jagged_tensor_{batch_dim}"
+            elif batch_dim in jagged_offsets_batch_dims:
+                batch_dim_lower_bound = 2  # prefix 0 + at least one offset
+                batch_dim_upper_bound = max_batch_size + 1
+                batch_dim_name = f"batch_size_jagged_offsets_{batch_dim}"
+
+            if batch_dim_upper_bound > 0:
                 shape: List[IntVar] = []
                 for i, d in enumerate(t.shape):
                     if i == 0:
                         shape.append(
                             IntVar(
-                                [1, max_batch_size_jagged_tensor],
-                                "batch_size_jagged_tensor",
+                                values=[
+                                    batch_dim_lower_bound,
+                                    batch_dim_upper_bound,
+                                ],
+                                name=batch_dim_name,
                             )
                         )
                     else:
@@ -247,16 +264,36 @@ class TensorSpec:
             return [0]
         shapes = [i.shape for i in inputs]
         frequency_map = {}
+        position_scores = {}
+        first_dims = set()
         for shape in shapes:
             if len(shape) < 2:
                 # By pass for rank-1 tensors. MRS model has rank-1 tensor carry no batch_size info
                 continue
             # Dedup shape value for single tensor
-            shape = set(shape)
-            for i in shape:
-                frequency_map[i] = frequency_map.get(i, 0) + 1
-        sorted_frequency = sorted(frequency_map.items(), key=lambda x: -x[1])
-        batch_size = sorted_frequency[0][0]
+            first_dims.add(shape[0])
+            seen_dims = set()
+            for i, dim in enumerate(shape):
+                if dim not in seen_dims:
+                    frequency_map[dim] = frequency_map.get(dim, 0) + 1
+                    position_scores[dim] = position_scores.get(dim, 0) + i
+                    seen_dims.add(dim)
+
+        if len(first_dims) == 1:
+            # first dim is the same in every input: we use it as batch_size
+            batch_size = first_dims.pop()
+        elif frequency_map:
+            # first dims are different: we use the most frequent dim as batch_size
+            # if there is more than 1 most frequent dim, we choose the one with the
+            # lowest position score (i.e., the leftmost of the most frequent ones)
+            sorted_frequency = sorted(
+                frequency_map.items(),
+                key=lambda x: (-x[1], position_scores[x[0]]),
+            )
+            batch_size = sorted_frequency[0][0]
+        else:
+            # no dims to sort: no batch_size
+            batch_size = -1
 
         bs_dim = []
         for i in inputs:

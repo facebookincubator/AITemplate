@@ -16,8 +16,8 @@
 import logging
 from hashlib import sha1
 
-from .... import backend
-from ....backend import registry
+from aitemplate import backend
+from aitemplate.backend import registry
 
 
 _LOGGER = logging.getLogger(__name__)

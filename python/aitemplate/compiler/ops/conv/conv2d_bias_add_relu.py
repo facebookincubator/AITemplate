@@ -15,7 +15,9 @@
 """
 fused conv2d_bias_relu_add op, for residual block
 """
-from .common_conv2d_bias_add_activation import conv2d_bias_add_activation
+from aitemplate.compiler.ops.conv.common_conv2d_bias_add_activation import (
+    conv2d_bias_add_activation,
+)
 
 
 # pylint: disable=C0103

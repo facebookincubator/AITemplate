@@ -18,10 +18,10 @@ Dynamic_slice.
 import itertools
 from typing import List, Optional, Union
 
-from .... import backend
-from ....backend import registry
-from ....utils import shape_utils
-from ...base import IntVar, IntVarTensor, Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221
 

@@ -15,7 +15,7 @@
 """
 Rocm gemm init.
 """
-from . import (  # noqa: F401
+from aitemplate.backend.rocm.gemm import (  # noqa: F401
     bmm_ccr,
     bmm_ccr_add,
     bmm_crr,

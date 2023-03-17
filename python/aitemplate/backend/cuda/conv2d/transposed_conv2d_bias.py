@@ -15,8 +15,8 @@
 """
 transposed conv2d + bias + (relu) codegen
 """
-from ... import registry
-from . import common, common_transposed_conv2d as ctc
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.conv2d import common, common_transposed_conv2d as ctc
 
 # pylint: disable=C0103,C0415,W0613,C0301
 

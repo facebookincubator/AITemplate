@@ -100,7 +100,6 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
   {{ func }}
       DeviceCheckLastError(__FILE__, __LINE__);
   {% endfor %}
-      DeviceToDeviceCopies(stream);
     }
 
     void ProfileImpl(StreamType stream, size_t iters, const std::string& filename) {

@@ -19,7 +19,13 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
+
+from parameterized import parameterized
 
 
 def hard_swish(x):
@@ -87,31 +93,23 @@ class ConvBiasActFewChannelsTestCase(unittest.TestCase):
         else:
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
-    def test_relu_fp16(self):
-        self._test_conv_bias_relu_few_channels(
-            test_name="conv_bias_relu_few_channels_fp16",
-            dtype="float16",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
         )
-        self._test_conv_bias_relu_few_channels(
-            copy_op=True,
-            test_name="conv_bias_relu_few_channels_fp16_copy_op",
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
     )
-    def test_relu_fp32(self):
+    def test_relu(self, dtype):
         self._test_conv_bias_relu_few_channels(
-            test_name="conv_bias_relu_few_channels_fp32",
-            dtype="float32",
+            test_name=f"conv_bias_relu_few_channels_{dtype}",
+            dtype=dtype,
         )
         self._test_conv_bias_relu_few_channels(
             copy_op=True,
-            test_name="conv_bias_relu_few_channels_fp32_copy_op",
-            dtype="float32",
+            test_name="conv_bias_relu_few_channels_{dtype}_copy_op",
+            dtype=dtype,
         )
 
     def _test_conv_bias_hardswish_few_channels(
@@ -172,31 +170,23 @@ class ConvBiasActFewChannelsTestCase(unittest.TestCase):
         else:
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
-    def test_hardswish_fp16(self):
-        self._test_conv_bias_hardswish_few_channels(
-            test_name="conv_bias_hardswish_few_channels_fp16",
-            dtype="float16",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32")],
+            }
         )
-        self._test_conv_bias_hardswish_few_channels(
-            copy_op=True,
-            test_name="conv_bias_hardswish_few_channels_fp16_copy_op",
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
     )
-    def test_hardswish_fp32(self):
+    def test_hardswish(self, dtype):
         self._test_conv_bias_hardswish_few_channels(
-            test_name="conv_bias_hardswish_few_channels_fp32",
-            dtype="float32",
+            test_name=f"conv_bias_hardswish_few_channels_{dtype}",
+            dtype=dtype,
         )
         self._test_conv_bias_hardswish_few_channels(
             copy_op=True,
-            test_name="conv_bias_hardswish_few_channels_fp32_copy_op",
-            dtype="float32",
+            test_name=f"conv_bias_hardswish_few_channels_{dtype}_copy_op",
+            dtype=dtype,
         )
 
 

@@ -20,7 +20,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import List
 
-from ..base import Operator, Tensor
+from aitemplate.compiler.base import Operator, Tensor
 
 # pylint: disable=C0103
 

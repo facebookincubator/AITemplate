@@ -17,12 +17,12 @@ Concatenate.
 """
 from typing import List, Sequence, Union
 
-from .... import backend
-from ....backend import registry
-from ....utils import shape_utils
-from ....utils.tensor_utils import wrap_dim
-from ...base import IntVar, Operator, Tensor
-from ...tensor_accessor import TensorAccessor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.tensor_accessor import TensorAccessor
+from aitemplate.utils import shape_utils
+from aitemplate.utils.tensor_utils import wrap_dim
 
 # pylint: disable=C0103,W0221
 

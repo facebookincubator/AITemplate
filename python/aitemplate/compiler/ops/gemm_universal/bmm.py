@@ -18,11 +18,10 @@ Base class for Batch GEMM.
 
 # pylint: disable=C0103,W0223
 
-from aitemplate.compiler.base import Tensor
-
-from ...base import IntImm
-from ...dtype import is_same_dtype
-from .gemm_common import gemm
+from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.dtype import is_same_dtype
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
+from aitemplate.compiler.ops.gemm_universal.gemm_common import gemm
 
 
 def is_valid_inputs(output_shapes, c_shapes):
@@ -115,3 +114,6 @@ class bmm(gemm):
                     atype=a.dtype(), btype=b.dtype()
                 )
             )
+
+    def _invert_exec_key(self, key):
+        return common.gemm_inverse_key_func(key)

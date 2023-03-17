@@ -19,10 +19,11 @@ import math
 
 from typing import List
 
-from ...utils import graph_utils
-from ..base import IntImm, IntVar, Operator, Tensor
-from ..ops.tensor.dynamic_slice import dynamic_slice, MAX_INT32
-from . import transform_strided_ops_utils, transform_utils
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice, MAX_INT32
+from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
+
+from aitemplate.utils import graph_utils
 
 
 def _is_supported_gemm(gemm_op: Operator, slice_op: Operator) -> bool:
@@ -64,7 +65,7 @@ def _is_supported_op(op: Operator, slice_op: Operator) -> bool:
         return _is_supported_gemm(op, slice_op)
     if op_type == "concatenate":
         return _sanity_check_concatenate(op, slice_op)
-    if op_type == "fused_elementwise":
+    if op_type == "fused_elementwise" or op_type == "permute021":
         return True
     if op_type.startswith("layernorm") or op_type.startswith("group_layernorm"):
         return True
@@ -94,7 +95,7 @@ def _valid_alignment(
 ) -> bool:
     op_type = op._attrs["op"]
     if (
-        op_type in ("fused_elementwise", "concatenate")
+        op_type in ("fused_elementwise", "concatenate", "permute021")
         or op._attrs["op"].startswith("layernorm")
         or op._attrs["op"].startswith("group_layernorm")
     ):

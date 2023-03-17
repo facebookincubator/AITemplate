@@ -15,7 +15,7 @@
 """
 softmax module init
 """
-from .softmax import softmax
+from aitemplate.compiler.ops.softmax.softmax import softmax
 
 
 __all__ = ["softmax"]

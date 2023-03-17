@@ -17,9 +17,9 @@ Codegen functions for group_gemm_rcr.
 """
 import jinja2
 
-from ... import registry
-from . import common, group_common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.cuda.gemm_universal import common, group_common
+from aitemplate.backend.cuda.gemm_universal.layout import RCR
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

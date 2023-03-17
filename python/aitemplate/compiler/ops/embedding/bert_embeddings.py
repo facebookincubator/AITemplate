@@ -15,10 +15,10 @@
 """
 Operator definition for bert_embeddings.
 """
-from .... import backend
-from ....backend import registry
-from ....utils import shape_utils
-from ...base import IntImm, Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntImm, Operator, Tensor
+from aitemplate.utils import shape_utils
 
 
 class bert_embeddings(Operator):

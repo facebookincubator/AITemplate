@@ -15,5 +15,5 @@
 """
 Vision ops module init.
 """
-from .nms import *  # noqa
-from .roi_ops import *  # noqa
+from aitemplate.compiler.ops.vision_ops.nms import *  # noqa
+from aitemplate.compiler.ops.vision_ops.roi_ops import *  # noqa

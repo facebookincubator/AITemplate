@@ -21,11 +21,11 @@ from typing import Any, Dict
 
 import jinja2
 
-from ....compiler.base import IntImm
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.target import Target
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...target import Target
+from aitemplate.compiler.base import IntImm
 
 # pylint: disable=C0301, C0116
 
@@ -35,8 +35,8 @@ from ...target import Target
 # i.e. for each K, we only need to compile one of the implementation, not all.
 #
 # For each K, whether to use wrapReduce or blockReduce was done by experiment
-# Please refer to this post: https://fb.quip.com/HCfIAbpWB0qi
-# and this experiment log: https://docs.google.com/spreadsheets/d/1bl3GCLQ67p27kXOSVJikEob38fojqaZIS--mPdQxeo0/edit#gid=931264442
+# Please refer to this post: https://github.com/facebookincubator/AITemplate/wiki/How-to-write-a-fast-Softmax-CUDA-kernel%3F
+# and this experiment log [fb internal only]: https://docs.google.com/spreadsheets/d/1bl3GCLQ67p27kXOSVJikEob38fojqaZIS--mPdQxeo0/edit#gid=931264442
 FUNC_TEMPLATE = jinja2.Template(
     """
 {{custom_libs}}

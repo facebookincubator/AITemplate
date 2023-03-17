@@ -23,8 +23,10 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import shape_utils
 from aitemplate.utils.graph_utils import get_sorted_ops
@@ -120,11 +122,17 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
             [100, 200], 6, 3, "test_small_nk_alignment_fp32", dtype="float32"
         )
 
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
     def test_small_nk_no_transform(self, dtype):
         target = detect_target()
-        if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         M, K, N = 8, 8, 16
         _, _, output = self._create_gemm_rrr_graph(M, K, N, dtype)
@@ -228,11 +236,17 @@ class BmmRcrN1TestCase(unittest.TestCase):
         self._test_n1_k8(10, [8], 1, 8, dtype="float32")
         self._test_n1_k8(10, [8, 16], 1, 8, dtype="float32")
 
-    @parameterized.expand([("float16"), ("float32")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
     def test_n_non1_fail(self, dtype):
         target = detect_target()
-        if dtype == "float32" and (int(target._arch) < 80 or target.name == "rocm"):
-            self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
         B, M, K, N = 8, 8, 8, 8
         _, _, output = self._create_bmm_rcr_graph(B, M, K, N, dtype)

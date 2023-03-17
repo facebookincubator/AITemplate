@@ -21,9 +21,9 @@ https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_onli
 
 import jinja2
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from . import reduce_3d
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.reduce import reduce_3d
 
 
 EXTRA_CODE_TEMPLATE = jinja2.Template(

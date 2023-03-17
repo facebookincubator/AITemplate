@@ -49,6 +49,23 @@ def sorted_graph_debug_str(tensors) -> str:
     return "Tensors: {}\n\nOperators: {}\n\n".format(tensor_str, op_str)
 
 
+def sorted_graph_debug_json(tensors) -> str:
+    from aitemplate.compiler.base import Tensor
+    from aitemplate.utils.json_utils import gen_unique_op_names, GraphJsonEncoder
+
+    if isinstance(tensors, Tensor):
+        tensors = [tensors]
+
+    json_dict = {}
+    json_dict["Tensors"] = tensors
+    json_dict["Operators"] = get_sorted_ops(tensors)
+
+    op_names = gen_unique_op_names(tensors)
+    encoder = GraphJsonEncoder(op_names)
+
+    return encoder.encode(json_dict)
+
+
 def sorted_graph_pseudo_code(tensors, with_shape=True) -> str:
     from aitemplate.compiler.base import Tensor
 
@@ -75,11 +92,15 @@ def dump_graph_debug_str_to_file(tensors, workdir, name):
             os.makedirs(debug_path)
         prefix = os.path.join(debug_path, name)
         graph_path = prefix + "_graph.txt"
+        graph_json_path = prefix + "_graph.json"
         pseudo_code_path = prefix + "_pseudo_code.txt"
         graph_visual_path = prefix + "_graph_vis.html"
         with open(graph_path, "w") as f:
             f.write(sorted_graph_debug_str(tensors))
             _LOGGER.debug(f"Dumped {name} graph to {graph_path}")
+        with open(graph_json_path, "w") as f:
+            f.write(sorted_graph_debug_json(tensors))
+            _LOGGER.debug(f"Dumped {name} graph to {graph_json_path}")
         with open(pseudo_code_path, "w") as f:
             f.write(sorted_graph_pseudo_code(tensors))
             _LOGGER.debug(f"Dumped {name} pseudo code to {pseudo_code_path}")

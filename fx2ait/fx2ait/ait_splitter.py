@@ -67,7 +67,10 @@ def _decline_if_would_trigger_extra_copies(
 
 
 def create_ait_operator_support(
-    use_implicit_batch_dim=True, op_lowering_disallow_list=None
+    use_implicit_batch_dim=True,
+    op_lowering_disallow_list=None,
+    allow_int_inputs=False,
+    allow_op_supports=None,
 ) -> ops.OperatorSupportBase:
     """Creates an `OperatorSupportBase` instance used for AIT splitting purpose."""
     # Create an `OperatorSupport` that declares a node supported if it
@@ -81,11 +84,17 @@ def create_ait_operator_support(
     op_lowering_disallow_set = (
         set() if op_lowering_disallow_list is None else set(op_lowering_disallow_list)
     )
-    return ops.chain(
+    chained_not_supported_ops = (
+        []
+        if allow_int_inputs
+        else [
+            ops.OpSupports.decline_if_input_dtype(torch.int64),
+            ops.OpSupports.decline_if_input_dtype(torch.int32),
+        ]
+    )
+    chained_not_supported_ops += [
         ops.OpSupports.decline_if_node_in_names(op_lowering_disallow_set),
         # 1. We only support subgraphs with torch.Tensor inputs for now
-        ops.OpSupports.decline_if_input_dtype(torch.int64),
-        ops.OpSupports.decline_if_input_dtype(torch.int32),
         ops.OpSupports.decline_if_input_dtype(torch.float64),
         ops.OpSupports.decline_if_input_dtype(dict),
         # 2. Node is supported if it has AIT converter:
@@ -95,15 +104,21 @@ def create_ait_operator_support(
         # Note that this is not required for correctness, it is merely an
         # optimization.
         _decline_if_would_trigger_extra_copies(supported_if_converter_registered),
-    )
+    ]
+    if allow_op_supports:
+        return ops.any_chain(ops.chain(*chained_not_supported_ops), *allow_op_supports)
+    return ops.chain(*chained_not_supported_ops)
 
 
 class AITSplitterSettings(splitter_base._SplitterSettingBase):
     # TODO: Fix this once pytorch nightly is updated
-    def __init__(self, min_acc_module_size=DEFAULT_MIN_ACC_MODULE_SIZE):
+    def __init__(
+        self, min_acc_module_size=DEFAULT_MIN_ACC_MODULE_SIZE, allow_int_inputs=False
+    ):
         super().__init__()
         self.min_acc_module_size = min_acc_module_size
         self.exclude_support_node_name: set = set()
+        self.allow_int_inputs: bool = allow_int_inputs
 
 
 class AITSplitter(splitter_base._SplitterBase):
@@ -118,7 +133,8 @@ class AITSplitter(splitter_base._SplitterBase):
             settings = AITSplitterSettings()
         if not operator_support:
             operator_support = create_ait_operator_support(
-                op_lowering_disallow_list=settings.exclude_support_node_name
+                op_lowering_disallow_list=settings.exclude_support_node_name,
+                allow_int_inputs=settings.allow_int_inputs,
             )
         else:
             operator_support = ops.chain(

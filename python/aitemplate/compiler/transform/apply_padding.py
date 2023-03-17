@@ -18,13 +18,13 @@ Applies paddings to gemms based on alignment requirements.
 import logging
 from typing import Callable, Dict, List
 
-from aitemplate.compiler.base import _create_host_zero_tensor
+from aitemplate.compiler import ops
 
-from ...utils import alignment
-from .. import ops
-from ..base import IntImm, Operator, Tensor
-from ..ops.gemm_universal.gemm_common import DimInfo, gemm, Source
-from . import transform_utils
+from aitemplate.compiler.base import _create_host_zero_tensor, IntImm, Operator, Tensor
+from aitemplate.compiler.ops.gemm_universal.gemm_common import DimInfo, gemm, Source
+from aitemplate.compiler.transform import transform_utils
+
+from aitemplate.utils import alignment
 
 
 _LOGGER = logging.getLogger(__name__)

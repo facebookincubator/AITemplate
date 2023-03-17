@@ -17,9 +17,9 @@ FPNProposal module.
 """
 import numpy as np
 
-from ...compiler import ops
-from ...compiler.base import Tensor
-from .proposal import generate_shifted_anchors, Proposal
+from aitemplate.compiler import ops
+from aitemplate.compiler.base import Tensor
+from aitemplate.frontend.nn.proposal import generate_shifted_anchors, Proposal
 
 
 def generate_fpn_anchors(im_h, im_w, feat_strides, scales, ratios, batch_size, dtype):

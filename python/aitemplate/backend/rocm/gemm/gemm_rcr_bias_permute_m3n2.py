@@ -21,9 +21,9 @@ output = torch.permute(c, [2, 0, 3, 1, 4])
 """
 import jinja2
 
-from ... import registry
-from . import common, permute_common
-from .layout import RCR
+from aitemplate.backend import registry
+from aitemplate.backend.rocm.gemm import common, permute_common
+from aitemplate.backend.rocm.gemm.layout import RCR
 
 
 ARGS_PARSER_TEMPLATE = jinja2.Template(

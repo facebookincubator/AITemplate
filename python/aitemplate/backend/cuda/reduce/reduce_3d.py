@@ -24,10 +24,10 @@ import bisect
 
 import jinja2
 
-from ...backend_spec import CUDASpec
-from ...common import tensor_accessor_codegen
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import tensor_accessor_codegen
 
-from . import reduce_small_axis
+from aitemplate.backend.cuda.reduce import reduce_small_axis
 
 
 DEFAULT_PROLOGUE_TEMPLATE = jinja2.Template(

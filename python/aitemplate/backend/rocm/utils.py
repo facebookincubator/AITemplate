@@ -21,7 +21,7 @@ import re
 import shutil
 import tempfile
 
-from .. import registry
+from aitemplate.backend import registry
 
 # from . import extra_conv_emit, extra_cutlass_generator, extra_enum
 

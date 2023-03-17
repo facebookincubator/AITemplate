@@ -21,9 +21,9 @@ from hashlib import sha1
 
 import jinja2
 
-from ...common import gemm_common
-from ...target import Target
-from ..gemm_universal import common
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.cuda.gemm_universal import common
+from aitemplate.backend.target import Target
 
 # pylint: disable=C0301,C0415,R1705
 

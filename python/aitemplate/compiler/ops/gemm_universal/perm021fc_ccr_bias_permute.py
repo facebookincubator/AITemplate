@@ -15,10 +15,10 @@
 """
 GEMM Specialization: (A.permute(0, 2, 1)[col] @ B[col] + Bias).permute(0, 2, 1)
 """
-from ...base import Tensor
-from ...tensor_accessor import TensorAccessor
-from ..common import reshape
-from .perm021fc_ccr_bias import perm021fc_ccr_bias
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.common import reshape
+from aitemplate.compiler.ops.gemm_universal.perm021fc_ccr_bias import perm021fc_ccr_bias
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0223,W0221,W0613
 
@@ -55,7 +55,9 @@ class perm021fc_ccr_bias_permute(perm021fc_ccr_bias):
     def __call__(self, a: Tensor, b: Tensor, bias: Tensor) -> Tensor:
         a, b = self._align_ab(a, b)
         self._attrs["inputs"] = [a, b, bias]
-        self._attrs["input_accessors"] = [TensorAccessor(a), TensorAccessor(b)]
+        self._attrs["input_accessors"] = [
+            TensorAccessor(tensor) for tensor in self._attrs["inputs"]
+        ]
         self._set_depth()
         self._sanity_check(a, b)
         output_shape = self._infer_shapes(a, b, bias)

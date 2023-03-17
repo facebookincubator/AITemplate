@@ -99,7 +99,7 @@ def get_num_rightmost_static_elements(shape, num_rightmost_dims: int = None) -> 
     res = 1
 
     for idx, dim in enumerate(reversed(shape)):
-        if idx >= num_rightmost_dims:
+        if num_rightmost_dims is not None and idx >= num_rightmost_dims:
             break
         if not isinstance(dim, IntImm):
             break

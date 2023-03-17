@@ -17,7 +17,7 @@ Graph pass for topological sort.
 """
 from typing import List, Union
 
-from ..base import Tensor
+from aitemplate.compiler.base import Tensor
 
 # pylint: disable=C0103
 

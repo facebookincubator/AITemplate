@@ -16,17 +16,17 @@
 """
 Rocm backend init.
 """
-from . import lib_template, target_def, utils
-from .common import *
-from .conv2d import *
-from .embedding import *
-from .gemm import *
-from .pool2d import *
-from .view_ops import *
-from .elementwise import *
-from .tensor import *
-from .normalization import softmax
-from .upsample import *
-from .vision_ops import *
-from .padding import *
-from .normalization import groupnorm, groupnorm_swish, layernorm
+from aitemplate.backend.rocm import lib_template, target_def, utils
+from aitemplate.backend.rocm.common import *
+from aitemplate.backend.rocm.conv2d import *
+from aitemplate.backend.rocm.embedding import *
+from aitemplate.backend.rocm.gemm import *
+from aitemplate.backend.rocm.pool2d import *
+from aitemplate.backend.rocm.view_ops import *
+from aitemplate.backend.rocm.elementwise import *
+from aitemplate.backend.rocm.tensor import *
+from aitemplate.backend.rocm.normalization import softmax
+from aitemplate.backend.rocm.upsample import *
+from aitemplate.backend.rocm.vision_ops import *
+from aitemplate.backend.rocm.padding import *
+from aitemplate.backend.rocm.normalization import groupnorm, groupnorm_swish, layernorm

@@ -49,3 +49,20 @@ def force_profiler_cache() -> bool:
         ), "cannot specify both AIT_FORCE_PROFILER_CACHE and FORCE_PROFILE"
     _LOGGER.info(f"{force_cache=}")
     return force_cache
+
+
+def time_compilation() -> bool:
+    """
+    When enabled, time each make command at compilation time.
+    This helps us doing compilation time analysis.
+    Requires to install "time".
+    """
+    return os.getenv("AIT_TIME_COMPILATION", "0") == "1"
+
+
+def shorten_tensor_names_for_plots() -> bool:
+    """
+    When enabled, long tensor names will be replaced with a hash string,
+    making the graph representation significantly simpler.
+    """
+    return os.getenv("AIT_PLOT_SHORTEN_TENSOR_NAMES", "0") == "1"

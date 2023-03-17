@@ -23,8 +23,11 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import graph_utils, shape_utils
 
@@ -151,7 +154,14 @@ class SliceGemmFusionTestCase(unittest.TestCase):
 
     # This is a test for testing cases where we correctly update a/b_alignment
     # based on input_accessors
-    @parameterized.expand([("float16"), ("float")])
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float")],
+            }
+        )
+    )
     def test_slice_gemm_rcr_fusion_align(self, dtype):
         if dtype == "float" and int(detect_target()._arch) < 80:
             self.skipTest("gemm with float tensors requires CUDA sm >= 80")
@@ -774,11 +784,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             test_name="slice_multiple_gemm_rcr_fusion_a",
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_slice_gemm_fusion_float(self):
+    def test_slice_gemm_fusion_float_sm80(self):
         self._test_slice_gemm_rcr_fusion_a(
             N=4,
             K=8,
@@ -861,6 +867,8 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             dtype="float",
         )
 
+
+filter_test_cases_by_test_env(SliceGemmFusionTestCase)
 
 if __name__ == "__main__":
     torch.manual_seed(0)

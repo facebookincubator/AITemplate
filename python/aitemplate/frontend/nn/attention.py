@@ -15,16 +15,15 @@
 """
 Frontend for attention module
 """
+from aitemplate.compiler import ops
+from aitemplate.compiler.ops import flash_attention
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.frontend import Tensor
+from aitemplate.frontend.nn.dropout import Dropout
+from aitemplate.frontend.nn.linear import Linear
+from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.parameter import Parameter
 from aitemplate.testing import detect_target
-
-from ...compiler import ops
-from ...compiler.ops import flash_attention
-from ...compiler.ops.common.epilogue import FuncEnum
-from .. import Tensor
-from .dropout import Dropout
-from .linear import Linear
-from .module import Module
-from .parameter import Parameter
 
 
 class FlashAttention(Module):
@@ -390,3 +389,12 @@ class CrossAttention(Module):
         x = self.proj_drop(x)
         x = ops.reshape()(x, [-1, seq, self.dim])
         return x
+
+
+class ScaledDotProductAttention(Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, q, k, v):
+        attn = ops.mem_eff_attention(causal=False)(q, k, v)
+        return attn

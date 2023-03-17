@@ -15,6 +15,6 @@
 """
 ROCM view_ops module init
 """
-from . import view_ops
+from aitemplate.backend.rocm.view_ops import view_ops
 
 __all__ = ["view_ops"]

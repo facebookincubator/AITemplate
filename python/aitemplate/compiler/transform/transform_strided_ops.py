@@ -19,16 +19,24 @@ import functools
 
 from typing import List
 
+from aitemplate.compiler.base import IntImm, Operator, Tensor
+from aitemplate.compiler.ops.tensor.slice_reshape_scatter import slice_reshape_scatter
+from aitemplate.compiler.ops.tensor.slice_scatter import slice_scatter
+from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
+from aitemplate.compiler.transform.fuse_split import (
+    _fuse_split_and_group_gemm,
+    _fuse_split_and_strided_op,
+)
+from aitemplate.compiler.transform.transform_strided_op_and_view_op import (
+    _fuse_strided_op_and_view_op,
+)
+from aitemplate.compiler.transform.transform_strided_slice import (
+    _fuse_slice_and_strided_op,
+)
+
 from aitemplate.testing import detect_target
 
-from ...utils import graph_utils, shape_utils
-from ..base import IntImm, Operator, Tensor
-from ..ops.tensor.slice_reshape_scatter import slice_reshape_scatter
-from ..ops.tensor.slice_scatter import slice_scatter
-from . import transform_strided_ops_utils, transform_utils
-from .fuse_split import _fuse_split_and_group_gemm, _fuse_split_and_strided_op
-from .transform_strided_op_and_view_op import _fuse_strided_op_and_view_op
-from .transform_strided_slice import _fuse_slice_and_strided_op
+from aitemplate.utils import graph_utils, shape_utils
 
 # pylint: disable=W0612
 
@@ -129,7 +137,7 @@ def _group_gemm_cat_checker(
 
 def _is_bmm(op_type: str) -> bool:
     # TODO: support cutlass bmm ops
-    return op_type.startswith(("bmm_rcr", "bmm_crr"))
+    return op_type.startswith(("bmm_rcr", "bmm_crr", "bmm_ccr", "bmm_rrr"))
 
 
 def _bmm_checker(bmm_op: Operator, cat_op: Operator) -> bool:

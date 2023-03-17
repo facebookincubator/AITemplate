@@ -16,9 +16,9 @@
 Codegen functions for upsampling2d.
 """
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ...common import upsampling2d_common
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.common import upsampling2d_common
 
 # pylint: disable=C0103,C0415,W0613,C0301,W0612
 

@@ -22,7 +22,7 @@ import jinja2
 
 # import library
 
-from . import library
+from aitemplate.utils.mk_ck_lib import library
 
 
 class Conv2DSpecialization(enum.Enum):

@@ -17,9 +17,10 @@ permute(0, 2, 1) op
 """
 from typing import List
 
-from .... import backend
-from ....backend import registry
-from ...base import IntVar, Operator, Tensor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0221
 
@@ -61,6 +62,7 @@ class permute021(Operator):
         assert len(x.shape()) > 2, "The input tensor must have at least 3 dimensions"
 
         self._attrs["inputs"] = [x]
+        self._attrs["input_accessors"] = [TensorAccessor(x)]
         self._set_depth()
         output_shape = self._infer_shapes(x)
         output = Tensor(output_shape, src_ops={self})

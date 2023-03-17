@@ -21,32 +21,18 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
 from aitemplate.utils import shape_utils
-from parameterized import parameterized
 
 
-def _tolerance_limits(dtype):
-    if dtype == "float16":
-        return {"atol": 1e-1, "rtol": 1e-1}
-    elif dtype == "float32":
-        return {"atol": 1e-1, "rtol": 1e-1}
-    elif dtype == "bfloat16":
-        return {"atol": 3e-1, "rtol": 3e-1}
-    else:
-        return {}
-
-
-def _skip_target(target, ait_dtype):
-    if ait_dtype == "float16":
-        return None
-    if target.name() != "cuda":
-        return "Not supported for non-CUDA target"
-    if int(target._arch) < 80:
-        return "Not supported for CUDA SM<80."
-    return None
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-1, "rtol": 1e-1},
+    "float32": {"atol": 1e-1, "rtol": 1e-1},
+    "bfloat16": {"atol": 3e-1, "rtol": 3e-1},
+}
 
 
 class GEMMBiasTestCase(unittest.TestCase):
@@ -56,7 +42,7 @@ class GEMMBiasTestCase(unittest.TestCase):
 
     def _test_rcr(self, Ms, N, K, test_name, dtype="float16"):
         target = detect_target()
-        tolerance_limits = _tolerance_limits(dtype)
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
         X = Tensor(shape=[MDim, IntImm(K)], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(
@@ -90,25 +76,26 @@ class GEMMBiasTestCase(unittest.TestCase):
 
     def test_rcr_zero_size(self):
         target = detect_target()
-        if target.name() == "cuda":
-            # This test triggered a c10 assertion failure internally
-            # caffe2/c10/util/SmallVector.h:338:
-            # Assertion `idx < size()' failed
-            if type(target).__name__ != "FBCUDA":
-                self._test_rcr([2], N=64, K=0, test_name="zero_k")
-            self._test_rcr([2], N=0, K=4, test_name="zero_n")
-            self._test_rcr([0], N=4, K=4, test_name="zero_m")
+        # This test triggered a c10 assertion failure internally
+        # caffe2/c10/util/SmallVector.h:338:
+        # Assertion `idx < size()' failed
+        if type(target).__name__ != "FBCUDA":
+            self._test_rcr([2], N=64, K=0, test_name="zero_k")
+        self._test_rcr([2], N=0, K=4, test_name="zero_n")
+        self._test_rcr([0], N=4, K=4, test_name="zero_m")
 
     def test_rcr_static(self):
         self._test_rcr([4096], N=4, K=4, test_name="static")
         self._test_rcr([1000], N=81, K=1024, test_name="static")
         self._test_rcr([67200], N=3, K=256, test_name="static")
 
-    @parameterized.expand(("bfloat16",))
-    def test_rcr_all_floats(self, dtype):
-        skipped_reason = _skip_target(detect_target(), dtype)
-        if skipped_reason is not None:
-            self.skipTest(skipped_reason)
+    def test_rcr_static_rocm(self):
+        self._test_rcr([4096], N=4, K=4, test_name="static")
+        self._test_rcr([1000], N=81, K=1024, test_name="static")
+        self._test_rcr([67200], N=3, K=256, test_name="static")
+
+    def test_rcr_bfloat16_bf16(self):
+        dtype = "bfloat16"
         self._test_rcr([4], N=2, K=11, test_name=f"static_{dtype}", dtype=dtype)
         self._test_rcr([128], N=64, K=1024, test_name=f"static_{dtype}", dtype=dtype)
         self._test_rcr(
@@ -118,6 +105,9 @@ class GEMMBiasTestCase(unittest.TestCase):
             test_name=f"dynamic_m_{dtype}",
             dtype=dtype,
         )
+
+
+filter_test_cases_by_test_env(GEMMBiasTestCase)
 
 
 if __name__ == "__main__":

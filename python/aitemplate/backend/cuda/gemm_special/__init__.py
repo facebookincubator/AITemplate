@@ -15,7 +15,11 @@
 """
 special gemm ops
 """
-from . import bmm_rcr_n1, bmm_rrr_k1_tanh, gemm_rrr_small_nk
+from aitemplate.backend.cuda.gemm_special import (
+    bmm_rcr_n1,
+    bmm_rrr_k1_tanh,
+    gemm_rrr_small_nk,
+)
 
 
 __all__ = ["bmm_rcr_n1", "bmm_rrr_k1_tanh", "gemm_rrr_small_nk"]

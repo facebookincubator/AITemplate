@@ -17,12 +17,12 @@ Slice_reshape_scatter.
 """
 from typing import Optional
 
-from aitemplate.compiler.tensor_accessor import TensorAccessor
+from aitemplate import backend
+from aitemplate.backend import registry
+from aitemplate.compiler.base import IntImm, IntVar, Operator
+from aitemplate.compiler.stable_set import StableSet
 
-from .... import backend
-from ....backend import registry
-from ...base import IntImm, IntVar, Operator
-from ...stable_set import StableSet
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,C0415,W0221
 

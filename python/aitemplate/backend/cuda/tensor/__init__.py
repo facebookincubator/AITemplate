@@ -15,7 +15,7 @@
 """
 CUDA tensor ops module init
 """
-from . import (
+from aitemplate.backend.cuda.tensor import (
     argmax,
     batch_gather,
     concatenate,
@@ -23,7 +23,9 @@ from . import (
     dynamic_slice,
     expand,
     gather,
+    jagged_to_padded_dense,
     masked_select,
+    padded_dense_to_jagged,
     permute,
     permute021,
     permute0213,
@@ -43,7 +45,9 @@ __all__ = [
     "dynamic_slice",
     "expand",
     "gather",
+    "jagged_to_padded_dense",
     "masked_select",
+    "padded_dense_to_jagged",
     "permute",
     "permute021",
     "permute0213",

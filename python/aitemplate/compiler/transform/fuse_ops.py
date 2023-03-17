@@ -20,17 +20,15 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Set
 
-from aitemplate.compiler.base import Operator
+from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.ops.common import elementwise, fused_elementwise
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.compiler.ops.groupnorm.groupnorm import group_norm
+from aitemplate.compiler.ops.groupnorm.groupnorm_swish import group_norm_swish
+from aitemplate.compiler.ops.layernorm import layernorm_sigmoid_mul
+from aitemplate.compiler.transform import transform_utils
+from aitemplate.compiler.transform.fuse_utils import transform_simple_fusion_patterns
 from aitemplate.compiler.transform.toposort import toposort
-
-from ..base import Tensor
-from ..ops.common import elementwise, fused_elementwise
-from ..ops.common.epilogue import FuncEnum
-from ..ops.groupnorm.groupnorm import group_norm
-from ..ops.groupnorm.groupnorm_swish import group_norm_swish
-from ..ops.layernorm import layernorm_sigmoid_mul
-from . import transform_utils
-from .fuse_utils import transform_simple_fusion_patterns
 
 # pylint: disable=C0103,W0612
 

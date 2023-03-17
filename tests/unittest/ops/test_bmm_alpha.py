@@ -22,6 +22,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
@@ -282,11 +283,7 @@ class BMMAlphaTestCase(unittest.TestCase):
             use_fp16_acc=False,
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_alpha_float(self):
+    def test_bmm_alpha_fp32_sm80(self):
         self._test_bmm_alpha(
             bmm_op=ops.bmm_rcr,
             is_div=False,
@@ -319,11 +316,7 @@ class BMMAlphaTestCase(unittest.TestCase):
             dtype="float",
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_bmm_alpha_bfloat16(self):
+    def test_bmm_alpha_bf16(self):
         self._test_bmm_alpha(
             bmm_op=ops.bmm_rcr,
             is_div=False,
@@ -356,6 +349,8 @@ class BMMAlphaTestCase(unittest.TestCase):
             dtype="bfloat16",
         )
 
+
+filter_test_cases_by_test_env(BMMAlphaTestCase)
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,9 +21,10 @@ from typing import List
 
 import jinja2
 
-from ....utils import shape_utils
-from ...base import Tensor
-from .conv2d import conv2d
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.conv.conv2d import conv2d
+
+from aitemplate.utils import shape_utils
 
 SHAPE_FUNC_TEMPLATE = jinja2.Template(
     """

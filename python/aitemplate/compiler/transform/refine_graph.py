@@ -18,9 +18,9 @@ Graph pass to dedup operators with same signatures.
 import logging
 from typing import List
 
-from ...utils.graph_utils import get_sorted_ops
+from aitemplate.compiler.base import Operator, Tensor
 
-from ..base import Operator, Tensor
+from aitemplate.utils.graph_utils import get_sorted_ops
 
 # pylint: disable=C0103
 

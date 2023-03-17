@@ -16,17 +16,25 @@
 """
 modules for conv2d
 """
-from .conv2d import Conv2d
-from .conv2d_bias import Conv2dBias
-from .conv2d_bias_add_hardswish import Conv2dBiasAddHardswish
-from .conv2d_bias_add_relu import Conv2dBiasAddRelu
-from .conv2d_bias_few_channels import Conv2dBiasFewChannels
-from .conv2d_bias_hardswish import Conv2dBiasHardswish
-from .conv2d_bias_hardswish_few_channels import Conv2dBiasHardswishFewChannels
-from .conv2d_bias_relu import Conv2dBiasRelu
-from .conv2d_bias_relu_few_channels import Conv2dBiasReluFewChannels
-from .conv2d_bias_sigmoid import Conv2dBiasSigmoid
-from .conv2d_depthwise import Conv2dDepthwise
-from .conv2d_depthwise_bias import Conv2dDepthwiseBias
-from .transposed_conv2d_bias import ConvTranspose2dBias
-from .transposed_conv2d_bias_relu import ConvTranspose2dBiasRelu
+from aitemplate.frontend.nn.conv2d.conv2d import Conv2d
+from aitemplate.frontend.nn.conv2d.conv2d_bias import Conv2dBias
+from aitemplate.frontend.nn.conv2d.conv2d_bias_add_hardswish import (
+    Conv2dBiasAddHardswish,
+)
+from aitemplate.frontend.nn.conv2d.conv2d_bias_add_relu import Conv2dBiasAddRelu
+from aitemplate.frontend.nn.conv2d.conv2d_bias_few_channels import Conv2dBiasFewChannels
+from aitemplate.frontend.nn.conv2d.conv2d_bias_hardswish import Conv2dBiasHardswish
+from aitemplate.frontend.nn.conv2d.conv2d_bias_hardswish_few_channels import (
+    Conv2dBiasHardswishFewChannels,
+)
+from aitemplate.frontend.nn.conv2d.conv2d_bias_relu import Conv2dBiasRelu
+from aitemplate.frontend.nn.conv2d.conv2d_bias_relu_few_channels import (
+    Conv2dBiasReluFewChannels,
+)
+from aitemplate.frontend.nn.conv2d.conv2d_bias_sigmoid import Conv2dBiasSigmoid
+from aitemplate.frontend.nn.conv2d.conv2d_depthwise import Conv2dDepthwise
+from aitemplate.frontend.nn.conv2d.conv2d_depthwise_bias import Conv2dDepthwiseBias
+from aitemplate.frontend.nn.conv2d.transposed_conv2d_bias import ConvTranspose2dBias
+from aitemplate.frontend.nn.conv2d.transposed_conv2d_bias_relu import (
+    ConvTranspose2dBiasRelu,
+)

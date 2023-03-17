@@ -22,8 +22,8 @@ from hashlib import sha1
 
 import jinja2
 
-from ...common import gemm_common
-from ...target import Target
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.target import Target
 
 INPUT_ADDR_CALCULATOR = jinja2.Template(
     """

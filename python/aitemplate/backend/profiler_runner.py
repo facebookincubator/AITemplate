@@ -28,10 +28,10 @@ from collections import namedtuple
 from queue import Queue
 from typing import Callable, List, Tuple
 
-from aitemplate.testing import detect_target
+from aitemplate.backend.target import Target
+from aitemplate.backend.task_runner import BaseRunner, Task
 
-from .target import Target
-from .task_runner import BaseRunner, Task
+from aitemplate.testing import detect_target
 
 # pylint: disable=W0221
 
@@ -262,6 +262,7 @@ class ProfilerRunner:
         self._timeout = timeout
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=len(devices))
         self._futures = []
+        self._cmds = []
         self._postprocessing_delegate = postprocessing_delegate
         try:
             target = Target.current()
@@ -316,6 +317,7 @@ class ProfilerRunner:
 
         future.add_done_callback(callback_when_done)
         self._futures.append(future)
+        self._cmds.append(cmds)
 
     def join(self):
         """
@@ -323,7 +325,19 @@ class ProfilerRunner:
         """
         done, not_done = concurrent.futures.wait(self._futures, self._timeout)
         for f in not_done:
+            # attempts cancelling, will fail if call is being executed or has finished
             f.cancel()
-        for _ in self._futures:
+        cancelled_cmds = [
+            cmd for cmd, f in zip(self._cmds, self._futures) if f.cancelled()
+        ]
+        if cancelled_cmds:
+            raise RuntimeError(
+                f"Profiler timed out after {self._timeout} sec. "
+                "Try increasing the timeout. "
+                f"Cancelled profilers: {cancelled_cmds}"
+            )
+        for _ in [f for f in self._futures if f.done() or f.running()]:
+            # sync point between futures and queue.
+            # wait for callbacks to finish
             self._done_queue.get(timeout=self._timeout)
         self._postprocessing_delegate.postprocess_results()

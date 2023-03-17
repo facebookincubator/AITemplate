@@ -144,7 +144,11 @@ def ref_attention_bmhk(q, k, v, attn_bias):
     return out.permute((0, 2, 1, 3))
 
 
-class attentionTestCase(unittest.TestCase):
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
+class AttentionTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         torch.manual_seed(0)
@@ -602,10 +606,6 @@ class attentionTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_mem_eff_attention_fp32(self):
         for use_perm in [False, True]:
             self._test_mem_eff_attention(
@@ -621,10 +621,6 @@ class attentionTestCase(unittest.TestCase):
             )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_mem_eff_attention_bf16(self):
         for use_perm in [False, True]:
             self._test_mem_eff_attention(
@@ -775,10 +771,6 @@ class attentionTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_cross_attention_fp32(self):
         self._test_cross_attention(
             test_name="cross_attention_fp32",
@@ -794,10 +786,6 @@ class attentionTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_cross_attention_bf16(self):
         self._test_cross_attention(
             test_name="cross_attention_bf16",

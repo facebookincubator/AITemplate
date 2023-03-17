@@ -15,6 +15,6 @@
 """
 ROCM upsampling module init
 """
-from . import upsampling2d, upsampling2d_add
+from aitemplate.backend.rocm.upsample import upsampling2d, upsampling2d_add
 
 __all__ = ["upsampling2d", "upsampling2d_add"]

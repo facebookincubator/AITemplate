@@ -18,9 +18,14 @@ Codegen for bmm_rcr_permute, which computes permute(A @ B + bias).
 A[RowMajor], B[ColMajor], bias[RowMajor]
 """
 
-from ... import registry
-from ...common import gemm_common
-from . import bmm_common, bmm_permute_common, common, common_permute
+from aitemplate.backend import registry
+from aitemplate.backend.common import gemm_common
+from aitemplate.backend.cuda.gemm_universal import (
+    bmm_common,
+    bmm_permute_common,
+    common,
+    common_permute,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

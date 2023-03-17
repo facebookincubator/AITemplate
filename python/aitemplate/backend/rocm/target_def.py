@@ -25,12 +25,15 @@ import shutil
 import sys
 from typing import List
 
-from aitemplate.backend.target import AIT_STATIC_FILES_PATH
+from aitemplate.backend import registry
 
-from ...utils import environ
+from aitemplate.backend.target import (
+    AIT_STATIC_FILES_PATH,
+    COMPOSABLE_KERNEL_PATH,
+    Target,
+)
 
-from .. import registry
-from ..target import COMPOSABLE_KERNEL_PATH, Target
+from aitemplate.utils import environ
 
 # pylint: disable=W0613
 

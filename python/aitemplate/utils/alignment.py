@@ -48,6 +48,17 @@ def find_max_alignment(number: int, dtype: str) -> int:
     return 1
 
 
+def find_max_alignment_from(numbers: List[int], dtype: str) -> int:
+    """
+    Return the max alignment value that is valid for all the numbers.
+    """
+    alignments = get_alignments(dtype)
+    for alignment in alignments:
+        if all(number % alignment == 0 for number in numbers):
+            return alignment
+    return 1
+
+
 def valid_alignment(align: int, dtype: str) -> bool:
     """
     Return True if the given align value is legitimate for the dtype.

@@ -19,7 +19,13 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
+
+from parameterized import parameterized
 
 
 class ConvTestCase(unittest.TestCase):
@@ -69,47 +75,24 @@ class ConvTestCase(unittest.TestCase):
         else:
             torch.testing.assert_close(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1)
 
-    def test_conv2d_fp16(self):
-        self._test_conv(
-            test_name="conv2d_fp16",
-            dtype="float16",
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
         )
-        self._test_conv(
-            copy_op=True,
-            test_name="conv2d_fp16_copy_op",
-            dtype="float16",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "fp32 is not supported by CUDA < SM80.",
     )
-    def test_conv2d_fp32(self):
+    def test_conv2d(self, dtype):
         self._test_conv(
-            test_name="conv2d_fp32",
-            dtype="float32",
+            test_name=f"conv2d_{dtype}",
+            dtype=dtype,
         )
         self._test_conv(
             copy_op=True,
-            test_name="conv2d_fp32_copy_op",
-            dtype="float32",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "bf16 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "bf16 is not supported by CUDA < SM80.",
-    )
-    def test_conv2d_bf16(self):
-        self._test_conv(
-            test_name="conv2d_bf16",
-            dtype="bfloat16",
-        )
-        self._test_conv(
-            copy_op=True,
-            test_name="conv2d_bf16_copy_op",
-            dtype="bfloat16",
+            test_name=f"conv2d_{dtype}_copy_op",
+            dtype=dtype,
         )
 
 

@@ -18,12 +18,12 @@ Fused transposed_conv2d_bias op.
 
 from typing import Tuple
 
+from aitemplate.compiler.base import Tensor
+
 from aitemplate.compiler.ops.conv.common_conv2d_bias_activation import (
     conv2d_bias_activation,
 )
-
-from ...base import Tensor
-from .transposed_conv2d import transposed_conv2d
+from aitemplate.compiler.ops.conv.transposed_conv2d import transposed_conv2d
 
 # pylint: disable=C0103
 class transposed_conv2d_bias(transposed_conv2d):

@@ -22,8 +22,10 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    TestEnv,
 )
 from aitemplate.utils import shape_utils
 from parameterized import param, parameterized
@@ -31,11 +33,17 @@ from parameterized import param, parameterized
 
 class PadGemmWithElementwise(unittest.TestCase):
     @parameterized.expand(
-        [
-            param("static_M_float16", [23], 7, 3, "float16"),
-            param("dynamic_M_float16", [1, 78, 99], 7, 3, "float16"),
-            param("dynamic_M_float32", [1, 78, 99], 7, 3, "float32"),
-        ]
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [
+                    param("static_M_float16", [23], 7, 3, "float16"),
+                    param("dynamic_M_float16", [1, 78, 99], 7, 3, "float16"),
+                ],
+                TestEnv.CUDA_SM80: [
+                    param("dynamic_M_float32", [1, 78, 99], 7, 3, "float32"),
+                ],
+            }
+        )
     )
     def test_pad_gemm_rcr_bias_broadcast_with_elementwise(
         self, test_name, ms, n, k, dtype
@@ -84,14 +92,34 @@ class PadGemmWithElementwise(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
     @parameterized.expand(
-        [
-            ("static_shape_float16", [3], [1], 5, 3, "float16"),
-            ("dynamic_M_float16", [3], [1, 78, 99], 7, 3, "float16"),
-            ("dynamic_B_float16", [3, 5, 8], [3], 11, 15, "float16"),
-            ("dynamic_BM_float16", [3, 5, 8], [3, 9, 10], 17, 21, "float16"),
-            ("static_shape_float32", [3], [1], 5, 3, "float32"),
-            ("dynamic_BM_float32", [3, 5, 8], [3, 9, 10], 17, 21, "float32"),
-        ]
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [
+                    ("static_shape_float16", [3], [1], 5, 3, "float16"),
+                    ("dynamic_M_float16", [3], [1, 78, 99], 7, 3, "float16"),
+                    ("dynamic_B_float16", [3, 5, 8], [3], 11, 15, "float16"),
+                    (
+                        "dynamic_BM_float16",
+                        [3, 5, 8],
+                        [3, 9, 10],
+                        17,
+                        21,
+                        "float16",
+                    ),
+                ],
+                TestEnv.CUDA_SM80: [
+                    ("static_shape_float32", [3], [1], 5, 3, "float32"),
+                    (
+                        "dynamic_BM_float32",
+                        [3, 5, 8],
+                        [3, 9, 10],
+                        17,
+                        21,
+                        "float32",
+                    ),
+                ],
+            }
+        )
     )
     def test_pad_bmm_rrr_add_with_elementwise(self, test_name, bs, ms, n, k, dtype):
         target = detect_target()
@@ -133,14 +161,34 @@ class PadGemmWithElementwise(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
     @parameterized.expand(
-        [
-            ("static_shape_float16", [3], [1], 5, 3, "float16"),
-            ("dynamic_M_float16", [3], [1, 78, 99], 7, 3, "float16"),
-            ("dynamic_B_float16", [3, 5, 8], [3], 11, 15, "float16"),
-            ("dynamic_BM_float16", [3, 5, 8], [3, 9, 10], 17, 21, "float16"),
-            ("static_shape_float32", [3], [1], 5, 3, "float32"),
-            ("dynamic_BM_float32", [3, 5, 8], [3, 9, 10], 17, 21, "float32"),
-        ]
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [
+                    ("static_shape_float16", [3], [1], 5, 3, "float16"),
+                    ("dynamic_M_float16", [3], [1, 78, 99], 7, 3, "float16"),
+                    ("dynamic_B_float16", [3, 5, 8], [3], 11, 15, "float16"),
+                    (
+                        "dynamic_BM_float16",
+                        [3, 5, 8],
+                        [3, 9, 10],
+                        17,
+                        21,
+                        "float16",
+                    ),
+                ],
+                TestEnv.CUDA_SM80: [
+                    ("static_shape_float32", [3], [1], 5, 3, "float32"),
+                    (
+                        "dynamic_BM_float32",
+                        [3, 5, 8],
+                        [3, 9, 10],
+                        17,
+                        21,
+                        "float32",
+                    ),
+                ],
+            }
+        )
     )
     def test_pad_perm102_bmm_rrr_with_elementwise(self, test_name, bs, ms, n, k, dtype):
         target = detect_target()
@@ -186,11 +234,17 @@ class PadGemmWithElementwise(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
     @parameterized.expand(
-        [
-            param("static_M_float16", [23], 7, 3, "float16"),
-            param("dynamic_M_float16", [1, 78, 99], 7, 3, "float16"),
-            param("dynamic_M_float32", [1, 78, 99], 7, 3, "float32"),
-        ]
+        filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [
+                    param("static_M_float16", [23], 7, 3, "float16"),
+                    param("dynamic_M_float16", [1, 78, 99], 7, 3, "float16"),
+                ],
+                TestEnv.CUDA_SM80: [
+                    param("dynamic_M_float32", [1, 78, 99], 7, 3, "float32"),
+                ],
+            }
+        )
     )
     def test_pad_gemm_rcr_bias_broadcast_with_elementwise_2(
         self, test_name, ms, n, k, dtype

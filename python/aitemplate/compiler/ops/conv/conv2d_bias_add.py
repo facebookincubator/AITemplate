@@ -15,7 +15,9 @@
 """
 fused conv2d_bias_add op
 """
-from .common_conv2d_bias_add_activation import conv2d_bias_add_activation
+from aitemplate.compiler.ops.conv.common_conv2d_bias_add_activation import (
+    conv2d_bias_add_activation,
+)
 
 
 # pylint: disable=C0103

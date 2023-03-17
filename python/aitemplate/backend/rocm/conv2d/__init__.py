@@ -15,7 +15,7 @@
 """
 ROCM conv2d init.
 """
-from . import (
+from aitemplate.backend.rocm.conv2d import (
     conv2d,
     conv2d_bias,
     conv2d_bias_add,

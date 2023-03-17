@@ -32,11 +32,14 @@ from typing import Optional
 
 import jinja2
 
+from aitemplate.backend.target import Target
+from aitemplate.backend.task_runner import BaseRunner, Task
+
+from aitemplate.utils import environ
+
 from aitemplate.utils.debug_settings import AITDebugSettings
 
-from ..utils.misc import is_debug
-from .target import Target
-from .task_runner import BaseRunner, Task
+from aitemplate.utils.misc import is_debug
 
 # pylint: disable=W0221,C0103
 
@@ -54,7 +57,11 @@ def _augment_for_trace(cmd):
 
 
 def _time_cmd(cmd):
-    return f"exec time -f 'exit_status=%x elapsed_sec=%e argv=\"%C\"' {cmd}"
+    return (
+        f"exec time -f 'exit_status=%x elapsed_sec=%e argv=\"%C\"' {cmd}"
+        if environ.time_compilation()
+        else cmd
+    )
 
 
 def _log_error_context(
@@ -368,7 +375,6 @@ class Builder(object):
         self._runner.pull()
 
     def gen_makefile(self, file_pairs, dll_name, workdir, test_name, debug_settings):
-
         makefile_template = jinja2.Template(
             """
 CC = {{cc}}

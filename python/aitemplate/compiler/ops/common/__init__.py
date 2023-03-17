@@ -16,10 +16,10 @@
 """
 Common ops.
 """
-from .elementwise import *
-from .int_elementwise import *
-from .epilogue import *
-from .fused_elementwise import *
-from .math import *
-from .python_ops import *
-from .view_ops import *
+from aitemplate.compiler.ops.common.elementwise import *
+from aitemplate.compiler.ops.common.int_elementwise import *
+from aitemplate.compiler.ops.common.epilogue import *
+from aitemplate.compiler.ops.common.fused_elementwise import *
+from aitemplate.compiler.ops.common.math import *
+from aitemplate.compiler.ops.common.python_ops import *
+from aitemplate.compiler.ops.common.view_ops import *

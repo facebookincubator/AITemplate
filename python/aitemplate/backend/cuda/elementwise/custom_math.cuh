@@ -97,7 +97,8 @@ __device__ half2 fast_tanh(half2 x) {
   return x;
 
 #else
-  NOT_IMPLEMENTED();
+  return half2(
+      {cutlass::fast_tanh(float(x.x)), cutlass::fast_tanh(float(x.y))});
 #endif
 }
 
@@ -972,6 +973,38 @@ __device__ bfloat16_2 floor_div(const bfloat16_2 a, const bfloat16_2 b) {
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
   return bfloat16_2(floor_div(a.x, b.x), floor_div(a.y, b.y));
 
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ float fcelu(const float a, const float alpha) {
+  return a > 0.f ? a : alpha * (expf(a / alpha) - 1.0f);
+}
+
+__device__ half hcelu(const half a, const half alpha) {
+  return __hgt(a, CUDA_FP16_ZERO)
+      ? a
+      : __hmul(alpha, __hsub(hexp(__hdiv(a, alpha)), CUDA_FP16_ONE));
+}
+
+__device__ bfloat16 hcelu(const bfloat16 a, const bfloat16 alpha) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return __hgt(a, CUDA_BF16_ZERO)
+      ? a
+      : __hmul(alpha, __hsub(hexp(__hdiv(a, alpha)), CUDA_BF16_ONE));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ half2 h2celu(const half2 a, const half2 alpha) {
+  return half2(hcelu(a.x, alpha.x), hcelu(a.y, alpha.y));
+}
+
+__device__ bfloat16_2 h2celu(const bfloat16_2 a, const bfloat16_2 alpha) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return bfloat16_2(hcelu(a.x, alpha.x), hcelu(a.y, alpha.y));
 #else
   NOT_IMPLEMENTED();
 #endif

@@ -22,8 +22,9 @@ from typing import Dict, List
 
 import jinja2
 
-from ..compiler.ops.common.epilogue import FuncEnum
-from .target import Target
+from aitemplate.backend.target import Target
+
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
 
 
 class BackendSpec:
@@ -57,6 +58,33 @@ class GPUBackendSpec(BackendSpec):
             "float32": "float",
             "float": "float",
             "int64": "int64_t",
+            "int32": "int32_t",
+        }
+    )
+
+    # find the size in bytes of a given backend type
+    sizeof_types: Dict[str, int] = field(
+        default_factory=lambda: {
+            "uint8_t": 1,
+            "half": 2,
+            "bfloat16": 2,
+            "float32": 4,
+            "int64_t": 8,
+            "int32_t": 4,
+            "float": 4,
+        }
+    )
+
+    # find a backend type for a given size in bytes
+    # useful to find types 2 or 4 times larger than a given dtype
+    # for vectorization purposes.
+    type_for_size: Dict[int, str] = field(
+        default_factory=lambda: {
+            1: "uint8_t",
+            2: "half",
+            4: "float",
+            8: "int64_t",
+            16: "int4",
         }
     )
 
@@ -271,6 +299,13 @@ class GPUBackendSpec(BackendSpec):
                 "half2": "floor_div",
                 "bfloat16": "floor_div",
                 "bfloat16_2": "floor_div",
+            },
+            FuncEnum.CELU: {
+                "float": "fcelu",
+                "half": "hcelu",
+                "half2": "h2celu",
+                "bfloat16": "hcelu",
+                "bfloat16_2": "h2celu",
             },
         }
     )

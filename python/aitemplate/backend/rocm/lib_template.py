@@ -17,7 +17,7 @@ Common codegen functions for ROCM.
 """
 import jinja2
 
-from .. import registry
+from aitemplate.backend import registry
 
 # pylint: disable=W0613
 

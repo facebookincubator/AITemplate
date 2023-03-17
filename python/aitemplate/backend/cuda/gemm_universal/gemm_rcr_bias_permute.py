@@ -16,10 +16,15 @@
 GEMM with bias and permute epilogue fusion
 """
 
-from ... import registry
-from ...backend_spec import CUDASpec
-from ..gemm_universal import common
-from . import common_bias, common_permute, gemm_rcr_bias, gemm_rcr_permute
+from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.gemm_universal import (
+    common,
+    common_bias,
+    common_permute,
+    gemm_rcr_bias,
+    gemm_rcr_permute,
+)
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 

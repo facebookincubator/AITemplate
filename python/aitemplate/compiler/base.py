@@ -27,12 +27,12 @@ from typing import Any, Dict, List, Optional, Set, Union
 import numpy as np
 
 from aitemplate.compiler.dtype import get_dtype_size, normalize_dtype
+from aitemplate.compiler.op_registry import OP_REGISTRY
 
 from aitemplate.compiler.stable_set import StableSet
-from aitemplate.utils.torch_utils import torch_dtype_to_string
 
-from ..utils.tensor_utils import wrap_dim
-from .op_registry import OP_REGISTRY
+from aitemplate.utils.tensor_utils import wrap_dim
+from aitemplate.utils.torch_utils import torch_dtype_to_string
 
 # pylint: disable=C0206,W0613,C0201,W0102,W0231,W0233
 
@@ -385,6 +385,9 @@ class JaggedIntVar(IntVar):
             and self.batch_dim() == another.batch_dim()
             and self.jagged_dims() == another.jagged_dims()
         )
+
+    def __hash__(self) -> int:
+        return hash((self._attrs["name"], tuple(self._attrs["values"])))
 
     def total_length(self) -> IntVar:
         """The total_length dimension the JaggedIntVar is based on."""
