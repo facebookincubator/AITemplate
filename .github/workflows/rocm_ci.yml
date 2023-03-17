@@ -1,4 +1,4 @@
-name: AITemplate_ci
+name: ROCM_CI
 
 on:
   push:
