@@ -121,7 +121,8 @@ def _try_merge_split_cat(first_op: Operator, cat: Operator) -> bool:
     cat._attrs["original_inputs"] = list(new_cat_original_inputs)
     cat._attrs["input_masks"] = [True] * len(new_cat_inputs)
     for tensor in first_op_inputs:
-        tensor._attrs["dst_ops"].remove(first_op)
+        # the same tensor may be used multiple times
+        tensor._attrs["dst_ops"].discard(first_op)
         tensor._attrs["dst_ops"].add(cat)
     for tensor in first_op_outputs:
         transform_utils.remove_tensor_from_sorted_graph(tensor)

@@ -68,15 +68,9 @@ class SliceScatterLargeInputsTestCase(unittest.TestCase):
         test_name = "slice_scatter_large_inputs"
         module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
-        Y_src_ops = Y._attrs["src_ops"]
-        # We have a single concat op. All the rest are slice_reshape_scatter ops
-        concat_cnt = 0
-        for op in Y_src_ops:
-            if op._attrs["op"] == "concatenate":
-                concat_cnt += 1
-                continue
-            self.assertEqual(op._attrs["op"], "slice_reshape_scatter")
-        self.assertEqual(concat_cnt, 1)
+        Y_src_ops = list(Y._attrs["src_ops"])
+        self.assertEqual(len(Y_src_ops), 5)
+        self.assertTrue(all(op._attrs["op"] == "concatenate" for op in Y_src_ops))
 
         input0_pt = get_random_torch_tensor(input0_shape, dtype)
         input1_pt = get_random_torch_tensor(input1_shape, dtype)
