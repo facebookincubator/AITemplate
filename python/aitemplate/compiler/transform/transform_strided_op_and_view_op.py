@@ -83,8 +83,7 @@ def _fuse_strided_op_and_view_op_single_pass(
                     tensor._attrs["is_view_of"] = None
                     src_op._attrs["outputs"][idx] = tensor
                     tensor._attrs["src_ops"] = StableSet({src_op})
-                    for view_op_input in view_op._attrs["inputs"]:
-                        transform_utils.remove_tensor_from_sorted_graph(view_op_input)
+                    transform_utils.remove_tensor_from_sorted_graph(view_input_tensor)
                     break
             assert (
                 found_tensor
