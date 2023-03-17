@@ -36,3 +36,4 @@ from aitemplate.backend.cuda.view_ops import *
 from aitemplate.backend.cuda.vision_ops import *
 from aitemplate.backend.cuda.attention import *
 from aitemplate.backend.cuda.groupnorm import *
+from aitemplate.backend.cuda.b2b_bmm import *
