@@ -157,7 +157,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 def gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
@@ -227,7 +227,7 @@ def gen_function(
     for key in instances:
         fname = "f" + sha1(key.encode()).hexdigest()
         program = EXEC_TEMPLATE.render(indent="    ", instance=fname)
-        exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
+        exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return SRC_TEMPLATE.render(
         instances=instance_decl,
