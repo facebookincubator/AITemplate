@@ -672,10 +672,19 @@ def get_dynamic_dims(*shapes: List[List[IntVar]]) -> List[IntVar]:
             if not isinstance(dim, IntImm):
                 res[dim._attrs["name"]] = dim
                 if isinstance(dim, JaggedIntVar):
-                    # the batch_dim within the JaggedIntVar may not be present directly
-                    # in other input / output shapes, so we're adding it here separately
+                    # the batch_dim and the JaggedDim bounds within the JaggedIntVar
+                    # may not be present directly in other input / output shapes,
+                    # so we're adding it here separately
                     batch_dim = dim.batch_dim()
                     res[batch_dim._attrs["name"]] = batch_dim
+                    for jagged_dim in dim.jagged_dims():
+                        min_value = jagged_dim.min_value()
+                        if not isinstance(min_value, IntImm):
+                            res[min_value._attrs["name"]] = min_value
+                        max_value = jagged_dim.max_value()
+                        if not isinstance(max_value, IntImm):
+                            res[max_value._attrs["name"]] = max_value
+
     return list(res.values())
 
 
