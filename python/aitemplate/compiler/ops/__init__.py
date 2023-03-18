@@ -32,3 +32,4 @@ from aitemplate.compiler.ops.upsample import *
 from aitemplate.compiler.ops.vision_ops import *
 from aitemplate.compiler.ops.attention import *
 from aitemplate.compiler.ops.groupnorm import *
+from aitemplate.compiler.ops.b2b_bmm import *
