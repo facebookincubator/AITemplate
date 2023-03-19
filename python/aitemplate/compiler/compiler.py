@@ -125,6 +125,13 @@ def _mark_isolated_int_vars(sorted_graph: List[Tensor]):
                     int_vars[batch_dim._attrs["name"]] = batch_dim
                     total_length = dim.total_length()
                     int_vars[total_length._attrs["name"]] = total_length
+                    for jagged_dim in dim.jagged_dims():
+                        min_value = jagged_dim.min_value()
+                        if not isinstance(min_value, IntImm):
+                            int_vars[min_value._attrs["name"]] = min_value
+                        max_value = jagged_dim.max_value()
+                        if not isinstance(max_value, IntImm):
+                            int_vars[max_value._attrs["name"]] = max_value
                 if tensor._attrs["is_input"]:
                     int_var_names_in_input_shapes.add(name)
 
