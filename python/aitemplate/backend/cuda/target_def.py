@@ -106,15 +106,13 @@ class CUDA(Target):
                 flash_attention_path,
                 "fmha",
             ),
-            os.path.join(self._template_path, "../cub"),
         ]
-
+        ait_static_path = os.path.join(self._ait_include_path, "include/kernels")
         options = [
             "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
             "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
             "-w",
-            "-gencode=arch=compute_%s,code=[sm_%s,compute_%s]"
-            % (self._arch, self._arch, self._arch),
+            f"-gencode=arch=compute_{self._arch},code=[sm_{self._arch},compute_{self._arch}]",
             "-Xcompiler=-fPIC",
             "-Xcompiler=-Wconversion",
             "-Xcompiler=-fno-strict-aliasing",
@@ -123,14 +121,8 @@ class CUDA(Target):
             "-std=c++17",
             "--expt-relaxed-constexpr",
             "--use_fast_math",
-            "-I" + cutlass_path[0],
-            "-I" + cutlass_path[1],
-            "-I" + cutlass_path[2],
-            "-I" + cutlass_path[3],
-            "-I" + cutlass_path[4],
-            "-I" + cutlass_path[5],
-            "-I" + cutlass_path[6],
-        ]
+            f"-I{ait_static_path}",
+        ] + ["-I" + path for path in cutlass_path]
         if self._ndebug == 1:
             options.append("-DNDEBUG")
         return " ".join(options)
@@ -220,6 +212,10 @@ class FBCUDA(CUDA):
             )
             attention_include_path = self._include_path + "/att_include"
             shutil.copytree(attention_src_path, attention_include_path)
+            ait_static_include_path = self._include_path + "/static"
+            shutil.copytree(
+                static_files_path + "/include/kernels", ait_static_include_path
+            )
         self.cutlass_path_ = FBCUDA.cutlass_path_
 
         cutlass_lib_path = parutil.get_dir_path(
@@ -251,41 +247,38 @@ class FBCUDA(CUDA):
                 os.path.join(self._template_path, "examples/45_dual_gemm"),
                 os.path.join(self._template_path, "../att_include"),
                 os.path.join(self._template_path, "../att_include/fmha"),
-                os.path.join(self._template_path, "../cub"),
             ]
+            ait_static_path = os.path.join(self._include_path, "static")
             fb_include_path = os.path.join(self._include_path, "fb_include")
             pp_args = self.nvcc_options_json["pp_args"]
             with open(fb_include_path, "w") as fb_include:
                 for arg in pp_args:
                     fb_include.write(pipes.quote(arg) + "\n")
 
-            options = self.nvcc_options_json["args"] + [
-                "-I" + cutlass_path[0],
-                "-I" + cutlass_path[1],
-                "-I" + cutlass_path[2],
-                "-I" + cutlass_path[3],
-                "-I" + cutlass_path[4],
-                "-I" + cutlass_path[5],
-                "-I" + cutlass_path[6],
-                f"-Xcompiler '-Wp\,@{fb_include_path}'",  # noqa: W605
-                "-Xcompiler -Wno-strict-aliasing",
-                "-Xcompiler -Wno-narrowing",
-                "-Xcompiler -Wno-error=maybe-uninitialized",
-                "-Xcompiler -Wno-uninitialized",
-                "-Xcompiler -Wno-error=array-bounds",
-                "-Xcompiler -fPIC",
-                "-Xcompiler -fvisibility=hidden",
-                "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-                "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
-                "-w",
-                "--expt-relaxed-constexpr",
-                "--use_fast_math",
-                "-gencode=arch=compute_%s,code=[sm_%s,compute_%s]"
-                % (self._arch, self._arch, self._arch),
-                "-Xcompiler=-Wconversion",
-                environ.get_compiler_opt_level(),
-                "-std=c++17",
-            ]
+            options = (
+                self.nvcc_options_json["args"]
+                + ["-I" + path for path in cutlass_path]
+                + [
+                    f"-I{ait_static_path}",
+                    f"-Xcompiler '-Wp\,@{fb_include_path}'",  # noqa: W605
+                    "-Xcompiler -Wno-strict-aliasing",
+                    "-Xcompiler -Wno-narrowing",
+                    "-Xcompiler -Wno-error=maybe-uninitialized",
+                    "-Xcompiler -Wno-uninitialized",
+                    "-Xcompiler -Wno-error=array-bounds",
+                    "-Xcompiler -fPIC",
+                    "-Xcompiler -fvisibility=hidden",
+                    "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
+                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
+                    "-w",
+                    "--expt-relaxed-constexpr",
+                    "--use_fast_math",
+                    f"-gencode=arch=compute_{self._arch},code=[sm_{self._arch},compute_{self._arch}]",
+                    "-Xcompiler=-Wconversion",
+                    environ.get_compiler_opt_level(),
+                    "-std=c++17",
+                ]
+            )
             if self._ndebug == 1:
                 options.append("-DNDEBUG")
             FBCUDA.compile_options_ = " ".join(options)

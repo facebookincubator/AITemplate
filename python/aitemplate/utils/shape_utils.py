@@ -51,7 +51,7 @@ def get_broadcast_max_shape(shape1, shape2):
     Note that two shapes are not required to have the same number of dimensions.
     For example, shape [5, 2, 3] and shape [3] are also broadcastable.
     """
-    from aitemplate.compiler.base import IntImm
+    from aitemplate.compiler.base import IntImm, JaggedIntVar
 
     min_len = min(len(shape1), len(shape2))
     if len(shape1) > len(shape2):
@@ -64,6 +64,12 @@ def get_broadcast_max_shape(shape1, shape2):
         dim2 = shape2[idx]
         if dim1 == dim2:
             res_shape[idx] = dim1
+            continue
+        if isinstance(dim1, JaggedIntVar) and dim1.total_length() == dim2:
+            res_shape[idx] = dim1
+            continue
+        if isinstance(dim2, JaggedIntVar) and dim2.total_length() == dim1:
+            res_shape[idx] = dim2
             continue
         if dim1 == IntImm(1):
             res_shape[idx] = dim2

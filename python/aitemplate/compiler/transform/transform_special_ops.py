@@ -21,7 +21,7 @@ from typing import Callable, List, Tuple, Type, Union
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.ops.gemm_special.gemm_rrr_small_nk import gemm_rrr_small_nk
-from aitemplate.compiler.ops.gemm_universal.bmm_rcr import bmm_rcr
+from aitemplate.compiler.ops.gemm_universal.bmm_xxx import bmm_rcr
 from aitemplate.compiler.ops.gemm_universal.gemm_rrr import gemm_rrr
 from aitemplate.compiler.transform.transform_utils import (
     copy_src_op_attributes,

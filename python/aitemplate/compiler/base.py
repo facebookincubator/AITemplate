@@ -220,21 +220,26 @@ class JaggedDim(Node):
 
     def __init__(
         self,
-        min_value: int,
-        max_value: int,
+        min_value: IntVar,
+        max_value: IntVar,
     ):
         """Initializes a JaggedDim.
 
         Parameters
         ----------
-        min_value : int
+        min_value : IntVar
             Minimum possible value of the jagged dimension.
-        max_value : int
+        max_value : IntVar
             Maximum possible value of the jagged dimension.
         """
-        if min_value < 0:
+        if isinstance(min_value, int):
+            min_value = IntImm(min_value)
+        if isinstance(max_value, int):
+            max_value = IntImm(max_value)
+
+        if min_value.lower_bound() < 0:
             raise ValueError(f"{min_value=}, but must be non-negative.")
-        if min_value > max_value:
+        if min_value.lower_bound() > max_value.upper_bound():
             raise ValueError(f"{min_value=} can't be larger than {max_value=}.")
 
         super().__init__()
@@ -256,11 +261,11 @@ class JaggedDim(Node):
             attrs["offsets"] = {"name": self._attrs["offsets"]._attrs["name"]}
         return str(attrs)
 
-    def min_value(self) -> int:
+    def min_value(self) -> IntVar:
         """The minimum possible value of the JaggedDim."""
         return self._attrs["values"][0]
 
-    def max_value(self) -> int:
+    def max_value(self) -> IntVar:
         """The maximum possible value of the JaggedDim."""
         return self._attrs["values"][1]
 
@@ -427,7 +432,7 @@ class JaggedIntVar(IntVar):
         """
         result = [self.batch_dim()]
         for dim in self.jagged_dims():
-            result.append(IntImm(dim.max_value()))
+            result.append(dim.max_value())
         return result
 
 

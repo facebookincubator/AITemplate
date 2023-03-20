@@ -20,7 +20,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 from aitemplate.utils import shape_utils
 
 
@@ -81,18 +84,16 @@ class GEMMRrrSmallNKTestCase(unittest.TestCase):
         # self._test_rrr([1000000], 8, 16)
         # self._test_rrr([1000000], 6, 3, False)
 
-    def test_gemm_rrr_small_nk_float32(self):
+    def test_gemm_rrr_small_nk_float_sm80(self):
         self._test_rrr([0, 1], 6, 3, False, dtype="float32", atol=1e-5, rtol=1.3e-6)
         self._test_rrr([100001], 7, 10, False, dtype="float32", atol=1e-5, rtol=1.3e-6)
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by cuda sm<80",
-    )
-    def test_gemm_rrr_small_nk_bfloat16(self):
+    def test_gemm_rrr_small_nk_bfloat16_sm80(self):
         self._test_rrr([0, 1], 6, 3, False, dtype="bfloat16", atol=1e-1, rtol=1e-1)
         self._test_rrr([100001], 7, 10, False, dtype="bfloat16", atol=1e-1, rtol=1e-1)
 
+
+filter_test_cases_by_test_env(GEMMRrrSmallNKTestCase)
 
 if __name__ == "__main__":
     unittest.main()

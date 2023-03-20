@@ -29,7 +29,6 @@ from aitemplate.utils.visualization.web_template import (
     TABLE_TEMPLATE,
 )
 
-
 COLOR_SCHEME = {
     "default_tensor": "lightskyblue1",
     "view": "plum1",
@@ -118,6 +117,19 @@ def plot_graph(tensors, file_path: str) -> None:
     sorted_graph = compiler.transform.toposort(tensors)
     compiler.transform.name_graph(sorted_graph)
 
+    # Before doing the further processing, it is needed
+    # to find whether there is an Operator instance with the same
+    # name like 'fused_elementwise_123' that is used
+    # several times, but with different input and/or outputs.
+    # In such a case, every Operator instance should get its unique
+    # name.
+    #
+    # The following dict will be used to store such unique names,
+    # such as 'fused_elementwise_123 0' and 'fused_elementwise_123 1'.
+    from aitemplate.utils.json_utils import gen_unique_op_names
+
+    op_names = gen_unique_op_names(sorted_graph)
+
     op_set = {}
     tensor_set = {}
     modal_set = []
@@ -155,6 +167,11 @@ def plot_graph(tensors, file_path: str) -> None:
         for src_op in tensor.src_ops():
             op_node = None
             op_name = src_op._attrs["name"]
+
+            # replace op_name with an unique name, if provided
+            if op_name is not None:
+                op_name = op_names.get(src_op, op_name)
+
             if src_op in op_set:
                 op_node = op_set[src_op]
             else:
@@ -176,6 +193,11 @@ def plot_graph(tensors, file_path: str) -> None:
         for dst_op in tensor.dst_ops():
             op_node = None
             op_name = dst_op._attrs["name"]
+
+            # replace op_name with an unique name, if provided
+            if op_name is not None:
+                op_name = op_names.get(dst_op, op_name)
+
             if dst_op in op_set:
                 op_node = op_set[dst_op]
             else:

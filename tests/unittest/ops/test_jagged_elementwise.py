@@ -25,42 +25,10 @@ from aitemplate.compiler.base import JaggedDim
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.jagged_utils import (
-    dense_to_jagged,
-    generate_offsets,
-    jagged_to_dense,
-)
+from aitemplate.testing.jagged_utils import add_jagged_dense_ref, generate_offsets
 from aitemplate.testing.test_utils import get_random_torch_tensor
 from aitemplate.utils.torch_utils import string_to_torch_dtype
 from parameterized import param, parameterized
-
-
-def _add_jagged_dense_ref(
-    jagged: torch.Tensor,
-    offsets_list: List[torch.Tensor],
-    dense: torch.Tensor,
-    jagged_max_shape: List[int] = None,
-) -> torch.Tensor:
-    """The reference function for jagged / dense elementwise add."""
-    if jagged_max_shape is None:
-        jagged_max_shape = dense.shape
-
-    assert len(jagged.shape) + len(offsets_list) >= len(dense.shape)
-    assert len(jagged_max_shape) == len(jagged.shape) + len(offsets_list)
-
-    return dense_to_jagged(
-        dense=(
-            dense
-            + jagged_to_dense(
-                jagged=jagged,
-                offsets_list=offsets_list,
-                dense_shape=jagged_max_shape,
-                padding_value=0.0,
-            )
-        ),
-        offsets_list=offsets_list,
-        padding_value=-1.0,
-    )
 
 
 class JaggedElementwiseTestCase(unittest.TestCase):
@@ -156,7 +124,7 @@ class JaggedElementwiseTestCase(unittest.TestCase):
         }
         source_pt = get_random_torch_tensor(jagged_input_shape, dtype)
         dense_pt = get_random_torch_tensor(dense_shape, dtype)
-        result_pt = _add_jagged_dense_ref(
+        result_pt = add_jagged_dense_ref(
             jagged=source_pt,
             offsets_list=list(offsets_pt.values()),
             jagged_max_shape=jagged_max_shape,

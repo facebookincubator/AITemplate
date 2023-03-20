@@ -50,10 +50,8 @@ def sorted_graph_debug_str(tensors) -> str:
 
 
 def sorted_graph_debug_json(tensors) -> str:
-    import json
-
     from aitemplate.compiler.base import Tensor
-    from aitemplate.utils.json_utils import GraphJsonEncoder
+    from aitemplate.utils.json_utils import gen_unique_op_names, GraphJsonEncoder
 
     if isinstance(tensors, Tensor):
         tensors = [tensors]
@@ -62,7 +60,10 @@ def sorted_graph_debug_json(tensors) -> str:
     json_dict["Tensors"] = tensors
     json_dict["Operators"] = get_sorted_ops(tensors)
 
-    return json.dumps(json_dict, cls=GraphJsonEncoder)
+    op_names = gen_unique_op_names(tensors)
+    encoder = GraphJsonEncoder(op_names)
+
+    return encoder.encode(json_dict)
 
 
 def sorted_graph_pseudo_code(tensors, with_shape=True) -> str:

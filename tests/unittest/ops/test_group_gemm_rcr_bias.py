@@ -20,7 +20,10 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 
 from parameterized import param, parameterized
 
@@ -33,7 +36,7 @@ class GroupGEMMRcrBiasTestCase(unittest.TestCase):
     @parameterized.expand(
         [
             param("group_gemm_rcr_bias_fp16", "float16"),
-            param("group_gemm_rcr_bias_fp32", "float32"),
+            param("group_gemm_rcr_bias_fp32_sm80", "float32"),
             param("group_gemm_rcr_bias_bf16", "bfloat16"),
         ]
     )
@@ -44,9 +47,6 @@ class GroupGEMMRcrBiasTestCase(unittest.TestCase):
         K2 = 192
         N2 = 64
         target = detect_target()
-        if int(target._arch) < 80:
-            _LOGGER.warning("Group Gemm need SM80 HW")
-            return
         X1 = Tensor(shape=[M, K1], dtype=dtype, name="x1", is_input=True)
         X2 = Tensor(shape=[M, K2], dtype=dtype, name="x2", is_input=True)
         W1 = Tensor(shape=[N1, K1], dtype=dtype, name="w1", is_input=True)
@@ -83,6 +83,8 @@ class GroupGEMMRcrBiasTestCase(unittest.TestCase):
         torch.testing.assert_close(Y1_pt, y1, atol=1e-1, rtol=1e-1)
         torch.testing.assert_close(Y2_pt, y2, atol=1e-1, rtol=1e-1)
 
+
+filter_test_cases_by_test_env(GroupGEMMRcrBiasTestCase)
 
 if __name__ == "__main__":
     unittest.main()

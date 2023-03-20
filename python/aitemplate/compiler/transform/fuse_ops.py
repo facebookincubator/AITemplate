@@ -300,7 +300,7 @@ def _detect_cycle(group: List[Operator]) -> bool:
     return False
 
 
-def _fuse_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
+def fuse_elementwise(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
     """
     Given a sorted graph, returns a sorted graph with fused_elementwise ops on fusable elementwise ops.
     """
@@ -311,12 +311,48 @@ def _fuse_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
             continue
         src_op = list(src_ops)[0]
         if src_op._attrs["op"] == "elementwise":
-            disjoint_set.add(src_op, _find_fusable_elementwise_ops(src_op))
+            disjoint_set.add(
+                src_op,
+                _find_fusable_elementwise_ops(src_op),
+            )
 
     to_be_fused_op_groups = disjoint_set.get_node_groups()
 
     for ops in to_be_fused_op_groups:
         # Partition subgraph based on output shape.
+        output_op_map = _partition_subgraphs(ops)
+        # Collect information to create fuse ops.
+        info_list = _collect_info(output_op_map, set(ops), sorted_graph)
+        # Create fuse ops.
+        _create_fuse_ops(info_list)
+
+    sorted_graph = toposort(sorted_graph)
+    return transform_utils.sanitize_sorted_graph(sorted_graph)
+
+
+def process_singleton_elementwise(
+    sorted_graph: List[Tensor], workdir: str = None
+) -> List[Tensor]:
+    """
+    A dummy pass which enables codegen for any elementwise op without fusing it with neighbors
+    """
+    disjoint_set = SimpleDisjointSet()
+    for tensor in sorted_graph:
+        src_ops = tensor._attrs["src_ops"]
+        if src_ops is None or len(src_ops) != 1:
+            continue
+        src_op = list(src_ops)[0]
+        if src_op._attrs["op"] == "elementwise":
+            disjoint_set.add(
+                src_op,
+                {src_op},
+            )
+
+    to_be_fused_op_groups = disjoint_set.get_node_groups()
+
+    for ops in to_be_fused_op_groups:
+        # Partition subgraph based on output shape.
+        # output_op_map = {op._attrs["op"]: set(op) for op in ops}
         output_op_map = _partition_subgraphs(ops)
         # Collect information to create fuse ops.
         info_list = _collect_info(output_op_map, set(ops), sorted_graph)
@@ -396,7 +432,6 @@ def fuse_ops(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
     funcs = [
         _fuse_layernorm_sigmoid_mul,
         _fuse_groupnorm_sigmoid_mul,
-        _fuse_elementwise,  # this pass should be left in the last one
     ]
     for func in funcs:
         sorted_graph = func(sorted_graph)

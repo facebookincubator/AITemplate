@@ -27,6 +27,10 @@ from aitemplate.utils import shape_utils
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
 class GEMMPermuteTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -264,10 +268,6 @@ class GEMMPermuteTestCase(unittest.TestCase):
             copy_op=True,
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_permute_float32(self):
         for has_bias in (True, False):
             self._test_rcr(
@@ -298,10 +298,6 @@ class GEMMPermuteTestCase(unittest.TestCase):
             dtype="float32",
         )
 
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
     def test_gemm_permute_bfloat16(self):
         for has_bias in (True, False):
             self._test_rcr(

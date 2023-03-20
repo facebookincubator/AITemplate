@@ -31,7 +31,7 @@ call the passes in this file more than once.
 """
 from typing import List
 
-from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.base import IntVar, JaggedIntVar, Operator, Tensor
 from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 
 from aitemplate.compiler.transform import transform_utils
@@ -110,6 +110,15 @@ def _fuse_expand_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
             expand_output_dim
         )
 
+    def _replace_jagged_int_var(shape: List[IntVar]):
+        """
+        If shape[0] is a JaggedIntVar, replace it with
+        the corresponding maximum dense shape.
+        """
+        if shape and isinstance(shape[0], JaggedIntVar):
+            return shape[0].get_max_dense_shape() + shape[1:]
+        return shape
+
     for op in graph_utils.get_sorted_ops(sorted_graph):
         if op._attrs["op"] != "expand":
             continue
@@ -121,6 +130,8 @@ def _fuse_expand_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
         if expand_output._attrs["is_output"]:
             continue
 
+        expand_output_shape = _replace_jagged_int_var(expand_output._attrs["shape"])
+
         def _can_fuse_with(dst_op: Operator) -> bool:
             if dst_op._attrs["op"] != "elementwise":
                 return False
@@ -128,10 +139,16 @@ def _fuse_expand_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
             for elementwise_input in dst_op._attrs["inputs"]:
                 if elementwise_input is expand_output:
                     continue
+
+                elementwise_input_shape = _replace_jagged_int_var(
+                    elementwise_input._attrs["shape"]
+                )
+
                 if not all(
                     _is_compatible_with_broadcasting(dim_a, dim_b)
                     for dim_a, dim_b in zip(
-                        expand_output._attrs["shape"], elementwise_input._attrs["shape"]
+                        expand_output_shape,
+                        elementwise_input_shape,
                     )
                 ):
                     return False
