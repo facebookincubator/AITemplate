@@ -48,6 +48,18 @@ SRC_TEMPLATE = jinja2.Template(
     """
 {{header_files}}
 
+#ifndef CUDA_CHECK_MASKED_SELECT
+#define CUDA_CHECK_MASKED_SELECT(expr, msg)                   \\
+  do {                                                        \\
+    cudaError_t status = (expr);                              \\
+    if (status != cudaSuccess) {                              \\
+        std::cerr << msg << " at " << __FILE__                \\
+                  << ": " << __LINE__ << std::endl;           \\
+        throw std::runtime_error(cudaGetErrorString(status)); \\
+    }                                                         \\
+  } while (0)
+#endif // CUDA_CHECK_MASKED_SELECT
+
 void {{func_name}}(
     {{input_type}}* output,
     const {{input_type}}* input,
@@ -80,44 +92,34 @@ void {{func_name}}(
     // Get needed temporary storage size and reallocate if necessary
     void* d_temp_storage = nullptr;
     size_t temp_storage_bytes = 0;
-    cudaError_t err = cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, input, mask, output, num_nonmasked_device, num_elems, stream);
-    if (err != cudaSuccess) {
-        std::cerr << "Error when checking the required buffer size!" << std::endl;
-        throw std::runtime_error(cudaGetErrorString(err));
-    }
-    cudaStreamSynchronize(stream);
+    CUDA_CHECK_MASKED_SELECT(cub::DeviceSelect::Flagged(d_temp_storage, temp_storage_bytes, input, mask, output, num_nonmasked_device, num_elems, stream),
+                             "Error when checking the required buffer size!");
+    CUDA_CHECK_MASKED_SELECT(cudaStreamSynchronize(stream), "Error when synchronizing the stream!");
+
     if (allocated_storage < temp_storage_bytes + NUM_NONMASKED_SIZE) {
         auto msg = "Got pre-allocated buffer of size " + std::to_string(allocated_storage) + ", but need " + std::to_string(temp_storage_bytes)
                 + ". Allocating a new buffer, expect performance degradation.";
         std::cerr << msg << std::endl;
         // Allocate temporary storage
         temp_storage_bytes += NUM_NONMASKED_SIZE;
-        err = cudaMalloc(&d_temp_storage, temp_storage_bytes);
-        if (err != cudaSuccess) {
-            std::cerr << "Error when trying to allocate a new buffer!" << std::endl;
-            throw std::runtime_error(cudaGetErrorString(err));
-        }
+        CUDA_CHECK_MASKED_SELECT(cudaMallocAsync(&d_temp_storage, temp_storage_bytes, stream), "Error when trying to allocate a new buffer!");
+        CUDA_CHECK_MASKED_SELECT(cudaStreamSynchronize(stream), "Error when synchronizing the stream!");
         workspace = d_temp_storage;
         allocated_storage = temp_storage_bytes;
     }
     allocated_storage -= NUM_NONMASKED_SIZE;  // First NUM_NONMASKED_SIZE bytes are reserved
 
     // Select nonmasked elements. First NUM_NONMASKED_SIZE bytes of workspace are reserved for num_nonmasked_device
-    err = cub::DeviceSelect::Flagged(workspace + NUM_NONMASKED_SIZE, allocated_storage, input, mask, output,
-        num_nonmasked_device, num_elems, stream);
-    if (err != cudaSuccess) {
-        std::cerr << "Error when selecting nonmasked elements!" << std::endl;
-        throw std::runtime_error(cudaGetErrorString(err));
-    }
+    CUDA_CHECK_MASKED_SELECT(cub::DeviceSelect::Flagged(workspace + NUM_NONMASKED_SIZE, allocated_storage, input, mask, output,
+        num_nonmasked_device, num_elems, stream),  "Error when selecting nonmasked elements!");
 
     // Extract number of nonmasked elements (size of the output)
-    err = cudaMemcpy(num_nonmasked, num_nonmasked_device, NUM_NONMASKED_SIZE, cudaMemcpyDeviceToHost);
-    if (err != cudaSuccess) {
-        std::cerr << "Error when copying the number of nonmasked elements from device to host!" << std::endl;
-        throw std::runtime_error(cudaGetErrorString(err));
-    }
+    CUDA_CHECK_MASKED_SELECT(cudaMemcpyAsync(num_nonmasked, num_nonmasked_device, NUM_NONMASKED_SIZE, cudaMemcpyDeviceToHost, stream),
+                             "Error when copying the number of nonmasked elements from device to host!");
+    CUDA_CHECK_MASKED_SELECT(cudaStreamSynchronize(stream), "Error when synchronizing the stream!");
+
     if (d_temp_storage != nullptr) {
-        cudaFree(d_temp_storage);
+        CUDA_CHECK_MASKED_SELECT(cudaFreeAsync(d_temp_storage, stream), "Error when freeing GPU memory allocated by masked_select!");
     }
 }
 """

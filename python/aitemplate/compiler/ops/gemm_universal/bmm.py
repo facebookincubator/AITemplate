@@ -20,6 +20,7 @@ Base class for Batch GEMM.
 
 from aitemplate.compiler.base import IntImm, Tensor
 from aitemplate.compiler.dtype import is_same_dtype
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
 from aitemplate.compiler.ops.gemm_universal.gemm_common import gemm
 
 
@@ -113,3 +114,6 @@ class bmm(gemm):
                     atype=a.dtype(), btype=b.dtype()
                 )
             )
+
+    def _invert_exec_key(self, key):
+        return common.gemm_inverse_key_func(key)
