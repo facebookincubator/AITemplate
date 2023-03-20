@@ -15,7 +15,6 @@
 """
 Applies graph transformations.
 """
-
 from typing import List
 
 from aitemplate.compiler.base import Tensor
@@ -26,7 +25,11 @@ from aitemplate.compiler.transform.fuse_mm_elementwise import fuse_mm_elementwis
 from aitemplate.compiler.transform.fuse_mm_reshape_permute import (
     fuse_mm_reshape_permute,
 )
-from aitemplate.compiler.transform.fuse_ops import fuse_ops
+from aitemplate.compiler.transform.fuse_ops import (
+    fuse_elementwise,
+    fuse_ops,
+    process_singleton_elementwise,
+)
 from aitemplate.compiler.transform.fuse_parallel_gemms import fuse_parallel_gemms
 from aitemplate.compiler.transform.fuse_permute_bmm_and_gemm import (
     fuse_permute_bmm_and_gemm,
@@ -49,7 +52,9 @@ from aitemplate.compiler.transform.transform_strided_ops import transform_stride
 from aitemplate.utils import graph_utils
 
 
-def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
+def optimize_graph(
+    sorted_graph: List[Tensor], workdir: str, optimize=True
+) -> List[Tensor]:
     """Applies graph optimizations, including
 
     - fuse permute and bmm
@@ -86,6 +91,7 @@ def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
         fuse_mm_reshape_permute,
         transform_memory_ops,
         fuse_ops,
+        fuse_elementwise,
         # need to run before transform_strided_ops to fuse strided ops + concat
         # and transform_memory_ops to fuse split + concat
         fuse_parallel_gemms,
@@ -102,8 +108,18 @@ def optimize_graph(sorted_graph: List[Tensor], workdir: str) -> List[Tensor]:
         transform_memory_ops,
     ]
 
-    for func in funcs:
+    if not optimize:
+        # 1 - Convert elementwise ops to singleton fused_elementwise ops
+        # 2 - Padding also needs to be done for the model to be executable.
+        funcs = [
+            process_singleton_elementwise,
+            apply_padding,
+        ]
+
+    for i, func in enumerate(funcs):
         sorted_graph = func(sorted_graph, workdir)
-        graph_utils.dump_graph_debug_str_to_file(sorted_graph, workdir, func.__name__)
+        graph_utils.dump_graph_debug_str_to_file(
+            sorted_graph, workdir, f"{i:02}-{func.__name__}"
+        )
 
     return sorted_graph
