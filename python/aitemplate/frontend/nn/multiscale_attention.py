@@ -684,13 +684,15 @@ class MultiScaleBlock(Module):
             self.pool_skip, has_cls_embed=self.has_cls_embed, norm=None
         )
 
-    def forward(self, x: Tensor, thw_shape: List[int]) -> Tuple[Tensor, List[int]]:
+    def forward(
+        self, x: Tensor, t_shape: int, h_shape: int, w_shape: int
+    ) -> Tuple[Tensor, List[int]]:
         """
         Args:
             x (Tensor): Input tensor.
             thw_shape (List): The shape of the input tensor (before flattening).
         """
-
+        thw_shape = [t_shape, h_shape, w_shape]
         x_block, thw_shape_new = self.attn(x, thw_shape)
 
         x_res, _ = self._attention_pool(x, thw_shape)
