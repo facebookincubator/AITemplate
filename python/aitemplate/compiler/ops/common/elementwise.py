@@ -112,9 +112,11 @@ def _broadcast_dense_and_jagged_shape(
                 "higher than the rank of the jagged inputs (when treating "
                 "the jagged dims as separate dims)."
             )
-
-        broadcastable, _ = shape_utils.get_broadcast_max_shape(
+        broadcastable_jagged_dense, _ = shape_utils.get_broadcast_max_shape(
             jagged_max_dense_prefix_shape, dense_prefix_shape
+        )
+        broadcastable_jagged_jagged, _ = shape_utils.get_broadcast_max_shape(
+            [jagged_first_dim.total_length()], dense_prefix_shape
         )
         if not broadcastable:
             raise ValueError(
