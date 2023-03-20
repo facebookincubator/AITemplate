@@ -24,9 +24,14 @@ from diffusers import StableDiffusionPipeline
     default="./tmp/diffusers-pipeline/stabilityai/stable-diffusion-v2",
     help="pipeline files local directory",
 )
-def download_pipeline_files(token, save_directory) -> None:
+@click.option(
+    "--pipeline_name",
+    default="stabilityai/stable-diffusion-2-1-base",
+    help="pipeline name",
+)
+def download_pipeline_files(token, save_directory, pipeline_name) -> None:
     StableDiffusionPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-2-1-base",
+        pipeline_name,
         revision="fp16",
         torch_dtype=torch.float16,
         # use provided token or the one generated with `huggingface-cli login``

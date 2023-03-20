@@ -81,6 +81,7 @@ def compile_vae(
     width=64,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
+    workdir="./tmp",
 ):
     in_channels = 3
     out_channels = 3
@@ -134,7 +135,7 @@ def compile_vae(
     compile_model(
         Y,
         target,
-        "./tmp",
+        workdir,
         "AutoencoderKL",
         constants=params_ait,
     )

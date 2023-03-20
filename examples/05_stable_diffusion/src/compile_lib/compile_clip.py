@@ -86,6 +86,7 @@ def compile_clip(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
     act_layer="gelu",
+    workdir="./tmp",
 ):
     mask_seq = 0
     causal = True
@@ -117,4 +118,4 @@ def compile_clip(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    compile_model(Y, target, "./tmp", "CLIPTextModel", constants=params_ait)
+    compile_model(Y, target, workdir, "CLIPTextModel", constants=params_ait)
