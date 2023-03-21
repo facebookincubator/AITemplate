@@ -19,6 +19,8 @@ For interesting how to use Sympy, check: https://docs.sympy.org/latest/tutorials
 """
 from __future__ import annotations
 
+import itertools
+
 from numbers import Number
 from typing import Any, List, Optional, Set
 
@@ -111,3 +113,24 @@ def store_intvar(sym_name: str, int_var) -> None:
     global _k_symbolic_to_intvar
 
     _k_symbolic_to_intvar[sym_name] = int_var
+
+
+def simplify_intvar_values(sym_val: sympy.Basic):
+    """
+    Given a symbolic value, resolve the symbol's value range.
+
+    Example:
+    'symbol_A' has value range of [10, 20]
+    simplify_intvar_values(symbol_A * 3 + 4) returns [34, 64]
+    """
+    global _k_symbolic_value
+
+    symbols = list(sym_val.free_symbols)
+    symbol_shapes = [_k_symbolic_value[s.name] for s in symbols]
+    symbol_shapes = [s for s in symbol_shapes if s is not None]
+    shape_perms = list(itertools.product(*symbol_shapes))
+
+    new_shape = [int(sym_val.subs(zip(symbols, s))) for s in shape_perms]
+    new_shape = sorted(set(new_shape))
+
+    return new_shape
