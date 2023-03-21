@@ -661,6 +661,10 @@ class make_jagged(_view):
         return [jagged_int_var] + source._attrs["shape"][1:]
 
     def __call__(self, source: Tensor, offsets_list: List[Tensor]) -> Tensor:
+        if source.is_jagged():
+            # already a jagged Tensor
+            return source
+
         jagged_dims = self._attrs["jagged_dims"]
         if len(offsets_list) != len(jagged_dims):
             raise ValueError(

@@ -18,7 +18,7 @@ Elementwise operator definition, which covers UNARY / Binary / Ternary operators
 import functools
 from typing import Any, List
 
-from aitemplate.compiler.base import IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.compiler.op_registry import OP_REGISTRY
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
@@ -26,6 +26,41 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,C0301,W0223,R1724
+
+
+def _discover_implicit_jagged_inputs(inputs: List[Tensor]):
+    """
+    Convert implicit jagged Tensor inputs into explicit jagged Tensors.
+
+    There may be cases when elementwise has both explicit jagged Tensor
+    inputs (i.e. with a JaggedIntVar as the first dimension in the shape)
+    and "implicit" jagged Tensor inputs (i.e. dense Tensors with the first
+    dimension == the JaggedIntVar.total_length() in the jagged Tensor
+    inputs). Here we detect such implicit jagged Tensor inputs and replace
+    the total_length: IntVar in the dense input's shape by the corresponding
+    JaggedIntVar from the jagged input's shape. Importantly, this must be
+    done before the mixed jagged / dense broadcasting takes place.
+    """
+    total_length_map = {}
+    for tensor in inputs:
+        if tensor.is_jagged():
+            jagged_int_var = tensor._attrs["shape"][0]
+            total_length = jagged_int_var.total_length()
+            total_length_map[total_length] = jagged_int_var
+
+    if total_length_map:
+        # there are explicit jagged Tensors among the inputs:
+        # we check if there are implict ones and make them explicit
+        for tensor in inputs:
+            shape = tensor._attrs["shape"]
+            if not tensor.is_jagged() and shape and not isinstance(shape[0], IntImm):
+                if shape[0] in total_length_map:
+                    # the dense Tensor input's first dimension is the total_length
+                    # dimension in the JaggedIntVar of one of the jagged Tensor
+                    # inputs: we replace the dense Tensor input's first dimension
+                    # by the corresponding JaggedIntVar, hence giving it a
+                    # jagged Tensor semantics for further processing.
+                    shape[0] = total_length_map[shape[0]]
 
 
 def _broadcast_dense_shapes(shapes: List[List[IntVar]]) -> List[IntVar]:
@@ -112,11 +147,9 @@ def _broadcast_dense_and_jagged_shape(
                 "higher than the rank of the jagged inputs (when treating "
                 "the jagged dims as separate dims)."
             )
-        broadcastable_jagged_dense, _ = shape_utils.get_broadcast_max_shape(
+
+        broadcastable, _ = shape_utils.get_broadcast_max_shape(
             jagged_max_dense_prefix_shape, dense_prefix_shape
-        )
-        broadcastable_jagged_jagged, _ = shape_utils.get_broadcast_max_shape(
-            [jagged_first_dim.total_length()], dense_prefix_shape
         )
         if not broadcastable:
             raise ValueError(
@@ -158,6 +191,8 @@ class elementwise(Operator):
             raise RuntimeError(
                 "Elementwise op {} doesn't have inputs!".format(self._attrs["func"])
             )
+
+        _discover_implicit_jagged_inputs(args)
 
         dense_shapes = [arg._attrs["shape"] for arg in args if not arg.is_jagged()]
         jagged_shapes = [arg._attrs["shape"] for arg in args if arg.is_jagged()]
