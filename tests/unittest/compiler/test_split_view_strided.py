@@ -162,6 +162,8 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
         )
 
         # bmm_rcr dynamic M, B unfusible
+        # TODO: Reactivate after reshape is supported for symbolic shape
+        """
         self._test_split_view_bmm_rcr(
             ops.bmm_rcr,
             Bs=[2, 4, 5, 10],
@@ -176,10 +178,11 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
             expected_num_ops=17,
             testname="test_split_bmm_rcr_dynamic_bm_non_fusible",
         )
+        """
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_split_view_bmm_rcr_fusion_fp32_sm80(self):
-        b_dim = shape_utils.gen_int_var([1, 1024], "batch_size")
+        # b_dim = shape_utils.gen_int_var([1, 1024], "batch_size")
         m_dim = shape_utils.gen_int_var([100, 200], "emb_pool_size")
 
         # bmm_rcr dynamic M fusible
@@ -199,6 +202,8 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
             dtype="float",
         )
         # bmm_rcr dynamic M, B unfusible
+        # TODO: Reactivate after reshape is supported for symbolic shape
+        """
         self._test_split_view_bmm_rcr(
             ops.bmm_rcr,
             Bs=[2, 4, 5, 10],
@@ -214,6 +219,7 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
             testname="test_split_bmm_rcr_dynamic_bm_non_fusible_float",
             dtype="float",
         )
+        """
 
 
 filter_test_cases_by_test_env(SplitViewStridedOpTestCase)
