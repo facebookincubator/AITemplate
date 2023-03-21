@@ -778,6 +778,8 @@ class ModelContainerGenerator:
                 )
             else:
                 self.tensor_decl.append(self.f_var_decl(name=name))
+            # IntVarTensor could be used as dim too, add to visited to prevent duplicated declaration.
+            self.visited_dims.add(name)
         else:
             self.tensor_decl.append(self.f_ptr_decl(name=name, dtype=dtype))
 

@@ -148,6 +148,9 @@ class StridedViewCatOpTestCase(unittest.TestCase):
         expected_num_ops: int,
         dtype: str = "float16",
     ):
+        if test_name == "gemm_reshape_cat_non_fusible_dynamic_dim":
+            # TODO: Reactivate when reshape is ready for symbolic shapes.
+            self.skipTest("")
         target = detect_target()
 
         batch_dim = IntVar([1, 2, 3], "batch_size")

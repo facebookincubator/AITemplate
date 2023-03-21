@@ -22,6 +22,7 @@ from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Ten
 from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.compiler.op_registry import OP_REGISTRY
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.compiler.ops.common.int_elementwise import INT_ELEMENTWISE_FUNC
 
 from aitemplate.utils import shape_utils
 
@@ -209,16 +210,19 @@ class elementwise(Operator):
 
     def __call__(self, *args: Tensor) -> Tensor:
         converted_args = []
+        symbolic_args = []
         common_dtype = None
         assert len(args) > 0, "Elementwise ops must take at least one argument."
         for arg in args:
             if isinstance(arg, int) or isinstance(arg, float):
                 converted_args.append(Tensor(shape=[], value=arg))
+                symbolic_args.append(arg)
             elif isinstance(arg, IntVarTensor) and self._attrs["func"] == FuncEnum.SQRT:
                 assert len(arg._attrs["int_var"]._attrs["values"]) == 1
                 converted_args.append(
                     Tensor(shape=[], value=arg._attrs["int_var"]._attrs["values"][0])
                 )
+                symbolic_args.append(arg._attrs["int_var"].symbolic_value())
             elif isinstance(arg, Tensor):
                 converted_args.append(arg)
                 if common_dtype is None:
@@ -227,6 +231,7 @@ class elementwise(Operator):
                     raise NotImplementedError(
                         f"Type promotions are not supported; got dtype {arg.dtype()}, but expected {common_dtype}"
                     )
+                symbolic_args.append(arg._attrs.get("symbolic_value", None))
             else:
                 raise RuntimeError(
                     f"Unsupported data type {arg} in elementwise {self}!"
@@ -248,6 +253,10 @@ class elementwise(Operator):
         self._set_depth()
         output_shape = self._infer_shapes(*converted_args)
         output = Tensor(output_shape, src_ops={self}, dtype=common_dtype)
+        if self._attrs["func"] in INT_ELEMENTWISE_FUNC and None not in symbolic_args:
+            output._attrs["symbolic_value"] = functools.reduce(
+                INT_ELEMENTWISE_FUNC[self._attrs["func"]], symbolic_args
+            )
         self._attrs["outputs"] = [output]
         return output
 
