@@ -64,4 +64,6 @@ class AITModule(torch.nn.Module):
         This is turned in by passing allow_scripting=True.
         """
         mod = AITModule(engine, interp_result)
+        # sanity test before tracing
+        mod(*inputs)
         return torch.jit.trace(mod, inputs) if trace_ait_module else mod
