@@ -22,6 +22,7 @@ from aitemplate.backend.cuda.tensor import (
     concatenate_tanh,
     dynamic_slice,
     expand,
+    full,
     gather,
     jagged_to_padded_dense,
     masked_select,
@@ -44,6 +45,7 @@ __all__ = [
     "concatenate_tanh",
     "dynamic_slice",
     "expand",
+    "full",
     "gather",
     "jagged_to_padded_dense",
     "masked_select",
@@ -56,6 +58,5 @@ __all__ = [
     "slice_reshape_scatter",
     "slice_scatter",
     "split",
-    "argmax",
     "topk",
 ]
