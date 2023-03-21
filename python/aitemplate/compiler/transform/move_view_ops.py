@@ -39,10 +39,32 @@ def _make_input_view_shape(
     input_idx: int,
 ) -> Optional[List[IntVar]]:
     """
-    Make a new view shape for cat_input_shape based on the original_view_shape,
-    if the cat dimension is the only dimension with a different value from
-    the original_view_shape.
-    """
+    Assumes that there is a pattern like concat + view_op in the graph, we tries
+    to transform it into view_op + concat. However, it's not always valid to
+    perform such a transformation, because the concat's original inputs may
+    not be shape-compatible with the moved view_op. Currently, we only support
+    cases where a view_op only changes the dims after cat_dim and the dims after
+    the cat_dim must be static.
+
+    For example, for the following code:
+
+        x1 = Tensor(batch, 3 * 4)
+        x2 = Tensor(batch, 5 * 4)
+        concat_0 = concat([x1, x2], cat_dim=1)
+        reshape_1 = reshape(concat_0, [batch, 8, 4])
+
+    This function will generate shape [batch, 3, 4] for x1 and [batch, 5, 4]
+    for x2, respectively.
+
+    In contrast, if we have code like below:
+
+        x1 = tensor([batch, 16])
+        x2 = tensor([batch, 8])
+        cat_1 = concatenate([x1, x2], cat_dim=1)
+        reshape_2 = reshape(cat_1, [batch, 4, 6])
+
+    We would return None for both x1 and x2, because we cannot make valid reshape
+    ops for x1 and x2 while keeping the original semantics."""
     cat_input_shape = cat_input.shape()
     if cat_dim >= len(cat_input_shape) or cat_dim >= len(original_view_shape):
         return None
@@ -121,7 +143,7 @@ def _try_move_view_op(
     # Basically, we cannot reshape either x1 or x2 to a shape while
     # keep cat_dim = 1, i.e. we cannot form a shape [batch, -1, 6] from
     # either [batch, 16] or [batch, 8].
-    input_view_shapes = []
+    new_view_output_shapes = []
     view_op_output = view_op._attrs["outputs"][0]
     original_view_shape = view_op_output.shape()
     for input_idx, first_cat_input in enumerate(first_cat._attrs["inputs"]):
@@ -130,7 +152,7 @@ def _try_move_view_op(
         )
         if input_view_shape is None:
             return False
-        input_view_shapes.append(input_view_shape)
+        new_view_output_shapes.append(input_view_shape)
     # Now we start modifying the graph.
     # make a new output tensor for the first cat
     new_first_cat_output = Tensor(original_view_shape, first_cat_output._attrs["name"])
@@ -149,7 +171,7 @@ def _try_move_view_op(
     # prevent us from propagating those view ops to an upper level.
     first_cat_input_to_view_output = {}
     for first_cat_input, input_view_shape in zip(
-        first_cat._attrs["inputs"], input_view_shapes
+        first_cat._attrs["inputs"], new_view_output_shapes
     ):
         new_view_output = first_cat_input_to_view_output.get(first_cat_input, None)
         if new_view_output is None:
@@ -162,9 +184,18 @@ def _try_move_view_op(
             first_cat_input._attrs["dst_ops"].remove(first_cat)
         new_first_cat_inputs.append(new_view_output)
         # This peephole optimization is necessary in case we pushing a view op
-        # in between two concat ops where we have another view op. We could write
-        # a standalone pass for fusing consecutive view ops and run the pass
-        # after each iteration of moving a view op here. But it seems to be
+        # in between two concat ops where we have another view op. For example,
+        #     concat_1 = concat([x1, x2])
+        #     reshape_2 = reshape(concat_1)
+        #     concat_3 = concat([reshape_2, x3])
+        #     reshape_4 = reshape(concat_3)
+        # if we move reshape_4 to the front of concat_3, we may not be able to
+        # further simplify reshape_2 and reshape_4 if we don't "fuse" these two
+        # reshape ops. Note that reshape_2 may come from the original graph, or
+        # generated from this transformation, e.g. concat_3 may be fed into multiple
+        # reshape ops.
+        # We could write a standalone pass for fusing consecutive view ops and run
+        # the pass after each iteration of moving a view op here. But it seems to be
         # quite inefficient because we have to scan the entire graph again.
         # So, let's do it locally to save us some time. BTW, we may still implement
         # a pass that fuses consecutive view ops, but we just don't need to apply

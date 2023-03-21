@@ -1306,7 +1306,6 @@ class MoveViewOpsTestCase(unittest.TestCase):
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
         module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
-        # import pdb; pdb.set_trace()
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
@@ -1364,15 +1363,15 @@ class MoveViewOpsTestCase(unittest.TestCase):
             test_name="test_move_strided_reshape_cat_8",
             dtype="float16",
         )
-        # self._test_move_strided_reshape_cat_8(
-        #    M0=4,
-        #    M1=4,
-        #    M2=6,
-        #    M3=3,
-        #    N=4,
-        #    test_name="test_move_strided_reshape_cat_8",
-        #    dtype="float16",
-        # )
+        self._test_move_strided_reshape_cat_8(
+            M0=4,
+            M1=4,
+            M2=6,
+            M3=3,
+            N=4,
+            test_name="test_move_strided_reshape_cat_8",
+            dtype="float16",
+        )
 
 
 if __name__ == "__main__":
