@@ -15,6 +15,7 @@
 """
 Concatenate.
 """
+from functools import reduce
 from typing import List, Sequence, Union
 
 from aitemplate import backend
@@ -90,9 +91,15 @@ class concatenate(Operator):
             if idx == dim:
                 min_value_sum = sum(value[0] for value in lst)
                 max_value_sum = sum(value[-1] for value in lst)
-                output_shape.append(
-                    shape_utils.gen_int_var([min_value_sum, max_value_sum])
+                shape_var = shape_utils.gen_int_var([min_value_sum, max_value_sum])
+                shape_var._attrs["symbolic_value"] = reduce(
+                    lambda x, y: x + y,
+                    [
+                        input_shape[idx]._attrs["symbolic_value"]
+                        for input_shape in input_shapes
+                    ],
                 )
+                output_shape.append(shape_var)
             else:
                 output_dim = input_shapes[0][idx]
                 for shape in input_shapes:
