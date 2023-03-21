@@ -722,16 +722,7 @@ def _get_mixed_jagged_dense_config(
         # dense inputs' shapes) will be treated as a single dense dim
         return False, None, False
 
-    # If all dense inputs' first dim is equal to jagged_int_var's total_length(),
-    # treat all these dense inputs as jagged inputs as well.
     jagged_int_var = output_shape[0]
-    all_dense_jagged = True
-    for dense_input_shape in dense_input_shapes:
-        if dense_input_shape[0] != jagged_int_var.total_length():
-            all_dense_jagged = False
-    if all_dense_jagged:
-        return False, None, False
-
     jagged_max_dense_prefix_shape = jagged_int_var.get_max_dense_shape()
     jagged_suffix_shape = output_shape[1:]
     output_volume = jagged_max_dense_prefix_shape + jagged_suffix_shape
@@ -839,10 +830,7 @@ def _gen_input_broadcast_calculator_str(
 
     start_idx = 0
     for i, (input_dim, output_dim) in enumerate(zip(input_shape, output_shape)):
-        if input_dim != output_dim and not (
-            isinstance(output_dim, JaggedIntVar)
-            and input_dim == output_dim.total_length()
-        ):
+        if input_dim != output_dim:
             assert input_dim == IntImm(
                 1
             ), "Unexpected shapes! Input: {}, output: {}".format(
