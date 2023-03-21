@@ -84,7 +84,7 @@ def _prepare_inputs(m, nk_groups, repeats=10, has_bias=True):
     inputs = []
     for _ in range(repeats):
         inputs.append([])
-        for (n, k) in nk_groups:
+        for n, k in nk_groups:
             x_pt = torch.randn(m, k).half().cuda()
             w_pt = torch.randn(n, k).half().cuda()
             b_pt = torch.randn(n).half().cuda()

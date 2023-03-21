@@ -348,7 +348,6 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         no_fusion=False,
         dtype="float16",
     ):
-
         X = Tensor(
             shape=slice_input_shape,
             dtype=dtype,

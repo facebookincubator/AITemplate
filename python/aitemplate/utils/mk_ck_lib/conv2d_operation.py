@@ -266,7 +266,6 @@ class Conv2DOperation:
         return library.DataType.f32
 
     def emit(self) -> str:
-
         template = jinja2.Template(
             """
 using {{name}} = {{xdl_op_type}}<

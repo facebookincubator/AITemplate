@@ -18,8 +18,7 @@ Check each transform function summary for specific pattern to be transformed.
 """
 from typing import Callable, List, Tuple, Type, Union
 
-from aitemplate.utils.shape_utils import is_singleton_dimension
-from ...backend.target import Target
+from aitemplate.backend.target import Target
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor

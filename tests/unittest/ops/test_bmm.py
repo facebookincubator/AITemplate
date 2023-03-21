@@ -52,7 +52,7 @@ class BMMTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "bmm_rcr_{}".format(test_name))
 
-        for (b, m) in itertools.product(bs, ms):
+        for b, m in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
             W_pt = get_random_torch_tensor([b, N, K], dtype)
 
@@ -94,7 +94,7 @@ class BMMTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "bmm_crr_{}".format(test_name))
 
-        for (b, k) in itertools.product(bs, ks):
+        for b, k in itertools.product(bs, ks):
             X_pt = get_random_torch_tensor([b, k, M], dtype)
             W_pt = get_random_torch_tensor([b, k, N], dtype)
 
@@ -126,7 +126,7 @@ class BMMTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "bmm_rrr_{}".format(test_name))
 
-        for (b, m) in itertools.product(bs, ms):
+        for b, m in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
             W_pt = get_random_torch_tensor([b, K, N], dtype)
 
@@ -183,7 +183,7 @@ class BMMTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "bmm_rcc_{}".format(test_name))
 
-        for (b, m) in itertools.product(bs, ms):
+        for b, m in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
             W_pt = get_random_torch_tensor([b, N, K], dtype)
 
@@ -226,7 +226,7 @@ class BMMTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "bmm_crc_{}".format(test_name))
 
-        for (b, k) in itertools.product(bs, ks):
+        for b, k in itertools.product(bs, ks):
             X_pt = get_random_torch_tensor([b, k, M], dtype)
             W_pt = get_random_torch_tensor([b, k, N], dtype)
 
@@ -259,7 +259,7 @@ class BMMTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         module = compile_model(Y, target, "./tmp", "bmm_rrc_{}".format(test_name))
 
-        for (b, m) in itertools.product(bs, ms):
+        for b, m in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
             W_pt = get_random_torch_tensor([b, K, N], dtype)
 

@@ -56,7 +56,6 @@ def profile(
     devices=None,
     dynamic_profiling_strategy=DynamicProfileStrategy.MAX,
 ):
-
     """Profiles kernels.
 
     Parameters

@@ -340,7 +340,6 @@ def gen_profiler(
     op_instance = func_attrs["op_instance"]
     file_pairs = []
     for op_name, op in op_instance.items():
-
         config = emit_instance(op)
         config_name = extract_config_name(config)
         instances = INSTANCE_TEMPLATE.render(

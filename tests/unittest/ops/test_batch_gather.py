@@ -46,7 +46,6 @@ class batchGatherTestCase(gatherTestCase):
         test_name="gather",
         dtype="float16",
     ):
-
         in_shape = shape
 
         o_shape = list(in_shape)
@@ -133,7 +132,6 @@ class batchGatherTopkTestCase(gatherTestCase):
         test_name="topk",
         dtype="float16",
     ):
-
         m_shape = (N,) + shape
         n_shape = (topK,) + shape
 

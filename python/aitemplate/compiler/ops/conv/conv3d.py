@@ -547,6 +547,7 @@ class conv3d(Operator):
             best_algo = out[0]
         else:
             from operator import itemgetter
+
             out = min(result, key=itemgetter(1))
             best_algo = out[1].op_config
         workspace = out[1].workspace

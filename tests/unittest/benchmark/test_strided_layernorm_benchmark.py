@@ -34,7 +34,10 @@ class TestStridedLayerNormBenchmark(unittest.TestCase):
 
     @unittest.skipIf(detect_target().in_ci_env(), "don't run benchmark in CI")
     def test_benchmark(self):
-        for (input_nonbatch_shape, (start_indices, end_indices),) in itertools.product(
+        for (
+            input_nonbatch_shape,
+            (start_indices, end_indices),
+        ) in itertools.product(
             ((2048, 256), (2048, 512), (2048, 1024), (2048, 2048)),
             (((0, 0, 4), (None, None, 224)), ((0, 0, 3), (None, None, 223))),
         ):

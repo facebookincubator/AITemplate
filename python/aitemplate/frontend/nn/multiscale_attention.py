@@ -208,7 +208,6 @@ class _AttentionPool(Module):
         tensor = ops.reshape()(tensor, [B, N, L_pooled, C])
 
         if self.has_norm and not self.norm_before_pool:
-
             # TODO: add support for norm before pool
             # tensor = self.norm(tensor)
             _LOGGER.warning("Unsupport norm before pool")
@@ -347,7 +346,6 @@ class MultiScaleAttention(Module):
         ## TODO: add pool mode support for {"max", "avg"}
 
         elif pool_mode == "conv":
-
             self.pool_q = (
                 Conv3d(
                     head_dim,
@@ -513,7 +511,6 @@ class MultiScaleAttention(Module):
             q, k, v = self._reshape_qkv_to_seq(q, k, v, q_N, v_N, k_N, B, C)
             q, k, v = self._qkv_proj(q, q_N, k, k_N, v, v_N, B, C)
         else:
-
             if self.separate_qkv:
                 q = k = v = x
                 pass

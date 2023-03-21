@@ -152,7 +152,6 @@ class SliceLayerNormTestCase(unittest.TestCase):
         end_indices: List[int] = (None,),
         dtype: str = "float16",
     ):
-
         input_rank = 1 + len(input_nonbatch_shape)
         if 1 == len(start_indices) and len(start_indices) != input_rank:
             start_indices = [start_indices[0]] * input_rank

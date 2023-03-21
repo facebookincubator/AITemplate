@@ -201,6 +201,7 @@ ShortLayoutTypeNames = {
     LayoutType.GNWK: "GNWK",
 }
 
+
 #
 class OperationKind(enum.Enum):
     Gemm = auto()

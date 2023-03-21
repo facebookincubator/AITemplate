@@ -31,7 +31,6 @@ class BMMSoftmaxTestCase(unittest.TestCase):
     def _test_bmm_rcr_softmax(
         self, B=16, M=16, K=64, N=24, test_name="bmm_rcr_softmax"
     ):
-
         X = Tensor(shape=[B, M, K], dtype="float16", name="input_0", is_input=True)
         W = Tensor(shape=[B, N, K], dtype="float16", name="input_1", is_input=True)
         OP = ops.bmm_rcr_softmax()

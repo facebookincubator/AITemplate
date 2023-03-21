@@ -24,6 +24,7 @@ import time
 import typing
 from collections import OrderedDict
 
+
 # pylint: disable=R1732,R1710,R1721
 class Task(object):
     """Task is an object containing a bash command,

@@ -262,7 +262,7 @@ class TensorAccessor(object):
         # Loop through self._dim_mapping to generate stride_strs.
         found_original_dim_group = False
         res = []
-        for (original_group, actual_group) in self._dim_mapping:
+        for original_group, actual_group in self._dim_mapping:
             if not found_original_dim_group:
                 if dim in original_group:
                     found_original_dim_group = True

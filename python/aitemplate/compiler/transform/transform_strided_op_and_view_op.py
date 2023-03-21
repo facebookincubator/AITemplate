@@ -29,8 +29,6 @@ _VIEW_OPS = {"reshape", "flatten", "squeeze", "unsqueeze"}
 
 
 def _is_supported_strided_op(op: Operator) -> bool:
-    from ...backend.target import Target
-
     op_kind = op._attrs["op"]
     return not op_kind.startswith("group_gemm")
 
