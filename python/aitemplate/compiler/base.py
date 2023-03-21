@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 
+from aitemplate.compiler import symbolic
 from aitemplate.compiler.dtype import get_dtype_size, normalize_dtype
 from aitemplate.compiler.op_registry import OP_REGISTRY
 
@@ -124,7 +125,12 @@ class IntVar(Node):
             )
         self._attrs["values"] = sorted(set(values))
         if len(self._attrs["values"]) == 1:
+            self._attrs["symbolic_value"] = self._attrs["values"][0]
             self._attrs["values"] = self._attrs["values"] * 2
+        else:
+            symbolic_value = symbolic.create_new_symbol(name, values)
+            self._attrs["symbolic_value"] = symbolic_value
+            symbolic.store_intvar(symbolic_value.name, self)
 
     def __str__(self) -> str:
         return pformat(self._attrs, indent=2)
@@ -132,8 +138,7 @@ class IntVar(Node):
     def __eq__(self, another: Any) -> bool:
         return (
             isinstance(another, IntVar)
-            and self._attrs["values"] == another._attrs["values"]
-            and self._attrs["name"] == another._attrs["name"]
+            and self._attrs["symbolic_value"] == another._attrs["symbolic_value"]
         )
 
     def __hash__(self) -> int:
@@ -146,6 +151,10 @@ class IntVar(Node):
     def upper_bound(self) -> int:
         """Returns upper bound of this dynamic dim."""
         return self._attrs["values"][-1]
+
+    def symbolic_value(self):
+        """Returns the symbolic value of this dynamic dim."""
+        return self._attrs["symbolic_value"]
 
     def pseudo_code(self, with_shape=False) -> str:
         return (
@@ -188,6 +197,7 @@ class IntImm(IntVar):
         Node.__init__(self)  # pylint: disable=W0233
         self._attrs["name"] = name
         self._attrs["values"] = [value]
+        self._attrs["symbolic_value"] = value
 
     def __eq__(self, another: Union[int, IntVar]) -> bool:
         if isinstance(another, int):
@@ -868,6 +878,7 @@ class IntVarTensor(Tensor):
             is_output=is_output,
         )
         self._attrs["int_var"] = int_var
+        self._attrs["symbolic_value"] = int_var._attrs["symbolic_value"]
 
     def pseudo_code(self, with_shape=True) -> str:
         return f"IntVarTensor({self._attrs['int_var'].pseudo_code()})"
