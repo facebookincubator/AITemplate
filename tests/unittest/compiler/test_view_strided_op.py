@@ -485,7 +485,6 @@ class ViewStridedOpTestCase(unittest.TestCase):
         ],
         name_func=custom_name_func,
     )
-    @unittest.skip("TODO: Add back when reshape/flatten for symbolic is complete")
     def test_non_fusible_view_and_bmm(
         self, test_name: str, input0: Tensor, input1: Tensor, dtype: str
     ):
