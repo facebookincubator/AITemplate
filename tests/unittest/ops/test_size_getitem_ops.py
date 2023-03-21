@@ -148,7 +148,6 @@ class SizeGetItemTestCase(unittest.TestCase):
 
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-2, rtol=1e-2))
 
-    @unittest.skip("TODO: Activate after symbolic shape for concatenate is ready")
     def test_tensor_size_op_fp16(self):
         self._test_tensor_size_op(
             test_name="tensor_size_op_fp16",
@@ -161,7 +160,6 @@ class SizeGetItemTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skip("TODO: Activate after symbolic shape for concatenate is ready")
     def test_tensor_size_op_fp32(self):
         self._test_tensor_size_op(
             test_name="tensor_size_op_fp32",
