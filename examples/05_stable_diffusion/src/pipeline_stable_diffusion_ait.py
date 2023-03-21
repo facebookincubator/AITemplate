@@ -110,7 +110,9 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         )
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], workdir: Optional[str] = "./tmp", **kwargs):
-        model = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
+        #model = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
+        # this code above is incorrect, it's not calling the super class
+        model = StableDiffusionPipeline.from_pretrained(pretrained_model_name_or_path, **kwargs)
         return cls(
             vae=model.vae,
             text_encoder=model.text_encoder,
