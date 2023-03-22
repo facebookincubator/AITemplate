@@ -16,7 +16,7 @@
 Util functions to handle shapes.
 """
 
-from typing import List
+from typing import List, Optional
 
 
 def gen_int_var(values: List[int], name: str = None):
@@ -185,3 +185,18 @@ def is_same_shape(shapes1, shapes2) -> bool:
         if dim1 != dim2:
             return False
     return True
+
+
+def get_static_stride(shape, dim) -> Optional[int]:
+    """
+    This is a helper function that returns the static stride for dim.
+    It returns None if it cannot generate a static stride.
+    """
+    from aitemplate.compiler.base import IntImm
+
+    stride = 1
+    for d in shape[dim + 1 :]:
+        if not isinstance(d, IntImm):
+            return None
+        stride *= d.value()
+    return stride

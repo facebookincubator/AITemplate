@@ -227,7 +227,8 @@ def remove_view_op_from_sorted_graph(op: Operator) -> None:
     input_tensor = op._attrs["inputs"][0]
     output_tensor = op._attrs["outputs"][0]
 
-    input_tensor._attrs["dst_ops"] = output_tensor._attrs["dst_ops"]
+    input_tensor._attrs["dst_ops"].remove(op)
+    input_tensor._attrs["dst_ops"].update(output_tensor._attrs["dst_ops"])
     for dst_op in output_tensor._attrs["dst_ops"]:
         dst_op.replace_input_tensor(output_tensor, input_tensor)
     if output_tensor._attrs["is_output"]:
