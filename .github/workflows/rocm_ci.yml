@@ -1,0 +1,30 @@
+name: ROCM_CI
+
+on:
+  push:
+
+jobs:
+  build:
+    runs-on: rocm
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Get CPU info on Ubuntu
+      if: contains(runner.os, 'linux')
+      run: |
+        cat /proc/cpuinfo
+    - name: Get env vars
+      run: |
+        echo GITHUB_WORKFLOW   = $GITHUB_WORKFLOW
+        echo HOME              = $HOME
+        echo GITHUB_ACTION     = $GITHUB_ACTION
+        echo GITHUB_ACTIONS    = $GITHUB_ACTIONS
+        echo GITHUB_REPOSITORY = $GITHUB_REPOSITORY
+        echo GITHUB_EVENT_NAME = $GITHUB_EVENT_NAME
+        echo GITHUB_EVENT_PATH = $GITHUB_EVENT_PATH
+        echo GITHUB_WORKSPACE  = $GITHUB_WORKSPACE
+        echo GITHUB_SHA        = $GITHUB_SHA
+        echo GITHUB_REF        = $GITHUB_REF
+        export GIT_BRANCH=${GITHUB_BASE_REF:-${GITHUB_REF#refs/heads/}}
+        echo GIT_BRANCH        = $GIT_BRANCH
+        c++ --verbose
