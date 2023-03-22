@@ -82,6 +82,7 @@ def compile_diffusers(
         convert_conv_to_gemm=convert_conv_to_gemm,
         hidden_dim=pipe.unet.config.cross_attention_dim,
         attention_head_dim=pipe.unet.config.attention_head_dim,
+        use_linear_projection=pipe.unet.config.get("use_linear_projection", False),
     )
     # VAE
     compile_vae(

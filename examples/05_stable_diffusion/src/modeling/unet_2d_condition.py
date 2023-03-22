@@ -50,6 +50,7 @@ class UNet2DConditionModel(nn.Module):
         norm_eps (`float`, *optional*, defaults to 1e-5): The epsilon to use for the normalization.
         cross_attention_dim (`int`, *optional*, defaults to 1280): The dimension of the cross attention features.
         attention_head_dim (`int`, *optional*, defaults to 8): The dimension of the attention heads.
+        use_linear_projection (`bool`, *optional*, defaults to False): Use linear projection instead of 1x1 convolution.
     """
 
     def __init__(
@@ -81,6 +82,7 @@ class UNet2DConditionModel(nn.Module):
         norm_eps: float = 1e-5,
         cross_attention_dim: int = 1280,
         attention_head_dim: Union[int, Tuple[int]] = 8,
+        use_linear_projection: bool = False,
     ):
         super().__init__()
         self.center_input_sample = center_input_sample
@@ -117,9 +119,10 @@ class UNet2DConditionModel(nn.Module):
                 add_downsample=not is_final_block,
                 resnet_eps=norm_eps,
                 resnet_act_fn=act_fn,
-                cross_attention_dim=cross_attention_dim,
                 attn_num_head_channels=attention_head_dim[i],
+                cross_attention_dim=cross_attention_dim,
                 downsample_padding=downsample_padding,
+                use_linear_projection=use_linear_projection,
             )
             self.down_blocks.append(down_block)
 
@@ -134,6 +137,7 @@ class UNet2DConditionModel(nn.Module):
             cross_attention_dim=cross_attention_dim,
             attn_num_head_channels=attention_head_dim[-1],
             resnet_groups=norm_num_groups,
+            use_linear_projection=use_linear_projection,
         )
 
         # up
@@ -159,8 +163,9 @@ class UNet2DConditionModel(nn.Module):
                 add_upsample=not is_final_block,
                 resnet_eps=norm_eps,
                 resnet_act_fn=act_fn,
-                cross_attention_dim=cross_attention_dim,
                 attn_num_head_channels=reversed_attention_head_dim[i],
+                cross_attention_dim=cross_attention_dim,
+                use_linear_projection=use_linear_projection,
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel
