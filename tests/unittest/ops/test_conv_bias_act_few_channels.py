@@ -19,11 +19,7 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import (
-    filter_test_cases_by_params,
-    get_random_torch_tensor,
-    TestEnv,
-)
+from aitemplate.testing.test_utils import get_random_torch_tensor
 
 from parameterized import parameterized
 
@@ -34,6 +30,10 @@ def hard_swish(x):
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
 class ConvBiasActFewChannelsTestCase(unittest.TestCase):
     def _test_conv_bias_relu_few_channels(
         self,
@@ -94,12 +94,10 @@ class ConvBiasActFewChannelsTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
-            {
-                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-                TestEnv.CUDA_SM80: [("float32")],
-            }
-        )
+        [
+            ("float16"),
+            ("float32"),
+        ]
     )
     def test_relu(self, dtype):
         self._test_conv_bias_relu_few_channels(
@@ -171,12 +169,10 @@ class ConvBiasActFewChannelsTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
-            {
-                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-                TestEnv.CUDA_SM80: [("float32")],
-            }
-        )
+        [
+            ("float16"),
+            ("float32"),
+        ]
     )
     def test_hardswish(self, dtype):
         self._test_conv_bias_hardswish_few_channels(
