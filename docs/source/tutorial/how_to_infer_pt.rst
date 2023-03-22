@@ -11,8 +11,6 @@ We need to import necessary Python modules:
 
 .. code-block:: python
 
-  from collections import OrderedDict
-
   import torch
 
   from aitemplate.compiler import compile_model
@@ -85,7 +83,7 @@ In AIT, all names must follow the C variable naming standard, because the names 
   def map_pt_params(ait_model, pt_model):
     ait_model.name_parameter_tensor()
     pt_params = dict(pt_model.named_parameters())
-    mapped_pt_params = OrderedDict()
+    mapped_pt_params = {}
     for name, _ in ait_model.named_parameters():
       ait_name = name.replace(".", "_")
       assert name in pt_params

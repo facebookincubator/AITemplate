@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 import os
-from collections import OrderedDict
 
 from typing import Dict, List
 
@@ -100,7 +99,7 @@ def map_pt_params(
     ait_bert, pt_bert, batch_size: int, seq_length: int
 ) -> Dict[str, torch.Tensor]:
     pt_params = dict(pt_bert.named_parameters())
-    mapped_pt_params = OrderedDict()
+    mapped_pt_params = {}
     for name, _ in ait_bert.named_parameters():
         ait_name = name.replace(".", "_")
         if name in pt_params:
