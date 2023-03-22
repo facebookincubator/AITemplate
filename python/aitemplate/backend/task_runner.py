@@ -25,7 +25,7 @@ import typing
 from collections import OrderedDict
 
 # pylint: disable=R1732,R1710,R1721
-class Task(object):
+class Task:
     """Task is an object containing a bash command,
     process for the command, and output of the process.
     """
@@ -187,7 +187,7 @@ class Task(object):
                 self._proc.stderr.close()
 
 
-class DeviceFarm(object):
+class DeviceFarm:
     """Device Farm is a stateful object to
     schedule and assigns a task to the available devices.
     Devices are logical devices, can be CPUs or GPUs.
@@ -240,7 +240,7 @@ class DeviceFarm(object):
             self._dev_stats[dev] = False
 
 
-class BaseRunner(object):
+class BaseRunner:
     """Genetic subprocess task runner for different purposes"""
 
     def __init__(self, devs: list[int], tag: str, timeout: int = 10) -> None:

@@ -30,7 +30,7 @@ from aitemplate.testing import detect_target
 CONV_WEIGHT_PATTERN = re.compile(r"conv\d+\.weight")
 
 
-class timm_export(object):
+class timm_export:
     def __init__(self, model_name, pretrained=True):
         self.model_name = model_name
         if model_name != "resnet50":

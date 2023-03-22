@@ -154,7 +154,7 @@ def _reshape_tensor(tensor: TorchTensor, shape: List[int]) -> TorchTensor:
     return new_tensor.reshape(shape)
 
 
-class Model(object):
+class Model:
     class _DLLWrapper:
         def __init__(
             self,
