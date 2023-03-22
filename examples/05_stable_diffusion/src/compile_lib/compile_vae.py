@@ -12,8 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from collections import OrderedDict
-
 import numpy as np
 
 import torch
@@ -27,7 +25,7 @@ from .util import mark_output
 
 def map_vae_params(ait_module, pt_module, batch_size, seq_len):
     pt_params = dict(pt_module.named_parameters())
-    mapped_pt_params = OrderedDict()
+    mapped_pt_params = {}
     for name, _ in ait_module.named_parameters():
         ait_name = name.replace(".", "_")
         if name in pt_params:

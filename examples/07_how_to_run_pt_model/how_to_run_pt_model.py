@@ -12,8 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from collections import OrderedDict
-
 import torch
 
 from aitemplate.compiler import compile_model
@@ -58,7 +56,7 @@ class AITSimpleModel(nn.Module):
 def map_pt_params(ait_model, pt_model):
     ait_model.name_parameter_tensor()
     pt_params = dict(pt_model.named_parameters())
-    mapped_pt_params = OrderedDict()
+    mapped_pt_params = {}
     for name, _ in ait_model.named_parameters():
         ait_name = name.replace(".", "_")
         assert name in pt_params
