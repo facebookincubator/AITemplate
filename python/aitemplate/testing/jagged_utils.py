@@ -373,3 +373,31 @@ def batched_dense_vec_jagged_2d_mul_ref(
     ).squeeze(
         dim=2
     )  # [B, H, D]
+
+
+def add_jagged_dense_ref(
+    jagged: torch.Tensor,
+    offsets_list: List[torch.Tensor],
+    dense: torch.Tensor,
+    jagged_max_shape: List[int] = None,
+) -> torch.Tensor:
+    """The reference function for jagged / dense elementwise add."""
+    if jagged_max_shape is None:
+        jagged_max_shape = dense.shape
+
+    assert len(jagged.shape) + len(offsets_list) >= len(dense.shape)
+    assert len(jagged_max_shape) == len(jagged.shape) + len(offsets_list)
+
+    return dense_to_jagged(
+        dense=(
+            dense
+            + jagged_to_dense(
+                jagged=jagged,
+                offsets_list=offsets_list,
+                dense_shape=jagged_max_shape,
+                padding_value=0.0,
+            )
+        ),
+        offsets_list=offsets_list,
+        padding_value=-1.0,
+    )

@@ -17,6 +17,7 @@ import unittest
 import torch
 
 from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -370,6 +371,67 @@ class ConcatenateTestCase(unittest.TestCase):
             dim=3,
             input_type=dtype,
         )
+
+    def _test_concatenate_shape(self, in_shapes, out_shape, dim):
+        Xs = [
+            Tensor(
+                shape=in_shape,
+                name=f"input_{idx}",
+                is_input=True,
+            )
+            for idx, in_shape in enumerate(in_shapes)
+        ]
+
+        Y = ops.concatenate()(Xs, dim)
+
+        y_shape = Y.shape()
+        self.assertEqual(len(y_shape), len(out_shape))
+        for y, o in zip(y_shape, out_shape):
+            self.assertEqual(y, o)
+
+    def test_concatenate_shape_var(self):
+        var1 = IntVar(values=[1, 2], name="var1")
+        var2 = IntVar(values=[3, 5], name="var2")
+        var3 = IntVar(values=[7, 11], name="var3")
+        sym1 = var1._attrs["symbolic_value"]
+        sym2 = var2._attrs["symbolic_value"]
+        sym3 = var3._attrs["symbolic_value"]
+
+        in_shapes = [[var, 2, 3] for var in [var1, var2, var3]]
+        ovar1 = IntVar(values=[11, 18])
+        ovar1._attrs["symbolic_value"] = sym1 + sym2 + sym3
+        self._test_concatenate_shape(in_shapes, [ovar1, 2, 3], 0)
+        self._test_concatenate_shape(in_shapes, [ovar1, 2, 3], -3)
+
+    def test_concatenate_shape_mix(self):
+        var1 = IntVar(values=[1, 2], name="var1")
+        var2 = IntVar(values=[3, 5], name="var2")
+        imm1 = IntImm(17)
+        imm2 = IntImm(19)
+        sym1 = var1._attrs["symbolic_value"]
+        sym2 = var2._attrs["symbolic_value"]
+
+        in_shapes = [[var1, 2, 3], [imm1, 2, 3], [imm2, 2, 3], [var2, 2, 3]]
+        ovar1 = IntVar(values=[40, 43])
+        ovar1._attrs["symbolic_value"] = sym1 + sym2 + 17 + 19
+        self._test_concatenate_shape(in_shapes, [ovar1, 2, 3], 0)
+
+    def test_concatenate_shape_compatible(self):
+        var1 = IntVar(values=[1, 2])
+        sym1 = var1._attrs["symbolic_value"]
+
+        in_shapes = [[var1, 2, 3], [var1, 2, 3]]
+        self._test_concatenate_shape(in_shapes, [var1, 2, 6], -1)
+
+        dup_var1 = IntVar(values=[1, 2])
+        dup_var1._attrs["symbolic_value"] = sym1
+        in_shapes = [[var1, 2, 3], [dup_var1, 2, 3]]
+        self._test_concatenate_shape(in_shapes, [var1, 2, 6], -1)
+
+        var2 = IntVar(values=[1, 2])
+        with self.assertRaises(RuntimeError):
+            in_shapes = [[var1, 2, 3], [var2, 2, 3]]
+            self._test_concatenate_shape(in_shapes, [var1, 2, 6], -1)
 
 
 if __name__ == "__main__":

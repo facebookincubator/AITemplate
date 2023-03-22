@@ -18,12 +18,15 @@ import torch
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import JaggedDim, JaggedIntVar
+from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.jagged_utils import add_jagged_dense_ref
 from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 class MakeJaggedTestCase(unittest.TestCase):
@@ -108,6 +111,103 @@ class MakeJaggedTestCase(unittest.TestCase):
 
         torch.testing.assert_close(y, x_pt)
         torch.testing.assert_close(z, z_pt)
+
+    def test_make_jagged_with_dynamic_bounds(
+        self,
+        dtype="float16",
+        offsets_dtype="int32",
+    ):
+        B = 4
+        N_min = 1
+        N_max = 32
+        N = 3
+        D = 64
+
+        batch_dim = IntVar(name="batch_size", values=[1, B])
+        max_seq_dim = IntVar(name="max_seq_len", values=[N_min, N_max])
+        embedding_dim = IntImm(name="embedding", value=D)
+
+        total_length_dim = IntVar(name="total_length", values=[0, B * N_max])
+        offsets_dim = IntVar(name="offsets_size", values=[2, B + 1])
+
+        SOURCE = Tensor(
+            shape=[
+                total_length_dim,
+                embedding_dim,
+            ],
+            name="source",
+            dtype=dtype,
+            is_input=True,
+        )
+        OFFSETS_LIST = [
+            Tensor(
+                shape=[
+                    offsets_dim,
+                ],
+                name="offsets",
+                dtype=offsets_dtype,
+                is_input=True,
+            )
+        ]
+        DENSE = Tensor(
+            shape=[
+                batch_dim,
+                max_seq_dim,
+                embedding_dim,
+            ],
+            name="dense",
+            dtype=dtype,
+            is_input=True,
+        )
+
+        JAGGED = ops.make_jagged(
+            batch_dim=batch_dim,
+            jagged_dims=[
+                JaggedDim(
+                    min_value=0,
+                    max_value=max_seq_dim,
+                )
+            ],
+        )(
+            source=SOURCE,
+            offsets_list=OFFSETS_LIST,
+        )
+
+        RESULT = ops.elementwise(FuncEnum.ADD)(JAGGED, DENSE)
+
+        assert not SOURCE.is_jagged()
+        assert not DENSE.is_jagged()
+        assert JAGGED.is_jagged()
+        assert RESULT.is_jagged()
+
+        RESULT._attrs["name"] = "result"
+        RESULT._attrs["is_output"] = True
+
+        model = compile_model(
+            [RESULT],
+            detect_target(),
+            "./tmp",
+            "test_make_jagged_with_dynamic_bounds",
+        )
+
+        offsets = [0, 1, 4, 6, 7]
+        torch_offsets_type = string_to_torch_dtype(offsets_dtype)
+        offsets_pt = torch.tensor(offsets, dtype=torch_offsets_type).cuda()
+        source_pt = get_random_torch_tensor([offsets[-1], D], dtype=dtype)
+        dense_pt = get_random_torch_tensor([B, N, D], dtype=dtype)
+
+        result_pt = add_jagged_dense_ref(
+            jagged=source_pt,
+            offsets_list=[offsets_pt],
+            jagged_max_shape=[B, N, D],
+            dense=dense_pt,
+        )
+        result = torch.empty_like(result_pt)
+
+        inputs = {"source": source_pt, "offsets": offsets_pt, "dense": dense_pt}
+        model.run_with_tensors(inputs, [result])
+
+        torch.testing.assert_close(result, result_pt)
 
 
 if __name__ == "__main__":

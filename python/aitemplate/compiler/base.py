@@ -26,6 +26,7 @@ from typing import Any, Dict, List, Optional, Set, Union
 
 import numpy as np
 
+from aitemplate.compiler import symbolic
 from aitemplate.compiler.dtype import get_dtype_size, normalize_dtype
 from aitemplate.compiler.op_registry import OP_REGISTRY
 
@@ -124,7 +125,12 @@ class IntVar(Node):
             )
         self._attrs["values"] = sorted(set(values))
         if len(self._attrs["values"]) == 1:
+            self._attrs["symbolic_value"] = self._attrs["values"][0]
             self._attrs["values"] = self._attrs["values"] * 2
+        else:
+            symbolic_value = symbolic.create_new_symbol(name, values)
+            self._attrs["symbolic_value"] = symbolic_value
+            symbolic.store_intvar(symbolic_value.name, self)
 
     def __str__(self) -> str:
         return pformat(self._attrs, indent=2)
@@ -132,8 +138,7 @@ class IntVar(Node):
     def __eq__(self, another: Any) -> bool:
         return (
             isinstance(another, IntVar)
-            and self._attrs["values"] == another._attrs["values"]
-            and self._attrs["name"] == another._attrs["name"]
+            and self._attrs["symbolic_value"] == another._attrs["symbolic_value"]
         )
 
     def __hash__(self) -> int:
@@ -146,6 +151,10 @@ class IntVar(Node):
     def upper_bound(self) -> int:
         """Returns upper bound of this dynamic dim."""
         return self._attrs["values"][-1]
+
+    def symbolic_value(self):
+        """Returns the symbolic value of this dynamic dim."""
+        return self._attrs["symbolic_value"]
 
     def pseudo_code(self, with_shape=False) -> str:
         return (
@@ -188,6 +197,7 @@ class IntImm(IntVar):
         Node.__init__(self)  # pylint: disable=W0233
         self._attrs["name"] = name
         self._attrs["values"] = [value]
+        self._attrs["symbolic_value"] = value
 
     def __eq__(self, another: Union[int, IntVar]) -> bool:
         if isinstance(another, int):
@@ -220,21 +230,26 @@ class JaggedDim(Node):
 
     def __init__(
         self,
-        min_value: int,
-        max_value: int,
+        min_value: IntVar,
+        max_value: IntVar,
     ):
         """Initializes a JaggedDim.
 
         Parameters
         ----------
-        min_value : int
+        min_value : IntVar
             Minimum possible value of the jagged dimension.
-        max_value : int
+        max_value : IntVar
             Maximum possible value of the jagged dimension.
         """
-        if min_value < 0:
+        if isinstance(min_value, int):
+            min_value = IntImm(min_value)
+        if isinstance(max_value, int):
+            max_value = IntImm(max_value)
+
+        if min_value.lower_bound() < 0:
             raise ValueError(f"{min_value=}, but must be non-negative.")
-        if min_value > max_value:
+        if min_value.lower_bound() > max_value.upper_bound():
             raise ValueError(f"{min_value=} can't be larger than {max_value=}.")
 
         super().__init__()
@@ -256,11 +271,11 @@ class JaggedDim(Node):
             attrs["offsets"] = {"name": self._attrs["offsets"]._attrs["name"]}
         return str(attrs)
 
-    def min_value(self) -> int:
+    def min_value(self) -> IntVar:
         """The minimum possible value of the JaggedDim."""
         return self._attrs["values"][0]
 
-    def max_value(self) -> int:
+    def max_value(self) -> IntVar:
         """The maximum possible value of the JaggedDim."""
         return self._attrs["values"][1]
 
@@ -427,7 +442,7 @@ class JaggedIntVar(IntVar):
         """
         result = [self.batch_dim()]
         for dim in self.jagged_dims():
-            result.append(IntImm(dim.max_value()))
+            result.append(dim.max_value())
         return result
 
 
@@ -863,6 +878,7 @@ class IntVarTensor(Tensor):
             is_output=is_output,
         )
         self._attrs["int_var"] = int_var
+        self._attrs["symbolic_value"] = int_var._attrs["symbolic_value"]
 
     def pseudo_code(self, with_shape=True) -> str:
         return f"IntVarTensor({self._attrs['int_var'].pseudo_code()})"

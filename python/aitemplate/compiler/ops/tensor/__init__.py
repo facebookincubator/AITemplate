@@ -23,6 +23,7 @@ from aitemplate.compiler.ops.tensor.concatenate import concatenate
 from aitemplate.compiler.ops.tensor.concatenate_tanh import concatenate_tanh
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice
 from aitemplate.compiler.ops.tensor.expand import expand
+from aitemplate.compiler.ops.tensor.full import full
 from aitemplate.compiler.ops.tensor.gather import gather
 from aitemplate.compiler.ops.tensor.jagged_to_padded_dense import jagged_to_padded_dense
 from aitemplate.compiler.ops.tensor.masked_select import masked_select

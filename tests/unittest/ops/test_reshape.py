@@ -16,8 +16,8 @@ import itertools
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model
-from aitemplate.compiler.ops.common.view_ops import reshape
+from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler.base import IntVarTensor
 
 from aitemplate.frontend import IntImm, IntVar, nn, Tensor
 from aitemplate.testing import detect_target
@@ -25,6 +25,39 @@ from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
 class ReshapeTestCase(unittest.TestCase):
+    def _infer_shape(self, x, shape):
+        new_shape = list(shape)
+        cur_shape = x
+        unknown_idx = -1
+        prod = 1
+        for idx, v in enumerate(new_shape):
+            if v == -1:
+                # no multiple -1s
+                assert unknown_idx == -1
+                unknown_idx = idx
+            else:
+                prod *= v
+        numel = 1
+        for dim in cur_shape:
+            numel *= dim
+
+        if unknown_idx == -1:
+            assert (
+                numel == prod
+            ), f"When there is no unknown index, we expect dim products to be equal, got current shape {numel=} != new shape {prod=}"
+        else:
+            # FIXME: note that this RuntimeError rules out some "valid" PyTorch
+            # code like:
+            # t = torch.arange(0).reshape(4, 0)
+            # this is valid in PT but would trigger RuntimeError below
+            # t.reshape(2, 2, -1)
+            # We can fix it later.
+            if prod <= 0:
+                raise RuntimeError(f"cannot reshape tensor {x} with shape {shape}")
+            assert numel % prod == 0
+            new_shape[unknown_idx] = numel // prod
+        return new_shape
+
     def _test_reshape(
         self,
         batch_size=(1, 3),
@@ -89,7 +122,6 @@ class ReshapeTestCase(unittest.TestCase):
         )
 
         OP = nn.Reshape()
-        OP_backend = reshape()
         Y = OP(X, Y_shape)
 
         Y._attrs["name"] = "output_0"
@@ -103,8 +135,9 @@ class ReshapeTestCase(unittest.TestCase):
         if len(x_shapes) > len(new_shapes):
             assert len(new_shapes) == 1
             new_shapes = new_shapes * len(x_shapes)
+
         y_shapes = [
-            OP_backend._infer_shape(x_shape, new_shape)
+            self._infer_shape(x_shape, new_shape)
             for x_shape, new_shape in zip(x_shapes, new_shapes)
         ]
 
@@ -145,7 +178,7 @@ class ReshapeTestCase(unittest.TestCase):
         )
         self._test_reshape_single_op(
             X_shape=(IntVar(values=(2, 4), name="input_batch"), 1, 120),
-            Y_shape=(5, 4, IntVar(values=(2, 4)), 3, -1),
+            Y_shape=(5, 4, IntVar(values=(2, 4), name="input_batch"), 3, -1),
             test_name="reshape_name_unknown_static_dim",
             check_name_retention=True,
         )
@@ -156,11 +189,6 @@ class ReshapeTestCase(unittest.TestCase):
             check_name_retention=True,
         )
         self._test_reshape_single_op(
-            X_shape=(IntVar(values=(2, 4), name="input_batch"), 1, 120),
-            Y_shape=(IntVar(values=(10, 20)), 4, 2, 3, -1),
-            test_name="reshape_squeeze_intvar_dim",
-        )
-        self._test_reshape_single_op(
             X_shape=(IntVar(values=(20, 40), name="input_batch"), 1, 12),
             Y_shape=(4, 2, IntVar(values=(2, 4)), 3, 5),
             test_name="reshape_unsqueeze_intvar_dim",
@@ -169,6 +197,39 @@ class ReshapeTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
     def test_reshape_float32(self):
         self._test_reshape_single_op(input_type="float32", test_name="reshape_float32")
+
+    def _test_reshape_shape(self, in_shape, out_shape, target_shape):
+        X = Tensor(
+            shape=in_shape,
+            name="input_0",
+            is_input=True,
+        )
+
+        OP = nn.Reshape()
+        Y = OP(X, target_shape)
+
+        y_shape = Y.shape()
+        self.assertEqual(len(y_shape), len(out_shape))
+        for y, o in zip(y_shape, out_shape):
+            self.assertEqual(y, o)
+
+    def test_reshape_shape_symbolic(self):
+        dummy_shape = Tensor(
+            shape=[1, 2],
+            name="dummy_shape",
+            is_input=True,
+        )
+        var1 = IntVar(values=[2, 4], name="var1")
+        tensor1 = IntVarTensor(var1)
+        X_shape = [var1, IntImm(256)]
+
+        intvar = [ops.size()(dummy_shape, idx) for idx in range(2)]
+
+        target_shape = [intvar[1] * tensor1, IntImm(-1)]
+        outdim0 = IntVar(values=[4, 8])
+        outdim0._attrs["symbolic_value"] = var1._attrs["symbolic_value"] * 2
+        answer_shape = [outdim0, IntImm(128)]
+        self._test_reshape_shape(X_shape, answer_shape, target_shape)
 
 
 if __name__ == "__main__":

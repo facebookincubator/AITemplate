@@ -175,6 +175,75 @@ class FlattenTestCase(unittest.TestCase):
             dtype="float32",
         )
 
+    def _test_flatten_shape(self, in_shape, out_shape, start_dim, end_dim):
+        X = Tensor(
+            shape=in_shape,
+            name="input_0",
+            is_input=True,
+        )
+
+        OP = nn.Flatten(start_dim, end_dim)
+        Y = OP(X)
+
+        y_shape = Y.shape()
+        self.assertEqual(len(y_shape), len(out_shape))
+        for y, o in zip(y_shape, out_shape):
+            self.assertEqual(y, o)
+
+    def test_flatten_shape_imm(self):
+        in_shape = [IntImm(17), IntImm(19), IntImm(23)]
+
+        self._test_flatten_shape(in_shape, [IntImm(17 * 19 * 23)], 0, 2)
+        self._test_flatten_shape(in_shape, [IntImm(17 * 19 * 23)], 0, -1)
+        self._test_flatten_shape(in_shape, [IntImm(17 * 19), IntImm(23)], 0, 1)
+        self._test_flatten_shape(in_shape, [IntImm(17), IntImm(19 * 23)], 1, 2)
+        self._test_flatten_shape(in_shape, [IntImm(17), IntImm(19 * 23)], 1, -1)
+
+    def test_flatten_shape_var(self):
+        var1 = IntVar(values=[1, 2], name="var1")
+        var2 = IntVar(values=[3, 5], name="var2")
+        var3 = IntVar(values=[7, 11], name="var3")
+        sym1 = var1._attrs["symbolic_value"]
+        sym2 = var2._attrs["symbolic_value"]
+        sym3 = var3._attrs["symbolic_value"]
+        in_shape = [var1, var2, var3]
+
+        ovar1 = IntVar(values=[21, 110])
+        ovar1._attrs["symbolic_value"] = sym1 * sym2 * sym3
+        self._test_flatten_shape(in_shape, [ovar1], 0, 2)
+        self._test_flatten_shape(in_shape, [ovar1], 0, -1)
+        ovar1 = IntVar(values=[3, 10])
+        ovar1._attrs["symbolic_value"] = sym1 * sym2
+        self._test_flatten_shape(in_shape, [ovar1, var3], 0, 1)
+        ovar1 = IntVar(values=[21, 55])
+        ovar1._attrs["symbolic_value"] = sym2 * sym3
+        self._test_flatten_shape(in_shape, [var1, ovar1], 1, 2)
+        self._test_flatten_shape(in_shape, [var1, ovar1], 1, -1)
+
+    def test_flatten_shape_mix(self):
+        var1 = IntVar(values=[1, 2], name="var1")
+        var2 = IntVar(values=[3, 5], name="var2")
+        var3 = IntVar(values=[7, 11], name="var3")
+        imm1 = IntImm(17)
+        imm2 = IntImm(19)
+        sym1 = var1._attrs["symbolic_value"]
+        sym2 = var2._attrs["symbolic_value"]
+        sym3 = var3._attrs["symbolic_value"]
+        in_shape = [var1, imm1, var2, var3, imm2]
+
+        ovar1 = IntVar(values=[51, 170])
+        ovar1._attrs["symbolic_value"] = sym1 * 17 * sym2
+        self._test_flatten_shape(in_shape, [ovar1, var3, imm2], 0, 2)
+        ovar1 = IntVar(values=[6783, 35530])
+        ovar1._attrs["symbolic_value"] = 323 * sym1 * sym2 * sym3
+        self._test_flatten_shape(in_shape, [ovar1], 0, -1)
+        ovar1 = IntVar(values=[357, 935])
+        ovar1._attrs["symbolic_value"] = 17 * sym2 * sym3
+        self._test_flatten_shape(in_shape, [var1, ovar1, imm2], 1, 3)
+        ovar1 = IntVar(values=[6783, 17765])
+        ovar1._attrs["symbolic_value"] = 323 * sym2 * sym3
+        self._test_flatten_shape(in_shape, [var1, ovar1], 1, -1)
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

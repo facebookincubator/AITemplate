@@ -21,6 +21,7 @@ __all__ = [
     "dtype",
     "op_registry",
     "ops",
+    "symbolic",
     "tensor_accessor",
     "transform",
     "compile_model",
