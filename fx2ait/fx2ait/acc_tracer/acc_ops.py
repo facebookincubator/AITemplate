@@ -2967,22 +2967,6 @@ def tensor_split(*, input, indices_or_sections, dim=0):
 
 
 @register_acc_op_mapping(
-    op_and_target=("call_method", "new_ones"),
-    arg_replacement_tuples=[
-        ("input", "input"),
-        ("size", "size"),
-        ("dtype", "dtype", this_arg_is_optional),
-        ("device", "device", this_arg_is_optional),
-        ("requires_grad", "requires_grad", this_arg_is_optional),
-    ],
-)
-@register_acc_op
-def new_ones(*, input, size, dtype=None, device=None, requires_grad=False):
-    assert requires_grad is False, f"requires_grad != False, it is {requires_grad}"
-    return input.new_ones(size, dtype=dtype, device=device)
-
-
-@register_acc_op_mapping(
     op_and_target=("call_method", "new_empty"),
     arg_replacement_tuples=[
         ("input", "input"),
@@ -3278,6 +3262,74 @@ def group_norm(*, input, num_groups, weight=None, bias=None, eps=1e-05):
 @register_acc_op
 def long(*, input):
     return input.long()
+
+
+@register_acc_op_mapping(
+    op_and_target=("call_method", "new_full"),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("size", "size"),
+        ("fill_value", "fill_value"),
+        ("dtype", "dtype", this_arg_is_optional),
+        ("device", "device", this_arg_is_optional),
+        ("requires_grad", "requires_grad", this_arg_is_optional),
+    ],
+)
+@register_acc_op
+def new_full(*, input, size, fill_value, dtype=None, device=None, requires_grad=False):
+    return input.new_full(size, fill_value=fill_value, dtype=dtype, device=device)
+
+
+@register_acc_op_mapping(op_and_target=("call_function", torch.full_like))
+@register_acc_op
+def full_like(*, input, fill_value, dtype=None, device=None):
+    return torch.full_like(
+        input=input, fill_value=fill_value, dtype=dtype, device=device
+    )
+
+
+@register_acc_op_mapping(
+    op_and_target=("call_method", "new_ones"),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("size", "size"),
+        ("dtype", "dtype", this_arg_is_optional),
+        ("device", "device", this_arg_is_optional),
+        ("requires_grad", "requires_grad", this_arg_is_optional),
+    ],
+)
+@register_acc_op
+def new_ones(*, input, size, dtype=None, device=None, requires_grad=False):
+    assert requires_grad is False, f"requires_grad != False, it is {requires_grad}"
+    return input.new_ones(size, dtype=dtype, device=device)
+
+
+@register_acc_op_mapping(op_and_target=("call_function", torch.ones_like))
+@register_acc_op
+def ones_like(*, input, dtype=None, device=None):
+    return torch.ones_like(input=input, dtype=dtype, device=device)
+
+
+@register_acc_op_mapping(
+    op_and_target=("call_method", "new_zeros"),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("size", "size"),
+        ("dtype", "dtype", this_arg_is_optional),
+        ("device", "device", this_arg_is_optional),
+        ("requires_grad", "requires_grad", this_arg_is_optional),
+    ],
+)
+@register_acc_op
+def new_zeros(*, input, size, dtype=None, device=None, requires_grad=False):
+    assert requires_grad is False, f"requires_grad != False, it is {requires_grad}"
+    return input.new_zeros(size, dtype=dtype, device=device)
+
+
+@register_acc_op_mapping(op_and_target=("call_function", torch.zeros_like))
+@register_acc_op
+def zeros_like(*, input, dtype=None, device=None):
+    return torch.zeros_like(input=input, dtype=dtype, device=device)
 
 
 ###############################################################################
