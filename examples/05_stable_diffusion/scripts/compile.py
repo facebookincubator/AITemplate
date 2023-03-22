@@ -39,8 +39,9 @@ from src.compile_lib.compile_vae import compile_vae
 @click.option("--batch-size", default=1, help="batch size")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
+@click.option("--workdir", default="./tmp", help="workdir")
 def compile_diffusers(
-    local_dir, width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True
+    local_dir, width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True, workdir="./tmp"
 ):
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
@@ -71,6 +72,7 @@ def compile_diffusers(
         num_heads=pipe.text_encoder.config.num_attention_heads,
         dim=pipe.text_encoder.config.hidden_size,
         act_layer=pipe.text_encoder.config.hidden_act,
+        workdir=workdir,
     )
     # UNet
     compile_unet(
@@ -82,6 +84,7 @@ def compile_diffusers(
         convert_conv_to_gemm=convert_conv_to_gemm,
         hidden_dim=pipe.unet.config.cross_attention_dim,
         attention_head_dim=pipe.unet.config.attention_head_dim,
+        workdir=workdir,
     )
     # VAE
     compile_vae(
@@ -91,6 +94,7 @@ def compile_diffusers(
         height=hh,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
+        workdir=workdir,
     )
 
 

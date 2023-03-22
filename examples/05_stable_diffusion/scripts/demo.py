@@ -38,7 +38,8 @@ from src.pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
-def run(local_dir, width, height, prompt, benchmark):
+@click.option("--workdir", default="./tmp", help="working directory")
+def run(local_dir, width, height, prompt, benchmark, workdir):
     pipe = StableDiffusionAITPipeline.from_pretrained(
         local_dir,
         scheduler=EulerDiscreteScheduler.from_pretrained(
@@ -46,6 +47,7 @@ def run(local_dir, width, height, prompt, benchmark):
         ),
         revision="fp16",
         torch_dtype=torch.float16,
+        workdir=workdir,
     ).to("cuda")
 
     with torch.autocast("cuda"):

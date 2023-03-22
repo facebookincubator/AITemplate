@@ -58,6 +58,7 @@ def compile_unet(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
     attention_head_dim=[5, 10, 20, 20],  # noqa: B006
+    workdir="./tmp",
 ):
 
     ait_mod = ait_UNet2DConditionModel(
@@ -85,4 +86,4 @@ def compile_unet(
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    compile_model(Y, target, "./tmp", "UNet2DConditionModel", constants=params_ait)
+    compile_model(Y, target, workdir, "UNet2DConditionModel", constants=params_ait)

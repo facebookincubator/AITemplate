@@ -86,6 +86,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPFeatureExtractor,
         requires_safety_checker: bool = True,
+        workdir: Optional[str] = "./tmp",
     ):
         super().__init__(
             vae=vae,
@@ -98,7 +99,6 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             requires_safety_checker=requires_safety_checker,
         )
 
-        workdir = "tmp/"
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir
         )
@@ -107,6 +107,22 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         )
         self.vae_ait_exe = self.init_ait_module(
             model_name="AutoencoderKL", workdir=workdir
+        )
+    @classmethod
+    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], workdir: Optional[str] = "./tmp", **kwargs):
+        #model = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
+        # this code above is incorrect, it's not calling the super class
+        model = StableDiffusionPipeline.from_pretrained(pretrained_model_name_or_path, **kwargs)
+        return cls(
+            vae=model.vae,
+            text_encoder=model.text_encoder,
+            tokenizer=model.tokenizer,
+            unet=model.unet,
+            scheduler=model.scheduler,
+            safety_checker=model.safety_checker,
+            feature_extractor=model.feature_extractor,
+            requires_safety_checker=model.requires_safety_checker,
+            workdir=workdir,
         )
 
     def init_ait_module(
