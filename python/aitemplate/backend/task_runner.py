@@ -23,6 +23,8 @@ import subprocess
 import time
 import typing
 from collections import OrderedDict
+from typing import List
+
 
 # pylint: disable=R1732,R1710,R1721
 class Task:
@@ -193,12 +195,12 @@ class DeviceFarm:
     Devices are logical devices, can be CPUs or GPUs.
     """
 
-    def __init__(self, devs: list[int]) -> None:
+    def __init__(self, devs: List[int]) -> None:
         """Initialize a Device Farm given a list of device ids.
 
         Parameters
         ----------
-        devs : list[int]
+        devs : List[int]
             List of device ids in int
         """
         if isinstance(devs, int):
@@ -243,11 +245,11 @@ class DeviceFarm:
 class BaseRunner:
     """Genetic subprocess task runner for different purposes"""
 
-    def __init__(self, devs: list[int], tag: str, timeout: int = 10) -> None:
+    def __init__(self, devs: List[int], tag: str, timeout: int = 10) -> None:
         """
         Parameters
         ----------
-        devs : list[int]
+        devs : List[int]
             List of device ids for tasks.
         tag : str
             Runner's name tag
@@ -287,9 +289,7 @@ class BaseRunner:
         self._finished_tasks = set()
         self._queue = []
 
-    def pull(
-        self, ftask_proc: typing.Callable, fret_proc: typing.Callable
-    ) -> list[object]:
+    def pull(self, ftask_proc: typing.Callable, fret_proc: typing.Callable) -> List:
         """Pull results from all tasks executed on the runner.
 
         Parameters
@@ -301,7 +301,7 @@ class BaseRunner:
 
         Returns
         -------
-        list
+        List
             Aggregated returns from all tasks
         """
         ret = []

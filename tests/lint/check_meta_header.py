@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import os
 import sys
+from typing import List
 
 import click
 
@@ -36,7 +37,7 @@ PY_HEADER = process_header(HEADER, "#")
 CPP_HEADER = process_header(HEADER, "//")
 
 
-def dfs(root_path: str) -> list[str]:
+def dfs(root_path: str) -> List[str]:
     """DFS source code tree to find python files missing header
 
     Parameters
@@ -46,7 +47,7 @@ def dfs(root_path: str) -> list[str]:
 
     Returns
     -------
-    list[str]
+    List[str]
         file list missing header
     """
     ret = []
@@ -66,12 +67,12 @@ def dfs(root_path: str) -> list[str]:
     return ret
 
 
-def fix_header(file_list: list[str]) -> None:
+def fix_header(file_list: List[str]) -> None:
     """Adding Meta header to to source files
 
     Parameters
     ----------
-    file_list : list[str]
+    file_list : List[str]
         file list missing header
     """
     for path in file_list:
