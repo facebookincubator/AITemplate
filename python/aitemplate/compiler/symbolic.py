@@ -14,8 +14,26 @@
 #
 """
 Symbolic helpers for AITemplate.
+AITemplate leverages Sympy to do symbolic computations for shapes.
+The core of Sympy is surrounded around the class "Symbol". We could apply operations
+on Symbols (i.e. add/mul/power/etc.) Which could help us do basic arithmetic with
+unknown values.
+The symbolic-ness comes from representation that includes Symbol (i.e. sym_1 + 100.)
 
-For interesting how to use Sympy, check: https://docs.sympy.org/latest/tutorials/intro-tutorial/intro.html
+Example Usage:
+A = IntVar(...)
+sym_A = A.symbolic_value() # equivalent of A._attrs["symbolic_value"]
+
+# do something about sym_A, some common usage include:
+new_sym = sym_A + 100
+new_sym = sym_A - 100
+new_sym = sym_A * 2
+new_sym = sym_A * sym_B
+
+# We could then assign the symbolic value to a new IntVar.
+new_var = IntVar(..., symbolic_value=new_sym)
+
+For more advanced usage on Sympy, check: https://docs.sympy.org/latest/tutorials/intro-tutorial/intro.html
 """
 from __future__ import annotations
 

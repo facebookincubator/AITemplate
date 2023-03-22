@@ -146,8 +146,11 @@ class _reshape_base(_view):
             else:
                 # dynamic dimension
                 dim_name = int_var._attrs["name"]
-                var = IntVar(name=dim_name, values=dim_values)
-                var._attrs["symbolic_value"] = int_var._attrs["symbolic_value"]
+                var = IntVar(
+                    name=dim_name,
+                    values=dim_values,
+                    symbolic_value=int_var._attrs["symbolic_value"],
+                )
                 output_shape.append(var)
         return output_shape
 
@@ -333,8 +336,7 @@ class reshape(_reshape_base):
                             ), "Unable to deduce dynamic symbol"
 
                             values = simplify_intvar_values(dynamic_symbol)
-                            new_var = IntVar(values)
-                            new_var._attrs["symbolic_value"] = dynamic_symbol
+                            new_var = IntVar(values, symbolic_value=dynamic_symbol)
 
                             y_shapes.append(new_var)
                     elif isinstance(val, int):
@@ -342,8 +344,9 @@ class reshape(_reshape_base):
                     elif val in x_symbolic_shapes_mapping:
                         y_shapes.append(x_symbolic_shapes_mapping[val])
                     elif is_symbolic(val):
-                        val_var = gen_int_var_min_max(new_shape_values[idx])
-                        val_var._attrs["symbolic_value"] = val
+                        val_var = gen_int_var_min_max(
+                            new_shape_values[idx], symbolic_value=val
+                        )
                         y_shapes.append(val_var)
                     else:
                         raise ValueError(f"Unknown sym type for handling {val}")
@@ -433,8 +436,7 @@ class flatten(_reshape_base):
         if min_val == max_val:
             flatten_shape = IntImm(value=min_val)
         else:
-            flatten_shape = IntVar(values=[min_val, max_val])
-            flatten_shape._attrs["symbolic_value"] = sym_val
+            flatten_shape = IntVar(values=[min_val, max_val], symbolic_value=sym_val)
         new_shapes.append(flatten_shape)
 
         for var in x._attrs["shape"][end + 1 :]:

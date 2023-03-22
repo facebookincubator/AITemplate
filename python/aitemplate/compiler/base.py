@@ -25,6 +25,7 @@ from pprint import pformat
 from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import numpy as np
+import sympy
 
 from aitemplate.compiler import symbolic
 from aitemplate.compiler.dtype import get_dtype_size, normalize_dtype
@@ -89,6 +90,7 @@ class IntVar(Node):
         self,
         values: List[int],
         name: str = None,
+        symbolic_value: Optional[sympy.Basic] = None,
     ) -> None:
         """Initializes an IntVar.
 
@@ -109,6 +111,9 @@ class IntVar(Node):
         name : str, optional
             Name of this dimension, by default None.
             This field must be set for dims which are used by input tensors.
+
+        symbolic_value: sympy.Basic, optional
+            The symbolic value for this IntVar. If None is provided, we will generate a symbol for this IntVar.
         """
         super().__init__()
         self._attrs["name"] = name
@@ -128,9 +133,10 @@ class IntVar(Node):
             self._attrs["symbolic_value"] = self._attrs["values"][0]
             self._attrs["values"] = self._attrs["values"] * 2
         else:
-            symbolic_value = symbolic.create_new_symbol(name, values)
+            if symbolic_value is None:
+                symbolic_value = symbolic.create_new_symbol(name, values)
+                symbolic.store_intvar(symbolic_value.name, self)
             self._attrs["symbolic_value"] = symbolic_value
-            symbolic.store_intvar(symbolic_value.name, self)
 
     def __str__(self) -> str:
         return pformat(self._attrs, indent=2)
