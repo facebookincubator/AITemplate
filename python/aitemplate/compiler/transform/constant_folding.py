@@ -44,7 +44,7 @@ def _make_op_names_unique(graph: List[Tensor]) -> Dict[str, str]:
     """
     To avoid ODR issues, we rename all ops in the constant folding subgraph.
     ODR issues can arise if two ops end up sharing the same name & implementation (which
-    can actualy happen, e.g. in the proposal op).
+    can actually happen, e.g. in the proposal op).
     """
     new_name_to_old = {}
     for tensor in graph:
@@ -123,7 +123,7 @@ def _fix_op_inputs_outputs(
 
 def _extract_foldable_subgraph(
     sorted_graph: List[Tensor],
-) -> List[Tensor]:
+) -> Tuple[List[Tensor], Dict[str, Tensor], List[Tensor]]:
     """
     Extract a list of foldable nodes. A node is foldable if:
     * It has bound data, or
@@ -281,7 +281,7 @@ def constant_folding(
     sorted_graph: List[Tensor],
     workdir: str,
     model_name: str,
-) -> Tuple[List[Tensor], Tuple[str, str]]:
+) -> Tuple[List[Tensor], List[Tuple[str, str]], List[Tensor]]:
     """
     Fold and propagate constants.
 
