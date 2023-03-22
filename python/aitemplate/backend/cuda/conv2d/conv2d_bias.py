@@ -52,14 +52,14 @@ def conv2d_bias_gen_profiler(
 @registry.reg("cuda.conv2d_bias.gen_function")
 def conv2d_bias_gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
     """Codegen for conv2d function."""
     return cba.gen_function(
         func_attrs=func_attrs,
-        exec_cond_remplate=exec_cond_remplate,
+        exec_cond_template=exec_cond_template,
         shape_eval_template=shape_eval_template,
         shape_save_template=shape_save_template,
     )

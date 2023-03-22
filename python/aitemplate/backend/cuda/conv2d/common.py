@@ -752,7 +752,7 @@ def extract_config_name(config):
 
 def gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
     f_emit_instance=emit_instance,
@@ -822,7 +822,7 @@ def gen_function(
             instance_name=fname,
             dtype=dtype,
         )
-        exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
+        exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
 
     function = FUNCTION_TEMPLATE.render(

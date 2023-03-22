@@ -22,13 +22,13 @@ from aitemplate.backend.rocm.pool2d import pool2d
 @registry.reg("rocm.avg_pool2d.gen_function")
 def max_pool2d_gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
     return pool2d.gen_function(
         func_attrs,
-        exec_cond_remplate,
+        exec_cond_template,
         shape_eval_template,
         shape_save_template,
     )

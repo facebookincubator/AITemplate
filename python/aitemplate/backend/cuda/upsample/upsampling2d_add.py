@@ -34,7 +34,7 @@ Header_Files = """
 def gen_function(
     func_attrs,
     template_path,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
@@ -67,7 +67,7 @@ def gen_function(
         program = upsampling2d_common.EXEC_TEMPLATE.render(
             bias_add=True, dtype=input_type
         )
-        exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
+        exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return upsampling2d_common.SRC_TEMPLATE.render(
         header_files=Header_Files,

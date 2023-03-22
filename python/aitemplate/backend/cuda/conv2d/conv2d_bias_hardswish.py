@@ -50,13 +50,13 @@ def conv2d_bias_hardswish_gen_profiler(
 @registry.reg("cuda.conv2d_bias_hardswish.gen_function")
 def conv2d_bias_hardswish_gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
     return cba.gen_function(
         func_attrs=func_attrs,
-        exec_cond_remplate=exec_cond_remplate,
+        exec_cond_template=exec_cond_template,
         shape_eval_template=shape_eval_template,
         shape_save_template=shape_save_template,
     )

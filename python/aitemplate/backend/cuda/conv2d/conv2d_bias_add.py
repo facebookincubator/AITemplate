@@ -56,13 +56,13 @@ def conv2d_bias_add_identity_gen_profiler(
 @registry.reg("cuda.conv2d_bias_add_identity.gen_function")
 def conv2d_bias_add_identity_gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
     return cbaa.gen_function(
         func_attrs=func_attrs,
-        exec_cond_remplate=exec_cond_remplate,
+        exec_cond_template=exec_cond_template,
         shape_eval_template=shape_eval_template,
         shape_save_template=shape_save_template,
     )
