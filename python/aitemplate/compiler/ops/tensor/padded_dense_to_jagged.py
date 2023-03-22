@@ -20,7 +20,7 @@ from typing import List
 
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
-from aitemplate.compiler.base import IntImm, IntVar, JaggedDim, Operator, Tensor
+from aitemplate.compiler.base import IntVar, JaggedDim, Operator, Tensor
 from aitemplate.compiler.ops import make_jagged
 
 
@@ -86,13 +86,6 @@ class padded_dense_to_jagged(Operator):
             raise TypeError(
                 f"x.shape()[0] must be IntVar, but got {type(x_shape[0]).__name__}."
             )
-        for i, dim in enumerate(x_shape[1 : 1 + len(offsets_list)], start=1):
-            if not isinstance(dim, IntImm):
-                raise TypeError(
-                    "All sequence dimensions in the x.shape() (corresponding to the "
-                    "jagged dimensions of the output jagged Tensor) must be IntImm, "
-                    f"but got type(x_shape()[{i}]) == {type(dim).__name__}."
-                )
 
         self._attrs["inputs"] = [x, *offsets_list]
         self._set_depth()
@@ -114,7 +107,7 @@ class padded_dense_to_jagged(Operator):
         jagged_output = make_jagged(
             batch_dim=x_shape[0],
             jagged_dims=[
-                JaggedDim(min_value=0, max_value=dim.value())
+                JaggedDim(min_value=0, max_value=dim)
                 for dim in x_shape[1 : 1 + len(offsets_list)]
             ],
         )(

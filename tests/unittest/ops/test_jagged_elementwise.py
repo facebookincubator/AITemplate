@@ -25,42 +25,10 @@ from aitemplate.compiler.base import JaggedDim
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.jagged_utils import (
-    dense_to_jagged,
-    generate_offsets,
-    jagged_to_dense,
-)
+from aitemplate.testing.jagged_utils import add_jagged_dense_ref, generate_offsets
 from aitemplate.testing.test_utils import get_random_torch_tensor
 from aitemplate.utils.torch_utils import string_to_torch_dtype
 from parameterized import param, parameterized
-
-
-def _add_jagged_dense_ref(
-    jagged: torch.Tensor,
-    offsets_list: List[torch.Tensor],
-    dense: torch.Tensor,
-    jagged_max_shape: List[int] = None,
-) -> torch.Tensor:
-    """The reference function for jagged / dense elementwise add."""
-    if jagged_max_shape is None:
-        jagged_max_shape = dense.shape
-
-    assert len(jagged.shape) + len(offsets_list) >= len(dense.shape)
-    assert len(jagged_max_shape) == len(jagged.shape) + len(offsets_list)
-
-    return dense_to_jagged(
-        dense=(
-            dense
-            + jagged_to_dense(
-                jagged=jagged,
-                offsets_list=offsets_list,
-                dense_shape=jagged_max_shape,
-                padding_value=0.0,
-            )
-        ),
-        offsets_list=offsets_list,
-        padding_value=-1.0,
-    )
 
 
 class JaggedElementwiseTestCase(unittest.TestCase):
@@ -156,7 +124,7 @@ class JaggedElementwiseTestCase(unittest.TestCase):
         }
         source_pt = get_random_torch_tensor(jagged_input_shape, dtype)
         dense_pt = get_random_torch_tensor(dense_shape, dtype)
-        result_pt = _add_jagged_dense_ref(
+        result_pt = add_jagged_dense_ref(
             jagged=source_pt,
             offsets_list=list(offsets_pt.values()),
             jagged_max_shape=jagged_max_shape,
@@ -288,6 +256,7 @@ class JaggedElementwiseTestCase(unittest.TestCase):
         jagged_max_prefix_shape: List[int],
         jagged1_inner_shape: List[int],
         jagged2_inner_shape: List[int],
+        implicit_jagged_input: bool,
         offsets_list: List[List[int]],
         dtype: str = "float16",
         offsets_dtype: str = "int32",
@@ -346,10 +315,14 @@ class JaggedElementwiseTestCase(unittest.TestCase):
             for i, offsets_dim in enumerate(offsets_dims)
         ]
 
-        JAGGED1 = ops.make_jagged(
-            batch_dim=batch_dim,
-            jagged_dims=jagged_dims,
-        )(SOURCE1, OFFSETS_LIST)
+        if implicit_jagged_input:
+            JAGGED1 = SOURCE1
+        else:
+            JAGGED1 = ops.make_jagged(
+                batch_dim=batch_dim,
+                jagged_dims=jagged_dims,
+            )(SOURCE1, OFFSETS_LIST)
+
         JAGGED2 = ops.make_jagged(
             batch_dim=batch_dim,
             jagged_dims=jagged_dims,
@@ -360,7 +333,13 @@ class JaggedElementwiseTestCase(unittest.TestCase):
         RESULT._attrs["name"] = "result"
         RESULT._attrs["is_output"] = True
 
-        assert not SOURCE1.is_jagged()
+        if implicit_jagged_input:
+            # SOURCE1 is "converted" into a jagged Tensor
+            # in the ops.elementwise by replacing its first
+            # dim with the JaggedIntVar from JAGGED 2
+            assert SOURCE1.is_jagged()
+        else:
+            assert not SOURCE1.is_jagged()
         assert not SOURCE2.is_jagged()
         assert JAGGED1.is_jagged()
         assert JAGGED2.is_jagged()
@@ -390,10 +369,11 @@ class JaggedElementwiseTestCase(unittest.TestCase):
 
     @parameterized.expand(
         [
-            param(1, "int32", [4, 3], [5], [5]),
-            param(2, "int32", [4, 3], [5], [1]),
-            param(3, "int64", [4, 3], [1], [5]),
-            param(4, "int64", [4, 3], [5, 1, 7], [1, 6, 1]),
+            param(1, "int32", [4, 3], [5], [5], False),
+            param(2, "int32", [4, 3], [5], [1], False),
+            param(3, "int64", [4, 3], [1], [5], True),
+            param(4, "int64", [4, 3], [5, 1, 7], [1, 6, 1], False),
+            param(5, "int64", [4, 3], [5, 6, 7], [1, 6, 7], True),
         ]
     )
     def test_jagged_jagged_elementise_add_single_offsets_fp16(
@@ -403,11 +383,13 @@ class JaggedElementwiseTestCase(unittest.TestCase):
         jagged_max_prefix_shape,
         jagged1_inner_shape,
         jagged2_inner_shape,
+        implicit_jagged_input,
     ):
         self._test_jagged_jagged_elementwise_add(
             jagged_max_prefix_shape=jagged_max_prefix_shape,
             jagged1_inner_shape=jagged1_inner_shape,
             jagged2_inner_shape=jagged2_inner_shape,
+            implicit_jagged_input=implicit_jagged_input,
             offsets_list=[[0, 1, 4, 6, 7]],
             dtype="float16",
             offsets_dtype=offsets_dtype,
@@ -416,10 +398,10 @@ class JaggedElementwiseTestCase(unittest.TestCase):
 
     @parameterized.expand(
         [
-            param(1, "int32", [3, 4, 5, 200], [10], [10]),
-            param(2, "int32", [3, 4, 5, 200], [1, 2], [2, 1]),
-            param(3, "int64", [3, 4, 5, 150], [6, 7, 8], [6, 7, 8]),
-            param(4, "int64", [3, 4, 5, 150], [6, 1, 8], [1, 7, 1]),
+            param(1, "int32", [3, 4, 5, 200], [10], [10], False),
+            param(2, "int32", [3, 4, 5, 200], [1, 2], [2, 1], True),
+            param(3, "int64", [3, 4, 5, 150], [6, 7, 8], [6, 7, 8], False),
+            param(4, "int64", [3, 4, 5, 150], [6, 1, 8], [1, 7, 1], True),
         ]
     )
     def test_jagged_jagged_elementise_add_multiple_offsets_fp16(
@@ -429,11 +411,13 @@ class JaggedElementwiseTestCase(unittest.TestCase):
         jagged_max_prefix_shape,
         jagged1_inner_shape,
         jagged2_inner_shape,
+        implicit_jagged_input,
     ):
         self._test_jagged_jagged_elementwise_add(
             jagged_max_prefix_shape=jagged_max_prefix_shape,
             jagged1_inner_shape=jagged1_inner_shape,
             jagged2_inner_shape=jagged2_inner_shape,
+            implicit_jagged_input=implicit_jagged_input,
             offsets_list=[
                 [0, 1, 3, 5],
                 [0, 2, 4, 7, 9, 10],

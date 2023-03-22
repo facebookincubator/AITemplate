@@ -92,7 +92,7 @@ class EpilogueMath(enum.Enum):
   Plus = enum_auto()
   Gelu = enum_auto()
   FastGelu = enum_auto()
-  Silu = enum_auto()
+  SiLu = enum_auto()
   ELUp1 = enum_auto()
 
 
@@ -105,7 +105,7 @@ EpilogueMathTag = {
   EpilogueMath.Plus: 'cutlass::plus',
   EpilogueMath.Gelu: 'GELU',
   EpilogueMath.FastGelu: 'GELU_taylor',
-  EpilogueMath.Silu: 'cutlass::epilogue::thread::Silu',
+  EpilogueMath.SiLu: 'cutlass::epilogue::thread::SiLu',
   EpilogueMath.ELUp1: 'cutlass::epilogue::thread::ELUp1',
 }
 
@@ -119,7 +119,7 @@ EpilogueMathName = {
   "Add": EpilogueMath.Plus,
   "Gelu": EpilogueMath.Gelu,
   "FastGelu": EpilogueMath.FastGelu,
-  "Silu": EpilogueMath.Silu,
+  "SiLu": EpilogueMath.SiLu,
   "ELUp1": EpilogueMath.ELUp1
 }
 

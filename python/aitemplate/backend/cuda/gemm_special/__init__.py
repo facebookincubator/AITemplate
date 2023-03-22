@@ -16,10 +16,16 @@
 special gemm ops
 """
 from aitemplate.backend.cuda.gemm_special import (
+    batched_dense_vec_jagged_2d_mul,
     bmm_rcr_n1,
     bmm_rrr_k1_tanh,
     gemm_rrr_small_nk,
 )
 
 
-__all__ = ["bmm_rcr_n1", "bmm_rrr_k1_tanh", "gemm_rrr_small_nk"]
+__all__ = [
+    "batched_dense_vec_jagged_2d_mul",
+    "bmm_rcr_n1",
+    "bmm_rrr_k1_tanh",
+    "gemm_rrr_small_nk",
+]

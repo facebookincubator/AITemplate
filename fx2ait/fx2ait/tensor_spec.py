@@ -90,6 +90,70 @@ class TensorSpec:
         return result
 
     @classmethod
+    def from_two_input_lists_jagged_tensor(
+        cls, inputs1: List[torch.Tensor], inputs2: List[torch.Tensor]
+    ) -> List["TensorSpec"]:
+        """
+        This function is useful when we expect multiple dynamic dims.
+
+        The parent graph can receive two sets of inputs:
+        1. with min dynamic dim values,
+        2. with max dynamic dim values.
+
+        After FX splitter logic is applied and lowerable subgraph sample inputs
+        are inferred, we make two assumptions:
+        1. two lists of inferred inputs will differ at dynamic dimensions,
+        2. the difference numbers will be the dynamic ranges, i.e. min and max.
+
+        TODO: The assumptions above are not ideal, and, in theory, we should do
+        symbolic shape propagation using something like SymPy.
+        """
+        if len(inputs1) != len(inputs2):
+            raise ValueError(
+                f"Different number of inputs: {len(inputs1)} vs {len(inputs2)}"
+            )
+
+        result: List[TensorSpec] = []
+        dynamic_dict = {}
+        num_dynamic = 0
+        for t1, t2 in zip(inputs1, inputs2):
+            if t1.dtype != t2.dtype:
+                raise ValueError(f"Different types: {t1.dtype} vs {t2.dtype}")
+            if len(t1.shape) != len(t2.shape):
+                raise ValueError(
+                    f"Different tensor sizes: {len(t1.shape)} vs {len(t2.shape)}"
+                )
+            shape: List[IntVar] = []
+            for _, (d1, d2) in enumerate(zip(t1.shape, t2.shape)):
+                if d1 == d2:
+                    shape.append(IntImm(d1))
+                else:
+                    dynamic_range = [min(d1, d2), max(d1, d2)]
+                    tuple_range = tuple(dynamic_range)
+                    dynamic_name = dynamic_dict.get(tuple_range, None)
+                    # The rule here we record the dynamic range+dynamic name in a dict
+                    # and extract it if it exists. If not, we will create the pair and append
+                    # the pair to the dict
+                    if dynamic_name:
+                        shape.append(IntVar(dynamic_range, dynamic_name))
+                    else:
+                        if num_dynamic == 0:
+                            shape.append(IntVar(dynamic_range, "batch_size"))
+                            dynamic_dict[tuple_range] = "batch_size"
+                        else:
+                            shape.append(
+                                IntVar(
+                                    dynamic_range,
+                                    f"batch_size_{num_dynamic}",
+                                )
+                            )
+                            dynamic_dict[tuple_range] = f"batch_size_{num_dynamic}"
+                        num_dynamic = num_dynamic + 1
+            result.append(TensorSpec(shape, t1.dtype))
+
+        return result
+
+    @classmethod
     def gen_int_var_min_max(cls, vmin: int, vmax: int, name: str = None):  # noqa [B902]
         values = [vmin, vmax]
         if vmin == vmax:
@@ -199,6 +263,7 @@ class TensorSpec:
         max_sequence_length: int,
         jagged_tensor_batch_dims: Set[int],
         jagged_offsets_batch_dims: Set[int],
+        additional_inputs: List[torch.Tensor] = None,
     ) -> List["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
@@ -210,6 +275,7 @@ class TensorSpec:
         result_unsorted: List = []
         left_inputs: List = []
         left_inputs_ind: List = []
+        left_additional_inputs: List = []
         for ind, t in enumerate(inputs):
             batch_dim: int = t.shape[0]
             batch_dim_lower_bound: int = 0
@@ -244,15 +310,31 @@ class TensorSpec:
                 left_inputs.append(t)
                 left_inputs_ind.append(ind)
 
-        bs_dim = cls.find_batch_size_dim(left_inputs)
-        for index, t in enumerate(left_inputs):
-            shape: List[IntVar] = []
-            for i, d in enumerate(t.shape):
-                if i == bs_dim[index]:
-                    shape.append(IntVar([1, max_batch_size], "batch_size"))
-                else:
-                    shape.append(IntImm(d))
-            result_unsorted.append((left_inputs_ind[index], TensorSpec(shape, t.dtype)))
+        if additional_inputs:
+            for ind in left_inputs_ind:
+                left_additional_inputs.append(additional_inputs[ind])
+            input_specs_left = TensorSpec.from_two_input_lists_jagged_tensor(
+                left_inputs, left_additional_inputs
+            )
+            assert len(input_specs_left) == len(
+                left_inputs_ind
+            ), "Unexpected length for left inputs"
+
+            for index, ind_value in enumerate(left_inputs_ind):
+                result_unsorted.append((ind_value, input_specs_left[index]))
+
+        else:
+            bs_dim = cls.find_batch_size_dim(left_inputs)
+            for index, t in enumerate(left_inputs):
+                shape: List[IntVar] = []
+                for i, d in enumerate(t.shape):
+                    if i == bs_dim[index]:
+                        shape.append(IntVar([1, max_batch_size], "batch_size"))
+                    else:
+                        shape.append(IntImm(d))
+                result_unsorted.append(
+                    (left_inputs_ind[index], TensorSpec(shape, t.dtype))
+                )
         result = sorted(result_unsorted, key=lambda num: num[0])
         result = [r[1] for r in result]
         return result
