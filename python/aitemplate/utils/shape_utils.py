@@ -18,8 +18,12 @@ Util functions to handle shapes.
 
 from typing import List, Optional
 
+import sympy
 
-def gen_int_var(values: List[int], name: str = None):
+
+def gen_int_var(
+    values: List[int], name: str = None, symbolic_value: Optional[sympy.Basic] = None
+):
     """
     A helper function to generate IntImm or IntVar depending on the length of values.
     """
@@ -29,17 +33,21 @@ def gen_int_var(values: List[int], name: str = None):
     if len(values) == 1:
         return IntImm(values[0], name=name)
     elif len(values) > 1:
-        return IntVar(values, name=name)
+        return IntVar(values, name=name, symbolic_value=symbolic_value)
     else:
         raise RuntimeError("Unsupported dim definition: {}".format(values))
 
 
-def gen_int_var_min_max(values: List[int], name: str = None):
+def gen_int_var_min_max(
+    values: List[int], name: str = None, symbolic_value: Optional[sympy.Basic] = None
+):
     """
     A helper function to generate IntImm or IntVar depending on the length of values.
     Only keeps [min, max] pairs if there are more than 2 values.
     """
-    return gen_int_var([min(values), max(values)], name=name)
+    return gen_int_var(
+        [min(values), max(values)], name=name, symbolic_value=symbolic_value
+    )
 
 
 def get_broadcast_max_shape(shape1, shape2):
