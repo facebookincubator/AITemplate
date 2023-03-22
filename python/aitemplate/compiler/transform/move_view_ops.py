@@ -64,7 +64,21 @@ def _make_input_view_shape(
         reshape_2 = reshape(cat_1, [batch, 4, 6])
 
     We would return None for both x1 and x2, because we cannot make valid reshape
-    ops for x1 and x2 while keeping the original semantics."""
+    ops for x1 and x2 while keeping the original semantics.
+
+    Parameters
+    ----------
+    cat_input: Tensor
+        a concat op's input for which we will generate a view op, e.g. the x1 or
+        x2 tensor in the example above
+    original_view_shape: List[IntVar]
+        the shape of the view op's output, where the view op consumes the concat's
+        output, e.g. the reshape op in the example above
+    cat_dim: int
+        the value of the cat_dim attribute of the concate op
+    input_idx: int
+        the index of the cat_input in the concat's inputs list
+    """
     cat_input_shape = cat_input.shape()
     if cat_dim >= len(cat_input_shape) or cat_dim >= len(original_view_shape):
         return None
@@ -165,7 +179,6 @@ def _try_move_view_op(
     # make a new view op for each first_cat's original input and place it between
     # the original input and the first cat
     new_first_cat_inputs = []
-    removable_first_cat_inputs = set()
     # The same tensor may be used multiple times by the first cat.
     # We don't want to make one view op for each use, because it would
     # prevent us from propagating those view ops to an upper level.
@@ -183,45 +196,11 @@ def _try_move_view_op(
             new_view_output._attrs["dst_ops"].add(first_cat)
             first_cat_input._attrs["dst_ops"].remove(first_cat)
         new_first_cat_inputs.append(new_view_output)
-        # This peephole optimization is necessary in case we pushing a view op
-        # in between two concat ops where we have another view op. For example,
-        #     concat_1 = concat([x1, x2])
-        #     reshape_2 = reshape(concat_1)
-        #     concat_3 = concat([reshape_2, x3])
-        #     reshape_4 = reshape(concat_3)
-        # if we move reshape_4 to the front of concat_3, we may not be able to
-        # further simplify reshape_2 and reshape_4 if we don't "fuse" these two
-        # reshape ops. Note that reshape_2 may come from the original graph, or
-        # generated from this transformation, e.g. concat_3 may be fed into multiple
-        # reshape ops.
-        # We could write a standalone pass for fusing consecutive view ops and run
-        # the pass after each iteration of moving a view op here. But it seems to be
-        # quite inefficient because we have to scan the entire graph again.
-        # So, let's do it locally to save us some time. BTW, we may still implement
-        # a pass that fuses consecutive view ops, but we just don't need to apply
-        # such a pass here.
-        if (
-            first_cat_input._attrs["is_view_of"]
-            and not first_cat_input._attrs["is_output"]
-            and len(first_cat_input._attrs["dst_ops"]) == 1
-        ):
-            removable_first_cat_inputs.add(first_cat_input)
     first_cat._attrs["inputs"] = new_first_cat_inputs
     first_cat._attrs["original_inputs"] = list(new_first_cat_inputs)
     first_cat._attrs["input_accessors"] = [
         TensorAccessor(inp) for inp in new_first_cat_inputs
     ]
-    for old_input_view in removable_first_cat_inputs:
-        new_view_op = old_input_view._attrs["dst_ops"][0]
-        assert (
-            len(new_view_op._attrs["inputs"]) == 1
-        ), f"expected {new_view_op=} to have a single input"
-        new_view_op._attrs["inputs"][0]._attrs["is_view_of"] = old_input_view._attrs[
-            "is_view_of"
-        ]
-        transform_utils.remove_view_op_from_sorted_graph(
-            old_input_view._attrs["src_ops"][0]
-        )
     return True
 
 
