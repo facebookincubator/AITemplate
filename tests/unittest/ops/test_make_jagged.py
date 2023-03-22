@@ -30,8 +30,10 @@ from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 class MakeJaggedTestCase(unittest.TestCase):
-    def test_make_jagged(
+    def _test_make_jagged(
         self,
+        check_sequence_lengths=True,
+        test_name="make_jagged",
     ):
         offsets1 = Tensor(
             shape=[
@@ -70,11 +72,12 @@ class MakeJaggedTestCase(unittest.TestCase):
         )
 
         batch_dim = IntVar(values=[1, 128])
-        jd0 = JaggedDim(min_value=0, max_value=10)
-        jd1 = JaggedDim(min_value=0, max_value=15)
+        jd0 = JaggedDim(min_value=0, max_value=2)
+        jd1 = JaggedDim(min_value=0, max_value=3)
         Y = ops.make_jagged(
             batch_dim=batch_dim,
             jagged_dims=[jd0, jd1],
+            check_sequence_lengths=check_sequence_lengths,
         )(X, [offsets1, offsets2])
         Z = ops.gemm_rrr()(Y, W)
 
@@ -95,10 +98,16 @@ class MakeJaggedTestCase(unittest.TestCase):
         Z._attrs["name"] = "Z"
         Z._attrs["is_output"] = True
 
-        model = compile_model([Y, Z], detect_target(), "./tmp", "test_make_jagged")
+        model = compile_model([Y, Z], detect_target(), "./tmp", test_name)
 
         offsets1_pt = torch.tensor([0, 1, 3, 5], dtype=torch.int32).cuda()
-        offsets2_pt = torch.tensor([0, 2, 4, 4, 9, 10], dtype=torch.int32).cuda()
+        offsets2_pt = torch.tensor([0, 2, 4, 4, 7, 10], dtype=torch.int32).cuda()
+
+        if not check_sequence_lengths:
+            # extend seq lens beyond the JaggedDim bounds
+            offsets1_pt[2] = 4
+            offsets2_pt[4] = 9
+
         x_pt = get_random_torch_tensor([10, 128], "float16")
         w_pt = get_random_torch_tensor([128, 64], "float16")
         z_pt = torch.matmul(x_pt, w_pt)
@@ -111,6 +120,18 @@ class MakeJaggedTestCase(unittest.TestCase):
 
         torch.testing.assert_close(y, x_pt)
         torch.testing.assert_close(z, z_pt)
+
+    def test_make_jagged(self):
+        self._test_make_jagged(
+            check_sequence_lengths=True,
+            test_name="make_jagged",
+        )
+
+    def test_make_jagged_no_seq_len_check(self):
+        self._test_make_jagged(
+            check_sequence_lengths=False,
+            test_name="make_jagged_no_seq_len_check",
+        )
 
     def test_make_jagged_with_dynamic_bounds(
         self,
