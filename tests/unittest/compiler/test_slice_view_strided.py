@@ -31,7 +31,18 @@ from aitemplate.utils import graph_utils
 from parameterized import parameterized
 
 
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-2, "rtol": 1e-2},
+    "float32": {"atol": 1e-2, "rtol": 1e-2},
+    "bfloat16": {"atol": 3e-1, "rtol": 3e-1},
+}
+
+
 class SliceViewStridedOpTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     @parameterized.expand(
         filter_test_cases_by_params(
             {
@@ -87,10 +98,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            self.assertTrue(
-                torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2),
-                f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
-            )
+            torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
         filter_test_cases_by_params(
@@ -148,7 +156,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            torch.testing.assert_close(y, y_pt, atol=1e-2, rtol=1e-2)
+            torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
         filter_test_cases_by_params(
@@ -228,10 +236,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            self.assertTrue(
-                torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2),
-                f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
-            )
+            torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
         filter_test_cases_by_params(
@@ -305,10 +310,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            self.assertTrue(
-                torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2),
-                f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
-            )
+            torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
         filter_test_cases_by_params(
@@ -381,10 +383,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            self.assertTrue(
-                torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2),
-                f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
-            )
+            torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
         filter_test_cases_by_params(
@@ -460,12 +459,8 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            self.assertTrue(
-                torch.allclose(y, y_pt, atol=5e-2, rtol=5e-2),
-                f"batch_size: {batch_size}, y: {y}, y_pt: {y_pt}",
-            )
+            torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
     unittest.main()
