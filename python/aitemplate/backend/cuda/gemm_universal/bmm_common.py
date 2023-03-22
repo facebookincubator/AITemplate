@@ -300,8 +300,9 @@ def make_function_strided_args(
         if has_bias:
             # FIXME: we don't suppor strided bias yet. Will enable it once
             # we support it.
+            input_bias_accessor = func_attrs["input_accessors"][2]
             assert (
-                not input_b_accessor.is_from_strided_tensor
+                not input_bias_accessor.is_from_strided_tensor
             ), f'strided bias is not supported for op {func_attrs["name"]}'
 
     input_addr_calculator = common.INPUT_ADDR_CALCULATOR.render(
