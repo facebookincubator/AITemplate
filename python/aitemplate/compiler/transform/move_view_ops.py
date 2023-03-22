@@ -19,8 +19,8 @@ first concatenate op if possible.
 import copy
 from typing import Callable, List, Optional, Tuple
 
+from aitemplate.compiler import ops
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
-
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.compiler.transform import transform_utils
 from aitemplate.compiler.transform.toposort import toposort
@@ -128,7 +128,9 @@ def _call_view_op(
 
 
 def _try_move_view_op(
-    first_cat: Operator, second_cat: Operator, view_op: Operator
+    first_cat: Operator,
+    second_cat: Operator,
+    view_op: Operator,
 ) -> bool:
     """
     Try to move the view_op to the front of the first_cat.
@@ -174,8 +176,21 @@ def _try_move_view_op(
     first_cat._attrs["outputs"][0] = new_first_cat_output
     new_first_cat_output._attrs["src_ops"].add(first_cat)
 
-    # remove the old view op
-    transform_utils.remove_view_op_from_sorted_graph(view_op)
+    for dst_op in new_first_cat_output._attrs["dst_ops"]:
+        dst_op_type = dst_op._attrs["op"]
+        if dst_op_type in _SUPPORTED_VIEW_OPS:
+            # it's safe to remove the old view ops, because they have the same
+            # output shape
+            transform_utils.remove_view_op_from_sorted_graph(dst_op)
+        else:
+            # we need to place a view op as we've changed the concat's output shape
+            new_view_output = ops.reshape()(
+                new_first_cat_output, first_cat_output.shape()
+            )
+            transform_utils.replace_tensor_for_op(
+                dst_op, new_first_cat_output, new_view_output
+            )
+
     # make a new view op for each first_cat's original input and place it between
     # the original input and the first cat
     new_first_cat_inputs = []
@@ -224,6 +239,28 @@ def _is_valid_cat_op(cat: Operator) -> bool:
     return True
 
 
+def _get_valid_view_op_and_second_cat(
+    view_ops: List[Operator],
+) -> Tuple[Operator, Operator]:
+    """
+    Return the view op and the second cat if we can find such a pair
+    """
+    view_op = None
+    second_cat = None
+    for a_view_op in view_ops:
+        view_op_output = a_view_op._attrs["outputs"][0]
+        next_next_ops = view_op_output._attrs["dst_ops"]
+        next_concats = [n for n in next_next_ops if n._attrs["op"] == "concatenate"]
+        # only allow a single concat in the view_op's dst_ops
+        if len(next_concats) != 1:
+            continue
+        if _is_valid_cat_op(next_concats[0]):
+            view_op = a_view_op
+            second_cat = next_concats[0]
+            break
+    return (view_op, second_cat)
+
+
 def _move_view_op_before_concat(
     sorted_graph: List[Tensor],
 ) -> Tuple[bool, List[Tensor]]:
@@ -247,20 +284,26 @@ def _move_view_op_before_concat(
         if first_cat_output._attrs["is_output"]:
             continue
         next_ops = first_cat_output._attrs["dst_ops"]
-        if len(next_ops) != 1:
+        if len(next_ops) == 0:
             continue
-        view_op = list(next_ops)[0]
-        # skip if the next op is not one of the supported view ops
-        if view_op._attrs["op"] not in _SUPPORTED_VIEW_OPS:
+        view_ops = [op for op in next_ops if op._attrs["op"] in _SUPPORTED_VIEW_OPS]
+        # skip if none of the next ops is one of the supported view ops
+        if len(view_ops) == 0:
             continue
-        view_op_output = view_op._attrs["outputs"][0]
-        if view_op_output._attrs["is_output"]:
+        a_view_op = view_ops[0]
+        view_output_shape = a_view_op._attrs["outputs"][0].shape()
+        # handle a special case where the all view_ops have the same output shape
+        if len(view_ops) > 1 and not all(
+            shape_utils.is_same_shape(
+                vop._attrs["outputs"][0].shape(), view_output_shape
+            )
+            for vop in view_ops
+        ):
             continue
-        next_next_ops = view_op_output._attrs["dst_ops"]
-        if len(next_next_ops) != 1:
+        if any(vop._attrs["outputs"][0]._attrs["is_output"] for vop in view_ops):
             continue
-        second_cat = list(next_next_ops)[0]
-        if not _is_valid_cat_op(second_cat):
+        view_op, second_cat = _get_valid_view_op_and_second_cat(view_ops)
+        if second_cat is None:
             continue
         if _try_move_view_op(first_cat, second_cat, view_op):
             changed = True
