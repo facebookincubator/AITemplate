@@ -685,6 +685,7 @@ class make_jagged(_view):
         self,
         batch_dim: IntVar,
         jagged_dims: List[JaggedDim],
+        check_sequence_lengths: bool = True,
     ) -> None:
         if type(batch_dim) != IntVar:
             raise TypeError(
@@ -704,6 +705,7 @@ class make_jagged(_view):
         self._attrs["op"] = "make_jagged"
         self._attrs["batch_dim"] = batch_dim
         self._attrs["jagged_dims"] = list(jagged_dims)
+        self._attrs["check_sequence_lengths"] = check_sequence_lengths
 
     def _set_jagged_dim_offsets(self, offsets_list: List[Tensor]):
         jagged_dims = self._attrs["jagged_dims"]
@@ -775,6 +777,7 @@ class make_jagged(_view):
         return {
             "batch_dim": self._attrs["batch_dim"],
             "jagged_dims": self._attrs["jagged_dims"],
+            "check_sequence_lengths": self._attrs["check_sequence_lengths"],
         }
 
     def gen_function(self) -> str:

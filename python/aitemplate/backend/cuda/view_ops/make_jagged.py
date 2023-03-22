@@ -71,6 +71,7 @@ __global__ void check_offsets(
     return;
   }
 
+{% if check_sequence_lengths %}
   {{offsets_type}} group_size = data[offset_id + 1] - data[offset_id];
   if (group_size < bounds.min_values[dim_id] || group_size > bounds.max_values[dim_id]) {
     printf(
@@ -89,6 +90,7 @@ __global__ void check_offsets(
     );
     __trap();
   }
+{% endif %}
 
   if (offset_id == 0) {
     {{offsets_type}} first_offset = data[0];
@@ -284,6 +286,7 @@ def make_jagged_gen_function(func_attrs):
 
     batch_dim = jagged_int_var.batch_dim()
     isolated_batch_dim = batch_dim._attrs.get("isolated", False)
+    check_sequence_lengths = func_attrs["check_sequence_lengths"]
 
     return SRC_TEMPLATE.render(
         func_name=func_name,
@@ -295,6 +298,7 @@ def make_jagged_gen_function(func_attrs):
         isolated_batch_dim=isolated_batch_dim,
         jagged_dynamic_bound_names=jagged_dynamic_bound_names,
         index_type=backend_spec.index_type,
+        check_sequence_lengths=check_sequence_lengths,
     )
 
 
