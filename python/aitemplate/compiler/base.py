@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
 from pprint import pformat
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Union
 
 import numpy as np
 
@@ -584,8 +584,8 @@ class Tensor(Node):
         self,
         shape: List[IntVar],
         name: str = None,
-        src_ops: StableSet[Node] = None,
-        dst_ops: StableSet[Node] = None,
+        src_ops: Sequence[Node] = None,
+        dst_ops: Sequence[Node] = None,
         dtype: str = "float16",
         is_input: bool = False,
         is_output: bool = False,
@@ -632,12 +632,8 @@ class Tensor(Node):
         super().__init__()
         self._attrs["shape"] = self._convert_shape(shape)
         self._attrs["name"] = name
-        self._attrs["src_ops"] = (
-            StableSet(src_ops) if src_ops is not None else StableSet()
-        )
-        self._attrs["dst_ops"] = (
-            StableSet(dst_ops) if dst_ops is not None else StableSet()
-        )
+        self._attrs["src_ops"] = StableSet(src_ops)
+        self._attrs["dst_ops"] = StableSet(dst_ops)
         self._attrs["dtype"] = dtype
         self._attrs["is_output"] = is_output
         self._attrs["is_input"] = is_input
@@ -743,7 +739,7 @@ class Tensor(Node):
         )
 
     def size_bytes(self, alignment: int = 1) -> int:
-        """Returns acutal size (in bytes) of this Tensor."""
+        """Returns actual size (in bytes) of this Tensor."""
         return get_aligned_size(self._attrs["shape"], self.dtype(), alignment)
 
     def pseudo_code(self, with_shape=True) -> str:
@@ -1062,10 +1058,6 @@ class Operator(Node):
         example, the FuncEnum for a elementwise op.
 
         This is used when we need to copy the op with identical behaviour.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
