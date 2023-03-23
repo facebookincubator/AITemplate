@@ -138,7 +138,7 @@ def _fuse_split_and_group_gemm(  # noqa: C901
 
 
 def _is_supported_op(op_type: str):
-    from ...backend.target import Target
+    from aitemplate.backend.target import Target
 
     if Target.current().name() == "rocm":
         return op_type == "bmm_softmax_bmm_permute"

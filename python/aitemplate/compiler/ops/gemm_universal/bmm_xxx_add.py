@@ -14,11 +14,11 @@
 #
 
 
-from aitemplate.compiler.tensor_accessor import TensorAccessor
-
-from ...base import Tensor
-from .bmm import is_valid_inputs as bmm_is_valid_inputs
-from .bmm_xxx import (
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.gemm_universal.bmm import (
+    is_valid_inputs as bmm_is_valid_inputs,
+)
+from aitemplate.compiler.ops.gemm_universal.bmm_xxx import (
     bmm_ccc,
     bmm_ccr,
     bmm_crc,
@@ -29,6 +29,7 @@ from .bmm_xxx import (
     bmm_rrr,
     bmm_xxx,
 )
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 
 class bmm_xxx_add(bmm_xxx):

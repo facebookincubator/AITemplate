@@ -753,7 +753,7 @@ def fuse_group_ops(sorted_graph: List[Tensor], workdir: str = None) -> List[Tens
     """
     # gemms need to be fused first
     # TODO: enable after adding heuristics and fixing dynamic shapes
-    from ...backend.target import Target
+    from aitemplate.backend.target import Target
 
     if Target.current().name() == "cuda":
         if "fuse_group_gemm" in Target.current()._kwargs:

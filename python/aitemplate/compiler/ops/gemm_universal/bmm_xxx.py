@@ -13,9 +13,9 @@
 #  limitations under the License.
 #
 
-from ...base import Tensor
-from . import gemm_common as common
-from .bmm import bmm
+from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.ops.gemm_universal import gemm_common as common
+from aitemplate.compiler.ops.gemm_universal.bmm import bmm
 
 
 class bmm_xxx(bmm):
