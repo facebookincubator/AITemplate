@@ -120,6 +120,9 @@ def optimize_graph(
         funcs = [
             process_singleton_elementwise,
             apply_padding,
+            split_large_slice_scatter_ops,
+            split_large_concat_ops,
+            split_large_split_ops,
         ]
 
     for i, func in enumerate(funcs):
