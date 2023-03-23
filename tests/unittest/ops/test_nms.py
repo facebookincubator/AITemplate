@@ -144,7 +144,9 @@ class nmsTestCase(unittest.TestCase):
             ref_box = boxes[keep]
         else:
             ref_box = torch.zeros(nmsMaxOut, 4)
-            ref_box[: keep.shape[0],] = boxes[keep]
+            ref_box[
+                : keep.shape[0],
+            ] = boxes[keep]
         ref_box = ref_box.to(dtype=torch_dtype)
 
         x = boxes.reshape((1, N, 4)).contiguous()

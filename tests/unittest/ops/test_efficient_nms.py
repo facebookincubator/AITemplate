@@ -188,7 +188,9 @@ class nmsTestCase(unittest.TestCase):
             ref_box = boxes_pt[keep].cpu()
         else:
             ref_box = torch.zeros(nmsMaxOut, 4)
-            ref_box[: keep.shape[0],] = boxes_pt[keep].cpu()
+            ref_box[
+                : keep.shape[0],
+            ] = boxes_pt[keep].cpu()
         ref_box = ref_box.cuda().to(dtype=torch_dtype)
 
         x = boxes.reshape((1, N, 1, 4)).copy()
