@@ -97,7 +97,6 @@ class AITTestCase(TestCase):
             leaf_module_list.append(leaf_module)
 
         orig_mod = copy.deepcopy(mod)
-        orig_mod.eval()
         mod = acc_tracer.trace(
             mod,
             inputs,
@@ -111,9 +110,6 @@ class AITTestCase(TestCase):
         original_inputs = copy.deepcopy(inputs)
         if permute_inputs:
             inputs = [inp.permute(*permute_inputs).contiguous() for inp in inputs]
-
-        mod.half()
-        inputs = [inp.half().contiguous() for inp in inputs]
         interp = AITInterpreter(
             mod,
             inputs,
