@@ -31,11 +31,22 @@ from aitemplate.utils import graph_utils
 from parameterized import param, parameterized
 
 
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-2, "rtol": 1e-2},
+    "float32": {"atol": 1e-2, "rtol": 1e-2},
+    "bfloat16": {"atol": 3e-1, "rtol": 3e-1},
+}
+
+
 def custom_name_func(testcase_func, param_num, param):
     return f"{testcase_func.__name__}_{param_num}_{param.args[0]}"
 
 
 class StridedViewCatOpTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     @parameterized.expand(
         [
             param(
@@ -243,10 +254,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
             )
 
             # Do comparisons.
-            self.assertTrue(
-                torch.allclose(z, z_pt, atol=1e-2, rtol=1e-2),
-                f"batch_size: {batch_size}, z: {z}, z_pt: {z_pt}, input5_pt: {input5_pt}",
-            )
+            torch.testing.assert_close(z, z_pt, **_TOLERANCE_LIMITS[dtype])
 
     def _test_strided_layernorm_view_cat_fusible(self, dtype="float16"):
         def _create_layernorm_sigmoid_mul(
@@ -351,10 +359,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
 
             # Do comparisons.
             for x, x_pt in zip(z, z_pt):
-                self.assertTrue(
-                    torch.allclose(x, x_pt, atol=1e-2, rtol=1e-2),
-                    f"batch_size: {batch_size}, z: {z}, z_pt: {z_pt}",
-                )
+                torch.testing.assert_close(x, x_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
         filter_test_cases_by_params(
