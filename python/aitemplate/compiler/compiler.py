@@ -156,6 +156,7 @@ def compile_model(
     constants: Optional[Dict[str, TorchTensor]] = None,
     allocator_kind: Optional[AITemplateAllocatorKind] = None,
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
+    do_optimize_graph: bool = True,
 ) -> Model:
     """Compiles a model and generates a .so file.
 
@@ -236,7 +237,9 @@ def compile_model(
             )
 
             start_t = datetime.now()
-            graph = compiler.transform.optimize_graph(graph, test_dir)
+            graph = compiler.transform.optimize_graph(
+                graph, test_dir, optimize=do_optimize_graph
+            )
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "optimize_graph")
             _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
 

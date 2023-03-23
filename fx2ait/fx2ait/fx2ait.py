@@ -66,6 +66,7 @@ class AITInterpreter(torch.fx.Interpreter):
         load_ait_dir: Optional[str] = None,
         remote_cache_file_path: Optional[str] = None,
         save_remote_cache: Optional[bool] = False,
+        do_optimize_graph: bool = True,
     ):
         """
         Args:
@@ -122,6 +123,7 @@ class AITInterpreter(torch.fx.Interpreter):
         self.dump_ait_dir = dump_ait_dir
         self.keep_constants = keep_constants
         self.load_ait_dir = load_ait_dir
+        self.do_optimize_graph = do_optimize_graph
 
     def _create_target(self):
         """Detect GPU target"""
@@ -208,6 +210,7 @@ class AITInterpreter(torch.fx.Interpreter):
             "dynamic_profiling_strategy": self.dynamic_profile_strategy,
             "dll_name": self.dll_name,
             "profile_dir": profile_dir,
+            "do_optimize_graph": self.do_optimize_graph,
         }
         if self.dump_ait_dir:
             dump_ait_path = os.path.join(self.dump_ait_dir, self.name + ".py")
