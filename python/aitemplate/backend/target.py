@@ -268,7 +268,7 @@ class Target:
     def force_profile(self) -> bool:
         """Whether to force profile.
 
-        Force profiling regarless in_ci_env, disable_profiler_codegen
+        Force profiling regardless in_ci_env, disable_profiler_codegen
 
         Returns
         -------
@@ -363,20 +363,22 @@ class Target:
             return self._profile_cache.conv3d_cache_version
         raise NotImplementedError
 
-    def query_profile_cache(self, op_class: str, args: str) -> Tuple[str]:
+    def query_profile_cache(
+        self, op_class: str, args: Dict[str, Any]
+    ) -> Tuple[str, int]:
         """Query the profile cache for the given op class and args.
 
         Parameters
         ----------
         op_class : str
             Op class name. gemm, conv or normalization
-        args : str
+        args : Dict[str, Any]
             Op arguments.
 
         Returns
         -------
-        Tuple[str]
-            Queried best profile results.
+        Tuple[str, int]
+            Queried best profiling results.
 
         Raises
         ------
@@ -393,7 +395,7 @@ class Target:
             return self._profile_cache.query_normalization(args)
         raise NotImplementedError
 
-    def insert_profile_cache(self, op_class: str, args: str):
+    def insert_profile_cache(self, op_class: str, args: Dict[str, Any]):
         """Insert the profile cache for the given op class and args."""
         if op_class == "gemm":
             self._profile_cache.insert_gemm(args)
