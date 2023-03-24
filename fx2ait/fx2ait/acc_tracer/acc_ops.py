@@ -3322,7 +3322,6 @@ def ones_like(*, input, dtype=None, device=None):
 )
 @register_acc_op
 def new_zeros(*, input, size, dtype=None, device=None, requires_grad=False):
-    assert requires_grad is False, f"requires_grad != False, it is {requires_grad}"
     return input.new_zeros(size, dtype=dtype, device=device)
 
 

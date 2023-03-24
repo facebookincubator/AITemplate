@@ -1670,9 +1670,13 @@ def acc_ops_neg(
 def acc_ops_new_full(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
+    dtype = kwargs["dtype"] if "dtype" in kwargs else input_val.dtype()
     fill_value = kwargs["fill_value"]
-    return full()(size, fill_value=fill_value, dtype="float16")
+    return full()(size, fill_value=fill_value, dtype=dtype)
 
 
 @ait_converter(acc_ops.full_like)
@@ -1683,15 +1687,19 @@ def acc_ops_full_like(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     fill_value = kwargs["fill_value"]
-    return full()(input_val.shape(), fill_value=fill_value, dtype="float16")
+    return full()(input_val.shape(), fill_value=fill_value, dtype=input_val.dtype())
 
 
 @ait_converter(acc_ops.new_ones)
 def acc_ops_new_ones(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
-    return full()(size, 1, dtype="float16")
+    dtype = kwargs["dtype"] if "dtype" in kwargs else input_val.dtype()
+    return full()(size, 1, dtype=dtype)
 
 
 @ait_converter(acc_ops.ones_like)
@@ -1701,15 +1709,19 @@ def acc_ops_ones_like(
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
-    return full()(input_val.shape(), 1, dtype="float16")
+    return full()(input_val.shape(), 1, dtype=input_val.dtype())
 
 
 @ait_converter(acc_ops.new_zeros)
 def acc_ops_new_zeros(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
-    return full()(size, 0, dtype="float16")
+    dtype = kwargs["dtype"] if "dtype" in kwargs else input_val.dtype()
+    return full()(size, 0, dtype=dtype)
 
 
 @ait_converter(acc_ops.zeros_like)
@@ -1719,4 +1731,4 @@ def acc_ops_zeros_like(
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
-    return full()(input_val.shape(), 0, dtype="float16")
+    return full()(input_val.shape(), 0, dtype=input_val.dtype())
