@@ -29,7 +29,7 @@ _VIEW_OPS = {"reshape", "flatten", "squeeze", "unsqueeze"}
 
 
 def _is_supported_strided_op(op: Operator) -> bool:
-    from ...backend.target import Target
+    from aitemplate.backend.target import Target
 
     op_kind = op._attrs["op"]
     if Target.current().name() == "rocm":

@@ -61,7 +61,7 @@ def fuse_conv_elementwise(sorted_graph: List[Tensor], _: str) -> List[Tensor]:
     for func in funcs:
         sorted_graph = func(sorted_graph)
 
-    from ...backend.target import Target
+    from aitemplate.backend.target import Target
 
     if Target.current().name() == "cuda":
         funcs = [

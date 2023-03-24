@@ -292,7 +292,7 @@ def transform_special_ops(
         _transform_1x1_conv_gemm_rcr,
     ]
 
-    from ...backend.target import Target
+    from aitemplate.backend.target import Target
 
     if "transform_conv_to_gemm" in Target.current()._kwargs:
         if Target.current()._kwargs["transform_conv_to_gemm"]:
