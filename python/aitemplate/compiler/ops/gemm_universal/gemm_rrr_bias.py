@@ -15,6 +15,8 @@
 """
 gemm rrr with bias
 """
+from typing import List
+
 from aitemplate.compiler.base import IntImm, Tensor
 from aitemplate.compiler.ops.gemm_universal import gemm_rrr
 from aitemplate.compiler.tensor_accessor import TensorAccessor
@@ -27,48 +29,22 @@ class gemm_rrr_bias(gemm_rrr):
         super().__init__()
         self._attrs["op"] = "gemm_rrr_bias"
 
-    @staticmethod
-    def is_valid_inputs(X: Tensor, W: Tensor, bias: Tensor):
-        msg = ""
-
+    def _sanity_check_extra_inputs(self, output_shape: List):
+        bias = self._attrs["inputs"][2]
         bias_shapes = bias._attrs["shape"]
         if len(bias_shapes) != 1:
-            msg = f"Bias should be 1D vector! Current bias shape: {bias_shapes}"
-            return False, msg
-
+            raise RuntimeError(
+                f"Bias should be 1D vector! Current bias shape: {bias_shapes}"
+            )
         bias_shape = bias_shapes[0]
         if not isinstance(bias_shape, IntImm):
-            msg = f"Bias should be fixed 1D vector! Current bias shape: {bias_shape}"
-            return False, msg
-
-        outshape = gemm_rrr()._infer_shapes(X, W)
-        if outshape[-1] != bias_shape:
-            msg = f"GEMM/Bias shape doesn't match! Gemm shape: {outshape}, bias shape: {bias_shape}"
-            return False, msg
-
-        return True, msg
-
-    def _infer_shapes(self, a: Tensor, b: Tensor, bias: Tensor):
-        """Infers output shapes for gemm_rrr_bas.
-
-        Parameters
-        ----------
-        a : Tensor
-            Input tensor A.
-        b : Tensor
-            Input tensor B.
-        bias : Tensor
-            Input tensor bias. Must be a 1D vector.
-
-        Returns
-        -------
-        List[IntVar]
-            Output tensor shape.
-        """
-        is_valid_inputs, msg = self.is_valid_inputs(a, b, bias)
-        if not is_valid_inputs:
-            raise RuntimeError(msg)
-        return super()._infer_shapes(a, b)
+            raise RuntimeError(
+                f"Bias should be fixed 1D vector! Current bias shape: {bias_shape}"
+            )
+        if output_shape[-1] != bias_shape:
+            raise RuntimeError(
+                f"GEMM/Bias shape doesn't match! Gemm shape: {output_shape}, bias shape: {bias_shape}"
+            )
 
     def __call__(self, a: Tensor, b: Tensor, bias: Tensor) -> Tensor:
         a, b = self._align_ab(a, b)
@@ -78,7 +54,8 @@ class gemm_rrr_bias(gemm_rrr):
         ]
         self._set_depth()
         self._sanity_check(a, b)
-        output_shape = self._infer_shapes(a, b, bias)
+        output_shape = self._infer_shapes(a, b)
+        self._sanity_check_extra_inputs(output_shape)
         self._extract_epilogue_alignment(output_shape)
         output = Tensor(output_shape, src_ops={self}, dtype=a.dtype())
         self._attrs["outputs"] = [output]

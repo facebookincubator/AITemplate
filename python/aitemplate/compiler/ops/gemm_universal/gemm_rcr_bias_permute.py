@@ -51,7 +51,8 @@ class gemm_rcr_bias_permute(gemm_rcr_bias):
         ]
         self._set_depth()
         self._sanity_check(a, b)
-        output_shape = self._infer_shapes(a, b, bias)
+        output_shape = self._infer_shapes(a, b)
+        self._sanity_check_extra_inputs(output_shape)
 
         output = Tensor(output_shape, src_ops={self}, dtype=a.dtype())
         self._attrs["outputs"] = [output]

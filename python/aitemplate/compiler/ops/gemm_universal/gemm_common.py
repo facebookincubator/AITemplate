@@ -221,7 +221,6 @@ class gemm(Operator):
 
         dtype = self._attrs["inputs"][0].dtype()
         self._attrs["epilogue_alignment"] = alignment.find_max_alignment(shape, dtype)
-        return
 
     def _infer_shapes(self, a: Tensor, b: Tensor):
         raise NotImplementedError("_infer_shapes() is not implemented!")
@@ -409,7 +408,7 @@ class gemm(Operator):
         entry for this gemm instance, we update this gemm op's
         relevant attributes with the cached result and return False.
         """
-        # We are forced to use the cache so we skip building profilers.
+        # We are forced to use the cache, so we skip building profilers.
         if environ.force_profiler_cache():
             return False
         target = backend.target.Target.current()
