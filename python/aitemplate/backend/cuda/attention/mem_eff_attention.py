@@ -111,7 +111,7 @@ using namespace gemm_kernel_utils;
         kSingleValueIteration
     >;
 
-    int block_O_size = (*batch_size) * seq_len * num_heads * head_size_v;
+    int block_O_size = (*batch_size) * (*seq_len) * num_heads * head_size_v;
     typename Attention::Params p;
     {
         // set parameters
@@ -129,8 +129,8 @@ using namespace gemm_kernel_utils;
         p.num_batches = *batch_size;
         p.head_dim = head_size;
         p.head_dim_value = head_size_v;
-        p.num_queries = seq_len;
-        p.num_keys = seq_len_kv;
+        p.num_queries = *seq_len;
+        p.num_keys = *seq_len_kv;
         p.causal = is_causal;
 
 
@@ -138,14 +138,14 @@ using namespace gemm_kernel_utils;
         p.k_strideM = head_size;
         p.v_strideM = head_size_v;
 
-        p.q_strideH = p.q_strideM * seq_len;
-        p.k_strideH = p.k_strideM * seq_len_kv;
-        p.v_strideH = p.v_strideM * seq_len_kv;
+        p.q_strideH = p.q_strideM * (*seq_len);
+        p.k_strideH = p.k_strideM * (*seq_len_kv);
+        p.v_strideH = p.v_strideM * (*seq_len_kv);
         p.o_strideH = head_size_v;
         p.q_strideB = p.q_strideH * num_heads;
         p.k_strideB = p.k_strideH * num_heads;
         p.v_strideB = p.v_strideH * num_heads;
-        p.o_strideB = head_size_v * seq_len * num_heads;
+        p.o_strideB = head_size_v * (*seq_len) * num_heads;
     }
 
     // launch kernel
@@ -156,7 +156,7 @@ using namespace gemm_kernel_utils;
     }
     if (!Attention::check_supported(p)) {
       std::string error_msg = std::string("Got error: kernel does not support these inputs") +
-           " at " + __FILE__ + ": " + std::to_string(__LINE__);          
+           " at " + __FILE__ + ": " + std::to_string(__LINE__);
       throw std::runtime_error(error_msg);
     }
     kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
@@ -181,8 +181,8 @@ void {{func_name}}(void* output,
                    void* value,
                    float* accum_ptr,
                    int64_t* batch_size,
-                   int seq_len,
-                   int seq_len_kv,
+                   int64_t* seq_len,
+                   int64_t* seq_len_kv,
                    int num_heads,
                    int head_size,
                    int head_size_v,
@@ -258,7 +258,8 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
     batch_size = "&" + xshape[0]._attrs["name"]
-    seq_len = x._attrs["shape"][2]._attrs["values"][0]
+    # seq_len = x._attrs["shape"][2]._attrs["values"][0]
+    seq_len = "&" + xshape[2]._attrs["name"]
 
     num_heads = x._attrs["shape"][1]._attrs["values"][0]
     head_size = x._attrs["shape"][3]._attrs["values"][0]
@@ -267,7 +268,10 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
     softmax_scale = head_size ** (-0.5)
 
     v = func_attrs["inputs"][2]
-    seq_len_kv = v._attrs["shape"][2]._attrs["values"][0]
+    # seq_len_kv = v._attrs["shape"][2]._attrs["values"][0]
+    vshape = v._attrs["shape"]
+    seq_len_kv = "&" + vshape[2]._attrs["name"]
+
     head_size_v = v._attrs["shape"][3]._attrs["values"][0]
 
     return FUNC_CALL_TEMPLATE.render(

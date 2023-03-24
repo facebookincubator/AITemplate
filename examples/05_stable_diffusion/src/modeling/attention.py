@@ -20,7 +20,7 @@ Implementations are translated from https://github.com/huggingface/diffusers/blo
 from typing import Optional
 
 from aitemplate.compiler.ops import reshape
-
+from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
 
 
@@ -54,22 +54,20 @@ class AttentionBlock(nn.Module):
     ):
         super().__init__()
         self.batch_size = batch_size
-        self.height = height
-        self.width = width
+        # self.height = height
+        # self.width = width
         self.channels = channels
         self.num_heads = (
             channels // num_head_channels if num_head_channels is not None else 1
         )
         self.num_head_size = num_head_channels
         self.group_norm = nn.GroupNorm(num_groups, channels, eps)
-        self.attention = nn.MultiheadAttention(
+        self.attention = nn.CrossAttention(
             channels,
-            batch_size,
+            height * width,
             height * width,
             self.num_heads,
             qkv_bias=True,
-            has_residual=True,
-            use_mem_eff=True,
         )
         self.rescale_output_factor = rescale_output_factor
 
@@ -78,28 +76,50 @@ class AttentionBlock(nn.Module):
         input hidden_states shape: [batch, height, width, channel]
         output shape: [batch, height, width, channel]
         """
+        # # hidden_states = Y1
+        # original_shape = ops.size()(hidden_states)
+        # n = ops.getitem()(original_shape, 0)
+        # h = ops.getitem()(original_shape, 1)
+        # w = ops.getitem()(original_shape, 2)
+        # c = ops.getitem()(original_shape, 3)
+        # hidden_states = ops.reshape()(
+        #     hidden_states,
+        #     [n, -1, c],
+        # )
+        # res = hidden_states
+        # Y2 = ops.reshape()(res, original_shape)
+        # return Y2
+
         residual = hidden_states
 
         # norm
-        hidden_states = self.group_norm(hidden_states)
+        # hidden_states = self.group_norm(hidden_states)
+        o_shape = hidden_states.shape()
+        batch_dim = o_shape[0]
+        # o_shape = ops.size()(hidden_states)
+        # batch_dim = ops.getitem()(o_shape, 0)
 
         hidden_states = reshape()(
-            hidden_states, [self.batch_size, self.height * self.width, self.channels]
+            hidden_states,
+            [batch_dim, -1, self.channels],
         )
 
-        batch, hw, channel = hidden_states.shape()
-        if (
-            batch.value() != self.batch_size
-            or hw.value() != self.width * self.height
-            or channel.value() != self.channels
-        ):
-            raise RuntimeError(
-                "nchw params do not match! "
-                f"Expected: {self.batch_size}, {self.channels}, {self.height} * {self.width}, "
-                f"actual: {batch}, {channel}, {hw}."
-            )
+        # batch, hw, channel = hidden_states.shape()
+        # if (
+        #     # batch.value() != self.batch_size or
+        #     hw.value() != self.width * self.height
+        #     or channel.value() != self.channels
+        # ):
+        #     raise RuntimeError(
+        #         "nchw params do not match! "
+        #         f"Expected: {self.batch_size}, {self.channels}, {self.height} * {self.width}, "
+        #         f"actual: {batch}, {channel}, {hw}."
+        #     )
 
-        res = self.attention(hidden_states, residual) * (1 / self.rescale_output_factor)
-        res = reshape()(res, [self.batch_size, self.height, self.width, self.channels])
+        res = self.attention(hidden_states, hidden_states, hidden_states, residual) * (
+            1 / self.rescale_output_factor
+        ) if 1 else hidden_states
+
+        res = reshape()(res, o_shape)
 
         return res

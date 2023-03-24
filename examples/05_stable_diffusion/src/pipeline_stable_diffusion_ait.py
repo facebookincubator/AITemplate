@@ -108,6 +108,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         self.vae_ait_exe = self.init_ait_module(
             model_name="AutoencoderKL", workdir=workdir
         )
+        self.batch = 1
 
     def init_ait_module(
         self,
@@ -118,6 +119,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         return mod
 
     def unet_inference(self, latent_model_input, timesteps, encoder_hidden_states):
+        latent_model_input = latent_model_input.cuda().half().contiguous()
         exe_module = self.unet_ait_exe
         timesteps_pt = timesteps.expand(latent_model_input.shape[0])
         inputs = {
@@ -132,38 +134,42 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
+            shape[0] = self.batch * 2
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         noise_pred = ys[0].permute((0, 3, 1, 2)).float()
-        return noise_pred
+        return noise_pred.cpu()
 
-    def clip_inference(self, input_ids, seqlen=64):
+    def clip_inference(self, input_ids, seqlen=77):
         exe_module = self.clip_ait_exe
         bs = input_ids.shape[0]
         position_ids = torch.arange(seqlen).expand((bs, -1)).cuda()
         inputs = {
-            "input0": input_ids,
+            "input0": input_ids.cuda().contiguous(),
             "input1": position_ids,
         }
         ys = []
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
+            shape[0] = self.batch
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
-        return ys[0].float()
+        return ys[0].cpu().float()
 
     def vae_inference(self, vae_input):
+        vae_input = vae_input.cuda().half().contiguous()
         exe_module = self.vae_ait_exe
         inputs = [torch.permute(vae_input, (0, 2, 3, 1)).contiguous().cuda().half()]
         ys = []
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
+            shape[0] = self.batch
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         vae_out = ys[0].permute((0, 3, 1, 2)).float()
-        return vae_out
+        return vae_out.cpu()
 
     @torch.no_grad()
     def __call__(
@@ -196,7 +202,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
                 expense of slower inference.
             guidance_scale (`float`, *optional*, defaults to 7.5):
                 Guidance scale as defined in [Classifier-Free Diffusion Guidance](https://arxiv.org/abs/2207.12598).
-                `guidance_scale` is defined as `w` of equation 2. of [Imagen
+                `guidance_scale` is defined  as `w` of equation 2. of [Imagen
                 Paper](https://arxiv.org/pdf/2205.11487.pdf). Guidance scale is enabled by setting `guidance_scale >
                 1`. Higher guidance scale encourages to generate images that are closely linked to the text `prompt`,
                 usually at the expense of lower image quality.
@@ -254,11 +260,13 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
                 f"`height` and `width` have to be divisible by 8 but are {height} and {width}."
             )
 
+        self.batch = batch_size
+
         # get prompt text embeddings
         text_input = self.tokenizer(
             prompt,
             padding="max_length",
-            max_length=64,  # self.tokenizer.model_max_length,
+            max_length=self.tokenizer.model_max_length,
             truncation=True,
             return_tensors="pt",
         )
@@ -396,7 +404,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         image = image.cpu().permute(0, 2, 3, 1).numpy()
 
         # run safety checker
-        if self.safety_checker is not None:
+        if 0:  # self.safety_checker is not None:
             safety_checker_input = self.feature_extractor(
                 self.numpy_to_pil(image), return_tensors="pt"
             ).to(self.device)

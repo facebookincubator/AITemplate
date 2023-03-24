@@ -242,6 +242,33 @@ class conv2d(Operator):
             shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
             shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
         ]
+
+        in_h = x._attrs["shape"][1]._attrs['symbolic_value']
+        in_w = x._attrs["shape"][2]._attrs['symbolic_value']
+        KHEff = (w_shape[1] - 1) * self._attrs["dilate"] + 1
+        KWEff = (w_shape[2] - 1) * self._attrs["dilate"] + 1
+        out_h = (in_h + 2 * self._attrs["pad"] - KHEff) // self._attrs["stride"] + 1
+        out_w = (in_w + 2 * self._attrs["pad"] - KHEff) // self._attrs["stride"] + 1
+        output_shape[1]._attrs["symbolic_value"] = out_h
+        output_shape[2]._attrs["symbolic_value"] = out_w
+
+        # output_shape = []
+        # output_shape.append(x._attrs["shape"][0])
+        # var = shape_utils.gen_int_var(unique([d[1] for d in y_shapes]))
+        # var._attrs["symbolic_value"] = out_h
+        # output_shape.append(var)
+        # var = shape_utils.gen_int_var(unique([d[2] for d in y_shapes]))
+        # var._attrs["symbolic_value"] = out_w
+        # output_shape.append(var)
+        # var = shape_utils.gen_int_var(unique([d[3] for d in y_shapes]))
+        # output_shape.append(var)
+
+        # print("="*100)
+        # print("in:", x.shape())
+        # print("stride:", self._attrs["stride"])
+        # print("out:", output_shape)
+        # print("="*100)
+
         return output_shape
 
     def _invert_exec_key(self, key):

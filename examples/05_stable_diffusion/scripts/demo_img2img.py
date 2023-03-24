@@ -43,7 +43,6 @@ from src.pipeline_stable_diffusion_img2img_ait import StableDiffusionImg2ImgAITP
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
 def run(local_dir, width, height, prompt, benchmark):
-
     # load the pipeline
     device = "cuda"
     pipe = StableDiffusionImg2ImgAITPipeline.from_pretrained(

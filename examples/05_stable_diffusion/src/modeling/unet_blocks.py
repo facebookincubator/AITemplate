@@ -731,7 +731,7 @@ class UNetMidBlock2D(nn.Module):
             )
         ]
         attentions = []
-
+        # print("num_layers: ", num_layers)
         for _ in range(num_layers):
             attentions.append(
                 AttentionBlock(
@@ -764,9 +764,40 @@ class UNetMidBlock2D(nn.Module):
         self.resnets = nn.ModuleList(resnets)
 
     def forward(self, hidden_states, temb=None, encoder_states=None):
+        # print("hidden_states 1: ", hidden_states.shape())
         hidden_states = self.resnets[0](hidden_states, temb)
+        # print("hidden_states 2: ", hidden_states.shape())
         for attn, resnet in zip(self.attentions, self.resnets[1:]):
-            hidden_states = attn(hidden_states)
+            # print(attn)
+            if 0:
+                hidden_states = attn(hidden_states)
+                # print("hidden_states 3: ", hidden_states.shape())
+            else:
+                # original_shape = ops.size()(hidden_states)
+                # n = ops.getitem()(original_shape, 0)
+                # h = ops.getitem()(original_shape, 1)
+                # w = ops.getitem()(original_shape, 2)
+                # c = ops.getitem()(original_shape, 3)
+
+                print(hidden_states.shape())
+                original_shape = hidden_states.shape()
+                n = original_shape[0]
+                h = original_shape[1]
+                w = original_shape[2]
+                c = original_shape[-1]
+                hidden_states = ops.reshape()(
+                    hidden_states,
+                    [n, -1, c],
+                )
+                print(hidden_states.shape())
+                # original_shape = hidden_states.shape()
+                res = hidden_states
+                # hidden_states = ops.reshape()(res, original_shape)
+                new_shape = [n, h, w, c]
+                hidden_states = ops.reshape()(res, new_shape)
+                print(hidden_states.shape())
+
+
             hidden_states = resnet(hidden_states, temb)
 
         return hidden_states

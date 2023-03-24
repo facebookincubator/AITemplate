@@ -36,7 +36,8 @@ namespace {
 
 {{func_signature}}
 {
-    batch_gather_launcher<{{dtype}}, int64_t>(stream, batch_num, indices_num, instance_size, gather_dim_size, static_cast<const {{dtype}}*>(input), indices, workspace, static_cast<{{dtype}}*>(output));
+    const int64_t batch_size = *batch_num;
+    batch_gather_launcher<{{dtype}}, int64_t>(stream, batch_size, indices_num, instance_size, gather_dim_size, static_cast<const {{dtype}}*>(input), indices, workspace, static_cast<{{dtype}}*>(output));
 }
     """
 )
@@ -46,7 +47,7 @@ FUNC_SIGNATURE = jinja2.Template(
 void {{func_name}}(void* output,
                    const void* input,
                    const int64_t* indices,
-                   const {{index_type}} batch_num,
+                   const {{index_type}}* batch_num,
                    const {{index_type}} indices_num,
                    const {{index_type}} instance_size,
                    const {{index_type}} gather_dim_size,
@@ -184,7 +185,7 @@ def gen_function_call(func_attrs: Dict[str, Any], indent="  ", is_cuda=False) ->
         output=output_name,
         input=input_name,
         indices=indices_name,
-        batch_num=batch_num,
+        batch_num="&" + xshape[0]._attrs["name"],
         indices_num=indices_num,
         instance_size=instance_size,
         gather_dim_size=gather_dim_size,

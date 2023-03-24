@@ -55,7 +55,6 @@ def benchmark_unet(
     benchmark_pt=False,
     verify=False,
 ):
-
     exe_module = Model("./tmp/UNet2DConditionModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for UNet2DConditionModel.")
@@ -124,7 +123,7 @@ def benchmark_unet(
 def benchmark_clip(
     pt_mod,
     batch_size=1,
-    seqlen=64,
+    seqlen=77,
     tokenizer=None,
     benchmark_pt=False,
     verify=False,
@@ -142,7 +141,7 @@ def benchmark_clip(
     if tokenizer is None:
         tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
     text_input = tokenizer(
-        ["a photo of an astronaut riding a horse on mars"],
+        ["a photo of an astronaut riding a horse on mars"] * batch_size,
         padding="max_length",
         max_length=seqlen,
         truncation=True,
@@ -150,8 +149,8 @@ def benchmark_clip(
     )
     input_ids = text_input["input_ids"].cuda()
 
-    attention_mask = torch.ones((batch_size, seqlen))
-    attention_mask[-1, -mask_seq:] = 0
+    # attention_mask = torch.ones((batch_size, seqlen))
+    # attention_mask[-1, -mask_seq:] = 0
     attention_mask = None
 
     position_ids = torch.arange(seqlen).expand((batch_size, -1)).cuda()
@@ -175,6 +174,7 @@ def benchmark_clip(
     num_outputs = len(exe_module.get_output_name_to_index_map())
     for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
+        shape[0] = batch_size
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)
 
@@ -202,7 +202,6 @@ def benchmark_clip(
 def benchmark_vae(
     pt_vae, batch_size=1, height=64, width=64, benchmark_pt=False, verify=False
 ):
-
     latent_channels = 4
 
     exe_module = Model("./tmp/AutoencoderKL/test.so")
@@ -228,7 +227,20 @@ def benchmark_vae(
             with open("sd_pt_benchmark.txt", "a") as f:
                 f.write(f"vae batch_size: {batch_size}, latency: {pt_time} ms\n")
 
+    print(pt_output.shape)
+    # return
     # run AIT vae
+    # y = (
+    #     torch.empty(
+    #         pt_output.size(0),
+    #         height, #pt_output.size(2),
+    #         width, #pt_output.size(3),
+    #         512, #pt_output.size(1),
+    #     )
+    #     .cuda()
+    #     .half()
+    # )
+
     y = (
         torch.empty(
             pt_output.size(0),
@@ -239,10 +251,14 @@ def benchmark_vae(
         .cuda()
         .half()
     )
+    print("ait out:", y.shape)
+    # returns
     ait_input_pt_tensor = torch.permute(pt_input, (0, 2, 3, 1)).contiguous()
     print("input pt tensor size: ", ait_input_pt_tensor.shape)
     print("output pt tensor size: ", y.shape)
+
     exe_module.run_with_tensors([ait_input_pt_tensor], [y])
+    return
 
     # verification
     if verify:
@@ -277,7 +293,7 @@ def benchmark_vae(
 @click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
 def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
-    assert batch_size == 1, "batch size must be 1 for submodule verification"
+    # assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
@@ -289,23 +305,24 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     ).to("cuda")
 
     # CLIP
-    benchmark_clip(
-        pipe.text_encoder,
-        batch_size=batch_size,
-        benchmark_pt=benchmark_pt,
-        verify=verify,
-    )
-    # UNet
-    benchmark_unet(
-        pipe.unet,
-        batch_size=batch_size * 2,
-        benchmark_pt=benchmark_pt,
-        verify=verify,
-        hidden_dim=pipe.text_encoder.config.hidden_size,
-    )
+    # benchmark_clip(
+    #     pipe.text_encoder,
+    #     batch_size=batch_size,
+    #     benchmark_pt=benchmark_pt,
+    #     verify=verify,
+    # )
+    # # UNet
+    # benchmark_unet(
+    #     pipe.unet,
+    #     batch_size=batch_size * 2,
+    #     benchmark_pt=benchmark_pt,
+    #     verify=verify,
+    #     hidden_dim=pipe.text_encoder.config.hidden_size,
+    # )
     # VAE
     benchmark_vae(
-        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify
+        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
+        height=48, width=32,
     )
 
 

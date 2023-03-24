@@ -100,10 +100,12 @@ class Decoder(nn.Module):
 
         # middle
         sample = self.mid_block(sample)
+        # return sample
 
         # up
         for up_block in self.up_blocks:
             sample = up_block(sample)
+        # return sample
 
         sample = self.conv_norm_out(sample)
         sample = self.conv_out(sample)
@@ -144,7 +146,6 @@ class AutoencoderKL(nn.Module):
         )
 
     def decode(self, z: Tensor, return_dict: bool = True):
-
         z = self.post_quant_conv(z)
         dec = self.decoder(z)
         return dec

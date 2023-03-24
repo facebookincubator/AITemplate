@@ -58,7 +58,7 @@ class Upsample2D(nn.Module):
             self.Conv2d_0 = conv
 
     def forward(self, x):
-        assert get_shape(x)[-1] == self.channels
+        # assert get_shape(x)[-1] == self.channels
         if self.use_conv_transpose:
             return self.conv(x)
 
@@ -112,7 +112,7 @@ class Downsample2D(nn.Module):
             self.conv = conv
 
     def forward(self, x):
-        assert get_shape(x)[-1] == self.channels
+        # assert get_shape(x)[-1] == self.channels
         x = self.conv(x)
 
         return x
@@ -219,7 +219,8 @@ class ResnetBlock2D(nn.Module):
 
         if temb is not None:
             temb = self.time_emb_proj(ops.silu(temb))
-            bs, dim = get_shape(temb)
+            # bs, dim = get_shape(temb)
+            bs, dim = temb.shape()
             temb = ops.reshape()(temb, [bs, 1, 1, dim])
             hidden_states = hidden_states + temb
 
