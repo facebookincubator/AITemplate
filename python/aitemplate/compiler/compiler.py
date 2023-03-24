@@ -203,7 +203,8 @@ def compile_model(
     # arguments (even if we put quotes around it)!!
     test_name = test_name.replace(",", "_")
     test_dir = os.path.join(workdir, test_name)
-    profile_dir = workdir if profile_dir is None else profile_dir
+    if profile_dir is None:
+        profile_dir = workdir
 
     if debug_settings.dump_ait_to_py:
         dump_program(tensor, debug_settings.dump_ait_to_py)
