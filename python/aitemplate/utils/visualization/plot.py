@@ -69,6 +69,7 @@ def _gen_tensor_modal(tensor) -> str:
         if tensor._attrs["is_view_of"] is None
         else tensor._attrs["is_view_of"]._attrs["name"]
     )
+    content["is_input"] = str(tensor._attrs["is_input"])
     content["is_output"] = str(tensor._attrs["is_output"])
     content["is_param"] = str(tensor._attrs["is_param"])
     content["dtype"] = str(tensor._attrs["dtype"])
@@ -225,7 +226,7 @@ def plot_graph(
             op_node = None
             op_name = src_op._attrs["name"]
 
-            # replace op_name with an unique name, if provided
+            # replace op_name with a unique name, if provided
             if op_name is not None:
                 op_name = op_names.get(src_op, op_name)
 
@@ -259,7 +260,7 @@ def plot_graph(
             op_node = None
             op_name = dst_op._attrs["name"]
 
-            # replace op_name with an unique name, if provided
+            # replace op_name with a unique name, if provided
             if op_name is not None:
                 op_name = op_names.get(dst_op, op_name)
 
