@@ -100,7 +100,6 @@ EXEC_TEMPLATE = jinja2.Template(
 
 {{indent}}};
 {% if is_profiler %}
-{{indent}}// https://youtu.be/-Rp7UPbhErE
 {{indent}}size_t workspace_size = gemm_op.get_workspace_size(arguments);
 {{indent}}cutlass::device_memory::allocation<uint8_t> local_workspace(workspace_size);
 
