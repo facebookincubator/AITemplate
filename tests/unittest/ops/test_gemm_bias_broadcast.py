@@ -236,8 +236,8 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
     def test_bias_rcr_add_add_relu_rocm(self):
         self._test_bias_rcr_add_add_relu(8, None, None, 8, 8)
 
-    def _test_bias_rcr_mul(self, m, m0, m1, k, n, dtype="float16"):
-        target = detect_target()
+    def _test_bias_rcr_mul(self, m, m0, m1, k, n, use_fp16_acc=False, dtype="float16"):
+        target = detect_target(use_fp16_acc=use_fp16_acc)
         self._init_tensors(m, k, n, m0, m1, dtype)
         OP = ops.gemm_rcr_bias_mul()
         Y = OP(self.X, self.W, self.B, self.D0)
@@ -345,6 +345,14 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="bfloat16")
         self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="bfloat16")
         self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="bfloat16")
+
+    def test_gemm_bias_broadcast_use_fp16_acc_sm80(self):
+        self._test_bias_rcr_mul(
+            None, 2, 32, 256, 128, use_fp16_acc=True, dtype="float32"
+        )
+        self._test_bias_rcr_mul(
+            None, 2, 32, 256, 128, use_fp16_acc=True, dtype="bfloat16"
+        )
 
 
 filter_test_cases_by_test_env(GEMMBiasBroadcastTestCase)

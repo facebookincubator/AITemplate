@@ -365,6 +365,7 @@ def gemm_bias_broadcast_instance(
     if (
         "use_fp16_acc" in Target.current()._kwargs
         and Target.current()._kwargs["use_fp16_acc"]
+        and elem_type == "cutlass::half_t"
     ):
         acc_type = "cutlass::half_t"
     else:
