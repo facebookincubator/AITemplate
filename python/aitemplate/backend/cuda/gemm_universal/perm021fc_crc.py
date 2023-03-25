@@ -53,7 +53,7 @@ def gemm_crc_config(func_attrs, dtype="float16"):
             b_layout=cutlass_lib.library.LayoutType.RowMajor,
             c_layout=cutlass_lib.library.LayoutType.ColumnMajor,
             dtype=func_attrs["inputs"][0].dtype(),
-            epiligue_name=func_attrs["epilogue"],
+            epilogue_name=func_attrs["epilogue"],
         )
 
     func_attrs["op_instance"] = common.extract_config(fproc)
