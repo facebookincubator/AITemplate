@@ -169,10 +169,13 @@ void {{function_name}} (
   int i32_out_h = *out_h;
   int i32_out_w = *out_w;
 
+  std::cout << " {{function_name}} " << std::endl;
   std::cout  << "i32_batch: " << i32_batch << " "
              << "i32_in_h: " << i32_in_h << " "
              << "i32_in_w: " << i32_in_w << " "
-             << "i32_in_ch: " << i32_in_ch << std::endl;
+             << "i32_in_ch: " << i32_in_ch << " "
+             << "stride: " << stride << " "
+             << "pad: " << pad << std::endl;
 
   using cutlass::layout::TensorNHWC;
   TensorNHWC layout_A(TensorNHWC::packed(cutlass::make_Coord(i32_batch, i32_in_h, i32_in_w, i32_in_ch)));

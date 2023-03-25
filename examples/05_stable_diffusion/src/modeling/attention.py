@@ -93,7 +93,7 @@ class AttentionBlock(nn.Module):
         residual = hidden_states
 
         # norm
-        # hidden_states = self.group_norm(hidden_states)
+        hidden_states = self.group_norm(hidden_states)
         o_shape = hidden_states.shape()
         batch_dim = o_shape[0]
         # o_shape = ops.size()(hidden_states)
@@ -118,7 +118,7 @@ class AttentionBlock(nn.Module):
 
         res = self.attention(hidden_states, hidden_states, hidden_states, residual) * (
             1 / self.rescale_output_factor
-        ) if 1 else hidden_states
+        )
 
         res = reshape()(res, o_shape)
 

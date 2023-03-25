@@ -64,25 +64,25 @@ def benchmark_unet(
     pt_mod = pt_mod.eval()
 
     latent_model_input_pt = torch.randn(batch_size, 4, height, width).cuda().half()
-    text_embeddings_pt = torch.randn(batch_size, 64, hidden_dim).cuda().half()
+    text_embeddings_pt = torch.randn(batch_size, 77, hidden_dim).cuda().half()
     timesteps_pt = torch.Tensor([1, 1]).cuda().half()
 
-    with autocast("cuda"):
-        pt_ys = pt_mod(
-            latent_model_input_pt,
-            timesteps_pt,
-            encoder_hidden_states=text_embeddings_pt,
-        ).sample
+    # with autocast("cuda"):
+    #     pt_ys = pt_mod(
+    #         latent_model_input_pt,
+    #         timesteps_pt,
+    #         encoder_hidden_states=text_embeddings_pt,
+    #     ).sample
 
-        # PT benchmark
-        if benchmark_pt:
-            args = (latent_model_input_pt, 1, text_embeddings_pt)
-            pt_time = benchmark_torch_function(100, pt_mod, *args)
-            print(f"PT batch_size: {batch_size}, {pt_time} ms")
-            with open("sd_pt_benchmark.txt", "a") as f:
-                f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
+    #     # PT benchmark
+    #     if benchmark_pt:
+    #         args = (latent_model_input_pt, 1, text_embeddings_pt)
+    #         pt_time = benchmark_torch_function(100, pt_mod, *args)
+    #         print(f"PT batch_size: {batch_size}, {pt_time} ms")
+    #         with open("sd_pt_benchmark.txt", "a") as f:
+    #             f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
 
-    print("pt output:", pt_ys.shape)
+    # print("pt output:", pt_ys.shape)
 
     # run AIT unet model
     inputs = {
@@ -97,6 +97,7 @@ def benchmark_unet(
         shape = exe_module.get_output_maximum_shape(i)
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)
+    return
 
     # verification
     y_transpose = ys[0].permute((0, 3, 1, 2))
@@ -258,7 +259,7 @@ def benchmark_vae(
     print("output pt tensor size: ", y.shape)
 
     exe_module.run_with_tensors([ait_input_pt_tensor], [y])
-    return
+    # return
 
     # verification
     if verify:
@@ -271,6 +272,7 @@ def benchmark_vae(
             rtol=eps,
         )
         logging.info("VAE Verification done!")
+        return
 
     # AIT benchmark:
     # warmup
@@ -312,18 +314,19 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     #     verify=verify,
     # )
     # # UNet
-    # benchmark_unet(
-    #     pipe.unet,
-    #     batch_size=batch_size * 2,
-    #     benchmark_pt=benchmark_pt,
-    #     verify=verify,
-    #     hidden_dim=pipe.text_encoder.config.hidden_size,
-    # )
-    # VAE
-    benchmark_vae(
-        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
-        height=48, width=32,
+    benchmark_unet(
+        pipe.unet,
+        batch_size=batch_size * 2,
+        benchmark_pt=benchmark_pt,
+        verify=verify,
+        hidden_dim=pipe.text_encoder.config.hidden_size,
+        height=64, width=64,
     )
+    # VAE
+    # benchmark_vae(
+    #     pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
+    #     height=32, width=32,
+    # )
 
 
 if __name__ == "__main__":

@@ -313,7 +313,18 @@ void {{function_name}} (
     {{index_type}}* out_w,
     {{prefix}}Stream_t stream
 ) {
+
+
+  std::cout  << "out_h = " << *out_h << ", "  << "out_w = " << *out_w << std::endl;
+
   {{shape_function}}
+
+
+  std::cout  << " {{function_name}} " << std::endl;
+  std::cout  << "HI = " << HI << ", "  << "WI = " << WI << std::endl;
+  std::cout  << "HO = " << HO << ", "  << "WO = " << WO << std::endl;
+  std::cout  << "out_h = " << *out_h << ", "  << "out_w = " << *out_w << std::endl;
+
   {{exec_paths}}
   throw std::runtime_error(
       "Unsupported workload for this bilinear upsampling specialization."

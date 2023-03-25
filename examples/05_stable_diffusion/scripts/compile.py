@@ -75,18 +75,18 @@ def compile_diffusers(
     # )
     # return
     # UNet
-    # compile_unet(
-    #     pipe.unet,
-    #     batch_size=batch_size * 2,
-    #     width=ww,
-    #     height=hh,
-    #     use_fp16_acc=use_fp16_acc,
-    #     convert_conv_to_gemm=convert_conv_to_gemm,
-    #     hidden_dim=pipe.unet.config.cross_attention_dim,
-    #     attention_head_dim=pipe.unet.config.attention_head_dim,
-    #     use_linear_projection=pipe.unet.config.get("use_linear_projection", False),
-    # )
-    # return
+    compile_unet(
+        pipe.unet,
+        batch_size=batch_size * 2,
+        width=ww,
+        height=hh,
+        use_fp16_acc=use_fp16_acc,
+        convert_conv_to_gemm=convert_conv_to_gemm,
+        hidden_dim=pipe.unet.config.cross_attention_dim,
+        attention_head_dim=pipe.unet.config.attention_head_dim,
+        use_linear_projection=pipe.unet.config.get("use_linear_projection", False),
+    )
+    return
     # compile_unet(
     #     pipe.unet,
     #     batch_size=batch_size * 2,

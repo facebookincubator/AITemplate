@@ -118,3 +118,24 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
                 # the batch_dim wasn't named above, so we name it here
                 jagged_int_var_name = jagged_int_var._attrs["name"]
                 batch_dim._attrs["name"] = f"{jagged_int_var_name}_jagged_batch_dim"
+
+def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
+    """Rename all shape variable that are identical to the same name.
+
+    Parameters
+    ----------
+    sorted_graph : List[Tensor]
+        Input graph to be simplified
+    """
+    symbolic_to_name = {}
+    for node in sorted_graph:
+        tensor_name = node._attrs["name"]
+        for i, dim in enumerate(node._attrs["shape"]):
+            if not isinstance(dim, JaggedIntVar):
+                dim_sym = dim.symbolic_value()
+                if dim_sym in symbolic_to_name:
+                    dim._attrs["name"] = symbolic_to_name[dim_sym]
+                else:
+                    dim_name = "{tname}_dim_{idx}".format(tname=tensor_name, idx=i)
+                    symbolic_to_name[dim_sym] = dim_name
+                    dim._attrs["name"] = dim_name

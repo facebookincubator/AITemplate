@@ -77,7 +77,7 @@ def compile_unet(
     width_d = IntVar(values=[32, 64], name="width")
 
     latent_model_input_ait = Tensor(
-        [batch_size, height, width, 4], name="input0", is_input=True
+        [batch_size, height_d, width_d, 4], name="input0", is_input=True
     )
     timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
     text_embeddings_pt_ait = Tensor(
