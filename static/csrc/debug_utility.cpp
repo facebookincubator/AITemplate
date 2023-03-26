@@ -35,7 +35,7 @@ __global__ void inf_and_nan_checker(const half* tensor, int64_t elem_cnt) {
   }
   if (nan_num > 0 || pos_inf > 0 || neg_inf > 0) {
     printf(
-        "contains NaN: %ld, +INF: %ld, -INF: %ld, total elements: %ld\n",
+        "contains NaN: %lld, +INF: %lld, -INF: %lld, total elements: %lld\n",
         nan_num,
         pos_inf,
         neg_inf,
