@@ -42,9 +42,9 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         Return a dict of parameters used for constructing bmm ops
         """
         B_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_size")
-        M_dim = IntImm(M)
-        N_dim = IntImm(N)
-        K_dim = IntImm(K)
+        M_dim = shape_utils.gen_int_var_min_max(M) if isinstance(M, list) else IntImm(M)
+        N_dim = shape_utils.gen_int_var_min_max(N) if isinstance(N, list) else IntImm(N)
+        K_dim = shape_utils.gen_int_var_min_max(K) if isinstance(K, list) else IntImm(K)
         a_shape = {
             "r": [B_dim, M_dim, K_dim],
             "c": [B_dim, K_dim, M_dim],
@@ -99,7 +99,8 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         a_shape = bmm_params["a_shape"]
 
         slice_input_tensor_shape = [a_shape[0]] + [
-            IntImm(d) for d in slice_input_shape[1:]
+            shape_utils.gen_int_var_min_max(d) if isinstance(d, list) else IntImm(d)
+            for d in slice_input_shape[1:]
         ]
         X = Tensor(
             shape=slice_input_tensor_shape,
@@ -146,8 +147,19 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), expected_num_ops)
 
-        for batch in batch_sizes:
-            x_pt = get_random_torch_tensor([batch] + list(slice_input_shape[1:]), dtype)
+        dynamic_dim = [d for d in slice_input_shape[1:] if isinstance(d, list)]
+        assert (
+            len(dynamic_dim) == 0 or len(dynamic_dim) == 1
+        ), f"expected at most one dynamic dim besides batch dim in {slice_input_shape=}"
+        if len(dynamic_dim) == 1:
+            assert len(dynamic_dim[0]) == len(
+                batch_sizes
+            ), f"expected {dynamic_dim[0]} and {batch_sizes=} have the same rank"
+        for idx, batch in enumerate(batch_sizes):
+            input_shape_pt = [batch] + [
+                d[idx] if isinstance(d, list) else d for d in slice_input_shape[1:]
+            ]
+            x_pt = get_random_torch_tensor(input_shape_pt, dtype)
             b_pt = get_random_torch_tensor(
                 [batch, b_shape[1].value(), b_shape[2].value()], dtype
             )
@@ -266,6 +278,23 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         )
 
     def test_slice_bmm_rrc_fusion_a(self):
+        # non-fusible due to dynamic dimension
+        slice_start_indices = [0, 2, 0]
+        slice_end_indices = [None, 6, None]
+        K = 2
+        self._test_slice_bmm_xxx_fusion_a(
+            bmm_op_fn=ops.bmm_rrc_add,
+            M=(slice_end_indices[1] - slice_start_indices[1]),
+            N=8,
+            K=K,
+            slice_input_shape=(2, [10, 20], K),
+            slice_start_indices=slice_start_indices,
+            slice_end_indices=slice_end_indices,
+            expected_num_tensors=5,
+            expected_num_ops=2,
+            test_name="slice_bmm_rrc_fusion_dynamic_a",
+        )
+
         slice_start_indices = [0, 2, 0]
         slice_end_indices = [None, 6, None]
         K = 2
@@ -358,7 +387,8 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         b_shape = bmm_params["b_shape"]
 
         slice_input_tensor_shape = [b_shape[0]] + [
-            IntImm(d) for d in slice_input_shape[1:]
+            shape_utils.gen_int_var_min_max(d) if isinstance(d, list) else IntImm(d)
+            for d in slice_input_shape[1:]
         ]
         X = Tensor(
             shape=slice_input_tensor_shape,
@@ -379,7 +409,7 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         )
         assert shape_utils.is_same_shape(
             b_shape, B.shape()
-        ), f"expected {a_shape=} and {A.shape()=} are the same shape"
+        ), f"expected {b_shape=} and {B.shape()=} are the same shape"
         input_tensors = [A, B]
         c_shape = bmm_params["c_shape"]
         has_add = "_add" in bmm_op._attrs["op"]
@@ -405,8 +435,19 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), expected_num_ops)
 
-        for batch in batch_sizes:
-            x_pt = get_random_torch_tensor([batch] + list(slice_input_shape[1:]), dtype)
+        dynamic_dim = [d for d in slice_input_shape[1:] if isinstance(d, list)]
+        assert (
+            len(dynamic_dim) == 0 or len(dynamic_dim) == 1
+        ), f"expected at most one dynamic dim besides batch dim in {slice_input_shape=}"
+        if len(dynamic_dim) == 1:
+            assert len(dynamic_dim[0]) == len(
+                batch_sizes
+            ), f"expected {dynamic_dim[0]} and {batch_sizes=} have the same rank"
+        for idx, batch in enumerate(batch_sizes):
+            input_shape_pt = [batch] + [
+                d[idx] if isinstance(d, list) else d for d in slice_input_shape[1:]
+            ]
+            x_pt = get_random_torch_tensor(input_shape_pt, dtype)
             a_pt = get_random_torch_tensor(
                 [batch, a_shape[1].value(), a_shape[2].value()], dtype
             )
@@ -475,6 +516,23 @@ class SliceBMMFusionTestCase(unittest.TestCase):
         )
 
     def test_slice_bmm_ccr_fusion_b(self):
+        # non-fusible
+        slice_start_indices = [0, 0, 2]
+        slice_end_indices = [None, None, 6]
+        N = 8
+        self._test_slice_bmm_xxx_fusion_b(
+            bmm_op_fn=ops.bmm_ccr_add,
+            M=6,
+            N=N,
+            K=(slice_end_indices[-1] - slice_start_indices[-1]),
+            slice_input_shape=(2, N, 7),
+            slice_start_indices=slice_start_indices,
+            slice_end_indices=slice_end_indices,
+            expected_num_tensors=5,
+            expected_num_ops=2,
+            test_name="slice_bmm_ccr_fusion_b",
+        )
+
         slice_start_indices = [0, 1, 0]
         slice_end_indices = [None, 6, None]
         K = 4
@@ -523,6 +581,41 @@ class SliceBMMFusionTestCase(unittest.TestCase):
             expected_num_tensors=4,
             expected_num_ops=1,
             test_name="slice_bmm_ccc_fusion_b",
+        )
+
+    def test_slice_bmm_rrr_fusion_b(self):
+        # non-fusible
+        slice_start_indices = [0, 0, 0]
+        slice_end_indices = [None, None, 4]
+        K = 8
+        self._test_slice_bmm_xxx_fusion_b(
+            bmm_op_fn=ops.bmm_rrr_add,
+            M=9,
+            N=(slice_end_indices[-1] - slice_start_indices[-1]),
+            K=K,
+            slice_input_shape=(2, K, 7),
+            slice_start_indices=slice_start_indices,
+            slice_end_indices=slice_end_indices,
+            expected_num_tensors=5,
+            expected_num_ops=2,
+            test_name="slice_bmm_rrr_fusion_b",
+        )
+
+        # non-fusible due to dynamic cim
+        slice_start_indices = [0, 0, 0]
+        slice_end_indices = [None, None, 4]
+        K = 8
+        self._test_slice_bmm_xxx_fusion_b(
+            bmm_op_fn=ops.bmm_rrr_add,
+            M=4,
+            N=(slice_end_indices[-1] - slice_start_indices[-1]),
+            K=K,
+            slice_input_shape=(2, K, [10, 20]),
+            slice_start_indices=slice_start_indices,
+            slice_end_indices=slice_end_indices,
+            expected_num_tensors=5,
+            expected_num_ops=2,
+            test_name="slice_bmm_rrr_fusion_dynamic_b",
         )
 
 

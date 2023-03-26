@@ -1093,11 +1093,12 @@ def gen_local_dim_defs(func_attrs, indent="  "):
             # skip dynamic dims
             if isinstance(dim, IntImm):
                 input_shape = func_attrs["inputs"][input_idx]._attrs["shape"]
-                name = input_shape[idx]._attrs["name"]
-                if name in dims:
-                    assert dims[name] == dim.value(), "bmm inputs shape mismatch"
-                else:
-                    dims[name] = dim.value()
+                if idx < len(input_shape):
+                    name = input_shape[idx]._attrs["name"]
+                    if name in dims:
+                        assert dims[name] == dim.value(), "bmm inputs shape mismatch"
+                    else:
+                        dims[name] = dim.value()
     return DIM_DEFS_TEMPLATE.render(dims=dims, indent=indent)
 
 

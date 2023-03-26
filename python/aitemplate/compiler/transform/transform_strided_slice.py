@@ -135,13 +135,22 @@ def _valid_alignment(
     if op_type.startswith("bmm"):
         bmm_inputs = op._attrs["inputs"]
         if bmm_inputs[0] is slice_output_tensor:
+            # _get_a_leading_dim(m, k)
             leading_dim = op._get_a_leading_dim(
-                slice_input_shape[-2], slice_input_shape[-1]
+                slice_input_shape[op._get_m_idx_in_a(slice_input_shape)],
+                slice_input_shape[op._get_k_idx_in_a(slice_input_shape)],
             )
         elif bmm_inputs[1] is slice_output_tensor:
+            # _get_a_leading_dim(n, k)
             leading_dim = op._get_b_leading_dim(
-                slice_input_shape[-2], slice_input_shape[-1]
+                slice_input_shape[op._get_n_idx_in_b(slice_input_shape)],
+                slice_input_shape[op._get_k_idx_in_b(slice_input_shape)],
             )
+        else:
+            # TODO: support strided access for other inputs
+            return False
+        if not isinstance(leading_dim, IntImm):
+            return False
         alignment = math.gcd(leading_dim.value(), start_offset)
         return utils_alignment.valid_alignment(alignment, dtype)
 
