@@ -171,7 +171,11 @@ def _try_move_view_op(
         new_view_output_shapes.append(input_view_shape)
     # Now we start modifying the graph.
     # make a new output tensor for the first cat
-    new_first_cat_output = Tensor(original_view_shape, first_cat_output._attrs["name"])
+    new_first_cat_output = Tensor(
+        original_view_shape,
+        first_cat_output._attrs["name"],
+        dtype=first_cat_output.dtype(),
+    )
     transform_utils.replace_tensor(first_cat_output, new_first_cat_output)
     first_cat._attrs["outputs"][0] = new_first_cat_output
     new_first_cat_output._attrs["src_ops"].add(first_cat)
@@ -179,8 +183,8 @@ def _try_move_view_op(
     for dst_op in new_first_cat_output._attrs["dst_ops"]:
         dst_op_type = dst_op._attrs["op"]
         if dst_op_type in _SUPPORTED_VIEW_OPS:
-            # it's safe to remove the old view ops, because they have the same
-            # output shape
+            # we've ensured all view ops have the same output shape before entering
+            # this function, so it's safe to remove the old view ops
             transform_utils.remove_view_op_from_sorted_graph(dst_op)
         else:
             # we need to place a view op as we've changed the concat's output shape
