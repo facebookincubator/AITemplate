@@ -15,6 +15,7 @@
 """
 build a test module from a tensor
 """
+import inspect
 import logging
 import os
 from datetime import datetime
@@ -28,6 +29,7 @@ from aitemplate.compiler.base import (
     JaggedIntVar,
     Tensor,
 )
+from aitemplate.compiler.lockfile import FileLock
 
 from aitemplate.compiler.model import (
     AIT_DEFAULT_NUM_RUNTIMES,
@@ -209,118 +211,156 @@ def compile_model(
     if debug_settings.dump_ait_to_py:
         dump_program(tensor, debug_settings.dump_ait_to_py)
 
-    if int(recompile) == 1:
-        os.makedirs(test_dir, exist_ok=True)
-        with target:
-            graph = compiler.transform.toposort(tensor)
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "toposort")
+    def get_caller_info():
+        try:
+            frame = inspect.currentframe().f_back.f_back
+            filename = inspect.getframeinfo(frame).filename
+            basename = os.path.basename(filename)
+            lineno = inspect.getframeinfo(frame).lineno
+            return f"{basename}:{lineno}"
+        except AttributeError:
+            return "<unknown>"
 
-            output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
-            _validate_tensor_args(graph, output_tensors)
-
-            compiler.transform.bind_constants(graph, constants)
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "bind_constants")
-
-            compiler.transform.remove_unused_ops(graph)
-            graph_utils.dump_graph_debug_str_to_file(
-                graph, test_dir, "remove_unused_ops"
-            )
-
-            compiler.transform.remove_no_ops(graph)
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "remove_no_ops")
-
-            compiler.transform.name_graph(graph)
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
-
-            compiler.transform.mark_param_tensor(graph)
-            graph_utils.dump_graph_debug_str_to_file(
-                graph, test_dir, "mark_param_tensor"
-            )
-
-            start_t = datetime.now()
-            graph = compiler.transform.optimize_graph(
-                graph, test_dir, optimize=do_optimize_graph
-            )
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "optimize_graph")
-            _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
-
-            compiler.transform.mark_special_views(graph)
-            compiler.transform.refine_graph(graph)
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "refine_graph")
-
-            if profile_devs is None:
-                device_env = os.getenv(target.dev_select_flag(), None)
-                if device_env is None:
-                    profile_devs = [0]
-                else:
-                    profile_devs = device_env.split(",")
-            compiler.transform.profile(
-                graph, profile_dir, profile_devs, dynamic_profiling_strategy
-            )
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "profile")
-
-            start_t = datetime.now()
-            constant_folding_workdir = os.path.join(workdir, test_name)
-            os.makedirs(constant_folding_workdir, exist_ok=True)
-            (
-                graph,
-                constant_folding_file_pairs,
-                constant_folding_inputs,
-            ) = compiler.transform.constant_folding(graph, workdir, test_name)
-            graph_utils.dump_graph_debug_str_to_file(
-                graph, test_dir, "constant_folding"
-            )
-            _LOGGER.info(f"folded constants elapsed time: {elapsed_dt_sec(start_t)}")
-
-            (
-                max_blob,
-                max_constant_blob,
-                workspace,
-            ) = compiler.transform.memory_planning(graph)
-            _verify_outputs_still_in_graph(graph, output_tensors)
-            _mark_isolated_int_vars(graph)
-            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "memory_planning")
-
-            file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
-            file_pairs.extend(constant_folding_file_pairs)
-
-            # It's possible that the original output tensor has been replaced with a new tensor.
-            # Preserve original output tensors' orders but use the new tensors.
-            new_output_tensor_dict = {
-                tensor._attrs["name"]: tensor
-                for tensor in graph
-                if tensor._attrs["is_output"]
-            }
-            output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
-            output_tensors = [
-                new_output_tensor_dict[tensor._attrs["name"]]
-                for tensor in output_tensors
-            ]
-
-            main_pairs = backend.codegen.gen_library_src(
-                graph,
-                max_blob,
-                max_constant_blob,
-                workspace,
-                workdir,
-                output_tensors,
-                test_name,
-                additional_unbound_constants=constant_folding_inputs,
-                debug_settings=debug_settings,
-            )
-            file_pairs.extend(main_pairs)
-
-            start_t = datetime.now()
-            compile_engine = backend.builder.Builder()
-            compile_engine.make(
-                file_pairs, dll_name, workdir, test_name, debug_settings
-            )
-            _LOGGER.info(
-                f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",
-            )
-
-    module = Model(
-        os.path.join(workdir, test_name, dll_name), num_runtimes, allocator_kind
+    _LOGGER.info(
+        f"aitemplate.compiler.compile_model called with build directory='{test_dir}'. PID: {os.getpid()}. Caller: {get_caller_info()}"
     )
-    module.debug_sorted_graph = graph
-    return module
+    os.makedirs(test_dir, exist_ok=True)
+
+    def lock_contention_callback():
+        _LOGGER.warn(
+            f"Race condition prevented by FileLock in compile_model. Waiting on lock release. Build directory='{test_dir}'. PID: {os.getpid()}."
+        )
+
+    # This lock should prevent race conditions from multiple
+    # processes building in the same directory. This can otherwise
+    # lead to hard to diagnose errors during parallel unit tests.
+    with FileLock(
+        os.path.join(test_dir, ".compile_model.lock"),
+        timeout=360.0,
+        retry_interval=0.5,
+        lock_contention_callback=lock_contention_callback,
+    ):
+        if int(recompile) == 1:
+            with target:
+                graph = compiler.transform.toposort(tensor)
+                graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "toposort")
+
+                output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
+                _validate_tensor_args(graph, output_tensors)
+
+                compiler.transform.bind_constants(graph, constants)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "bind_constants"
+                )
+
+                compiler.transform.remove_unused_ops(graph)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "remove_unused_ops"
+                )
+
+                compiler.transform.remove_no_ops(graph)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "remove_no_ops"
+                )
+
+                compiler.transform.name_graph(graph)
+                graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
+
+                compiler.transform.mark_param_tensor(graph)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "mark_param_tensor"
+                )
+
+                start_t = datetime.now()
+                graph = compiler.transform.optimize_graph(graph, test_dir)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "optimize_graph"
+                )
+                _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
+
+                compiler.transform.mark_special_views(graph)
+                compiler.transform.refine_graph(graph)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "refine_graph"
+                )
+
+                if profile_devs is None:
+                    device_env = os.getenv(target.dev_select_flag(), None)
+                    if device_env is None:
+                        profile_devs = [0]
+                    else:
+                        profile_devs = device_env.split(",")
+                compiler.transform.profile(
+                    graph, profile_dir, profile_devs, dynamic_profiling_strategy
+                )
+                graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "profile")
+
+                start_t = datetime.now()
+                constant_folding_workdir = os.path.join(workdir, test_name)
+                os.makedirs(constant_folding_workdir, exist_ok=True)
+                (
+                    graph,
+                    constant_folding_file_pairs,
+                    constant_folding_inputs,
+                ) = compiler.transform.constant_folding(graph, workdir, test_name)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "constant_folding"
+                )
+                _LOGGER.info(
+                    f"folded constants elapsed time: {elapsed_dt_sec(start_t)}"
+                )
+
+                (
+                    max_blob,
+                    max_constant_blob,
+                    workspace,
+                ) = compiler.transform.memory_planning(graph)
+                _verify_outputs_still_in_graph(graph, output_tensors)
+                _mark_isolated_int_vars(graph)
+                graph_utils.dump_graph_debug_str_to_file(
+                    graph, test_dir, "memory_planning"
+                )
+
+                file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
+                file_pairs.extend(constant_folding_file_pairs)
+
+                # It's possible that the original output tensor has been replaced with a new tensor.
+                # Preserve original output tensors' orders but use the new tensors.
+                new_output_tensor_dict = {
+                    tensor._attrs["name"]: tensor
+                    for tensor in graph
+                    if tensor._attrs["is_output"]
+                }
+                output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
+                output_tensors = [
+                    new_output_tensor_dict[tensor._attrs["name"]]
+                    for tensor in output_tensors
+                ]
+
+                main_pairs = backend.codegen.gen_library_src(
+                    graph,
+                    max_blob,
+                    max_constant_blob,
+                    workspace,
+                    workdir,
+                    output_tensors,
+                    test_name,
+                    additional_unbound_constants=constant_folding_inputs,
+                    debug_settings=debug_settings,
+                )
+                file_pairs.extend(main_pairs)
+
+                start_t = datetime.now()
+                compile_engine = backend.builder.Builder()
+                compile_engine.make(
+                    file_pairs, dll_name, workdir, test_name, debug_settings
+                )
+                _LOGGER.info(
+                    f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",
+                )
+
+        module = Model(
+            os.path.join(workdir, test_name, dll_name), num_runtimes, allocator_kind
+        )
+        module.debug_sorted_graph = graph
+        return module
