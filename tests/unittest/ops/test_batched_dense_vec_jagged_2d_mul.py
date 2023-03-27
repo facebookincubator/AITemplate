@@ -19,7 +19,7 @@ import unittest
 from typing import List
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar, JaggedDim, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.jagged_utils import batched_dense_vec_jagged_2d_mul_ref
@@ -111,7 +111,7 @@ class BatchedDenseVecJagged2DMulTestCase(unittest.TestCase):
         assert JAGGED.is_jagged()
         assert not RESULT.is_jagged()
 
-        model = compile_model(
+        model = safe_compile_model(
             [RESULT],
             detect_target(use_fp16_acc=use_fp16_acc),
             "./tmp",

@@ -19,7 +19,7 @@ import unittest
 import torch
 
 from aitemplate import compiler
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar, JaggedDim, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target
@@ -63,7 +63,7 @@ class ExpandTestCase(unittest.TestCase):
         x_pt = get_random_torch_tensor([1, 2, 3], dtype=dtype)
         z_pt = x_pt * x_pt
         z_ait = torch.empty_like(z_pt)
-        with compile_model(z, detect_target(), "./tmp", test_name) as module:
+        with safe_compile_model(z, detect_target(), "./tmp", test_name) as module:
             module.run_with_tensors({"input_0": x_pt}, {"output_0": z_ait})
             self.assertFalse(graph_has_op(module.debug_sorted_graph, "expand"))
             self.assertTrue(torch.equal(z_ait, z_pt))
@@ -101,7 +101,7 @@ class ExpandTestCase(unittest.TestCase):
         x_pt = get_random_torch_tensor([1, 2, 3], dtype=dtype)
         z_pt = x_pt * x_pt
         z_ait = torch.empty_like(z_pt)
-        with compile_model(z, detect_target(), "./tmp", test_name) as module:
+        with safe_compile_model(z, detect_target(), "./tmp", test_name) as module:
             module.run_with_tensors({"input_0": x_pt}, {"output_0": z_ait})
             self.assertFalse(graph_has_op(module.debug_sorted_graph, "expand"))
             self.assertTrue(torch.equal(z_ait, z_pt))
@@ -148,7 +148,7 @@ class ExpandTestCase(unittest.TestCase):
         y_pt = get_random_torch_tensor([1, 2, 3], dtype=dtype)
         z_pt = x_pt * y_pt
         z_ait = torch.empty_like(z_pt)
-        with compile_model(z, detect_target(), "./tmp", test_name) as module:
+        with safe_compile_model(z, detect_target(), "./tmp", test_name) as module:
             module.run_with_tensors(
                 {"input_0": x_pt, "input_1": y_pt}, {"output_0": z_ait}
             )
@@ -392,7 +392,7 @@ class ExpandTestCase(unittest.TestCase):
         start_event_pt = torch.cuda.Event(enable_timing=True)
         end_event_pt = torch.cuda.Event(enable_timing=True)
         num_iters = 20
-        with compile_model(
+        with safe_compile_model(
             y, detect_target(), "./tmp", "test_expand_codegen_" + name
         ) as module:
             module.run_with_tensors({"X": x_pt}, {"Y": y_ait})

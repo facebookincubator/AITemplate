@@ -16,7 +16,7 @@ import itertools
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -79,7 +79,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -266,7 +266,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -454,7 +454,7 @@ class SliceElemwiseFusionTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph

@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -47,7 +47,7 @@ class BMMPermuteTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rrr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rrr_{}".format(test_name))
 
         for (b, m) in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
@@ -89,7 +89,7 @@ class BMMPermuteTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rcr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rcr_{}".format(test_name))
 
         for (b, m) in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)

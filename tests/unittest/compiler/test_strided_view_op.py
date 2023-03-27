@@ -19,7 +19,7 @@ from typing import Callable, List, Tuple
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
@@ -194,7 +194,7 @@ class StridedViewOpTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self._test_id}.so"
-        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -250,7 +250,7 @@ class StridedViewOpTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self._test_id}.so"
-        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -308,7 +308,7 @@ class StridedViewOpTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self._test_id}.so"
-        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -351,7 +351,7 @@ class StridedViewOpTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self._test_id}.so"
-        module = compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -389,7 +389,9 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y1, Y2], target, "./tmp", f"two_view_outputs_{dtype}")
+        module = safe_compile_model(
+            [Y1, Y2], target, "./tmp", f"two_view_outputs_{dtype}"
+        )
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -429,7 +431,7 @@ class StridedViewOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             [Y1, Y2], target, "./tmp", f"two_parallel_view_outputs_{dtype}"
         )
 

@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -51,7 +51,7 @@ class PadLastDim(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor([NN, HH, WW, CI], dtype=dtype)
         Pad_pt = get_torch_zeros_tensor([NN, HH, WW, CO - CI], dtype=dtype)
@@ -106,7 +106,7 @@ class PadLastDim(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor([NN, CI], dtype=dtype)
         Pad_pt = get_torch_zeros_tensor([NN, CO - CI], dtype=dtype)

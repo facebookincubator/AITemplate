@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 
 from aitemplate.frontend import Tensor
@@ -58,7 +58,7 @@ class RemoveUnusedOpsTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b in batch_size:
             X_shape_pt = (b, *X_shape)

@@ -21,7 +21,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils
@@ -79,7 +79,7 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", f"bmm_{test_name}_permute", dll_name=dll_name
         )
 
@@ -152,7 +152,7 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", f"bmm_{test_name}_permute", dll_name=dll_name
         )
 

@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -89,7 +89,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", testname)
+        module = safe_compile_model(Y, target, "./tmp", testname)
         graph = module.debug_sorted_graph
         if not with_padding:
             assert len(graph) == 3, (
@@ -199,7 +199,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", testname)
+        module = safe_compile_model(Y, target, "./tmp", testname)
         graph = module.debug_sorted_graph
         assert len(graph) == 3, (
             f"The final graph should have only 3 tensors. "
@@ -285,7 +285,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", testname)
+        module = safe_compile_model(Y, target, "./tmp", testname)
         graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(graph)
         if should_fail:

@@ -18,7 +18,7 @@ from typing import List
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -62,7 +62,7 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model([output, gemm_tensor], target, "./tmp", testname)
+        module = safe_compile_model([output, gemm_tensor], target, "./tmp", testname)
 
         output_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -137,7 +137,7 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
         M, K, N = 8, 8, 16
         _, _, output = self._create_gemm_rrr_graph(M, K, N, dtype)
 
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", f"test_small_nk_fail_{M}_{K}_{N}_{dtype}"
         )
 
@@ -196,7 +196,7 @@ class BmmRcrN1TestCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         output_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -252,7 +252,7 @@ class BmmRcrN1TestCase(unittest.TestCase):
         _, _, output = self._create_bmm_rcr_graph(B, M, K, N, dtype)
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", f"bmm_rcr_n_non1_{dtype}")
+        module = safe_compile_model(output, target, "./tmp", f"bmm_rcr_n_non1_{dtype}")
 
         output_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -330,7 +330,7 @@ class OneByOneConvTestCase(unittest.TestCase):
         conv2d._attrs["name"] = "output"
         conv2d._attrs["is_output"] = True
 
-        with compile_model(
+        with safe_compile_model(
             conv2d,
             detect_target(),
             "./tmp",

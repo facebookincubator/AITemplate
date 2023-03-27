@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -66,7 +66,7 @@ class SliceScatterLargeInputsTestCase(unittest.TestCase):
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
         test_name = "slice_scatter_large_inputs"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         Y_src_ops = list(Y._attrs["src_ops"])
         self.assertEqual(len(Y_src_ops), 5)

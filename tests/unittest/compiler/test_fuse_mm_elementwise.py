@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -96,7 +96,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -136,7 +136,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -180,7 +180,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -228,7 +228,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -292,7 +292,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
         output._attrs["is_output"] = True
 
         # Check value correctness
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", f"gemm_bias_fusion_add_fail_{dtype}"
         )
 
@@ -353,7 +353,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
         output._attrs["is_output"] = True
 
         # Check value correctness
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", f"gemm_bias_fusion_chained_{dtype}"
         )
 
@@ -414,7 +414,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
         output._attrs["is_output"] = True
 
         # Check value correctness
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", f"gemm_bias_fusion_fail_{dtype}"
         )
 
@@ -455,7 +455,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -501,7 +501,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -542,7 +542,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -588,7 +588,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -636,7 +636,7 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -859,7 +859,7 @@ class FuseGemmRcrBiasActivationCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -906,7 +906,7 @@ class FuseGemmRcrBiasActivationCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -958,7 +958,7 @@ class FuseGemmRcrBiasActivationCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -1235,7 +1235,7 @@ class FuseGemmRcrBiasSwishCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -1336,7 +1336,7 @@ class FuseBmmCcrAddCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -1397,7 +1397,7 @@ class FuseBmmCcrAddCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model([output, output_1], target, "./tmp", testname)
+        module = safe_compile_model([output, output_1], target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -1508,7 +1508,7 @@ class FuseBmmCcrAddCase(unittest.TestCase):
         output_1._attrs["is_output"] = True
 
         # Check value correctness
-        module = compile_model(
+        module = safe_compile_model(
             [output, output_1], target, "./tmp", f"bmm_ccr_double_shared_inputs_{dtype}"
         )
 
@@ -1580,7 +1580,7 @@ class FuseBmmCrrAddCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -1663,7 +1663,7 @@ class FuseBmmRrrAddCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -1724,7 +1724,7 @@ class FuseBmmRrrAddCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:

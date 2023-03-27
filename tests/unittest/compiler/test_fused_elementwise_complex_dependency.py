@@ -19,7 +19,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -80,7 +80,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         R2._attrs["name"] = "R2"
         R2._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             R2,
             target,
             "./tmp",
@@ -164,7 +164,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         R3._attrs["name"] = "R3"
         R3._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [R3, R2],
             target,
             "./tmp",
@@ -252,7 +252,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         R4._attrs["name"] = "R4"
         R4._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [R1, R2, R4],
             target,
             "./tmp",
@@ -343,7 +343,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         R3._attrs["name"] = "R3"
         R3._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             R3,
             target,
             "./tmp",
@@ -440,7 +440,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         R4._attrs["name"] = "R4"
         R4._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [R3, R4],
             target,
             "./tmp",
@@ -551,7 +551,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         R7._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             R7,
             target,
             "./tmp",
@@ -644,7 +644,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         R5._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             R5,
             target,
             "./tmp",

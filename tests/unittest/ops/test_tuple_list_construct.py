@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -55,7 +55,7 @@ class TupleListConstructTestCase(unittest.TestCase):
         Y3._attrs["name"] = "output_2"
         Y3._attrs["is_output"] = True
 
-        module = compile_model([Y1, Y2, Y3], target, "./tmp", test_name)
+        module = safe_compile_model([Y1, Y2, Y3], target, "./tmp", test_name)
 
         for b in batch_size:
             X_shape_pt = (b, *X_shape)

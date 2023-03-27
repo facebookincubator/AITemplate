@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -68,7 +68,7 @@ class GEMMReshapePermuteTestCase(unittest.TestCase):
             Y = ops.permute()(Y1, [0, 2, 1, 3])
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"gemm_rcr_{test_name}")
+        module = safe_compile_model(Y, target, "./tmp", f"gemm_rcr_{test_name}")
 
         if should_fuse:
             sorted_ops = graph_utils.get_sorted_ops(module.debug_sorted_graph)

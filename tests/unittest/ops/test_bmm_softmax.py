@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
@@ -46,7 +46,7 @@ class BMMSoftmaxTestCase(unittest.TestCase):
         if type(target).__name__ == "FBCUDA":
             _LOGGER.warning("Skip this test for special profiling requirement")
             return
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         X_pt = torch.randn(B, M, K).cuda().half()
         W_pt = torch.randn(B, N, K).cuda().half()
 

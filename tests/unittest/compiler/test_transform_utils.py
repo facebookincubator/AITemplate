@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops, transform
+from aitemplate.compiler import ops, safe_compile_model, transform
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import Tensor
@@ -127,7 +127,7 @@ class TransformUtilsReplaceTensorTestCase(unittest.TestCase):
         transform.transform_utils.replace_tensor(X3, R)
 
         target = detect_target()
-        module = compile_model(X5, target, "./tmp", "original_inputs_replace")
+        module = safe_compile_model(X5, target, "./tmp", "original_inputs_replace")
 
         x_pt = torch.randn(X_shape).cuda().half()
         x1_pt = torch.randn(X_shape).cuda().half()
@@ -155,7 +155,7 @@ class TransformUtilsReplaceTensorTestCase(unittest.TestCase):
         transform.transform_utils.replace_tensor(X2, R)
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", "view_replace")
+        module = safe_compile_model(X4, target, "./tmp", "view_replace")
 
         x_pt = torch.randn(X_shape).cuda().half()
         x1_pt = torch.cos(x_pt)

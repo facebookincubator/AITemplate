@@ -20,7 +20,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
@@ -83,7 +83,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         target = detect_target()
         debug_settings = AITDebugSettings(gen_standalone=True)
         dll_name = "test.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",

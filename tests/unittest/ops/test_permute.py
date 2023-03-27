@@ -17,7 +17,7 @@ from typing import Sequence
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils.torch_utils import torch_dtype_to_string
@@ -44,7 +44,7 @@ class GenericPermuteTest(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", f"{testname}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{testname}_{self._test_id}")
         self._test_id += 1
 
         X_pt = torch.randn(input_shapes, dtype=torch_dtype).cuda()

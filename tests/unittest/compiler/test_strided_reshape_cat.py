@@ -17,7 +17,7 @@ import unittest
 
 import numpy as np
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
@@ -102,7 +102,7 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", "strided_reshape_cat", dll_name=dll_name
         )
 
@@ -210,7 +210,7 @@ class StridedReshapeCatTestCase(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", "strided_reshape_cat_bias", dll_name=dll_name
         )
         Y_src_ops = Y._attrs["src_ops"]

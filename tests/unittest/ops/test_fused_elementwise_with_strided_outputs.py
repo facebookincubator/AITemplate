@@ -21,7 +21,7 @@ from typing import List
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -89,7 +89,7 @@ class FusedElementwiseWithStridedOutputsTestCase(unittest.TestCase):
 
         target = detect_target()
         # Gen module.
-        with compile_model(
+        with safe_compile_model(
             [X7],
             target,
             "./tmp",

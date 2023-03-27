@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 
 from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.testing import detect_target, test_utils
@@ -88,7 +88,7 @@ class TransformPermuteToReshapeTestCase(unittest.TestCase):
         model_name = _generate_model_name(
             shape, permutation, is_reshape, dtype, is_complex=False
         )
-        module = compile_model(Z, target, "./tmp", model_name)
+        module = safe_compile_model(Z, target, "./tmp", model_name)
         has_permute_op = any(
             test_utils.graph_has_op(module.debug_sorted_graph, op_name)
             for op_name in _PERMUTE_OPS

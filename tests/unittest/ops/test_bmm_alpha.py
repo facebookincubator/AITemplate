@@ -17,7 +17,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -65,7 +65,7 @@ class BMMAlphaTestCase(unittest.TestCase):
         Y2 = ops.elementwise(elem_func_type)(Y1, Tensor([], value=cst_val, dtype=dtype))
         Y2._attrs["name"] = "output_0"
         Y2._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y2, target, "./tmp", f"bmm_alpha_{B}_{M}_{N}_{K}_{use_fp16_acc}_{dtype}"
         )
         expected_cst_val = 1.0 / float(cst_val) if is_div else float(cst_val)

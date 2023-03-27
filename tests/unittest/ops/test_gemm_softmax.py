@@ -18,7 +18,7 @@ import unittest
 
 import numpy as np
 import torch
-from aitemplate.compiler import compile_model, Model, ops
+from aitemplate.compiler import Model, ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -55,7 +55,7 @@ class GEMMSoftmaxTestCase(unittest.TestCase):
         test_name = f"gemm_softmax_{dtype}"
         if rebuild:
             target = detect_target()
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
         inputs = {"input_0": X_pt, "input_1": W_pt}

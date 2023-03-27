@@ -18,7 +18,7 @@ from typing import List, Optional
 
 import torch
 
-from aitemplate.compiler import compile_model, Model, ops
+from aitemplate.compiler import Model, ops, safe_compile_model
 from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target, test_utils
@@ -184,7 +184,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Ys, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(Ys, target, "./tmp", f"{test_name}_{dtype}")
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -361,7 +361,7 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             Ys, target, "./tmp", f"multi_view_multi_bmm_fusion_{dtype}"
         )
 
@@ -544,7 +544,9 @@ class ViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Ys, target, "./tmp", f"single_view_gemm_fusion_{dtype}")
+        module = safe_compile_model(
+            Ys, target, "./tmp", f"single_view_gemm_fusion_{dtype}"
+        )
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph

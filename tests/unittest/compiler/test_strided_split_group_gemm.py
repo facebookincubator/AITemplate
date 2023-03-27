@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -66,7 +66,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
         dll_name = "test_rcr_cat.so"
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", "strided_split_group_gemm_rcr_cat", dll_name=dll_name
         )
         Y_src_ops = Y._attrs["src_ops"]
@@ -137,7 +137,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
         dll_name = "test_rcr_bias_cat.so"
-        module = compile_model(
+        module = safe_compile_model(
             [Y],
             target,
             "./tmp",
@@ -214,7 +214,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
         dll_name = "test_rcr_cat_reorder.so"
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", "strided_split_group_gemm_rcr_cat", dll_name=dll_name
         )
         Y_src_ops = Y._attrs["src_ops"]
@@ -285,7 +285,7 @@ class StridedSplitGroupGemmTestCase(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
         dll_name = "test_rcr_bias_cat_reorder.so"
-        module = compile_model(
+        module = safe_compile_model(
             [Y],
             target,
             "./tmp",

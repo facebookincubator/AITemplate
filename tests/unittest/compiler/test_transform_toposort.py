@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target
@@ -36,7 +36,7 @@ class TestTopoSort(unittest.TestCase):
         x._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(x, target, "./tmp", "test_very_deep_toposort")
+        module = safe_compile_model(x, target, "./tmp", "test_very_deep_toposort")
 
         x_pt = torch.randn((2, 10)).half().cuda()
         out_pt = torch.relu(x_pt)

@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.public import IntImm, IntVar
@@ -58,7 +58,7 @@ class FuseCatViewCatTestCase(unittest.TestCase):
         concatenate_6._attrs["name"] = "output_0"
         concatenate_6._attrs["is_output"] = True
         # Compile
-        mod = compile_model(
+        mod = safe_compile_model(
             concatenate_6,
             detect_target(),
             "./tmp",

@@ -17,7 +17,7 @@ from typing import Sequence
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -49,7 +49,7 @@ class TransposeTest(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         X_pt = get_random_torch_tensor(input_shape, dtype=dtype)

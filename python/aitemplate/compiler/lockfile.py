@@ -41,6 +41,11 @@ class FileLock:
             Uses fcntl.flock(self.lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
             to acquire the file lock.
 
+            This is an OS-level cooperative lock, which will be automatically released on process
+            termination by the OS, if still unreleast. Cooperative means, it is not enforced.
+            It is still possible to do anything with the directory and lock file by
+            processes which do not try to acquire the same lock.
+
         Usage:
 
             with FileLock('/path/to/file.lock', timeout=10):
@@ -78,9 +83,8 @@ class FileLock:
                     lock_contention_callback = self.lock_contention_callback
                     lock_contention_callback()
                 attempts += 1
-                if (
-                    self.timeout is not None
-                    and time.monotonic() - start_time >= self.timeout
+                if self.timeout is not None and (
+                    time.monotonic() + self.retry_interval - start_time > self.timeout
                 ):
                     raise TimeoutError(
                         f"Timeout waiting for lock on {self.path}"
@@ -89,6 +93,10 @@ class FileLock:
 
     def __exit__(self, exc_type, exc_value, traceback):
         try:
+            # This is an OS-level cooperative lock, which will be automatically released on process
+            # termination by the OS, if still unreleast. Cooperative means, it is not enforced.
+            # It is still possible to do anything with the directory and lock file by
+            # processes which do not try to acquire the same lock.
             fcntl.flock(self.lock_file, fcntl.LOCK_UN)
         finally:
             self.lock_file.close()

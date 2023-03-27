@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -60,7 +60,7 @@ class Conv3dDepthwiseTestCase(unittest.TestCase):
         Y = OP(X, W, B) if bias else OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor([batch, ci, tt, hh, ww], dtype=dtype)
         W_pt = get_random_torch_tensor([co, 1, 3, 3, 3], dtype=dtype)
@@ -149,7 +149,9 @@ class Conv3dDepthwiseTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"depthwise_conv3d_mvit_{test_case}")
+        module = safe_compile_model(
+            Y, target, "./tmp", f"depthwise_conv3d_mvit_{test_case}"
+        )
 
         X_pt = torch.randn(batch, ci, tt, hh, ww).cuda().half()
         W_pt = (

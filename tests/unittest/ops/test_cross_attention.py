@@ -16,7 +16,7 @@ import unittest
 
 import numpy as np
 import torch
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils
@@ -102,7 +102,7 @@ class crossattentionTestCase(unittest.TestCase):
         Y = Y + inputs_ait
         mark_output(Y)
         target = detect_target(use_fp16_acc=False)
-        exe_module = compile_model(
+        exe_module = safe_compile_model(
             Y, target, "./tmp", f"cross_attn_dynamic_{self.test_id}"
         )
         self.test_id += 1

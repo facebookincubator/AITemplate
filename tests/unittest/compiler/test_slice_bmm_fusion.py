@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -139,7 +139,7 @@ class SliceBMMFusionTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = "test_{}.so".format(self.test_count)
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -427,7 +427,7 @@ class SliceBMMFusionTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = "test_{}.so".format(self.test_count)
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph

@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -66,7 +66,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         X_pt = get_random_torch_tensor([M, K], dtype=dtype)
         W_pt = get_random_torch_tensor([N, K], dtype=dtype)
         B_pt = get_random_torch_tensor([N], dtype=dtype)
@@ -132,7 +132,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "gemm_rcr_bias_permute_m3n2")
+        module = safe_compile_model(Y, target, "./tmp", "gemm_rcr_bias_permute_m3n2")
         X_pt = get_random_torch_tensor([M, K], dtype=dtype)
         W_pt = get_random_torch_tensor([N, K], dtype=dtype)
         B_pt = get_random_torch_tensor([N], dtype=dtype)
@@ -191,7 +191,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "gemm_rcr_permute_m2n3")
+        module = safe_compile_model(Y, target, "./tmp", "gemm_rcr_permute_m2n3")
         X_pt = get_random_torch_tensor([M, K], dtype=dtype)
         W_pt = get_random_torch_tensor([N, K], dtype=dtype)
 
@@ -235,7 +235,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
     #     Y = OP(X, W, B)
     #     Y._attrs["name"] = "output_0"
     #     Y._attrs["is_output"] = True
-    #     module = compile_model(Y, target, "./tmp", "gemm_rcr_bias_permute")
+    #     module = safe_compile_model(Y, target, "./tmp", "gemm_rcr_bias_permute")
     #     X_pt = torch.randn(M, K).cuda().half()
     #     W_pt = torch.randn(N, K).cuda().half()
     #     B_pt = torch.randn(N).cuda().half()
@@ -266,7 +266,7 @@ class GEMMBiasPermuteTestCase(unittest.TestCase):
     #     Y = OP(X, W, B)
     #     Y._attrs["name"] = "output_0"
     #     Y._attrs["is_output"] = True
-    #     module = compile_model(Y, target, "./tmp", "gemm_rrr_bias_permute")
+    #     module = safe_compile_model(Y, target, "./tmp", "gemm_rrr_bias_permute")
     #     X_pt = torch.randn(M, K).cuda().half()
     #     W_pt = torch.randn(K, N).cuda().half()
     #     B_pt = torch.randn(N).cuda().half()

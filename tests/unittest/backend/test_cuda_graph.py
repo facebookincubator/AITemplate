@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -50,7 +50,7 @@ class CUDAGraphTestCase(unittest.TestCase):
 
         target = detect_target()
         test_name = "cuda_graph_multiple_runes"
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         run = 2
         repeat = 1

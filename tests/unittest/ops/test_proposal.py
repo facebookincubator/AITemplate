@@ -19,7 +19,7 @@ import unittest
 
 import numpy.random as npr
 import torch
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
@@ -489,7 +489,7 @@ class ProposalTestCase(unittest.TestCase):
 
         y = OP(X_bbox_deltas, X_scores)
         mark_output(y)
-        module = compile_model(y, target, "./tmp", test_name)
+        module = safe_compile_model(y, target, "./tmp", test_name)
 
         anchors = torch.from_numpy(OP._anchors.copy()).cuda()
         batch_inds = torch.from_numpy(OP._batch_inds.copy()).cuda()

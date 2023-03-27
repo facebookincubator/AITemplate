@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -71,7 +71,7 @@ class ReduceTestCase(unittest.TestCase):
         _LOGGER.info("AITemplate output_type: {}".format(y_dtype))
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         X_pt = get_random_torch_tensor(input_shape, input_type)
         dtype_pt = string_to_torch_dtype(output_type)
         if keepdim is None:
@@ -414,7 +414,7 @@ class ReduceTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         for batch_size in batch_sizes:
             input_shape = [batch_size] + non_batch_shape
             X_pt = get_random_torch_tensor(input_shape, input_type)

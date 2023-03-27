@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import _TorchConstantTensorData, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target
@@ -103,7 +103,7 @@ class TransformOddAlignmentCase(unittest.TestCase):
 
             # Check value correctness
             target = detect_target()
-            module = compile_model(
+            module = safe_compile_model(
                 output,
                 target,
                 "./tmp",
@@ -266,7 +266,7 @@ class TransformOddAlignmentCase(unittest.TestCase):
 
             # Check value correctness
             target = detect_target()
-            module = compile_model(
+            module = safe_compile_model(
                 output,
                 target,
                 "./tmp",
@@ -408,7 +408,7 @@ class TransformOddAlignmentCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", "alignment_permute_bmm_epilogue"
         )
 
@@ -461,7 +461,7 @@ class TransformOddAlignmentCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", "alignment_pad_bmm")
+        module = safe_compile_model(output, target, "./tmp", "alignment_pad_bmm")
 
         exist_new_bmm = False
         for tensor in module.debug_sorted_graph:

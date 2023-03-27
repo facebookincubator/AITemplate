@@ -22,7 +22,7 @@ import torch
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Tensor
-from aitemplate.compiler.compiler import compile_model
+from aitemplate.compiler.compiler import safe_compile_model
 
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_ait import make_input_output_pools, run_benchmark
@@ -90,7 +90,7 @@ def build_ait_module_gemm_rcr(*, ms, n, k, split_k, test_name):
     output = OP(a, b, bias)
     output._attrs["name"] = "output"
     output._attrs["is_output"] = True
-    return compile_model(output, target, "./tmp", test_name=test_name)
+    return safe_compile_model(output, target, "./tmp", test_name=test_name)
 
 
 def eval_pt_gemm_rcr(*, m, n, k):
@@ -162,7 +162,7 @@ def build_ait_module_bmm_rrr(*, bs, m, n, k, split_k, test_name):
     output = OP(batch_a, batch_b)
     output._attrs["name"] = "output"
     output._attrs["is_output"] = True
-    return compile_model(output, target, "./tmp", test_name=test_name)
+    return safe_compile_model(output, target, "./tmp", test_name=test_name)
 
 
 def eval_pt_bmm_rrr(*, b, m, n, k):

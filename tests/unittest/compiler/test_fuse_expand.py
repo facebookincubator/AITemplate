@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target
@@ -46,7 +46,7 @@ class TestFuseExpand(unittest.TestCase):
         z._attrs["is_output"] = True
         z._attrs["name"] = "z"
 
-        with compile_model(z, detect_target(), "./tmp", name) as mod:
+        with safe_compile_model(z, detect_target(), "./tmp", name) as mod:
             self.assertFalse(graph_has_op(mod.debug_sorted_graph, "expand"))
             for batch_size in (1, 5, 10):
                 x_pt = torch.randn((batch_size, 2, 10)).half().cuda()

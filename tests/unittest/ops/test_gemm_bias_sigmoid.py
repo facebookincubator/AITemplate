@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -53,7 +53,7 @@ class GEMMBiasSigmoidTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         test_name = f"gemm_rcr_bias_sigmoid_{dtype}_{self._test_id}"
         self._test_id += 1
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         X_pt = get_random_torch_tensor([M, K], dtype)
         W_pt = get_random_torch_tensor([N, K], dtype)
         B_pt = get_random_torch_tensor([N], dtype)

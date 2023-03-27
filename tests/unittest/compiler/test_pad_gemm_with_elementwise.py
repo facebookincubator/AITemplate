@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -66,7 +66,7 @@ class PadGemmWithElementwise(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"pad_gemm_with_elementwise_{test_name}"
         )
 
@@ -139,7 +139,7 @@ class PadGemmWithElementwise(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"pad_bmm_with_elementwise_{test_name}"
         )
 
@@ -209,7 +209,7 @@ class PadGemmWithElementwise(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"pad_perm102_with_elementwise_{test_name}"
         )
 
@@ -267,7 +267,7 @@ class PadGemmWithElementwise(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"pad_gemm_with_elementwise_2_{test_name}"
         )
 

@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -69,7 +69,7 @@ class GroupGEMMRcrTestCase(unittest.TestCase):
             Y3._attrs["is_output"] = True
             graph_outputs.append(Y3)
 
-        module = compile_model(graph_outputs, target, "./tmp", test_name)
+        module = safe_compile_model(graph_outputs, target, "./tmp", test_name)
         X1_pt = get_random_torch_tensor(shape=(M, K1), dtype=dtype)
         X2_pt = get_random_torch_tensor(shape=(M, K2), dtype=dtype)
         W1_pt = get_random_torch_tensor(shape=(N1, K1), dtype=dtype)

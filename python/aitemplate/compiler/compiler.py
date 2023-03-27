@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
+from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import (
     DynamicProfileStrategy,
@@ -211,156 +212,199 @@ def compile_model(
     if debug_settings.dump_ait_to_py:
         dump_program(tensor, debug_settings.dump_ait_to_py)
 
+    os.makedirs(test_dir, exist_ok=True)
+    if int(recompile) == 1:
+        with target:
+            graph = compiler.transform.toposort(tensor)
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "toposort")
+
+            output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
+            _validate_tensor_args(graph, output_tensors)
+
+            compiler.transform.bind_constants(graph, constants)
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "bind_constants")
+
+            compiler.transform.remove_unused_ops(graph)
+            graph_utils.dump_graph_debug_str_to_file(
+                graph, test_dir, "remove_unused_ops"
+            )
+
+            compiler.transform.remove_no_ops(graph)
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "remove_no_ops")
+
+            compiler.transform.name_graph(graph)
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
+
+            compiler.transform.mark_param_tensor(graph)
+            graph_utils.dump_graph_debug_str_to_file(
+                graph, test_dir, "mark_param_tensor"
+            )
+
+            start_t = datetime.now()
+            graph = compiler.transform.optimize_graph(graph, test_dir)
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "optimize_graph")
+            _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
+
+            compiler.transform.mark_special_views(graph)
+            compiler.transform.refine_graph(graph)
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "refine_graph")
+
+            if profile_devs is None:
+                device_env = os.getenv(target.dev_select_flag(), None)
+                if device_env is None:
+                    profile_devs = [0]
+                else:
+                    profile_devs = device_env.split(",")
+            compiler.transform.profile(
+                graph, profile_dir, profile_devs, dynamic_profiling_strategy
+            )
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "profile")
+
+            start_t = datetime.now()
+            constant_folding_workdir = os.path.join(workdir, test_name)
+            os.makedirs(constant_folding_workdir, exist_ok=True)
+            (
+                graph,
+                constant_folding_file_pairs,
+                constant_folding_inputs,
+            ) = compiler.transform.constant_folding(graph, workdir, test_name)
+            graph_utils.dump_graph_debug_str_to_file(
+                graph, test_dir, "constant_folding"
+            )
+            _LOGGER.info(f"folded constants elapsed time: {elapsed_dt_sec(start_t)}")
+
+            (
+                max_blob,
+                max_constant_blob,
+                workspace,
+            ) = compiler.transform.memory_planning(graph)
+            _verify_outputs_still_in_graph(graph, output_tensors)
+            _mark_isolated_int_vars(graph)
+            graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "memory_planning")
+
+            file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
+            file_pairs.extend(constant_folding_file_pairs)
+
+            # It's possible that the original output tensor has been replaced with a new tensor.
+            # Preserve original output tensors' orders but use the new tensors.
+            new_output_tensor_dict = {
+                tensor._attrs["name"]: tensor
+                for tensor in graph
+                if tensor._attrs["is_output"]
+            }
+            output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
+            output_tensors = [
+                new_output_tensor_dict[tensor._attrs["name"]]
+                for tensor in output_tensors
+            ]
+
+            main_pairs = backend.codegen.gen_library_src(
+                graph,
+                max_blob,
+                max_constant_blob,
+                workspace,
+                workdir,
+                output_tensors,
+                test_name,
+                additional_unbound_constants=constant_folding_inputs,
+                debug_settings=debug_settings,
+            )
+            file_pairs.extend(main_pairs)
+
+            start_t = datetime.now()
+            compile_engine = backend.builder.Builder()
+            compile_engine.make(
+                file_pairs, dll_name, workdir, test_name, debug_settings
+            )
+            _LOGGER.info(
+                f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",
+            )
+
+    module = Model(
+        os.path.join(workdir, test_name, dll_name), num_runtimes, allocator_kind
+    )
+    module.debug_sorted_graph = graph
+    return module
+
+
+def safe_compile_model(
+    tensor: Union[Tensor, List[Tensor]],
+    target: backend.target.Target,
+    workdir: str,
+    test_name: str,
+    *args,
+    lock_timeout_seconds=360.0,
+    write_log_file=True,
+    **kwargs,
+) -> Model:
+    """
+    Compile a model and generate a .so file. This function is safe to use when multiple processes are
+    potentially calling compile_model() with the same build directory. It uses a cooperative file
+    locking mechanism to ensure that only a single process accesses the build directory concurrently.
+
+    Parameters and return value are identical to compile_model() but it adds a few optional keyword
+    Parameters:
+
+    Additional Keyword Parameters
+    ----------
+    lock_timeout_seconds : Union[Tensor, List[Tensor]]
+        An output Tensor, or a list of output Tensors.
+        The compiled module will preserve the ordering of the outputs in its
+        internal ordering.
+    write_log_file: Whether to write a log file to the build directory, which allows to diagnose
+    prevented race conditions on the build directory.
+
+    """
+    test_name = test_name.replace(",", "_")
+    test_dir = os.path.join(workdir, test_name)
+
     def get_caller_info():
         try:
             frame = inspect.currentframe().f_back.f_back
             filename = inspect.getframeinfo(frame).filename
             basename = os.path.basename(filename)
             lineno = inspect.getframeinfo(frame).lineno
-            return f"{basename}:{lineno}"
+            caller = f"source line: {basename}:{lineno}"
+            try:
+                # Obtain additional caller info, in case
+                # this is running inside a unittest.TestCase
+                import unittest
+
+                maybe_test_self = frame.f_locals.get("self", None)
+                maybe_target = frame.f_locals.get("target", None)
+                if isinstance(maybe_test_self, unittest.TestCase):
+                    caller += f" test_id='{maybe_test_self.id()}'"
+                if isinstance(maybe_target, Target):
+                    caller += f" target='{str(maybe_target.__class__.__name__)}'"
+            except BaseException:
+                pass
+            return caller
         except AttributeError:
             return "<unknown>"
 
-    _LOGGER.info(
-        f"aitemplate.compiler.compile_model called with build directory='{test_dir}'. PID: {os.getpid()}. Caller: {get_caller_info()}"
-    )
     os.makedirs(test_dir, exist_ok=True)
+    log_str = f"safe_compile_model called with build directory='{test_dir}'. PID: {os.getpid()}. Caller info: {get_caller_info()}"
+    _LOGGER.info(log_str)
+    if write_log_file:
+        with open(os.path.join(test_dir, ".safe_compile_model.log"), "a") as log:
+            print(log_str, file=log)
+            log.flush()
 
     def lock_contention_callback():
-        _LOGGER.warn(
-            f"Race condition prevented by FileLock in compile_model. Waiting on lock release. Build directory='{test_dir}'. PID: {os.getpid()}."
-        )
+        contention_msg = f"Race condition prevented by FileLock in safe_compile_model. Waiting on lock release. (timeout={lock_timeout_seconds}). Original log message: {log_str}."
+        _LOGGER.warn(contention_msg)
+        if write_log_file:
+            with open(os.path.join(test_dir, ".safe_compile_model.log"), "a") as log:
+                print(contention_msg, file=log)
+                log.flush()
 
     # This lock should prevent race conditions from multiple
     # processes building in the same directory. This can otherwise
     # lead to hard to diagnose errors during parallel unit tests.
     with FileLock(
-        os.path.join(test_dir, ".compile_model.lock"),
-        timeout=360.0,
+        os.path.join(test_dir, ".safe_compile_model.lock"),
+        timeout=lock_timeout_seconds,
         retry_interval=0.5,
         lock_contention_callback=lock_contention_callback,
     ):
-        if int(recompile) == 1:
-            with target:
-                graph = compiler.transform.toposort(tensor)
-                graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "toposort")
-
-                output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
-                _validate_tensor_args(graph, output_tensors)
-
-                compiler.transform.bind_constants(graph, constants)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "bind_constants"
-                )
-
-                compiler.transform.remove_unused_ops(graph)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "remove_unused_ops"
-                )
-
-                compiler.transform.remove_no_ops(graph)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "remove_no_ops"
-                )
-
-                compiler.transform.name_graph(graph)
-                graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
-
-                compiler.transform.mark_param_tensor(graph)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "mark_param_tensor"
-                )
-
-                start_t = datetime.now()
-                graph = compiler.transform.optimize_graph(graph, test_dir)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "optimize_graph"
-                )
-                _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
-
-                compiler.transform.mark_special_views(graph)
-                compiler.transform.refine_graph(graph)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "refine_graph"
-                )
-
-                if profile_devs is None:
-                    device_env = os.getenv(target.dev_select_flag(), None)
-                    if device_env is None:
-                        profile_devs = [0]
-                    else:
-                        profile_devs = device_env.split(",")
-                compiler.transform.profile(
-                    graph, profile_dir, profile_devs, dynamic_profiling_strategy
-                )
-                graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "profile")
-
-                start_t = datetime.now()
-                constant_folding_workdir = os.path.join(workdir, test_name)
-                os.makedirs(constant_folding_workdir, exist_ok=True)
-                (
-                    graph,
-                    constant_folding_file_pairs,
-                    constant_folding_inputs,
-                ) = compiler.transform.constant_folding(graph, workdir, test_name)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "constant_folding"
-                )
-                _LOGGER.info(
-                    f"folded constants elapsed time: {elapsed_dt_sec(start_t)}"
-                )
-
-                (
-                    max_blob,
-                    max_constant_blob,
-                    workspace,
-                ) = compiler.transform.memory_planning(graph)
-                _verify_outputs_still_in_graph(graph, output_tensors)
-                _mark_isolated_int_vars(graph)
-                graph_utils.dump_graph_debug_str_to_file(
-                    graph, test_dir, "memory_planning"
-                )
-
-                file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
-                file_pairs.extend(constant_folding_file_pairs)
-
-                # It's possible that the original output tensor has been replaced with a new tensor.
-                # Preserve original output tensors' orders but use the new tensors.
-                new_output_tensor_dict = {
-                    tensor._attrs["name"]: tensor
-                    for tensor in graph
-                    if tensor._attrs["is_output"]
-                }
-                output_tensors = [tensor] if isinstance(tensor, Tensor) else tensor
-                output_tensors = [
-                    new_output_tensor_dict[tensor._attrs["name"]]
-                    for tensor in output_tensors
-                ]
-
-                main_pairs = backend.codegen.gen_library_src(
-                    graph,
-                    max_blob,
-                    max_constant_blob,
-                    workspace,
-                    workdir,
-                    output_tensors,
-                    test_name,
-                    additional_unbound_constants=constant_folding_inputs,
-                    debug_settings=debug_settings,
-                )
-                file_pairs.extend(main_pairs)
-
-                start_t = datetime.now()
-                compile_engine = backend.builder.Builder()
-                compile_engine.make(
-                    file_pairs, dll_name, workdir, test_name, debug_settings
-                )
-                _LOGGER.info(
-                    f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",
-                )
-
-        module = Model(
-            os.path.join(workdir, test_name, dll_name), num_runtimes, allocator_kind
-        )
-        module.debug_sorted_graph = graph
-        return module
+        return compile_model(tensor, target, workdir, test_name, *args, **kwargs)

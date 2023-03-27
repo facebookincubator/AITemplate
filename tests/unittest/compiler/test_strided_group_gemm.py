@@ -19,7 +19,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
@@ -66,7 +66,7 @@ class StridedGroupGemmTestCase(unittest.TestCase):
         Y = concat_op([Y1, Y2, X3], dim=dim)
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
-        module = compile_model([Y], target, "./tmp", test_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name)
         Y_src_ops = Y._attrs["src_ops"]
         np.testing.assert_equal(len(Y_src_ops), 2)
         np.testing.assert_equal(Y_src_ops, StableSet({group_gemm_op, concat_op}))
@@ -152,7 +152,7 @@ class StridedGroupGemmTestCase(unittest.TestCase):
             Y = concat_op([Y1, Y2, X3], dim=dim)
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             [Y],
             target,
             "./tmp",

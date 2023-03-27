@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target, test_utils
@@ -68,7 +68,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"slice_reshape_gemm_fusible_{dtype}"
         )
 
@@ -125,7 +125,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"slice_reshape_gemm_non_fusible_{dtype}"
         )
 
@@ -193,7 +193,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -272,7 +272,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name)
 
         # Prepare PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
@@ -346,7 +346,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name)
 
         # Prepare PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:
@@ -424,7 +424,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model([Y], target, "./tmp", test_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name)
 
         # Prepare PyTorch tensors.
         for batch_size in batch_dim._attrs["values"]:

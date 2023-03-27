@@ -23,7 +23,7 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from aitemplate.compiler import compile_model, Model
+from aitemplate.compiler import Model, safe_compile_model
 from aitemplate.frontend import nn, Tensor
 from aitemplate.frontend.nn.vanilla_attention import vanilla_attention
 from aitemplate.testing import detect_target
@@ -180,7 +180,7 @@ class VanillaAttentionTestCase(unittest.TestCase):
 
         if rebuild:
             target = detect_target()
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
 
@@ -289,7 +289,7 @@ class VanillaAttentionTestCase(unittest.TestCase):
         Y = Y + inputs_ait
         mark_output(Y)
         target = detect_target(use_fp16_acc=False)
-        exe_module = compile_model(Y, target, "./tmp", "cross_attn_dynamic")
+        exe_module = safe_compile_model(Y, target, "./tmp", "cross_attn_dynamic")
         for name, weight in params_ait.items():
             exe_module.set_constant_with_tensor(name, weight)
 

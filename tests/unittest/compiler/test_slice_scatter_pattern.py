@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops, transform
+from aitemplate.compiler import ops, safe_compile_model, transform
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -154,7 +154,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         np.testing.assert_equal(y_shape, Y_pt.size())
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", "slice_scatter_e2e", dll_name=dll_name
         )
 
@@ -196,7 +196,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
         y_shape = [var._attrs["values"][0] for var in Y._attrs["shape"]]
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", "slice_scatter_e2d_batch", dll_name=dll_name
         )
 
@@ -381,7 +381,9 @@ class SliceScatterPatternTestCase(unittest.TestCase):
 
         test_name = "slice_scatter_multi_dsts"
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model((Y0, Y1), target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(
+            (Y0, Y1), target, "./tmp", test_name, dll_name=dll_name
+        )
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
         self.assertEqual(len(sorted_ops), 2)
@@ -498,7 +500,7 @@ class SliceScatterPatternTestCase(unittest.TestCase):
 
         test_name = "slice_scatter_multi_dsts_2"
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
         self.assertEqual(len(sorted_ops), 1)

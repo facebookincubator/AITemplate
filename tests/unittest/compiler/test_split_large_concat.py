@@ -18,7 +18,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -66,7 +66,7 @@ class SplitLargeConcatTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -133,7 +133,7 @@ class SplitLargeConcatTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         inputs_pt = [
             get_random_torch_tensor(input_shape, dtype) for _ in range(num_inputs)
@@ -187,7 +187,7 @@ class SplitLargeConcatTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         add_inputs_pt = [get_random_torch_tensor(input_shape, dtype) for _ in range(2)]
         y1_pt = add_inputs_pt[0] + add_inputs_pt[1]
@@ -251,7 +251,7 @@ class SplitLargeConcatTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         add_inputs_pt = [
             get_random_torch_tensor(input_shape, dtype) for _ in range(num_inputs * 2)
@@ -331,7 +331,7 @@ class SplitLargeConcatTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         add_inputs_pt = [
             get_random_torch_tensor(input_shape, dtype) for _ in range(num_inputs * 2)
@@ -420,7 +420,7 @@ class SplitLargeConcatTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
 
         slice_inputs_pt = [
             get_random_torch_tensor(slice_input_shape, dtype)
@@ -497,7 +497,7 @@ class SplitLargeConcatTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
 
         x_pt = get_random_torch_tensor(reshape_shape, dtype)

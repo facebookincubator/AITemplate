@@ -26,7 +26,7 @@ import aitemplate.testing.jagged_utils as jagged_utils
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import JaggedDim
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
@@ -114,7 +114,7 @@ class PaddedDenseToJaggedTestCase(unittest.TestCase):
         assert ANOTHER.is_jagged()
         assert RESULT.is_jagged()
 
-        model = compile_model(
+        model = safe_compile_model(
             [RESULT],
             detect_target(use_jagged_space_indexing=use_jagged_space_indexing),
             "./tmp",
@@ -265,7 +265,7 @@ class PaddedDenseToJaggedTestCase(unittest.TestCase):
         RESULT._attrs["name"] = "result"
         RESULT._attrs["is_output"] = True
 
-        model = compile_model(
+        model = safe_compile_model(
             [RESULT],
             detect_target(use_jagged_space_indexing=use_jagged_space_indexing),
             "./tmp",

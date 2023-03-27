@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import JaggedDim, JaggedIntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
@@ -98,7 +98,7 @@ class MakeJaggedTestCase(unittest.TestCase):
         Z._attrs["name"] = "Z"
         Z._attrs["is_output"] = True
 
-        model = compile_model([Y, Z], detect_target(), "./tmp", test_name)
+        model = safe_compile_model([Y, Z], detect_target(), "./tmp", test_name)
 
         offsets1_pt = torch.tensor([0, 1, 3, 5], dtype=torch.int32).cuda()
         offsets2_pt = torch.tensor([0, 2, 4, 4, 7, 10], dtype=torch.int32).cuda()
@@ -204,7 +204,7 @@ class MakeJaggedTestCase(unittest.TestCase):
         RESULT._attrs["name"] = "result"
         RESULT._attrs["is_output"] = True
 
-        model = compile_model(
+        model = safe_compile_model(
             [RESULT],
             detect_target(),
             "./tmp",

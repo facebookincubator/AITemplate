@@ -18,7 +18,7 @@ from typing import List
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -49,7 +49,7 @@ class ChunkTestCase(unittest.TestCase):
             Y._attrs["name"] = "output_{}".format(idx)
             Y._attrs["is_output"] = True
 
-        module = compile_model(Ys, target, "./tmp", "chunk")
+        module = safe_compile_model(Ys, target, "./tmp", "chunk")
 
         for batch_size in input_shape[0]._attrs["values"]:
             logging.info(f"Testing {batch_size=}")

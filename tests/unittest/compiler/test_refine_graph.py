@@ -18,7 +18,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -77,7 +77,7 @@ class RefineGraphTestCase(unittest.TestCase):
         Y0._attrs["is_output"] = True
         Y1._attrs["name"] = "Y1"
         Y1._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             [Y0, Y1],
             target,
             "./tmp",
@@ -113,7 +113,7 @@ class RefineGraphTestCase(unittest.TestCase):
         Y1._attrs["name"] = "Y1"
         Y1._attrs["is_output"] = True
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             [Y0, Y1],
             target,
             "./tmp",
@@ -149,7 +149,7 @@ class RefineGraphTestCase(unittest.TestCase):
         Y1._attrs["name"] = "Y1"
         Y1._attrs["is_output"] = True
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             [Y0, Y1],
             target,
             "./tmp",
@@ -230,7 +230,7 @@ class RefineGraphTestCase(unittest.TestCase):
         Y2._attrs["name"] = "Y1"
         Y2._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [Y1, Y2],
             target,
             "./tmp",
@@ -286,7 +286,7 @@ class RefineGraphTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -337,7 +337,7 @@ class RefineGraphTestCase(unittest.TestCase):
 
         graph_outputs = [Y1, Y2, Y3, Y4]
 
-        module = compile_model(
+        module = safe_compile_model(
             graph_outputs, target, "./tmp", f"test_refine_graph_group_gemms_{dtype}"
         )
 

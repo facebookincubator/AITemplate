@@ -21,7 +21,7 @@ from unittest import skipIf
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils.torch_utils import string_to_torch_dtype
@@ -129,7 +129,7 @@ class nmsTestCase(unittest.TestCase):
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
 
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = safe_compile_model(X4, target, "./tmp", test_name)
 
         torch_dtype = string_to_torch_dtype(dtype)
         boxes, scores = self._create_tensors(N, dtype=dtype)
@@ -219,7 +219,7 @@ class nmsTestCase(unittest.TestCase):
         Y[1]._attrs["is_output"] = True
         Y[1]._attrs["name"] = "output_1"
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         torch_dtype = string_to_torch_dtype(dtype)
         boxes, scores = self._create_tensors(N, dtype=dtype)

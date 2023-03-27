@@ -20,7 +20,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -53,7 +53,9 @@ class SplitBMMTestCase(unittest.TestCase):
 
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"split_bmm_softmax_bmm_{test_name}")
+        module = safe_compile_model(
+            Y, target, "./tmp", f"split_bmm_softmax_bmm_{test_name}"
+        )
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
         # 1 input tensors + 1 output tensor

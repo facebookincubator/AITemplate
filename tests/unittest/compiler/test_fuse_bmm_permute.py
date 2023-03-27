@@ -18,7 +18,7 @@ from typing import Tuple
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 
 from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
@@ -91,7 +91,7 @@ class FuseBmmPermuteCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         # Check that the new bmm is present and the original is not
         exist_new_bmm = False

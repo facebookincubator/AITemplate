@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -68,7 +68,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         output._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         if dtype == "float":
             expected_bmm_type = list(bmm_type)
@@ -225,7 +225,7 @@ class FusePermuteBmmCase(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         # Due to massive rewriting of alignment/padding, we check whether we removed the old bmm with new one instead.
         exist_new_bmm = False
@@ -790,7 +790,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         output._attrs["name"] = "output_0"
         output._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", f"permute_multiple_consumer_{dtype}"
         )
 
@@ -853,7 +853,7 @@ class FusePermuteBmmCase(unittest.TestCase):
         output._attrs["name"] = "output_0"
         output._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", f"permute_multiple_bmm_consumer_{dtype}"
         )
 
