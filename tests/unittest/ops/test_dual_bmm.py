@@ -16,7 +16,7 @@ import logging
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -67,7 +67,7 @@ class DUALBMMTestCase(unittest.TestCase):
         Y = OP(X, B0, B1)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         X_pt = get_random_torch_tensor([B, M, K], dtype=dtype) + 1.0

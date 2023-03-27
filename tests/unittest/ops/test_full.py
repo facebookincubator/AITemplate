@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.public import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -54,7 +54,7 @@ class TestFull(unittest.TestCase):
         Z._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Z, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Z, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         if isinstance(shape[0], IntVar):

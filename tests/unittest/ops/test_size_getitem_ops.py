@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -54,7 +54,7 @@ class SizeGetItemTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         for b in batch_size:
@@ -132,7 +132,7 @@ class SizeGetItemTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         self.assertEqual(len(module.debug_sorted_graph), 6)

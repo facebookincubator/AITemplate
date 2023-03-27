@@ -18,7 +18,7 @@ import unittest
 import torch
 
 from aitemplate import compiler
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -159,7 +159,7 @@ class GroupOpTestCase(unittest.TestCase):
             Y._attrs["name"] = f"output_{i}"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             Ys,
             target,
             "./tmp",
@@ -485,7 +485,7 @@ class GroupOpTestCase(unittest.TestCase):
         output_0._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             [output_0],
             target,
             "./tmp",

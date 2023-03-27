@@ -18,7 +18,7 @@ from typing import Callable, List
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -80,7 +80,9 @@ class ClampTestCase(unittest.TestCase):
         result._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(result, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(
+            result, target, "./tmp", f"{test_name}_{self._test_id}"
+        )
         self._test_id += 1
 
         torch_dtype = string_to_torch_dtype(dtype)

@@ -15,12 +15,14 @@
 """
 build a test module from a tensor
 """
+import inspect
 import logging
 import os
 from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
+from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import (
     DynamicProfileStrategy,
@@ -28,6 +30,7 @@ from aitemplate.compiler.base import (
     JaggedIntVar,
     Tensor,
 )
+from aitemplate.compiler.lockfile import FileLock
 
 from aitemplate.compiler.model import (
     AIT_DEFAULT_NUM_RUNTIMES,
@@ -209,8 +212,8 @@ def compile_model(
     if debug_settings.dump_ait_to_py:
         dump_program(tensor, debug_settings.dump_ait_to_py)
 
+    os.makedirs(test_dir, exist_ok=True)
     if int(recompile) == 1:
-        os.makedirs(test_dir, exist_ok=True)
         with target:
             graph = compiler.transform.toposort(tensor)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "toposort")
@@ -238,9 +241,7 @@ def compile_model(
             )
 
             start_t = datetime.now()
-            graph = compiler.transform.optimize_graph(
-                graph, test_dir, optimize=do_optimize_graph
-            )
+            graph = compiler.transform.optimize_graph(graph, test_dir)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "optimize_graph")
             _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
 
@@ -324,3 +325,86 @@ def compile_model(
     )
     module.debug_sorted_graph = graph
     return module
+
+
+def safe_compile_model(
+    tensor: Union[Tensor, List[Tensor]],
+    target: backend.target.Target,
+    workdir: str,
+    test_name: str,
+    *args,
+    lock_timeout_seconds=360.0,
+    write_log_file=True,
+    **kwargs,
+) -> Model:
+    """
+    Compile a model and generate a .so file. This function is safe to use when multiple processes are
+    potentially calling compile_model() with the same build directory. It uses a cooperative file
+    locking mechanism to ensure that only a single process accesses the build directory concurrently.
+
+    Parameters and return value are identical to compile_model() but it adds a few optional keyword
+    Parameters:
+
+    Additional Keyword Parameters
+    ----------
+    lock_timeout_seconds : Union[Tensor, List[Tensor]]
+        An output Tensor, or a list of output Tensors.
+        The compiled module will preserve the ordering of the outputs in its
+        internal ordering.
+    write_log_file: Whether to write a log file to the build directory, which allows to diagnose
+    prevented race conditions on the build directory.
+
+    """
+    test_name = test_name.replace(",", "_")
+    test_dir = os.path.join(workdir, test_name)
+
+    def get_caller_info():
+        try:
+            frame = inspect.currentframe().f_back.f_back
+            filename = inspect.getframeinfo(frame).filename
+            basename = os.path.basename(filename)
+            lineno = inspect.getframeinfo(frame).lineno
+            caller = f"source line: {basename}:{lineno}"
+            try:
+                # Obtain additional caller info, in case
+                # this is running inside a unittest.TestCase
+                import unittest
+
+                maybe_test_self = frame.f_locals.get("self", None)
+                maybe_target = frame.f_locals.get("target", None)
+                if isinstance(maybe_test_self, unittest.TestCase):
+                    caller += f" test_id='{maybe_test_self.id()}'"
+                if isinstance(maybe_target, Target):
+                    caller += f" target='{str(maybe_target.__class__.__name__)}'"
+            except BaseException:
+                pass
+            return caller
+        except AttributeError:
+            return "<unknown>"
+
+    os.makedirs(test_dir, exist_ok=True)
+    log_str = f"safe_compile_model called with build directory='{test_dir}'. PID: {os.getpid()}. Caller info: {get_caller_info()}"
+    _LOGGER.info(log_str)
+    if write_log_file:
+        with open(os.path.join(test_dir, ".safe_compile_model.log"), "a") as log:
+            print(log_str, file=log)
+            log.flush()
+
+    def lock_contention_callback():
+        contention_msg = f"Race condition prevented by FileLock in safe_compile_model. Waiting on lock release. (timeout={lock_timeout_seconds}). Original log message: {log_str}."
+        _LOGGER.warn(contention_msg)
+        if write_log_file:
+            with open(os.path.join(test_dir, ".safe_compile_model.log"), "a") as log:
+                print(contention_msg, file=log)
+                log.flush()
+
+    # This lock should prevent race conditions from multiple
+    # processes building in the same directory. This can otherwise
+    # lead to hard to diagnose errors during parallel unit tests.
+    with FileLock(
+        os.path.join(test_dir, ".safe_compile_model.lock"),
+        timeout=lock_timeout_seconds,
+        retry_interval=0.5,
+        lock_contention_callback=lock_contention_callback,
+    ):
+        return compile_model(tensor, target, workdir, test_name, *args, **kwargs)

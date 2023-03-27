@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 from aitemplate.frontend import IntVar, nn, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -47,7 +47,7 @@ class UpsamplingTestCase(unittest.TestCase):
         Y = OP(X)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b in batch_size:
             X_pt = get_random_torch_tensor([b, channels, HH, WW], dtype=dtype)

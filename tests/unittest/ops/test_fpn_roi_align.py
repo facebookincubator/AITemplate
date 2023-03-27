@@ -17,7 +17,7 @@ import unittest
 from unittest import skipIf
 
 import torch
-from aitemplate.compiler import compile_model, Model, ops
+from aitemplate.compiler import Model, ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils.torch_utils import string_to_torch_dtype
@@ -96,7 +96,7 @@ class RoiAlignTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         if rebuild:
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
 

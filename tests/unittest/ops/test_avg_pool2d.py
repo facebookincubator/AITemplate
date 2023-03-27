@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 
 from aitemplate.frontend import IntVar, nn, Tensor
 from aitemplate.testing import detect_target
@@ -36,7 +36,7 @@ class AvgPoolTestCase(unittest.TestCase):
         Y = OP(X)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "avg_pool2d")
+        module = safe_compile_model(Y, target, "./tmp", "avg_pool2d")
         for batch in batch_size:
             X_pt = get_random_torch_tensor([batch, 2048, 7, 7], dtype=dtype)
             OP_pt = torch.nn.AvgPool2d(kernel_size=7, stride=1, padding=0)

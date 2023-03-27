@@ -16,7 +16,7 @@ import itertools
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntVarTensor
 
 from aitemplate.frontend import IntImm, IntVar, nn, Tensor
@@ -87,7 +87,7 @@ class ReshapeTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b in batch_size:
             # C, H, W
@@ -127,7 +127,7 @@ class ReshapeTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         # yank shape inference from op internals to let pt know what the real runtime shape will be
         x_shapes = list(itertools.product(*[var._attrs["values"] for var in X_shape]))

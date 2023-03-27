@@ -19,7 +19,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -74,7 +74,7 @@ class GatherTestCase(unittest.TestCase):
         np.testing.assert_equal(y_shape, index_shape)
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         X_pt = get_random_torch_tensor(input_shape, input_type)

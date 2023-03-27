@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -100,7 +100,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         np.testing.assert_equal(y_shape, Y_pt.size())
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", "slice_scatter_reshape_cat", dll_name=dll_name
         )
         Y_src_ops = list(Y._attrs["src_ops"])
@@ -215,7 +215,7 @@ class SliceScatterReshapeCatTestCase(unittest.TestCase):
         target = detect_target()
         dll_name = "test.so"
         test_name = "slice_scatter_reshape_cat_float16_2"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         Y_src_ops = list(Y._attrs["src_ops"])
         self.assertEqual(len(Y_src_ops), 1)
         self.assertEqual(Y_src_ops[0]._attrs["op"], "concatenate")

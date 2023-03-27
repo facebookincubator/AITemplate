@@ -18,7 +18,7 @@ from unittest.mock import patch
 
 import jinja2
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import DynamicProfileStrategy
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
@@ -68,7 +68,7 @@ class CompilationFailureTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        compile_model(
+        safe_compile_model(
             Y,
             target,
             f"./tmp/{test_name}",

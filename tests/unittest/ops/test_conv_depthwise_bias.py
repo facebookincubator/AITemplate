@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 
@@ -38,7 +38,7 @@ class ConvDepthwiseBiasTestCase(unittest.TestCase):
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "conv2d_dw_bias")
+        module = safe_compile_model(Y, target, "./tmp", "conv2d_dw_bias")
 
         X_pt = torch.randn(batch, 32, *size).cuda().half()
         W_pt = torch.randn(32, 1, 3, 3).cuda().half()

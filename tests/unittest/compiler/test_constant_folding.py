@@ -16,7 +16,7 @@ import itertools
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, Model, ops
+from aitemplate.compiler import Model, ops, safe_compile_model
 
 from aitemplate.compiler.base import _create_host_zero_tensor, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
@@ -67,7 +67,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         y_ait._attrs["name"] = "y"
         y_ait._attrs["is_output"] = True
 
-        mod = compile_model(
+        mod = safe_compile_model(
             y_ait, target, "./tmp", f"test_constant_folding_simple_{dtype}"
         )
         mod.set_constant_with_tensor("inp0", inp0_pt)
@@ -104,7 +104,9 @@ class ConstantFoldingTestCase(unittest.TestCase):
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
 
-        mod = compile_model(Y, target, "./tmp", f"test_pad_constant_weight_{dtype}")
+        mod = safe_compile_model(
+            Y, target, "./tmp", f"test_pad_constant_weight_{dtype}"
+        )
         mod.set_constant_with_tensor("weight", w_pt)
         mod.fold_constants()
 
@@ -172,7 +174,9 @@ class ConstantFoldingTestCase(unittest.TestCase):
         z_ait._attrs["is_output"] = True
 
         target = detect_target()
-        mod = compile_model(z_ait, target, "./tmp", f"test_fold_long_chain_{dtype}")
+        mod = safe_compile_model(
+            z_ait, target, "./tmp", f"test_fold_long_chain_{dtype}"
+        )
         mod.set_constant_with_tensor("w1", w1_pt)
         mod.set_constant_with_tensor("w2", w2_pt)
         mod.set_constant_with_tensor("x", x_pt)
@@ -212,7 +216,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         y_ait._attrs["name"] = "y"
         y_ait._attrs["is_output"] = True
 
-        mod = compile_model(
+        mod = safe_compile_model(
             y_ait, target, "./tmp", f"test_constant_folding_through_views_{dtype}"
         )
         mod.set_constant_with_tensor("inp0", inp0_pt)
@@ -239,7 +243,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         if dtype == "float" and (target.name == "rocm" or int(target._arch) < 80):
             self.skipTest("gemm with float tensors requires CUDA sm >= 80")
 
-        # Test binding constants through compile_model
+        # Test binding constants through safe_compile_model
         M, N, K = 16, 32, 3
         w1_pt = get_random_torch_tensor((K, N), dtype)
 
@@ -262,7 +266,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         z_ait._attrs["name"] = "z"
         z_ait._attrs["is_output"] = True
 
-        mod = compile_model(
+        mod = safe_compile_model(
             z_ait,
             target,
             "./tmp",
@@ -295,7 +299,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         torch_shape = (K.value(), N.value())
         target = detect_target()
         with self.assertRaisesRegex(ValueError, "Tensor w1 is already bound!"):
-            compile_model(
+            safe_compile_model(
                 y_ait,
                 target,
                 "./tmp",
@@ -319,7 +323,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         torch_shape = (K.value(), N.value())
         target = detect_target()
         with self.assertRaisesRegex(ValueError, "Cannot bind input tensor w1"):
-            compile_model(
+            safe_compile_model(
                 y_ait,
                 target,
                 "./tmp",
@@ -343,7 +347,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         torch_shape = (K.value(), N.value())
         target = detect_target()
         with self.assertRaisesRegex(ValueError, "Cannot bind non-constant tensor y"):
-            compile_model(
+            safe_compile_model(
                 y_ait,
                 target,
                 "./tmp",
@@ -375,7 +379,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
                 r"data's dtype did not match: expected float16, got .*",
             ):
                 target = detect_target()
-                compile_model(
+                safe_compile_model(
                     y,
                     target,
                     "./tmp",
@@ -399,7 +403,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         y_pt = w1_pt * w2_pt
         y = torch.empty_like(y_pt)
 
-        with compile_model(
+        with safe_compile_model(
             y_ait, detect_target(), "./tmp", "test_constant_folding_manual_call"
         ) as mod:
             # Unset constants
@@ -460,7 +464,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         x4_pt = x3_pt * x1_pt
         output_pt = w5_pt * x4_pt
 
-        mod = compile_model(
+        mod = safe_compile_model(
             output,
             detect_target(),
             "./tmp",
@@ -507,7 +511,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         x4._attrs["name"] = "x4"
         x4._attrs["is_output"] = True
 
-        mod = compile_model(
+        mod = safe_compile_model(
             [x2, x3, x4],
             detect_target(),
             "./tmp",
@@ -596,7 +600,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         unbound_constants = dict(
             model_unbound_constants, **const_folder_unbound_constants
         )
-        mod = compile_model(
+        mod = safe_compile_model(
             output,
             detect_target(),
             "./tmp",

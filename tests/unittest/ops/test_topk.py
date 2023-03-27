@@ -20,7 +20,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils.torch_utils import string_to_torch_dtype
@@ -64,7 +64,9 @@ class topkTestCase(unittest.TestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", f"{test_name}_{self.test_count}")
+        module = safe_compile_model(
+            X4, target, "./tmp", f"{test_name}_{self.test_count}"
+        )
 
         scores = self._create_tensors(shape, dtype)
         (values, y_pt) = torch.topk(scores, k=topK, dim=dim)

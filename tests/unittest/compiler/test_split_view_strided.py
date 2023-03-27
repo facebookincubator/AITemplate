@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target, test_utils
 from aitemplate.testing.test_utils import (
@@ -73,7 +73,7 @@ class SplitViewStridedOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Cs, target, "./tmp", testname)
+        module = safe_compile_model(Cs, target, "./tmp", testname)
         graph = module.debug_sorted_graph
         self.assertEqual(len(graph), expected_num_tensors)
         self.assertEqual(len(graph_utils.get_sorted_ops(graph)), expected_num_ops)

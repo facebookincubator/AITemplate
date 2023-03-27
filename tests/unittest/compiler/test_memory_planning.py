@@ -18,7 +18,7 @@ import unittest
 import torch
 from aitemplate import compiler
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import Operator
 from aitemplate.frontend import IntImm, nn, Tensor
 from aitemplate.testing import detect_target
@@ -74,7 +74,7 @@ class MemoryPlanningTestCase(unittest.TestCase):
         OUT._attrs["name"] = "output_0"
         OUT._attrs["is_output"] = True
 
-        module = compile_model(OUT, target, "./tmp", "memory_planning")
+        module = safe_compile_model(OUT, target, "./tmp", "memory_planning")
         self.assertEqual(len(module.debug_sorted_graph), 6)
 
         assert T0._attrs["offset"] == T3._attrs["offset"]

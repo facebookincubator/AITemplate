@@ -17,7 +17,7 @@ from typing import List
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target, test_utils
@@ -197,7 +197,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
         Z._attrs["is_output"] = True
 
         # Gen module.
-        module = compile_model([Z], target, "./tmp", test_name)
+        module = safe_compile_model([Z], target, "./tmp", test_name)
 
         # Verify the generated graph.
         sorted_graph = module.debug_sorted_graph
@@ -306,7 +306,7 @@ class StridedViewCatOpTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             Z, target, "./tmp", f"strided_layernorm_view_cat_fusion_{dtype}"
         )
 

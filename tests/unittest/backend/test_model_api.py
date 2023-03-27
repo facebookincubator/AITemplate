@@ -25,7 +25,7 @@ import numpy as np
 
 import torch
 
-from aitemplate.compiler import AIT_DEFAULT_NUM_RUNTIMES, compile_model, ops
+from aitemplate.compiler import AIT_DEFAULT_NUM_RUNTIMES, ops, safe_compile_model
 from aitemplate.compiler.base import (
     _ConstantTensorData,
     _create_host_zero_tensor,
@@ -73,7 +73,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", test_name)
+        module = safe_compile_model(output, target, "./tmp", test_name)
         in0_pt = torch.randn([1]).cuda().half()
         in1_pt = torch.randn([1]).cuda().half()
         output_pt = torch.mul(in0_pt, in1_pt)
@@ -91,7 +91,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", "test_set_unnamed_input")
+        module = safe_compile_model(output, target, "./tmp", "test_set_unnamed_input")
         in0_pt = torch.randn([1]).cuda().half()
         in1_pt = torch.randn([1]).cuda().half()
         output_pt = in0_pt - in1_pt
@@ -115,7 +115,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", name)
+        module = safe_compile_model(output, target, "./tmp", name)
         input_name_to_index = module.get_input_name_to_index_map()
         self.assertEqual(input_name_to_index, {"input_0": 0, "input_1": 1})
         output_name_to_index = module.get_output_name_to_index_map()
@@ -227,7 +227,9 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", "test_one_input_many_constants")
+        module = safe_compile_model(
+            output, target, "./tmp", "test_one_input_many_constants"
+        )
         in0_pt = torch.randn((1, 2)).cuda().half()
         const_1_pt = torch.randn((1, 2)).cuda().half()
         const_2_pt = torch.randn((1, 2)).cuda().half()
@@ -296,7 +298,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", "dynamic_shape_api")
+        module = safe_compile_model(output, target, "./tmp", "dynamic_shape_api")
         for batch_size in (1, 10):
             in0_pt = torch.randn([batch_size, 2]).cuda().half()
             in1_pt = torch.randn([batch_size, 2]).cuda().half()
@@ -325,7 +327,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["is_output"] = True
         output._attrs["name"] = "output"
 
-        module = compile_model(output, target, "./tmp", "output_is_alias_of_input")
+        module = safe_compile_model(output, target, "./tmp", "output_is_alias_of_input")
 
         in0_pt = torch.randn((2, 2)).cuda().half()
         out_shape = (4, 1) if view_of_view else (4,)
@@ -347,7 +349,7 @@ class ModelAPITestCase(unittest.TestCase):
             shape=[2, 2], dtype="float16", name="input_0", is_input=True, is_output=True
         )
 
-        module = compile_model(input_0, target, "./tmp", "output_is_input")
+        module = safe_compile_model(input_0, target, "./tmp", "output_is_input")
 
         in0_pt = torch.randn((2, 2)).cuda().half()
         out_ait = torch.empty((2, 2)).cuda().half()
@@ -374,7 +376,9 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", "output_is_view_of_constant")
+        module = safe_compile_model(
+            output, target, "./tmp", "output_is_view_of_constant"
+        )
 
         const_pt = torch.randn((2, 2)).cuda().half()
         out_shape = (4, 1) if view_of_view else (4,)
@@ -394,7 +398,7 @@ class ModelAPITestCase(unittest.TestCase):
     def test_output_is_constant(self):
         target = detect_target()
         const = Tensor(shape=[2, 2], dtype="float16", name="constant", is_output=True)
-        module = compile_model(const, target, "./tmp", "output_is_constant")
+        module = safe_compile_model(const, target, "./tmp", "output_is_constant")
 
         const_pt = torch.randn((2, 2)).cuda().half()
         out_ait = torch.empty((2, 2)).cuda().half()
@@ -425,7 +429,7 @@ class ModelAPITestCase(unittest.TestCase):
         output1._attrs["name"] = "output1"
 
         outputs = [output, view, output1]
-        module = compile_model(
+        module = safe_compile_model(
             outputs, target, "./tmp", "output_is_alias_of_another_output"
         )
 
@@ -468,7 +472,7 @@ class ModelAPITestCase(unittest.TestCase):
         view2._attrs["is_output"] = True
         view2._attrs["name"] = "view2"
 
-        module = compile_model(
+        module = safe_compile_model(
             [view1, view2], target, "./tmp", "output_is_alias_of_another_output"
         )
 
@@ -548,7 +552,7 @@ class ModelAPITestCase(unittest.TestCase):
         output = ops.elementwise(FuncEnum.MUL)(input_0, input_0)
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", "test_dynamic_dim_out_of_bounds"
         )
 
@@ -595,7 +599,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             output,
             target,
             "./tmp",
@@ -647,7 +651,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", "test_with_tensors_api_fails_on_strided_inputs"
         )
 
@@ -683,7 +687,7 @@ class ModelAPITestCase(unittest.TestCase):
         output_1._attrs["is_output"] = True
         output_2._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [output_0, output_1, output_2], target, "./tmp", "test_dict_api"
         )
 
@@ -783,7 +787,7 @@ class ModelAPITestCase(unittest.TestCase):
                 is_output=True,
             )
             with self.assertRaises(ValueError):
-                compile_model(
+                safe_compile_model(
                     input_0,
                     target,
                     "./tmp",
@@ -876,7 +880,7 @@ class ModelAPITestCase(unittest.TestCase):
         out._attrs["name"] = "output"
         out._attrs["is_output"] = True
 
-        module = compile_model(out, target, "./tmp", name)
+        module = safe_compile_model(out, target, "./tmp", name)
 
         output_ait = torch.randn((size,)).half().cuda()
         module.run_with_tensors([], [output_ait])
@@ -916,7 +920,7 @@ class ModelAPITestCase(unittest.TestCase):
         out._attrs["name"] = "out1"
         out._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [input_0, out],
             target,
             "./tmp",
@@ -961,7 +965,7 @@ class ModelAPITestCase(unittest.TestCase):
         out._attrs["name"] = "out1"
         out._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [input_0, out],
             target,
             "./tmp",
@@ -1002,7 +1006,7 @@ class ModelAPITestCase(unittest.TestCase):
         out._attrs["name"] = "out1"
         out._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             [input_0, out],
             target,
             "./tmp",
@@ -1073,7 +1077,7 @@ class ModelAPITestCase(unittest.TestCase):
 
         for output_ordering in itertools.permutations((output0, output1, output2)):
             target = detect_target()
-            with compile_model(
+            with safe_compile_model(
                 output_ordering,
                 target,
                 "./tmp",
@@ -1098,7 +1102,7 @@ class ModelAPITestCase(unittest.TestCase):
         target = detect_target()
         self.assertRaises(
             (KeyError, ValueError),
-            compile_model,
+            safe_compile_model,
             [input0, output0],
             target,
             "./tmp",
@@ -1117,7 +1121,7 @@ class ModelAPITestCase(unittest.TestCase):
         target = detect_target()
         self.assertRaises(
             ValueError,
-            compile_model,
+            safe_compile_model,
             [output0],
             target,
             "./tmp",
@@ -1134,7 +1138,7 @@ class ModelAPITestCase(unittest.TestCase):
         target = detect_target()
         self.assertRaises(
             ValueError,
-            compile_model,
+            safe_compile_model,
             [output0, output0],
             target,
             "./tmp",
@@ -1178,7 +1182,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", "test_run_fails_with_unbound_constants"
         )
 
@@ -1214,7 +1218,7 @@ class ModelAPITestCase(unittest.TestCase):
             torch.zeros([1, 2]).float().cuda(),
         ):
             target = detect_target()
-            with compile_model(
+            with safe_compile_model(
                 _create_graph(), target, "./tmp", "test_set_constant_fails_wrong_dtype"
             ) as module:
                 self.assertRaises(
@@ -1240,7 +1244,7 @@ class ModelAPITestCase(unittest.TestCase):
             wrong_tensor = torch.randn(wrong_shape).half().cuda()
             target = detect_target()
             output = _create_graph()
-            with compile_model(
+            with safe_compile_model(
                 output, target, "./tmp", "test_set_constant_fails_wrong_shape"
             ) as module:
                 self.assertRaises(
@@ -1351,12 +1355,12 @@ class ModelAPITestCase(unittest.TestCase):
     def test_get_num_runtimes(self):
         self.assertEqual(AIT_DEFAULT_NUM_RUNTIMES, 1)
         x = Tensor([1], dtype="float16", is_input=True, is_output=True)
-        with compile_model(
+        with safe_compile_model(
             x, detect_target(), "./tmp", "test_get_num_runtimes_compile_module_default"
         ) as module:
             self.assertEqual(module.get_num_runtimes(), 1)
 
-        with compile_model(
+        with safe_compile_model(
             x,
             detect_target(),
             "./tmp",
@@ -1367,7 +1371,7 @@ class ModelAPITestCase(unittest.TestCase):
 
     def test_ait_data_numpy_conversions(self):
         x = Tensor([1], dtype="float16", is_input=True, is_output=True)
-        with compile_model(
+        with safe_compile_model(
             x, detect_target(), "./tmp", "test_ait_data_numpy_conversions"
         ) as module:
             x_shape = [1, 2, 3]
@@ -1387,7 +1391,7 @@ class ModelAPITestCase(unittest.TestCase):
 
     def test_numpy_to_ait_data_manual_free(self):
         x = Tensor([1], dtype="float16", is_input=True, is_output=True)
-        with compile_model(
+        with safe_compile_model(
             x, detect_target(), "./tmp", "test_numpy_to_ait_data_manual_free"
         ) as module:
             x_shape = [1, 2, 3]
@@ -1405,7 +1409,7 @@ class ModelAPITestCase(unittest.TestCase):
             AITemplateAllocatorKind.DEFAULT,
             AITemplateAllocatorKind.TRACKING,
         ):
-            with compile_model(
+            with safe_compile_model(
                 z,
                 detect_target(),
                 "./tmp",
@@ -1462,7 +1466,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", "test_get_constant_names", constants=constants
         )
 
@@ -1522,7 +1526,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             output,
             target,
             "./tmp",
@@ -1549,7 +1553,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", "test_get_constant_names")
+        module = safe_compile_model(output, target, "./tmp", "test_get_constant_names")
 
         input_0_pt = torch.randn((1, 2)).cuda().half()
         constant_1_pt = torch.randn((1, 2)).cuda().half()
@@ -1575,7 +1579,7 @@ class ModelAPITestCase(unittest.TestCase):
         output._attrs["name"] = "output"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", "test_get_constant_names")
+        module = safe_compile_model(output, target, "./tmp", "test_get_constant_names")
 
         input_0_pt = torch.randn((10000, 2000)).cuda().half()
         constant_1_pt = torch.randn((10000, 2000)).cuda().half()

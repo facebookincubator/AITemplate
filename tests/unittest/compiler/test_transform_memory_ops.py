@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops, transform
+from aitemplate.compiler import ops, safe_compile_model, transform
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -69,7 +69,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         if dtype == "float" and target.name == "rocm":
             self.skipTest("float tensors not supported by ROCM")
         OUTPUT = self._prepare_cat_elimination_graph(dtype)
-        module = compile_model(OUTPUT, target, "./tmp", f"cat_elimination_{dtype}")
+        module = safe_compile_model(OUTPUT, target, "./tmp", f"cat_elimination_{dtype}")
 
         x0_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N], dtype)
         out_pt = torch.cat([x0_pt, x0_pt], dim=1)
@@ -144,7 +144,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         if dtype == "float" and target.name == "rocm":
             self.skipTest("float tensors not supported by ROCM")
         OUTPUT = self._prepare_split_cat_elimination_graph(dtype)
-        module = compile_model(
+        module = safe_compile_model(
             OUTPUT, target, "./tmp", f"split_cat_elimination_{dtype}"
         )
 
@@ -240,7 +240,9 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         if dtype == "float" and target.name == "rocm":
             self.skipTest("float tensors not supported by ROCM")
         OUTPUT = self._prepare_cat_cat_elimination_graph(dtype)
-        module = compile_model(OUTPUT, target, "./tmp", f"cat_cat_elimination_{dtype}")
+        module = safe_compile_model(
+            OUTPUT, target, "./tmp", f"cat_cat_elimination_{dtype}"
+        )
 
         x0_pt = get_random_torch_tensor(
             [self.BATCH_SIZE, int(self.M / 2), self.N], dtype
@@ -298,7 +300,9 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         if dtype == "float" and target.name == "rocm":
             self.skipTest("float tensors not supported by ROCM")
         OUTPUT = self._prepare_skip_cat_elimination_graph(dtype)
-        module = compile_model(OUTPUT, target, "./tmp", f"skip_cat_elimination_{dtype}")
+        module = safe_compile_model(
+            OUTPUT, target, "./tmp", f"skip_cat_elimination_{dtype}"
+        )
 
         x0_pt = get_random_torch_tensor([self.BATCH_SIZE, self.M, self.N], dtype)
         out0_pt = torch.cat([x0_pt], dim=1)
@@ -349,7 +353,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         if dtype == "float" and target.name == "rocm":
             self.skipTest("float tensors not supported by ROCM")
         OUTPUT = self._prepare_skip_split_cat_elimination_graph(dtype)
-        module = compile_model(
+        module = safe_compile_model(
             OUTPUT, target, "./tmp", f"skip_split_cat_elimination_{dtype}"
         )
 
@@ -445,7 +449,7 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         if dtype == "float" and target.name == "rocm":
             self.skipTest("float tensors not supported by ROCM")
         OUTPUT = self._prepare_skip_cat_cat_elimination_graph(dtype)
-        module = compile_model(
+        module = safe_compile_model(
             OUTPUT, target, "./tmp", f"skip_cat_cat_elimination_{dtype}"
         )
 

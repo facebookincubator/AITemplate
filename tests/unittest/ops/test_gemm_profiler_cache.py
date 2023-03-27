@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 from aitemplate.backend.profiler_cache import ProfileCacheDB
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 
@@ -60,7 +60,7 @@ class GemmProfilerCacheTestCase(unittest.TestCase):
             logger=logger,
             level="INFO",
         ) as logs:
-            compile_model(
+            safe_compile_model(
                 Y,
                 target,
                 "./tmp",

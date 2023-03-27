@@ -19,7 +19,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -70,7 +70,9 @@ class batchGatherTestCase(gatherTestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", f"{test_name}_{self.test_count}")
+        module = safe_compile_model(
+            X4, target, "./tmp", f"{test_name}_{self.test_count}"
+        )
 
         input_x = get_random_torch_tensor(in_shape, dtype)
         init_index = torch.randint(max_ind, size=ind_shape, dtype=torch.int64).cuda()
@@ -155,7 +157,9 @@ class batchGatherTopkTestCase(gatherTestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", f"{test_name}_{self.test_count}")
+        module = safe_compile_model(
+            X4, target, "./tmp", f"{test_name}_{self.test_count}"
+        )
 
         input_x = get_random_torch_tensor(m_shape, dtype)
         scores = self._create_tensors(N, dtype)

@@ -19,7 +19,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -111,7 +111,7 @@ class FusedElementwiseOutOfOrderTestCase(unittest.TestCase):
         R5._attrs["name"] = "R5"
         R5._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             R5,
             target,
             "./tmp",

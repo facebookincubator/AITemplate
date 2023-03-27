@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -81,7 +81,7 @@ class FuseConvCase(unittest.TestCase):
         output._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", "test_do_not_fuse_with_add_not_1d"
         )
 
@@ -133,7 +133,7 @@ class FuseConvCase(unittest.TestCase):
         output._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             output, target, "./tmp", "test_do_not_fuse_with_add_not_1d"
         )
 
@@ -204,7 +204,7 @@ class FuseConvBiasCase(unittest.TestCase):
         conv2d_bias._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(conv2d_bias, target, "./tmp", "test_conv2d_bias")
+        module = safe_compile_model(conv2d_bias, target, "./tmp", "test_conv2d_bias")
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -253,7 +253,7 @@ class FuseConvBiasCase(unittest.TestCase):
         conv2d_bias_add_relu._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             conv2d_bias_add_relu, target, "./tmp", "test_conv2d_bias_add_relu"
         )
 
@@ -305,7 +305,7 @@ class FuseConvBiasCase(unittest.TestCase):
         conv2d_bias_relu._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             conv2d_bias_relu, target, "./tmp", "test_conv2d_bias_relu"
         )
 
@@ -350,7 +350,7 @@ class FuseConvBiasCase(unittest.TestCase):
         conv2d_bias_sigmoid._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             conv2d_bias_sigmoid, target, "./tmp", "test_conv2d_bias_sigmoid"
         )
 
@@ -404,7 +404,9 @@ class FuseConvBiasCase(unittest.TestCase):
         conv2d_bias_add._attrs["is_output"] = True
         conv2d_bias_add._attrs["name"] = "output_0"
 
-        module = compile_model(conv2d_bias_add, target, "./tmp", "test_conv2d_bias_add")
+        module = safe_compile_model(
+            conv2d_bias_add, target, "./tmp", "test_conv2d_bias_add"
+        )
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -459,7 +461,9 @@ class FuseConvBiasCase(unittest.TestCase):
         conv2d_bias_add._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(conv2d_bias_add, target, "./tmp", "test_conv2d_bias_add")
+        module = safe_compile_model(
+            conv2d_bias_add, target, "./tmp", "test_conv2d_bias_add"
+        )
 
         graph = module.debug_sorted_graph
 
@@ -491,7 +495,9 @@ class FuseConvBiasFewChannelCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", "test_conv_bias_relu_few_channels")
+        module = safe_compile_model(
+            Y, target, "./tmp", "test_conv_bias_relu_few_channels"
+        )
 
         check_tensor = None
         for tensor in module.debug_sorted_graph:
@@ -589,7 +595,7 @@ class FuseTransposedConvCase(unittest.TestCase):
         transposed_conv2d_bias._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             transposed_conv2d_bias,
             target,
             "./tmp",
@@ -651,7 +657,7 @@ class FuseTransposedConvCase(unittest.TestCase):
         transposed_conv2d_bias_relu._attrs["name"] = "output_0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             transposed_conv2d_bias_relu,
             target,
             "./tmp",

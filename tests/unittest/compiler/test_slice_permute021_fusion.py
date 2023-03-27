@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 
 from aitemplate.testing import detect_target
@@ -60,7 +60,7 @@ class SlicePermute021FusionTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             Y,
             target,
             "./tmp",

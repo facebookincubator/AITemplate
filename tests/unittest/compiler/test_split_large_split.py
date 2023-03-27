@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -71,7 +71,7 @@ class SplitLargeSplitTestCase(unittest.TestCase):
             logging.info(f"AITemplate output_{idx} shape: {y_shape}")
             y_shapes.append(y_shape)
 
-        module = compile_model(Ys, target, "./tmp", testname)
+        module = safe_compile_model(Ys, target, "./tmp", testname)
 
         outputs = {
             f"output_{idx}": get_torch_empty_tensor(y_shape, input_type)
@@ -138,7 +138,7 @@ class SplitLargeSplitTestCase(unittest.TestCase):
             logging.info(f"AITemplate output_{idx} shape: {y_shape}")
             y_shapes.append(y_shape)
 
-        module = compile_model(Ys, target, "./tmp", "split_with_strided_ops")
+        module = safe_compile_model(Ys, target, "./tmp", "split_with_strided_ops")
 
         outputs = {
             f"output_{idx}": get_torch_empty_tensor(y_shape)

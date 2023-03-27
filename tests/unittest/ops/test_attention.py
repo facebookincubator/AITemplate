@@ -23,7 +23,7 @@ import unittest
 import torch
 import torch.nn.functional as F
 
-from aitemplate.compiler import compile_model, Model, ops
+from aitemplate.compiler import Model, ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import benchmark_pt, detect_target
@@ -247,7 +247,7 @@ class AttentionTestCase(unittest.TestCase):
 
         if rebuild:
             target = detect_target()
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
 
@@ -357,7 +357,7 @@ class AttentionTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         if rebuild:
             target = detect_target()
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
 
@@ -504,7 +504,7 @@ class AttentionTestCase(unittest.TestCase):
 
         if rebuild:
             target = detect_target()
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
 
@@ -714,7 +714,7 @@ class AttentionTestCase(unittest.TestCase):
 
         if rebuild:
             target = detect_target()
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
 

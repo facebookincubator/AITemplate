@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -46,7 +46,7 @@ class FusePermuteBmmRRRN1Case(unittest.TestCase):
 
         # Check value correctness
         target = detect_target()
-        module = compile_model(output, target, "./tmp", testname)
+        module = safe_compile_model(output, target, "./tmp", testname)
 
         bmm_tensor = None
         for tensor in module.debug_sorted_graph:

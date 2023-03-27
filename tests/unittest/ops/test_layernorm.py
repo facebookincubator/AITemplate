@@ -20,7 +20,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -98,7 +98,7 @@ class LayernormTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(X4, target, "./tmp", "layernorm", dll_name=dll_name)
+        module = safe_compile_model(X4, target, "./tmp", "layernorm", dll_name=dll_name)
 
         for batch_size in [50, 900, 1024]:
             x1_pt = torch.randn(batch_size, *MS, *NS, dtype=torch_dtype).cuda()

@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
@@ -72,7 +72,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         self.assertEqual(len(sorted_graph), 5)
@@ -148,7 +148,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         if non_movable is True:
@@ -251,7 +251,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         self.assertEqual(len(sorted_graph), 5)
@@ -315,7 +315,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         self.assertEqual(len(sorted_graph), 3)
@@ -383,7 +383,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
@@ -466,7 +466,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
@@ -550,7 +550,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
@@ -648,7 +648,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 3)
@@ -781,7 +781,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 5)
@@ -889,7 +889,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
@@ -976,7 +976,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 1)
@@ -1061,7 +1061,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 2)
@@ -1161,7 +1161,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
@@ -1305,7 +1305,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # Gen module.
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         self.test_count += 1
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)

@@ -19,7 +19,7 @@ from typing import Sequence
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.transform.fuse_parallel_gemms import fuse_parallel_gemms
 from aitemplate.compiler.transform.toposort import toposort
@@ -108,7 +108,7 @@ def _prepare_ait_module(m, nk_groups, constants, dtype, test_idx=0, has_bias=Tru
     Y._attrs["is_output"] = True
 
     target = detect_target()
-    module = compile_model(
+    module = safe_compile_model(
         Y,
         target,
         "./tmp",
@@ -239,7 +239,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [cat_output],
             target,
             "./tmp",
@@ -498,7 +498,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [cat_output],
             target,
             "./tmp",

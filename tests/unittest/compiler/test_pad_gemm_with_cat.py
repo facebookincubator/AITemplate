@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -75,7 +75,7 @@ class PadGemmWithCatTestCase(unittest.TestCase):
             _LOGGER.warning("Skip this test on SM75")
             return
         dll_name = "test_rcr.so"
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"pad_gemm_with_cat_{dtype}", dll_name=dll_name
         )
 

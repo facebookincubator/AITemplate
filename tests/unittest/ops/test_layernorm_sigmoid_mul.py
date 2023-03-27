@@ -20,7 +20,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -96,7 +96,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         X6._attrs["name"] = "output"
 
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             X6,
             target,
             "./tmp",
@@ -424,7 +424,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             X4,
             target,
             "./tmp",
@@ -530,7 +530,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             X4,
             target,
             "./tmp",
@@ -761,7 +761,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
 
         target = detect_target()
 
-        with compile_model(
+        with safe_compile_model(
             Ys,
             target,
             "./tmp",

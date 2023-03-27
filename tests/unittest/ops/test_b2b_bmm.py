@@ -21,7 +21,7 @@ from typing import List, Tuple
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils
@@ -101,7 +101,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
 
         target = detect_target(use_fp16_acc=True)
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         # Run tests.
         torch_dtype = string_to_torch_dtype(dtype)

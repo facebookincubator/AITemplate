@@ -20,7 +20,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -91,7 +91,7 @@ class SerDesTestCase(unittest.TestCase):
         outputs, _ = get_program(test_path)
 
         target = detect_target()
-        module = compile_model(outputs, target, "./tmp", "simple_serdes")
+        module = safe_compile_model(outputs, target, "./tmp", "simple_serdes")
 
         x1_pt = torch.randn(3, 4).cuda().half()
         x2_pt = torch.randn(1).cuda().half()
@@ -120,7 +120,7 @@ class SerDesTestCase(unittest.TestCase):
         outputs, _ = get_program(test_path)
 
         target = detect_target()
-        module = compile_model(outputs, target, "./tmp", "serdes_multi_outputs")
+        module = safe_compile_model(outputs, target, "./tmp", "serdes_multi_outputs")
 
         y_shapes = [(4, 10), (4, 10)]
         outputs = {
@@ -151,7 +151,7 @@ class SerDesSpecialOpTestCase(unittest.TestCase):
         outputs, _ = get_program(test_path)
 
         target = detect_target()
-        module = compile_model(outputs, target, "./tmp", "serdes_elementwise")
+        module = safe_compile_model(outputs, target, "./tmp", "serdes_elementwise")
 
         x1_pt = torch.randn(3, 4).cuda().half()
         x2_pt = torch.clamp(x1_pt, max=0.5)
@@ -178,7 +178,7 @@ class SerDesSpecialOpTestCase(unittest.TestCase):
         outputs, _ = get_program(test_path)
 
         target = detect_target()
-        module = compile_model(outputs, target, "./tmp", "serdes_concat")
+        module = safe_compile_model(outputs, target, "./tmp", "serdes_concat")
 
         input_tensors_ait = {f"input_{idx}": X_pts[idx] for idx in range(5)}
         y = torch.empty_like(Y_pt)
@@ -202,7 +202,7 @@ class SerDesSpecialOpTestCase(unittest.TestCase):
         outputs, _ = get_program(test_path)
 
         target = detect_target()
-        module = compile_model(outputs, target, "./tmp", "serdes_reshape")
+        module = safe_compile_model(outputs, target, "./tmp", "serdes_reshape")
 
         X_pt = torch.randn(5, 4, 6, 8).cuda().half()
         Y_pt = torch.reshape(X_pt, (-1, 6, 32))
@@ -232,7 +232,7 @@ class SerDesSpecialOpTestCase(unittest.TestCase):
         test_path = "./tmp/test_serdes_group_gemm.py"
         dump_program([Y1, Y2], test_path)
         outputs, _ = get_program(test_path)
-        module = compile_model(outputs, target, "./tmp", "serdes_group_gemm")
+        module = safe_compile_model(outputs, target, "./tmp", "serdes_group_gemm")
 
         X1_pt = torch.randn(M, K1).cuda().half()
         X2_pt = torch.randn(M, K2).cuda().half()
@@ -275,7 +275,7 @@ class SerDesSpecialOpTestCase(unittest.TestCase):
         outputs, _ = get_program(test_path)
 
         target = detect_target()
-        module = compile_model(outputs, target, "./tmp", "serdes_dynamic_slice")
+        module = safe_compile_model(outputs, target, "./tmp", "serdes_dynamic_slice")
 
         for batch in batch_sizes:
             # generate torch reference result

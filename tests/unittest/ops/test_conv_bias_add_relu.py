@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -70,7 +70,7 @@ class ConvBiasAddReluTestCase(unittest.TestCase):
         Y = OP(X, W, B, R)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor([batch, CI, HH, WW], dtype=dtype)
         W_pt = get_random_torch_tensor([CO, CI, 3, 3], dtype=dtype)

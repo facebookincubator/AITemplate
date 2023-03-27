@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
@@ -58,7 +58,7 @@ class FlattenTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         x_shape_values = [var._attrs["values"] for var in X_shape]

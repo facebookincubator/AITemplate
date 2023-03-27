@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -45,7 +45,7 @@ class Permute210Test(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", f"perm210_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"perm210_{self._test_id}")
         self._test_id += 1
 
         batch_dim = input_shape[0]

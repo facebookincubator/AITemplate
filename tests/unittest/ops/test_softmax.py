@@ -19,7 +19,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -53,7 +53,7 @@ class SoftmaxTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
 
-        module = compile_model(Y, target, "./tmp", testname)
+        module = safe_compile_model(Y, target, "./tmp", testname)
 
         for batch_size in batch_sizes:
             x_pt = torch.randn(batch_size, *input_shapes, dtype=torch_dtype).cuda()

@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -73,7 +73,7 @@ class ConcatenateTanhTestCase(unittest.TestCase):
 
         logging.info(f"AITemplate output_shape: {y_shape}")
 
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         input_tensors_ait = {
@@ -111,7 +111,7 @@ class ConcatenateTanhTestCase(unittest.TestCase):
         Y = concatenate_op(inputs) if dim is None else concatenate_op(inputs, dim)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
         for batch in batch_sizes:
             logging.info(f"checking batch: {batch}")
@@ -187,7 +187,7 @@ class ConcatenateTanhTestCase(unittest.TestCase):
 
         logging.info(f"AITemplate output_shape: {y_shape}")
 
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
         self._test_id += 1
 
         inputs = []

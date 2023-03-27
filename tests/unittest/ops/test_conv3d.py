@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -66,7 +66,7 @@ class Conv3dTestCase(unittest.TestCase):
 
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "conv3d_has_bias")
+        module = safe_compile_model(Y, target, "./tmp", "conv3d_has_bias")
 
         X_pt = get_random_torch_tensor([4, ci, tt, hh, ww], dtype=dtype)
         W_pt = get_random_torch_tensor([co, ci, kt, kh, kw], dtype=dtype)
@@ -133,7 +133,7 @@ class Conv3dTestCase(unittest.TestCase):
             Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"{test_name}_{has_bias}")
+        module = safe_compile_model(Y, target, "./tmp", f"{test_name}_{has_bias}")
 
         X_pt = get_random_torch_tensor([batch, ci, tt, hh, ww], dtype=dtype)
         W_pt = get_random_torch_tensor([co, ci, kt, kh, kw], dtype=dtype)

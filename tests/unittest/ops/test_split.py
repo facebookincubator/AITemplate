@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -85,7 +85,7 @@ class SplitTestCase(unittest.TestCase):
             y_shapes.append(y_shape)
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Ys, target, "./tmp", "split", dll_name=dll_name)
+        module = safe_compile_model(Ys, target, "./tmp", "split", dll_name=dll_name)
 
         outputs = {
             f"output_{idx}": get_torch_empty_tensor(y_shape, input_type)
@@ -132,7 +132,7 @@ class SplitTestCase(unittest.TestCase):
             Y._attrs["is_output"] = True
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Ys, target, "./tmp", "split", dll_name=dll_name)
+        module = safe_compile_model(Ys, target, "./tmp", "split", dll_name=dll_name)
 
         for batch in batch_sizes:
             logging.info(f"checking batch: {batch}")

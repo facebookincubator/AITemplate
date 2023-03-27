@@ -20,7 +20,7 @@ import pytest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -45,7 +45,7 @@ def _test_inf_and_nan(
 
     target = detect_target()
     debug_settings = AITDebugSettings(check_all_nan_and_inf=check_all)
-    module = compile_model(
+    module = safe_compile_model(
         X2, target, "./tmp", test_name, debug_settings=debug_settings
     )
 
@@ -81,7 +81,7 @@ def _test_outputs(
 
     target = detect_target()
     debug_settings = AITDebugSettings(check_all_outputs=check_all)
-    module = compile_model(
+    module = safe_compile_model(
         X2, target, "./tmp", test_name, debug_settings=debug_settings
     )
 
@@ -128,7 +128,7 @@ def _test_special_outputs(
 
     target = detect_target()
     debug_settings = AITDebugSettings(check_all_outputs=check_all)
-    module = compile_model(
+    module = safe_compile_model(
         X2, target, "./tmp", test_name, debug_settings=debug_settings
     )
 

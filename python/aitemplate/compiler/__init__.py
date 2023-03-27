@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 from aitemplate.compiler import base, dtype, ops, tensor_accessor, transform
-from aitemplate.compiler.compiler import compile_model
+from aitemplate.compiler.compiler import compile_model, safe_compile_model
 from aitemplate.compiler.model import AIT_DEFAULT_NUM_RUNTIMES, AITData, Model
 
 __all__ = [
@@ -25,6 +25,7 @@ __all__ = [
     "tensor_accessor",
     "transform",
     "compile_model",
+    "safe_compile_model",
     "Model",
     "AITData",
     "AIT_DEFAULT_NUM_RUNTIMES",

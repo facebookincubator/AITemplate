@@ -17,7 +17,7 @@ import unittest
 from typing import List
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -84,7 +84,7 @@ def build_ait_module(
     output._attrs["is_output"] = True
     output._attrs["name"] = "output"
     dll_name = f"test_{test_id}.so"
-    return compile_model(
+    return safe_compile_model(
         output,
         target,
         workdir,

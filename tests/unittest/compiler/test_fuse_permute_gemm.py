@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target, test_utils
@@ -50,7 +50,7 @@ class FusePermuteGemmTestCase(unittest.TestCase):
         z._attrs["is_output"] = True
         z._attrs["name"] = "z"
 
-        module = compile_model(
+        module = safe_compile_model(
             z, target, "./tmp", f"test_no_fusion_odd_alignment_{dtype}"
         )
         if dtype == "float":
@@ -90,7 +90,7 @@ class FusePermuteGemmTestCase(unittest.TestCase):
         z._attrs["is_output"] = True
         z._attrs["name"] = "z"
 
-        module = compile_model(z, target, "./tmp", f"test_gemm_rrr_to_rcr_{dtype}")
+        module = safe_compile_model(z, target, "./tmp", f"test_gemm_rrr_to_rcr_{dtype}")
         self.assertFalse(test_utils.graph_has_op(module.debug_sorted_graph, "permute"))
         self.assertFalse(test_utils.graph_has_op(module.debug_sorted_graph, "gemm_rrr"))
         self.assertTrue(test_utils.graph_has_op(module.debug_sorted_graph, "gemm_rcr"))
@@ -124,7 +124,7 @@ class FusePermuteGemmTestCase(unittest.TestCase):
         z._attrs["is_output"] = True
         z._attrs["name"] = "z"
 
-        module = compile_model(
+        module = safe_compile_model(
             z,
             target,
             "./tmp",

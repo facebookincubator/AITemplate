@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -65,7 +65,7 @@ class VarTestCase(unittest.TestCase):
         logging.info("AITemplate output_shape: {}".format(y_shape))
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        module = compile_model(Y, target, "./tmp", f"var_{self.test_count}")
+        module = safe_compile_model(Y, target, "./tmp", f"var_{self.test_count}")
         X_pt = get_random_torch_tensor(input_shape, input_type)
         if output_type is None:
             torch_dtype = None
@@ -129,7 +129,7 @@ class VarTestCase(unittest.TestCase):
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
         test_name = "batched_var"
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for B in [5, 128, 1024, 1237, 2002]:
             input_shape = [M, B, N]

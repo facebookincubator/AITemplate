@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target
@@ -48,7 +48,7 @@ class TensorTestCase(unittest.TestCase):
         expected_bytes = x_pt.numel() * x_pt.element_size()
         self.assertEqual(x.size_bytes(), expected_bytes)
 
-        mod = compile_model(x, self.target, "./tmp", f"test_tensor_size_{dtype}")
+        mod = safe_compile_model(x, self.target, "./tmp", f"test_tensor_size_{dtype}")
 
         out = torch.empty_like(x_pt)
         mod.run_with_tensors([x_pt], [out])

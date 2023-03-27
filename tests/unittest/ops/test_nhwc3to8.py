@@ -16,7 +16,7 @@ import unittest
 
 import numpy as np
 import torch
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 
 from aitemplate.frontend import IntVar, nn, Tensor
 from aitemplate.testing import detect_target
@@ -39,7 +39,7 @@ class Nhcw3To8TestCase(unittest.TestCase):
         Y = OP(X)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "nhwc3to8")
+        module = safe_compile_model(Y, target, "./tmp", "nhwc3to8")
         for batch in batch_size:
             X_np = np.random.uniform(-1, 1, (batch, 224, 224, 3)).astype("float16")
             Y_np = np.zeros((batch, 224, 224, 8)).astype("float16")

@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils, torch_utils
@@ -71,7 +71,7 @@ def build_ait_module(
     return (
         inputs,
         output,
-        compile_model(output, target, workdir, test_name, dll_name=dll_name),
+        safe_compile_model(output, target, workdir, test_name, dll_name=dll_name),
     )
 
 

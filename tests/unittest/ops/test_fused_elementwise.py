@@ -22,7 +22,7 @@ from typing import List
 
 import torch
 
-from aitemplate.compiler import compile_model, ops, transform
+from aitemplate.compiler import ops, safe_compile_model, transform
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.stable_set import StableSet
@@ -144,7 +144,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X4._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             X4,
             target,
             "./tmp",
@@ -238,7 +238,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X9._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(
+        module = safe_compile_model(
             X9, target, "./tmp", f"fused_elementwise_kernel1_{ait_dtype}"
         )
 
@@ -276,7 +276,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", test_name)
+        module = safe_compile_model(X2, target, "./tmp", test_name)
 
         x1_pt = (
             (torch.rand(input_size, device="cuda", dtype=torch_dtype) - 0.5) * 2.0
@@ -318,7 +318,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", test_name)
+        module = safe_compile_model(X2, target, "./tmp", test_name)
 
         x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
         x2_pt = torch.tanh(x1_pt)
@@ -359,7 +359,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", test_name)
+        module = safe_compile_model(X2, target, "./tmp", test_name)
 
         x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
         x2_pt = torch.nn.functional.gelu(x1_pt)
@@ -411,7 +411,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         result._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(result, target, "./tmp", test_name)
+        module = safe_compile_model(result, target, "./tmp", test_name)
 
         x0_pt = get_random_torch_tensor(input_size, ait_dtype)
         x1_pt = get_random_torch_tensor(input_size, ait_dtype)
@@ -505,7 +505,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         result._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(result, target, "./tmp", test_name)
+        module = safe_compile_model(result, target, "./tmp", test_name)
 
         x0_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
 
@@ -552,7 +552,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         OUTPUT._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(OUTPUT, target, "./tmp", f"test_op_overload_{ait_dtype}")
+        module = safe_compile_model(
+            OUTPUT, target, "./tmp", f"test_op_overload_{ait_dtype}"
+        )
 
         x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
         x2_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
@@ -588,7 +590,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         OUTPUT._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(OUTPUT, target, "./tmp", f"test_op_overload_{ait_dtype}")
+        module = safe_compile_model(
+            OUTPUT, target, "./tmp", f"test_op_overload_{ait_dtype}"
+        )
 
         x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
         output_pt = 10 / torch.tanh(x1_pt + 5)
@@ -629,7 +633,7 @@ class FusedElementwisePowerTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", test_name)
+        module = safe_compile_model(X2, target, "./tmp", test_name)
 
         if abs(exp) < 1.0:
             x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype) + 0.5

@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -50,7 +50,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rcr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rcr_{}".format(test_name))
 
         for (b, m) in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
@@ -92,7 +92,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_crr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_crr_{}".format(test_name))
 
         for (b, k) in itertools.product(bs, ks):
             X_pt = get_random_torch_tensor([b, k, M], dtype)
@@ -124,7 +124,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rrr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rrr_{}".format(test_name))
 
         for (b, m) in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
@@ -152,7 +152,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_ccr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_ccr_{}".format(test_name))
 
         for b in bs:
             X_pt = get_random_torch_tensor([b, K, M], dtype)
@@ -181,7 +181,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rcc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rcc_{}".format(test_name))
 
         for (b, m) in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
@@ -224,7 +224,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_crc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_crc_{}".format(test_name))
 
         for (b, k) in itertools.product(bs, ks):
             X_pt = get_random_torch_tensor([b, k, M], dtype)
@@ -257,7 +257,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rrc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rrc_{}".format(test_name))
 
         for (b, m) in itertools.product(bs, ms):
             X_pt = get_random_torch_tensor([b, m, K], dtype)
@@ -286,7 +286,7 @@ class BMMTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_ccc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_ccc_{}".format(test_name))
 
         for b in bs:
             X_pt = get_random_torch_tensor([b, K, M], dtype)
@@ -377,7 +377,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
 
         test_name = f"bmm_rcr_with_accessor_{dtype}"
         target = detect_target()
-        module = compile_model(out, target, "./tmp", test_name)
+        module = safe_compile_model(out, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -415,7 +415,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
 
         target = detect_target()
         test_name = f"bmm_rcr_merge_with_accessor_{dtype}"
-        module = compile_model(out, target, "./tmp", test_name)
+        module = safe_compile_model(out, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -457,7 +457,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_rcr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rcr_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -492,7 +492,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_crr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_crr_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -527,7 +527,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_rrr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rrr_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -561,7 +561,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_ccr_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_ccr_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -597,7 +597,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_rcc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rcc_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -633,7 +633,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_crc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_crc_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -669,7 +669,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_rrc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rrc_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -704,7 +704,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", "bmm_ccc_{}".format(test_name))
+        module = safe_compile_model(Y, target, "./tmp", "bmm_ccc_{}".format(test_name))
 
         X_pt = get_random_torch_tensor(A_shape, dtype)
         W_pt = get_random_torch_tensor(B_shape, dtype)
@@ -758,7 +758,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rcr_should_fail")
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rcr_should_fail")
 
         X_pt = get_random_torch_tensor([2, 10, K], dtype)
         W_pt = get_random_torch_tensor([16, 8, K], dtype)
@@ -786,7 +786,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rrr_should_fail")
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rrr_should_fail")
 
         X_pt = get_random_torch_tensor([2, 10, K], dtype)
         W_pt = get_random_torch_tensor([16, K, 8], dtype)
@@ -814,7 +814,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "bmm_rcc_should_fail")
+        module = safe_compile_model(Y, target, "./tmp", "bmm_rcc_should_fail")
 
         X_pt = get_random_torch_tensor([2, 10, K], dtype)
         W_pt = get_random_torch_tensor([16, 8, K], dtype)

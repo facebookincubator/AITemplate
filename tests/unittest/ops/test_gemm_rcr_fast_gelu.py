@@ -18,7 +18,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -73,7 +73,9 @@ class GEMMRcrFastGeluTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", f"gemm_rcr_fast_gelu_{test_name}")
+        module = safe_compile_model(
+            Y, target, "./tmp", f"gemm_rcr_fast_gelu_{test_name}"
+        )
 
         for M in Ms:
             logging.info(f"Testing {M=}")

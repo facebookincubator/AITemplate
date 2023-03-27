@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -56,7 +56,9 @@ class ConcatenateTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(Y, target, "./tmp", "concatenate", dll_name=dll_name)
+        module = safe_compile_model(
+            Y, target, "./tmp", "concatenate", dll_name=dll_name
+        )
 
         input_tensors_ait = {
             f"input_{idx}": input_tensors_pt[idx] for idx in range(len(inputs))
@@ -93,7 +95,7 @@ class ConcatenateTestCase(unittest.TestCase):
 
         batch_tag = "_".join([str(b) for b in batch_sizes])
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", f"concatenate_batched_{batch_tag}", dll_name=dll_name
         )
         for batch in batch_sizes:
@@ -157,7 +159,7 @@ class ConcatenateTestCase(unittest.TestCase):
         concatenate_op._attrs["input_accessors"] = input_accessors
 
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", "concatenate_masked", dll_name=dll_name
         )
 

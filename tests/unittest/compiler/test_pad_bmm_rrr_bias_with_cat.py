@@ -18,7 +18,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -58,7 +58,7 @@ class PadBmmBiasWithCatTestCase(unittest.TestCase):
         if int(target._arch) < 80:
             _LOGGER.warning("Skip this test on SM75")
             return
-        module = compile_model(
+        module = safe_compile_model(
             [Y], target, "./tmp", f"test_bmm_rrr_padding_{test_name}_{dtype}"
         )
 

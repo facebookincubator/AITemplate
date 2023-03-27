@@ -23,7 +23,7 @@ from unittest import skipIf
 
 import numpy as np
 import torch
-from aitemplate.compiler import compile_model, Model, ops
+from aitemplate.compiler import Model, ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
@@ -208,7 +208,7 @@ class nmsTestCase(unittest.TestCase):
                 shutil.rmtree("./tmp/" + str(test_name))
             except FileNotFoundError:
                 pass
-            module = compile_model(Y, target, "./tmp", test_name)
+            module = safe_compile_model(Y, target, "./tmp", test_name)
         else:
             module = Model(os.path.join("./tmp", test_name, "test.so"))
 

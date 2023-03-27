@@ -22,7 +22,7 @@ from typing import List, Optional
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor
@@ -89,7 +89,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [X8],
             target,
             "./tmp",
@@ -295,7 +295,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [X6],
             target,
             "./tmp",
@@ -347,7 +347,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [X5, X6],
             target,
             "./tmp",
@@ -470,7 +470,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [X9],
             target,
             "./tmp",
@@ -610,7 +610,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [Y],
             target,
             "./tmp",
@@ -837,7 +837,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             [X7],
             target,
             "./tmp",
@@ -1075,7 +1075,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
             Y._attrs["name"] = f"output_{i}"
 
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             Ys,
             target,
             "./tmp",
@@ -1368,7 +1368,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(Y, target, "./tmp", test_name) as module:
+        with safe_compile_model(Y, target, "./tmp", test_name) as module:
             input_name_to_index = module.get_input_name_to_index_map()
             inputs = [0 for i in range(2 * n)]
             for i in range(n):
@@ -1558,7 +1558,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        with compile_model(Y, target, "./tmp", test_name) as module:
+        with safe_compile_model(Y, target, "./tmp", test_name) as module:
             input_name_to_index = module.get_input_name_to_index_map()
             inputs = [0 for i in range(3 * n)]
             for i in range(n):
@@ -1716,7 +1716,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         # Gen module.
         target = detect_target()
-        module = compile_model(Y, target, "./tmp", testname)
+        module = safe_compile_model(Y, target, "./tmp", testname)
 
         input_name_to_index = module.get_input_name_to_index_map()
         inputs = [0] * num_inputs
@@ -1839,7 +1839,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         logging.info("AITemplate output_shape: {}".format(y_shape))
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        with compile_model(Y, target, "./tmp", test_name) as module:
+        with safe_compile_model(Y, target, "./tmp", test_name) as module:
             Y_src_ops = list(Y._attrs["src_ops"])
             np.testing.assert_equal(len(Y_src_ops), 2)
             if Y_src_ops[0]._attrs["op"] == "concatenate":
@@ -1948,7 +1948,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         logging.info("AITemplate output_shape: {}".format(y_shape))
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        with compile_model(Y, target, "./tmp", test_name) as module:
+        with safe_compile_model(Y, target, "./tmp", test_name) as module:
             Y_src_ops = list(Y._attrs["src_ops"])
             np.testing.assert_equal(len(Y_src_ops), 1)
             fused_add_op = Y_src_ops[0]
@@ -2066,7 +2066,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         logging.info("AITemplate output_shape: {}".format(y_shape))
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        with compile_model(Y, target, "./tmp", test_name) as module:
+        with safe_compile_model(Y, target, "./tmp", test_name) as module:
             Y_src_ops = list(Y._attrs["src_ops"])
             np.testing.assert_equal(len(Y_src_ops), 2)
             if Y_src_ops[0]._attrs["op"] == "concatenate":
@@ -2170,7 +2170,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        with compile_model(Y, target, "./tmp", test_name) as module:
+        with safe_compile_model(Y, target, "./tmp", test_name) as module:
             Y_src_ops = list(Y._attrs["src_ops"])
             np.testing.assert_equal(len(Y_src_ops), 2)
             if Y_src_ops[0]._attrs["op"] == "concatenate":
@@ -2224,7 +2224,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 2)
@@ -2270,7 +2270,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         x0_pt = get_random_torch_tensor(x0_shape, dtype)
         x1_pt = get_random_torch_tensor(x1_shape, dtype)
@@ -2316,7 +2316,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         Y._attrs["name"] = "output"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
         self.assertEqual(len(sorted_ops), 2)

@@ -16,7 +16,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -65,7 +65,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0, self.D1)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", f"gemm_rcr_bias_mul_add_k_{k}_n_{n}_{dtype}"
         )
         Y_pt = (
@@ -90,7 +90,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -120,7 +120,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -151,7 +151,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -179,7 +179,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -207,7 +207,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0, self.D1)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -243,7 +243,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -271,7 +271,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0, self.D1)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",
@@ -301,7 +301,7 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         Y = OP(self.X, self.W, self.B, self.D0)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
+        module = safe_compile_model(
             Y,
             target,
             "./tmp",

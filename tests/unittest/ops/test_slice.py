@@ -18,7 +18,7 @@ import unittest
 import numpy as np
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntVarTensor
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -67,7 +67,9 @@ class DynamicSliceTestCase(unittest.TestCase):
         logging.info("AITemplate output_0 shape: {}".format(y_shape))
         np.testing.assert_equal(y_shape, Y_pt.size())
 
-        module = compile_model(Y, target, "./tmp", f"dynamic_slice_{self.test_count}")
+        module = safe_compile_model(
+            Y, target, "./tmp", f"dynamic_slice_{self.test_count}"
+        )
 
         y_ait = torch.empty_like(Y_pt)
         module.run_with_tensors([X_pt], [y_ait])
@@ -207,7 +209,7 @@ class DynamicSliceBatchedTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(
+        module = safe_compile_model(
             Y, target, "./tmp", f"dynamic_slice_batched_{self.test_count}"
         )
 

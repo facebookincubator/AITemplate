@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
@@ -56,7 +56,7 @@ class GroupGEMMRcrBiasCatTestCase(unittest.TestCase):
         Y = OP(operand_groups=[[X1, W1, B1], [X2, W2, B2]], output_stride_dim=1)
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
-        module = compile_model([Y], target, "./tmp", test_name)
+        module = safe_compile_model([Y], target, "./tmp", test_name)
         X1_pt = get_random_torch_tensor(shape=(M, K1), dtype=dtype)
         X2_pt = get_random_torch_tensor(shape=(M, K2), dtype=dtype)
         W1_pt = get_random_torch_tensor(shape=(N1, K1), dtype=dtype)

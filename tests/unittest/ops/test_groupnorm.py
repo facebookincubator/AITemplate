@@ -20,7 +20,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -81,7 +81,7 @@ class GroupnormTestCase(unittest.TestCase):
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(X4, target, "./tmp", op_name, dll_name=dll_name)
+        module = safe_compile_model(X4, target, "./tmp", op_name, dll_name=dll_name)
 
         x1_nhwc_pt = get_random_torch_tensor(x_shape, dtype)
         x1_nchw_pt = x1_nhwc_pt.permute(0, 3, 1, 2).contiguous()

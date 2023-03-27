@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -63,7 +63,7 @@ class VectorNormTestCase(unittest.TestCase):
         logging.info("AITemplate output_shape: {}".format(y_shape))
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
         X_pt = get_random_torch_tensor(input_shape, input_type)
         output_dtype_pt = (
             string_to_torch_dtype(output_type)
@@ -305,7 +305,7 @@ class VectorNormTestCase(unittest.TestCase):
             if output_type is not None
             else string_to_torch_dtype(input_type)
         )
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for B in [5, 128, 1024, 1237, 2002]:
             input_shape = [M, B, N]

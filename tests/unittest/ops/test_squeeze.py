@@ -17,7 +17,7 @@ import unittest
 from typing import List, Optional, Tuple
 
 import torch
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 
 from aitemplate.compiler.ops import elementwise, squeeze, unsqueeze
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
@@ -73,7 +73,7 @@ class SqueezeTestCase(unittest.TestCase):
         output._attrs["name"] = "output_0"
         output._attrs["is_output"] = True
 
-        module = compile_model(output, target, "./tmp", test_name)
+        module = safe_compile_model(output, target, "./tmp", test_name)
 
         all_input_0_shapes = itertools.product(*shape)
         all_input_1_shapes = itertools.product(*expected_shape)

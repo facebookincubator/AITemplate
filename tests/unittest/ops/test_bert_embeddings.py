@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -125,7 +125,7 @@ class bertEmbeddingsTestCase(unittest.TestCase):
         y._attrs["name"] = "output"
 
         target = detect_target()
-        with compile_model(
+        with safe_compile_model(
             y,
             target,
             "./tmp",

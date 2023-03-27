@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 
 from aitemplate.frontend import IntVar, nn, Tensor
 from aitemplate.testing import detect_target
@@ -36,7 +36,7 @@ class MaxPool2dTestCase(unittest.TestCase):
         Y = OP(X)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", "max_pool2d")
+        module = safe_compile_model(Y, target, "./tmp", "max_pool2d")
         for batch in batch_size:
             X_pt = get_random_torch_tensor([batch, 64, 112, 112], dtype=dtype)
             OP_pt = torch.nn.MaxPool2d(kernel_size=3, stride=2, padding=1)

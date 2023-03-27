@@ -15,7 +15,7 @@
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm, IntVarTensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -53,7 +53,7 @@ class IntElementwiseReshapeOpTestCase(unittest.TestCase):
         Y = ops.reshape()(X, [Y6, Y4, Y5])
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b, x1 in zip(batch_size, x1_size):
             X_shape_pt = (b, x1, *X_shape)
@@ -114,7 +114,7 @@ class IntElementwiseReshapeOpTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b, x1, x2, x3 in zip(batch_size, x1_size, x2_size, x3_size):
             X_shape_pt = (b, x1, x2, x3)
@@ -168,7 +168,7 @@ class IntElementwiseReshapeOpTestCase(unittest.TestCase):
         Y = ops.reshape()(X, [Y2 * Y3 * f1 / f2, f2])
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b, x1 in zip(batch_size, x1_size):
             X_shape_pt = (b, x1, *X_shape)
@@ -229,7 +229,7 @@ class IntElementwiseReshapeOpTestCase(unittest.TestCase):
         Y = ops.elementwise(FuncEnum.ADD)(Y5, X1)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b in batch_size:
             X_shape_pt = (b, *X_shape)

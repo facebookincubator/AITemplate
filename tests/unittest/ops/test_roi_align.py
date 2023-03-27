@@ -17,7 +17,7 @@ from unittest import skipIf
 
 import numpy as np
 import torch
-from aitemplate.compiler import compile_model
+from aitemplate.compiler import safe_compile_model
 
 from aitemplate.frontend import IntVar, nn, Tensor
 from aitemplate.testing import detect_target
@@ -107,7 +107,7 @@ class RoiAlignTestCase(unittest.TestCase):
         Y = OP(X, R)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = safe_compile_model(Y, target, "./tmp", test_name)
 
         for b in batch_size:
             X_pt = get_random_torch_tensor([b, CC, WW, HH], dtype=dtype)

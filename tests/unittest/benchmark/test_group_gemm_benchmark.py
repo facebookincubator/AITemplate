@@ -17,7 +17,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
 
@@ -145,7 +145,7 @@ def _prepare_group_gemm_ait_module(
         Y._attrs["is_output"] = True
 
     target = detect_target()
-    module = compile_model(
+    module = safe_compile_model(
         output_tensors,
         target,
         "./tmp",
@@ -169,7 +169,7 @@ def _prepare_gemm_ait_module(m, nk_groups, test_idx=0, has_bias=True):
         Y._attrs["is_output"] = True
 
     target = detect_target()
-    module = compile_model(
+    module = safe_compile_model(
         output_tensors,
         target,
         "./tmp",
@@ -189,7 +189,7 @@ def _prepare_bmm_ait_module(b, m, n, k, has_bias=False):
     Y._attrs["is_output"] = True
 
     target = detect_target()
-    module = compile_model(
+    module = safe_compile_model(
         [Y],
         target,
         "./tmp",
@@ -239,7 +239,7 @@ class GroupGemmBenchTestCase(unittest.TestCase):
         Y1._attrs["is_output"] = True
         Y2._attrs["name"] = "y2"
         Y2._attrs["is_output"] = True
-        module = compile_model([Y1, Y2], target, "./tmp", "group_gemm_rcr_bias")
+        module = safe_compile_model([Y1, Y2], target, "./tmp", "group_gemm_rcr_bias")
         X1_pt = torch.randn(M, K1).cuda().half()
         X2_pt = torch.randn(M, K2).cuda().half()
         W1_pt = torch.randn(N1, K1).cuda().half()

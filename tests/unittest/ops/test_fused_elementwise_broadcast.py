@@ -20,7 +20,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -77,7 +77,7 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self.assertEqual(X4._attrs["shape"], [batch_dim, m_dim, k_dim])
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = safe_compile_model(X4, target, "./tmp", test_name)
 
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
@@ -257,7 +257,7 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         )
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = safe_compile_model(X4, target, "./tmp", test_name)
 
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
@@ -476,7 +476,7 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self.assertEqual(X5._attrs["shape"], [batch_dim, n_dim, k_dim, m_dim])
 
         target = detect_target()
-        module = compile_model(X5, target, "./tmp", test_name)
+        module = safe_compile_model(X5, target, "./tmp", test_name)
 
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
@@ -682,7 +682,7 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self.assertEqual(X3._attrs["shape"], X1._attrs["shape"])
 
         target = detect_target()
-        module = compile_model(X3, target, "./tmp", test_name)
+        module = safe_compile_model(X3, target, "./tmp", test_name)
 
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
@@ -787,7 +787,7 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         output._attrs["is_output"] = True
 
         target = detect_target()
-        module = compile_model(output, target, "./tmp", test_name)
+        module = safe_compile_model(output, target, "./tmp", test_name)
 
         debug_sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)

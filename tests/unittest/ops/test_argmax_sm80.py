@@ -18,7 +18,7 @@ Unittests for argmax Operator.
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -48,7 +48,7 @@ class ArgmaxSM80TestCase(unittest.TestCase):
         X4._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", test_name)
+        module = safe_compile_model(X4, target, "./tmp", test_name)
 
         scores = get_random_torch_tensor(shape, dtype=dtype)
         y_pt = torch.argmax(scores, dim=dim)

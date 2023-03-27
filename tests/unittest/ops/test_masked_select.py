@@ -18,7 +18,7 @@ Unittests for masked_select Operator.
 import unittest
 
 import torch
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
@@ -61,7 +61,7 @@ class maskedSelectTestCase(unittest.TestCase):
         X4._attrs["name"] = "output_values"
 
         target = detect_target()
-        module = compile_model([X4], target, "./tmp", test_name)
+        module = safe_compile_model([X4], target, "./tmp", test_name)
         x = get_random_torch_tensor(shape, dtype=dtype)
         if zero_mask:
             mask = torch.zeros_like(x)
@@ -208,7 +208,7 @@ class maskedSelectTestCase(unittest.TestCase):
         X4._attrs["name"] = "output_values"
 
         target = detect_target()
-        module = compile_model([X4], target, "./tmp", test_name)
+        module = safe_compile_model([X4], target, "./tmp", test_name)
 
         x = get_random_torch_tensor(shape, dtype=dtype)
         mask = get_random_torch_tensor(shape, dtype="float16") > 0

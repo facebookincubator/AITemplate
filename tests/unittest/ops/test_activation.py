@@ -19,7 +19,7 @@ import unittest
 
 import torch
 
-from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler import ops, safe_compile_model
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -78,7 +78,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
 
         x1_pt = get_random_torch_tensor(input_size, dtype=dtype)
         OP_pt = torch.nn.LeakyReLU(negative_slope)
@@ -118,7 +118,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         x2_pt = torch.div(x1_pt, dividend, rounding_mode="floor")
@@ -165,7 +165,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.Hardtanh(min_val=min_val, max_val=max_val)
@@ -213,7 +213,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.Softplus(beta=beta, threshold=threshold)
@@ -241,7 +241,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         x2_pt = TORCH_EQUIVALENTS[function](x1_pt)
@@ -274,7 +274,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.ELU(alpha=alpha)
         x2_pt = OP_pt(x1_pt)
@@ -304,7 +304,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.Softsign()
@@ -343,7 +343,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = safe_compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.CELU(alpha=alpha)
         x2_pt = OP_pt(x1_pt)
@@ -362,7 +362,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
     )
     def test_lrelu(self, dtype):
-        self._test_leaky_relu([512, 512], test_name="leaky_relu_1", dtype=dtype)
+        self._test_leaky_relu([512, 512], test_name="leaky_relu_1_{dtype}", dtype=dtype)
         self._test_leaky_relu(
             [1024, 1024],
             negative_slope=0.5,
@@ -376,7 +376,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
             copy_op=True,
             dtype=dtype,
         )
-        self._test_leaky_relu([63, 63], test_name="leaky_relu_3", dtype=dtype)
+        self._test_leaky_relu([63, 63], test_name="leaky_relu_3__{dtype}", dtype=dtype)
 
     @parameterized.expand(
         filter_test_cases_by_params(
@@ -388,7 +388,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
     )
     def test_htanh(self, dtype):
-        self._test_hardtanh([511, 511], test_name="hard_tanh_1", dtype=dtype)
+        self._test_hardtanh([511, 511], test_name="hard_tanh_1__{dtype}", dtype=dtype)
         self._test_hardtanh(
             [1024, 1024], min_val=-2, max_val=2, test_name="hard_tanh_2", dtype=dtype
         )
