@@ -25,12 +25,18 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 
 
-@unittest.skip("Re-enable after cutlass fix")
-# @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm021FCCCRBiasPerm021TestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def _test_perm021fc_ccr_bias_perm021(
         self,
         test_name="perm021fc_ccr_bias_perm021",
@@ -83,35 +89,31 @@ class Perm021FCCCRBiasPerm021TestCase(unittest.TestCase):
 
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_perm021fc_ccr_bias_perm021_fp16(self):
-        self._test_perm021fc_ccr_bias_perm021(
-            test_name="perm021fc_ccr_bias_perm021_fp16",
-            dtype="float16",
-        )
+    # !!! SKIPPED TESTS BELOW !!!
+    # Permute3DBMM_021 layout not currently present in CUTLASS
+    # TODO: enable the tests after this layout becomes available
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80,
-        f"fp32 BMM not supported in {detect_target()._arch}",
-    )
-    def test_perm021fc_ccr_bias_perm021_fp32(self):
-        self._test_perm021fc_ccr_bias_perm021(
-            test_name="perm021fc_ccr_bias_perm021_fp32",
-            dtype="float32",
-        )
+    # def test_perm021fc_ccr_bias_perm021_fp16(self):
+    #     self._test_perm021fc_ccr_bias_perm021(
+    #         test_name="perm021fc_ccr_bias_perm021_fp16",
+    #         dtype="float16",
+    #     )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    @unittest.skipIf(
-        int(detect_target()._arch) < 80,
-        f"bf16 BMM not supported in {detect_target()._arch}",
-    )
-    def test_perm021fc_ccr_bias_perm021_bf16(self):
-        self._test_perm021fc_ccr_bias_perm021(
-            test_name="perm021fc_ccr_bias_perm021_bf16",
-            dtype="bfloat16",
-        )
+    # def test_perm021fc_ccr_bias_perm021_fp32_sm80(self):
+    #     self._test_perm021fc_ccr_bias_perm021(
+    #         test_name="perm021fc_ccr_bias_perm021_fp32",
+    #         dtype="float32",
+    #     )
+
+    # def test_perm021fc_ccr_bias_perm021_bf16_sm80(self):
+    #     self._test_perm021fc_ccr_bias_perm021(
+    #         test_name="perm021fc_ccr_bias_perm021_bf16",
+    #         dtype="bfloat16",
+    #     )
+
+
+filter_test_cases_by_test_env(Perm021FCCCRBiasPerm021TestCase)
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
     unittest.main()

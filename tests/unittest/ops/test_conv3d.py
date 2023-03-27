@@ -22,7 +22,11 @@ from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
 
 
-@unittest.skipIf(detect_target()._arch == "75", "Conv3d not supported on sm75.")
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
 class Conv3dTestCase(unittest.TestCase):
     def test_conv3d_bias_padding(
         self,
@@ -248,39 +252,37 @@ class Conv3dTestCase(unittest.TestCase):
             dtype="float16",
         )
 
-    @unittest.skip("no fp32 kernels are available for conv3d")
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
-    @unittest.skipIf(
-        detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-        "Not supported by CUDA < SM80.",
-    )
-    def test_fp32(self):
-        self._test_conv3d(
-            4,
-            224,
-            224,
-            8,
-            96,
-            3,
-            5,
-            5,
-            stride=(2, 4, 4),
-            pad=(1, 2, 2),
-            test_name="conv3d_fp32_1",
-            dtype="float32",
-        )
-        self._test_conv3d(
-            56,
-            56,
-            56,
-            64,
-            256,
-            1,
-            1,
-            1,
-            test_name="conv3d_fp32_2",
-            dtype="float32",
-        )
+    # !!! SKIPPED TESTS BELOW !!!
+    # CUTLASS generator doesn't provide conv3d ops for fp32
+    # TODO: enable the tests after the issue is resolved
+
+    # def test_fp32(self):
+    #     self._test_conv3d(
+    #         4,
+    #         224,
+    #         224,
+    #         8,
+    #         96,
+    #         3,
+    #         5,
+    #         5,
+    #         stride=(2, 4, 4),
+    #         pad=(1, 2, 2),
+    #         test_name="conv3d_fp32_1",
+    #         dtype="float32",
+    #     )
+    #     self._test_conv3d(
+    #         56,
+    #         56,
+    #         56,
+    #         64,
+    #         256,
+    #         1,
+    #         1,
+    #         1,
+    #         test_name="conv3d_fp32_2",
+    #         dtype="float32",
+    #     )
 
 
 if __name__ == "__main__":
