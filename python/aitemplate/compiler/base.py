@@ -22,7 +22,7 @@ from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
 from pprint import pformat
-from typing import Any, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 
 import numpy as np
 import sympy
@@ -590,8 +590,8 @@ class Tensor(Node):
         self,
         shape: List[IntVar],
         name: str = None,
-        src_ops: Sequence[Node] = None,
-        dst_ops: Sequence[Node] = None,
+        src_ops: Iterable[Node] = None,
+        dst_ops: Iterable[Node] = None,
         dtype: str = "float16",
         is_input: bool = False,
         is_output: bool = False,
@@ -608,16 +608,16 @@ class Tensor(Node):
         shape : List[IntVar]
             Shape of this Tensor.
         name : str, optional
-            Name of this Tensor. By default it's None.
-        src_ops : Set[Node], optional
+            Name of this Tensor. By default, it's None.
+        src_ops : Iterable[Node], optional
             Source operators of this Tensor which write to this Tensor.
-            By default it's an empty set.
-        dst_ops : Set[Node], optional
+            By default, it's an empty set.
+        dst_ops : Iterable[Node], optional
             Destination operators of this Tensor which take this Tensor as
             one of their inputs.
-            By default it's an empty set.
+            By default, it's an empty set.
         dtype : str, optional
-            Date type of this Tensor. By default it's "float16".
+            Date type of this Tensor. By default, it's "float16".
         is_input : bool, optional
             Whether this Tensor is an input Tensor of a graph.
             Note that constant Tensors (e.g. weights) are NOT input Tensors.
@@ -1018,7 +1018,7 @@ class Operator(Node):
             A list of device ids which can be used for profiling.
         dynamic_profiling_strategy: DynamicProfileStrategy, optional
             Profiling strategy used when there are dynamic dims.
-            By default MAX is used, i.e. to profile a dynamic range, an upper bound will be used.
+            By default, MAX is used, i.e. to profile a dynamic range, an upper bound will be used.
         """
 
         return
