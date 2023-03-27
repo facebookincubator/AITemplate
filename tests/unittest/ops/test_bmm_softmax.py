@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import logging
 import unittest
 
 import torch
@@ -20,49 +19,79 @@ import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 
 
-_LOGGER = logging.getLogger(__name__)
-
-
-# @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-@unittest.skip("BMM + Softmax is disabled for now")
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMSoftmaxTestCase(unittest.TestCase):
-    def _test_bmm_rcr_softmax(
-        self, B=16, M=16, K=64, N=24, test_name="bmm_rcr_softmax"
-    ):
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
 
-        X = Tensor(shape=[B, M, K], dtype="float16", name="input_0", is_input=True)
-        W = Tensor(shape=[B, N, K], dtype="float16", name="input_1", is_input=True)
+    def _test_bmm_rcr_softmax(
+        self,
+        B=16,
+        M=16,
+        K=64,
+        N=24,
+        dtype="float16",
+        test_name="bmm_rcr_softmax",
+    ):
+        X = Tensor(shape=[B, M, K], dtype=dtype, name="input_0", is_input=True)
+        W = Tensor(shape=[B, N, K], dtype=dtype, name="input_1", is_input=True)
         OP = ops.bmm_rcr_softmax()
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        target = detect_target()
-        if int(target._arch) < 80:
-            _LOGGER.warning("Skip this test on SM75")
-            return
-        if type(target).__name__ == "FBCUDA":
-            _LOGGER.warning("Skip this test for special profiling requirement")
-            return
-        module = compile_model(Y, target, "./tmp", test_name)
-        X_pt = torch.randn(B, M, K).cuda().half()
-        W_pt = torch.randn(B, N, K).cuda().half()
+        x_pt = get_random_torch_tensor([B, M, K], dtype)
+        w_pt = get_random_torch_tensor([B, N, K], dtype)
+        wt_pt = torch.transpose(w_pt, 2, 1)
+        y_pt = torch.bmm(x_pt, wt_pt)
+        y_pt = torch.softmax(y_pt, dim=-1)
 
-        WT = torch.transpose(W_pt, 2, 1)
-        Y_pt = torch.bmm(X_pt, WT)
-        Y_pt = torch.softmax(Y_pt, dim=-1)
+        module = compile_model(Y, detect_target(), "./tmp", test_name)
 
-        y = torch.empty([B, M, N]).cuda().half()
-        module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
-        eps = 1e-1
-        self.assertTrue(torch.allclose(Y_pt, y, atol=eps, rtol=eps))
+        inputs = {"input_0": x_pt, "input_1": w_pt}
+        y = get_torch_empty_tensor([B, M, N], dtype)
+        module.run_with_tensors(inputs, [y])
 
-    def test_bmm_softmax(self):
-        self._test_bmm_rcr_softmax()
+        torch.testing.assert_close(y, y_pt, atol=1e-2, rtol=1e-2)
+
+        torch.testing.assert_close(
+            torch.argmax(y, axis=2),
+            torch.argmax(y_pt, axis=2),
+            atol=1e-1,
+            rtol=1e-1,
+        )
+
+    def test_bmm_rcr_softmax_float16(self):
+        self._test_bmm_rcr_softmax(
+            B=16,
+            M=16,
+            K=64,
+            N=24,
+            dtype="float16",
+            test_name="bmm_rcr_softmax_fp16_1",
+        )
+
+    def test_bmm_rcr_softmax_float32_sm80(self):
+        self._test_bmm_rcr_softmax(
+            B=16,
+            M=16,
+            K=64,
+            N=24,
+            dtype="float32",
+            test_name="bmm_rcr_softmax_fp32_1",
+        )
+
+
+filter_test_cases_by_test_env(BMMSoftmaxTestCase)
 
 
 if __name__ == "__main__":
-    torch.manual_seed(0)
     unittest.main()

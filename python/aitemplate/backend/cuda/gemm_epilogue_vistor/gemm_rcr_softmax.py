@@ -21,6 +21,7 @@ When use for `linear`, need set A->Data, B->Weight
 import jinja2
 
 from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.gemm_epilogue_vistor import common_softmax
 from aitemplate.backend.cuda.gemm_universal import common
 from aitemplate.backend.cuda.gemm_universal.layout import RCR
@@ -33,7 +34,6 @@ ARGS_PARSER_TEMPLATE = jinja2.Template(
   int64_t M = std::atoi(argv[1]);
   int64_t N = std::atoi(argv[2]);
   int64_t K = std::atoi(argv[3]);
-  int64_t split_k = std::atoi(argv[4]);
 
   int64_t a_dim0 = M;
   int64_t a_dim1 = K;
@@ -47,68 +47,77 @@ ARGS_PARSER_TEMPLATE = jinja2.Template(
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
     /*
-        A: M*K (RowMajor)
-        B: N*K (ColumnMajor)
-        C/D/sofmax: M*N (RowMajor)
-        N: M*1 (RowMajor)
+        A: (M, K) (RowMajor)
+        B: (N, K) (ColumnMajor)
+        C, D, Soft: (M, N) (RowMajor)
+        N, S: (block_num, M) (RowMajor)
     */
 
-    {M, N, K},               // cutlass::gemm::GemmCoord problem_size
-    1,                       // int32_t batch_count_
-    {a_ptr, LayoutA(K)},     // TensorRefA ref_A_
-    {b_ptr, LayoutB(K)},     // TensorRefB ref_B_
-    {c_ptr, LayoutC(N)},     // TensorRefC ref_C_
-    {d_ptr, LayoutC(N)},     // TensorRefC ref_D_
+    {M, N, K},                                                                                                                     // cutlass::gemm::GemmCoord problem_size
+    1,                                                                                                                             // int32_t batch_count_
+    {reinterpret_cast<{{elem_input_type}}*>(a_ptr), LayoutA(K)},                                                                   // TensorRefA ref_A_
+    {reinterpret_cast<{{elem_input_type}}*>(b_ptr), LayoutB(K)},                                                                   // TensorRefB ref_B_
+    {reinterpret_cast<{{elem_output_type}}*>(workspace), LayoutC(N)},                                                              // TensorRefC ref_C_
+    {reinterpret_cast<{{elem_output_type}}*>(workspace + M * N * sizeof({{elem_output_type}})), LayoutC(N)},                       // TensorRefC ref_D_
     {
         float(1.0),
         float(0.0)
-    },                       // typename EpilogueFunctorOp::Params linear_scaling
-    {n_ptr, LayoutC(1)},     // ???
-    {soft_ptr, LayoutC(N)},  // ???
+    },                                                                                                                             // typename EpilogueFunctorOp::Params linear_scaling
+    {reinterpret_cast<float*>(workspace + 2 * M * N * sizeof({{elem_output_type}})), LayoutC(1)},                                  // TensorRefN ref_N_
+    {reinterpret_cast<float*>(workspace + 2 * M * N * sizeof({{elem_output_type}}) + M * block_num * sizeof(float)), LayoutC(1)},  // TensorRefSum ref_S_
+    {reinterpret_cast<{{elem_output_type}}*>(soft_ptr) + output_offset, LayoutC(output_stride)},                                   // TensorRefSoft ref_Softmax_
 """
 )
 
 
 @registry.reg("cuda.gemm_rcr_softmax.config")
 def gemm_rcr_softmax_config(func_attrs, dtype="float16"):
-    common.make_fproc_f16(func_attrs, RCR)
+    common.make_fproc(func_attrs, RCR)
 
 
 def common_gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     dim_info_dict,
     src_template,
     problem_args_template,
-    bias_ptr_arg=None,
-    extra_code="",
+    args_parser_template,
+    **kwargs,
 ):
     output_addr_calculator = common.DEFAULT_OUTPUT_ADDR_CALCULATOR.render(
         stride_dim="*b_dim0"
     )
+
     return common_softmax.gen_profiler(
-        func_attrs,
-        workdir,
-        dim_info_dict,
-        src_template,
-        problem_args_template,
-        ARGS_PARSER_TEMPLATE,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=src_template,
+        problem_args_template=problem_args_template,
+        args_parser_template=args_parser_template,
         emit_kernel=True,
-        support_split_k=True,
         output_addr_calculator=output_addr_calculator,
-        bias_ptr_arg=bias_ptr_arg,
-        extra_code=extra_code,
+        **kwargs,
     )
 
 
 @registry.reg("cuda.gemm_rcr_softmax.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(
+    func_attrs,
+    workdir,
+    profiler_filename,
+    dim_info_dict,
+):
     return common_gen_profiler(
-        func_attrs,
-        workdir,
-        dim_info_dict,
-        common_softmax.SRC_TEMPLATE,
-        PROBLEM_ARGS_TEMPLATE,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=common_softmax.SRC_TEMPLATE,
+        problem_args_template=PROBLEM_ARGS_TEMPLATE,
+        args_parser_template=ARGS_PARSER_TEMPLATE,
     )
 
 
@@ -118,53 +127,68 @@ def gen_function(
     exec_cond_template,
     dim_info_dict,
     problem_args_template=None,
+    **kwargs,
 ):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+
     if problem_args_template is None:
-        problem_args = PROBLEM_ARGS_TEMPLATE.render()
-    else:
-        problem_args = problem_args_template.render()
+        problem_args_template = PROBLEM_ARGS_TEMPLATE
+
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
+
     return common_softmax.gen_function(
-        func_attrs,
-        common_softmax.SRC_TEMPLATE,
-        exec_cond_template,
-        problem_args,
-        input_ndims,
-        weight_ndims,
-        dim_info_dict,
+        func_attrs=func_attrs,
+        src_template=common_softmax.SRC_TEMPLATE,
+        exec_cond_template=exec_cond_template,
+        problem_args=problem_args_template.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+        ),
+        input_ndims=input_ndims,
+        weight_ndims=weight_ndims,
+        dim_info_dict=dim_info_dict,
         emit_kernel=True,
-        support_split_k=True,
         output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
             stride_dim="N", output_accessor=func_attrs["output_accessors"][0]
         ),
+        **kwargs,
     )
 
 
 @registry.reg("cuda.gemm_rcr_softmax.func_decl")
-def gen_function_decl(func_attrs):
+def gen_function_decl(
+    func_attrs,
+    **kwargs,
+):
     func_name = func_attrs["name"]
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
+
     return common_softmax.FUNC_DECL_TEMPLATE.render(
         func_name=func_name,
         input_ndims=input_ndims,
         weight_ndims=weight_ndims,
-        support_split_k=True,
+        **kwargs,
     )
 
 
 @registry.reg("cuda.gemm_rcr_softmax.func_call")
-def gen_function_call(func_attrs, indent="  "):
+def gen_function_call(
+    func_attrs,
+    indent="  ",
+    **kwargs,
+):
     a = func_attrs["inputs"][0]
     b = func_attrs["inputs"][1]
-
-    tmp_c = func_attrs["inputs"][2]
-    tmp_d = func_attrs["inputs"][3]
-    tmp_n = func_attrs["inputs"][4]
-
     soft = func_attrs["outputs"][0]
-    has_bias = False
+
     adims = [
         "&" + dim._attrs["name"]
         for dim in func_attrs["input_accessors"][0].original_shapes
@@ -177,20 +201,17 @@ def gen_function_call(func_attrs, indent="  "):
         "&" + dim._attrs["name"]
         for dim in func_attrs["output_accessors"][0].original_shapes
     ]
+
     return common_softmax.FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         a_ptr=a._attrs["name"],
         b_ptr=b._attrs["name"],
-        has_bias=has_bias,
-        c_ptr=tmp_c._attrs["name"],
-        d_ptr=tmp_d._attrs["name"],
-        n_ptr=tmp_n._attrs["name"],
         soft_ptr=soft._attrs["name"],
-        split_k=func_attrs["split_k"],
         adims=adims,
         bdims=bdims,
         cdims=cdims,
         indent=indent,
+        **kwargs,
     )
 
 
