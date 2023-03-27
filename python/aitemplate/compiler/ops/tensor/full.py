@@ -18,6 +18,7 @@ from typing import List
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.dtype import get_dtype_size
 
 
 class full(Operator):
@@ -55,6 +56,9 @@ class full(Operator):
         if not isinstance(fill_value, (int, float)):
             raise TypeError(f"fill_value must be a scalar, but got {fill_value}.")
         fill_value = float(fill_value)
+
+        # validation inside
+        get_dtype_size(dtype)
 
         self._attrs["inputs"] = []
         self._attrs["fill_value"] = fill_value
