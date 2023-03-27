@@ -24,13 +24,13 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
 from aitemplate.utils import graph_utils, shape_utils
 
 
-@unittest.skipIf(detect_target().name() == "cuda", "Only supported by ROCM.")
 class SplitBMMTestCase(unittest.TestCase):
     def _test_split_reshape_bmm_permute(
         self, bs, nheads, seq_len, hidden_size, test_name, dtype="float16"
@@ -82,13 +82,16 @@ class SplitBMMTestCase(unittest.TestCase):
             module.run_with_tensors([x_pt], [y])
             self.assertTrue(torch.allclose(y_pt, y, atol=1e-1, rtol=1e-1))
 
-    def test_split_reshape_bmm_permute(self):
+    def test_split_reshape_bmm_permute_rocm(self):
         self._test_split_reshape_bmm_permute(
             bs=[1], nheads=12, seq_len=256, hidden_size=768, test_name="static"
         )
         self._test_split_reshape_bmm_permute(
             bs=[16], nheads=12, seq_len=256, hidden_size=768, test_name="static"
         )
+
+
+filter_test_cases_by_test_env(SplitBMMTestCase)
 
 
 if __name__ == "__main__":

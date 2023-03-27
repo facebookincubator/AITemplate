@@ -322,36 +322,38 @@ class nmsTestCase(unittest.TestCase):
             dtype="float32",
         )
 
-    @unittest.skip("manually enable it for benchmarking")
-    def test_nms_benchmark_shapes(self):
-        self._test_nms(
-            N=3350,
-            preNmsTop=2000,
-            nmsMaxOut=100,
-            iouThreshold=0.5,
-            minBoxSize=0,
-            batch_size=16,
-            num_classes=1,
-            rand_box=True,
-            test_name="nms_fcos_shape",
-            benchmark_shapes=True,
-        )
+    # !!! SKIPPED TESTS BELOW !!!
+    # manually enable for benchmarking
 
-        for bz in (1, 4, 16):
-            for N in (6000, 12000, 20000, 60000):
-                for maxout in (100, 300, 1000):
-                    self._test_nms(
-                        N=N,
-                        preNmsTop=6000,
-                        nmsMaxOut=maxout,
-                        iouThreshold=0.5,
-                        minBoxSize=0,
-                        batch_size=bz,
-                        num_classes=1,
-                        rand_box=True,
-                        test_name="nms_" + str(bz) + "_" + str(N) + "_" + str(maxout),
-                        benchmark_shapes=True,
-                    )
+    # def test_nms_benchmark_shapes(self):
+    #     self._test_nms(
+    #         N=3350,
+    #         preNmsTop=2000,
+    #         nmsMaxOut=100,
+    #         iouThreshold=0.5,
+    #         minBoxSize=0,
+    #         batch_size=16,
+    #         num_classes=1,
+    #         rand_box=True,
+    #         test_name="nms_fcos_shape",
+    #         benchmark_shapes=True,
+    #     )
+
+    #     for bz in (1, 4, 16):
+    #         for N in (6000, 12000, 20000, 60000):
+    #             for maxout in (100, 300, 1000):
+    #                 self._test_nms(
+    #                     N=N,
+    #                     preNmsTop=6000,
+    #                     nmsMaxOut=maxout,
+    #                     iouThreshold=0.5,
+    #                     minBoxSize=0,
+    #                     batch_size=bz,
+    #                     num_classes=1,
+    #                     rand_box=True,
+    #                     test_name="nms_" + str(bz) + "_" + str(N) + "_" + str(maxout),
+    #                     benchmark_shapes=True,
+    #                 )
 
 
 if __name__ == "__main__":
