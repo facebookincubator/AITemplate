@@ -21,6 +21,7 @@ from hashlib import sha1
 
 import jinja2
 
+from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.cuda.gemm_universal import common
 from aitemplate.backend.target import Target
@@ -34,6 +35,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <memory>
 #include <random>
 #include <vector>
+
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/device/gemm_universal.h"
 #include "cutlass/gemm/kernel/gemm_grouped.h"
@@ -67,21 +69,20 @@ using LayoutA = cutlass::layout::RowMajor;
 using LayoutB = cutlass::layout::ColumnMajor;
 using LayoutC = cutlass::layout::RowMajor;
 
-
-void {{function_name}} (
-    cutlass::half_t* a_ptr,
-    cutlass::half_t* b_ptr,
-{% if has_d %}
-    cutlass::half_t* d_ptr,
+{% if is_profiler %}
+template <typename {{instance_name_base}}>
+void {{func_name}} (
+    {{instance_name_base}}& gemm_op,
+{% else %}
+void {{func_name}} (
 {% endif %}
-    cutlass::half_t* c_ptr,
-    cutlass::half_t* d_ptr,
-    float* n_ptr,
-    cutlass::half_t* soft_ptr,
+    void* a_ptr,
+    void* b_ptr,
+{% if has_bias %}
+    void* bias_ptr,
+{% endif %}
+    void* soft_ptr,
     uint8_t* workspace,
-{% if support_split_k %}
-    int split_k,
-{% endif %}
 {% for idx in range(input_ndims) %}
     int64_t* a_dim{{idx}},
 {% endfor %}
@@ -94,10 +95,13 @@ void {{function_name}} (
     cudaStream_t stream
   ) {
   {{shape_eval}}
+
   {{output_addr_calculator}}
+
   {{extra_shape}}
 
   {{exec_paths}}
+
   throw std::runtime_error(
       "Unsupported workload for this gemm specialization."
   );
@@ -110,41 +114,40 @@ void {{function_name}} (
 
 EXEC_TEMPLATE = jinja2.Template(
     """
-{{indent}}typename {{instance}}::Arguments arguments{
+{{indent}}int block_num = (N + {{instance}}::ThreadblockShape::kN - 1) / {{instance}}::ThreadblockShape::kN;
 
-{{problem_args}}
-
-{{indent}}};
-{{indent}}{{instance}} gemm_op;
 {% if is_profiler %}
-{{indent}}size_t workspace_size = 0; //gemm_op.get_workspace_size(arguments);
+{{indent}}size_t workspace_size = 2 * M * N * sizeof({{elem_output_type}}) + 2 * block_num * M * sizeof(float);
 {{indent}}cutlass::device_memory::allocation<uint8_t> local_workspace(workspace_size);
 {{indent}}workspace = local_workspace.get();
 {{indent}}GLOBAL_WORKSPACE_SIZE = workspace_size;
+{% else %}
+{{indent}}{{instance}} gemm_op;
 {% endif %}
+
+{{indent}}typename {{instance}}::Arguments arguments{
+{{problem_args}}
+{{indent}}};
 
 {{indent}}auto status = gemm_op.initialize(arguments);
 {{indent}}CUTLASS_CHECK(status);
 {{indent}}status = gemm_op(stream);
 {{indent}}CUTLASS_CHECK(status);
 {{indent}}return;
-
 """
 )
+
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
-  cutlass::half_t*,
-  float*,
-  cutlass::half_t*,
-  uint8_t*,
-{% if support_split_k %}
-  int,
+  void*,
+  void*,
+{% if has_bias %}
+  void*,
 {% endif %}
+  void*,
+  uint8_t*,
 {% for idx in range(input_ndims) %}
   int64_t*,
 {% endfor %}
@@ -163,17 +166,16 @@ void {{func_name}}(
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
+{% if is_profiler %}
+{{indent}}    gemm_op,
+{% endif %}
 {{indent}}    {{a_ptr}},
 {{indent}}    {{b_ptr}},
 {% if has_bias %}
 {{indent}}    {{bias_ptr}},
 {% endif %}
-{{indent}}    {{c_ptr}},
-{{indent}}    {{d_ptr}},
-{{indent}}    {{n_ptr}},
 {{indent}}    {{soft_ptr}},
 {{indent}}    global_workspace_,
-{{indent}}    {{split_k}},
 {% for dim in adims %}
 {{indent}}    {{dim}},
 {% endfor %}
@@ -189,23 +191,67 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
+BENCHMARK_INSTANCE_TEMPLATE = jinja2.Template(
+    """
+{{indent}}{
+{{indent}}
+{{indent}}{{instance_name}} {{gemm_op}};
+{{indent}}const char *gemm_op_name = "{{gemm_op_name}}";
+{{indent}}int ret = 0;
+{{indent}}try {
+{{indent}}ret = {{func_name}}(
+{{indent}}    {{gemm_op}},
+{{indent}}    gemm_op_name,
+{{indent}}    {{a_ptr}},
+{{indent}}    {{b_ptr}},
+{% if has_bias %}
+{{indent}}    {{bias_ptr}},
+{% endif %}
+{{indent}}    {{soft_ptr}},
+{{indent}}    global_workspace_,
+{% for dim in adims %}
+{{indent}}    {{dim}},
+{% endfor %}
+{% for dim in bdims %}
+{{indent}}    {{dim}},
+{% endfor %}
+{% for dim in cdims %}
+{{indent}}    {{dim}},
+{% endfor %}
+{{indent}}    stream
+{{indent}});
+{{indent}}} catch (...) {}
+{{indent}}if (ret != 0)
+{{indent}}  return ret;
+{{indent}}
+{{indent}}}
+"""
+)
+
+
 TENSOR_DECL_TEMPLATE = jinja2.Template(
     """
-  // cast to int64_t to avoid overflow
-  int64_t a_ptr_sz = static_cast<int64_t>(a_dim0) * static_cast<int64_t>(a_dim1);
-  int64_t b_ptr_sz = static_cast<int64_t>(b_dim0) * static_cast<int64_t>(b_dim1);
-  int64_t c_ptr_sz = static_cast<int64_t>(c_dim0) * static_cast<int64_t>(c_dim1);
-  int64_t ptr_max_sz = std::max({a_ptr_sz, b_ptr_sz, c_ptr_sz});
-  // TODO: special pool size for A100 L2 cache 40M
-  // need to tune it for other devices
-  int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
+  int64_t a_ptr_sz = a_dim0 * a_dim1;
+  int64_t b_ptr_sz = b_dim0 * b_dim1;
+  int64_t c_ptr_sz = c_dim0 * c_dim1;
 
-  memory_pool->AllocateHalfTensor(a_ptr_sz, mem_pool_sz);  // a_ptr: index 0
-  memory_pool->AllocateHalfTensor(b_ptr_sz, mem_pool_sz);  // b_ptr: index 1
-  memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // c_ptr: index 2
-  memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // d_ptr: index 3
-  memory_pool->AllocateFloatTensor(c_dim0,  mem_pool_sz);  // n_ptr: index 4
-  memory_pool->AllocateHalfTensor(c_ptr_sz, mem_pool_sz);  // soft_ptr: index 5
+  // The value 1 is used to force ptr_max_sz to be non-zero
+  int64_t ptr_max_sz = std::max<int64_t>({1, a_ptr_sz, b_ptr_sz, c_ptr_sz});
+
+  size_t one_copy_sz = a_ptr_sz + b_ptr_sz + c_ptr_sz;
+{% if has_bias %}
+  one_copy_sz += c_dim1;
+{%endif%}
+
+  int64_t mem_pool_sz = memory_pool->ComputeMemPoolSize(one_copy_sz, ptr_max_sz);
+
+  memory_pool->AllocateTensor(a_ptr_sz, mem_pool_sz);                      // a_ptr: index 0
+  memory_pool->AllocateTensor(b_ptr_sz, mem_pool_sz);                      // b_ptr: index 1
+  memory_pool->AllocateTensor(c_ptr_sz, mem_pool_sz, /*is_output*/ true);  // soft_ptr: index 2
+
+{% if has_bias %}
+  memory_pool->AllocateTensor(c_dim1, mem_pool_sz);                        // bias_ptr: index 3
+{% endif %}
 """
 )
 
@@ -227,8 +273,62 @@ size_t GLOBAL_WORKSPACE_SIZE = 0;
 #include <sstream>
 {{op_func}}
 
+template <typename GemmInstance>
+int benchmark_{{func_name}} (
+    GemmInstance &gemm_op,
+    const char *gemm_op_name,
+    void* a_ptr,
+    void* b_ptr,
+{% if has_bias %}
+    void* bias_ptr,
+{% endif %}
+    void* soft_ptr,
+    uint8_t* global_workspace_,
+{% for idx in range(input_ndims) %}
+    int64_t* a_dim{{idx}},
+{% endfor %}
+{% for idx in range(weight_ndims) %}
+    int64_t* b_dim{{idx}},
+{% endfor %}
+{% for idx in range(input_ndims) %}
+    int64_t* c_dim{{idx}},
+{% endfor %}
+    cudaStream_t stream
+  ) {
+  // warmup
+  for (int i = 0; i < 5; ++i) {
+    {{func_call}}
+  }
+  cudaEvent_t events[2];
+  for (auto & event : events) {
+    cudaEventCreate(&event);
+  }
+  cudaEventRecord(events[0], stream);
+  for (int i = 0; i < 10; ++i) {
+    {{func_call}}
+  }
+  cudaEventRecord(events[1], stream);
+  cudaEventSynchronize(events[1]);
+  float runtime_ms = 0;
+  cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
+  for (auto event : events) {
+    (void)cudaEventDestroy(event);
+  }
+  // TODO: output workspace
+  if (runtime_ms < 0.00001) {
+      throw std::runtime_error(
+      "OOB in cutlass."
+    );
+  }
+  std::cout << "OP:" << gemm_op_name << ",";
+  std::cout << "TIME:" << runtime_ms << ",";
+  std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
+  return 0;
+}
+
+template <typename DType>
 struct ProfilerMemoryPool {
-  ProfilerMemoryPool() {
+  ProfilerMemoryPool() : shared_input_tensor(false) {
     std::random_device rd;
     gen = std::mt19937(rd());
     uniform_dist = std::uniform_int_distribution<int64_t>(1, 48964896);
@@ -240,7 +340,50 @@ struct ProfilerMemoryPool {
   }
   ~ProfilerMemoryPool() {}
 
-  template <typename DType>
+  int64_t ComputeMemPoolSize(size_t one_copy_sz, size_t ptr_max_sz) {
+    // TODO: special pool size for A100 L2 cache 40M
+    // need to tune it for other devices
+    int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
+    size_t free_global_mem = 0;
+    size_t total_global_mem = 0;
+    cudaError_t cuda_error = cudaMemGetInfo(&free_global_mem, &total_global_mem);
+    if (cuda_error != cudaSuccess) {
+      auto error_msg = std::string("Failed to invoke cudaMemGetInfo: ") +
+          cudaGetErrorName(cuda_error) + ", at " + __FILE__;
+      throw std::runtime_error(error_msg);
+    }
+    size_t single_copy_nbytes = one_copy_sz * sizeof(DType);
+    while (mem_pool_sz > 0) {
+      size_t nbytes = single_copy_nbytes * mem_pool_sz;
+      if (nbytes < free_global_mem) {
+        break;
+      }
+      mem_pool_sz--;
+    }
+
+    if (mem_pool_sz <= 1) {
+      size_t minimal_required_nbytes = ptr_max_sz * sizeof(DType);
+      if (minimal_required_nbytes > free_global_mem) {
+        // We absolutely run out of memory
+        auto error_msg = std::string("no enough GPU memory: requested ") +
+            std::to_string(minimal_required_nbytes) + ", available: " +
+            std::to_string(free_global_mem) + ", ptr_max_sz: " +
+            std::to_string(ptr_max_sz) + ", at " + __FILE__;
+        throw std::runtime_error(error_msg);
+      } else {
+        // Let's try to allocate a single blob that is large enough to hold
+        // all input tensors. Note that this is still an approximation, because
+        // we may still hit cudaErrorMemoryAllocation error while allocating
+        // memory for the output. We will rely on cudaMalloc to throw out
+        // an exception in such a case.
+        shared_input_tensor = true;
+        AllocateGaussianTensor(ptr_max_sz);
+      }
+      return 1;
+    }
+    return mem_pool_sz;
+  }
+
   DType* AllocateGaussianTensor(int64_t size) {
     size_t length = size * sizeof(DType);
     blobs.emplace_back(length);
@@ -256,41 +399,25 @@ struct ProfilerMemoryPool {
     return ptr;
   }
 
-
-  cutlass::half_t* AllocateHalfGaussianTensor(int64_t size) {
-    return reinterpret_cast<cutlass::half_t*>(
-        AllocateGaussianTensor<__half>(size));
-  }
-
-  int AllocateHalfTensor(int64_t size, int64_t copy) {
+  int AllocateTensor(int64_t size, int64_t copy, bool is_output = false) {
     offsets.push_back(0);
     strides.push_back(size);
     copies.push_back(copy);
-    auto ptr = AllocateHalfGaussianTensor(size * copy);
+    DType *ptr;
+    if (!is_output && shared_input_tensor) {
+      ptr = reinterpret_cast<DType*>(blobs.back().get());
+    } else {
+      ptr = AllocateGaussianTensor(size * copy);
+    }
     ptrs.push_back(reinterpret_cast<void*>(ptr));
     return ptrs.size() - 1;
   }
 
-  float* AllocateFloatGaussianTensor(int64_t size) {
-    return reinterpret_cast<float*>(
-        AllocateGaussianTensor<float>(size));
-  }
-
-  int AllocateFloatTensor(int64_t size, int64_t copy) {
-    offsets.push_back(0);
-    strides.push_back(size);
-    copies.push_back(copy);
-    auto ptr = AllocateFloatGaussianTensor(size * copy);
-    ptrs.push_back(reinterpret_cast<void*>(ptr));
-    return ptrs.size() - 1;
-  }
-
-  template <typename T>
-  T* RequestTensorByIdx(int idx) {
+  DType* RequestTensorByIdx(int idx) {
     auto copy = copies.at(idx);
     auto offset = offsets.at(idx);
     auto stride = strides.at(idx);
-    T* ptr = reinterpret_cast<T*>(ptrs.at(idx));
+    DType* ptr = reinterpret_cast<DType*>(ptrs.at(idx));
     ptr += offset;
     offset += stride;
     if (offset == copy * stride) {
@@ -307,13 +434,16 @@ struct ProfilerMemoryPool {
   std::vector<cutlass::DeviceAllocation<uint8_t> > blobs;
   std::mt19937 gen;
   std::uniform_int_distribution<int64_t> uniform_dist;
+  // make a shared blob to hold all inputs in cases we do not have
+  // enough GPU memory
+  bool shared_input_tensor;
 };
 
 int main(int argc, char** argv) {
   int device_idx;
   cudaDeviceProp device_properties;
   cudaError_t result = cudaGetDevice(&device_idx);
-  auto memory_pool = std::make_unique<ProfilerMemoryPool>();
+  auto memory_pool = std::make_unique<ProfilerMemoryPool<{{elem_type}}>>();
   if (result != cudaSuccess) {
     std::ostringstream errorStream;
     errorStream << "cudaGetDevice() call failed! "
@@ -332,44 +462,16 @@ int main(int argc, char** argv) {
     throw std::runtime_error(errorStream.str());
   }
 
-
-
   {{args_parse}}
 
-  using ElementOutput = typename {{name}}::ElementC;
-  using ElementInputA = typename {{name}}::ElementA;
-  using ElementInputB = typename {{name}}::ElementB;
-  using ElementInputN = typename {{name}}::ElementN;
-  uint8_t* global_workspace = nullptr;
+  uint8_t* global_workspace_ = nullptr;
   cudaStream_t stream = nullptr;
 
   {{tensor_decl}}
 
-  // warmup
-  {{func_call}}
-  cudaEvent_t events[2];
-  for (auto & event : events) {
-    cudaEventCreate(&event);
-  }
-  cudaEventRecord(events[0], stream);
-  for (int i = 0; i < 5; ++i) {
-    {{func_call}}
-  }
-  cudaEventRecord(events[1], stream);
-  cudaEventSynchronize(events[1]);
-  float runtime_ms = 0;
-  cudaEventElapsedTime(&runtime_ms, events[0], events[1]);
-  for (auto event : events) {
-    (void)cudaEventDestroy(event);
-  }
-  // TODO: output workspace
-  if (runtime_ms < 0.00001) {
-      throw std::runtime_error(
-      "OOB in cutlass."
-    );
-  }
-  std::cout << "TIME:" << runtime_ms << std::endl;
-  std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
+  {{benchmark_instances}}
+
+  return 0;
 }
 """
 )
@@ -412,9 +514,9 @@ def gen_function(
     input_ndims,
     weight_ndims,
     dim_info_dict,
+    has_bias=False,
     f_instance_convertor=_gemm_softmax_instance,
     emit_kernel=False,
-    support_split_k=False,
     output_addr_calculator="",
     extra_code="",
 ):
@@ -447,44 +549,51 @@ def gen_function(
             indent="    ",
             instance=fname,
             problem_args=problem_args,
-            support_split_k=support_split_k,
         )
         exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return src_template.render(
         custom_libs=gen_custom_libs(),
         instances=instance_decl,
-        function_name=func_name,
-        dtype="cutlass::half_t",
+        func_name=func_name,
         shape_eval=shape_eval_func,
         output_addr_calculator=output_addr_calculator,
         exec_paths=exec_paths,
         input_ndims=input_ndims,
         weight_ndims=weight_ndims,
-        support_split_k=support_split_k,
-        has_d=common.has_d(func_attrs),
-        has_d1=common.has_d1(func_attrs),
         extra_code=extra_code,
+        has_bias=has_bias,
     )
 
 
 def gen_profiler(
     func_attrs,
     workdir,
+    profiler_filename,
     dim_info_dict,
     src_template,
     problem_args_template,
     args_parser_template,
     emit_kernel=False,
-    support_split_k=False,
     output_addr_calculator="",
     bias_ptr_arg=None,
     extra_code="",
+    ndims=2,
 ):
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
 
-    ndims = 2
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    elem_type = backend_spec.dtype_to_backend_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+
     adims = ["&a_dim" + str(i) for i in range(ndims)]
     bdims = ["&b_dim" + str(i) for i in range(ndims)]
     cdims = ["&c_dim" + str(i) for i in range(ndims)]
@@ -492,56 +601,94 @@ def gen_profiler(
         indent=2, dtype="int64_t", dim_info_dict=dim_info_dict, is_ptr=True
     )
 
-    file_pairs = []
     has_bias = bias_ptr_arg is not None
-    for op_name, op in op_instance.items():
+    instance_name_base = "GemmSoftmaxInstance"
+    exec_program = EXEC_TEMPLATE.render(
+        indent="  ",
+        instance=instance_name_base,
+        is_profiler=True,
+        problem_args=problem_args_template.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+        ),
+        elem_output_type=elem_output_type,
+    )
+
+    instances = []
+    benchmark_instances = []
+    func_name = "gemm_softmax"
+    for instance_idx, (op_name, op) in enumerate(op_instance.items()):
         config = emit_instance(op, emit_kernel=emit_kernel)
         config_name = common.extract_config_name(config)
-        name = "GemmInstance"
+        instance_name = f"{instance_name_base}_{instance_idx}"
+        gemm_op = f"gemm_softmax_op_{instance_idx}"
         instance = common.INSTANCE_TEMPLATE.render(
-            config_name=config_name, name=name, config=config
+            config_name=config_name, name=instance_name, config=config
         )
-        exec_program = EXEC_TEMPLATE.render(
+        benchmark_instance = BENCHMARK_INSTANCE_TEMPLATE.render(
             indent="  ",
-            instance=name,
-            is_profiler=True,
-            support_split_k=support_split_k,
-            problem_args=problem_args_template.render(),
-        )
-        op_func = src_template.render(
-            custom_libs=gen_custom_libs(),
-            instances=instance,
-            function_name="gemm",
-            input_ndims=2,
-            weight_ndims=2,
-            shape_eval=shape_func,
-            exec_paths=exec_program,
-            output_addr_calculator=output_addr_calculator,
-            support_split_k=support_split_k,
-            extra_code=extra_code,
-        )
-        func_call = FUNC_CALL_TEMPLATE.render(
-            func_name="gemm",
-            a_ptr="memory_pool->RequestTensorByIdx<cutlass::half_t>(0)",
-            b_ptr="memory_pool->RequestTensorByIdx<cutlass::half_t>(1)",
+            instance_name=instance_name,
+            gemm_op=gemm_op,
+            gemm_op_name=op_name,
+            func_name=f"benchmark_{func_name}",
+            a_ptr="memory_pool->RequestTensorByIdx(0)",
+            b_ptr="memory_pool->RequestTensorByIdx(1)",
             has_bias=has_bias,
             bias_ptr=bias_ptr_arg,
-            c_ptr="memory_pool->RequestTensorByIdx<cutlass::half_t>(2)",
-            d_ptr="memory_pool->RequestTensorByIdx<cutlass::half_t>(3)",
-            n_ptr="memory_pool->RequestTensorByIdx<float>(4)",
-            soft_ptr="memory_pool->RequestTensorByIdx<cutlass::half_t>(5)",
-            split_k="split_k",
+            soft_ptr="memory_pool->RequestTensorByIdx(2)",
             adims=adims,
             bdims=bdims,
             cdims=cdims,
         )
-        code = PROFILER_TEMPLATE.render(
-            op_func=op_func,
-            args_parse=args_parser_template.render(),
-            func_call=func_call,
-            name=name,
-            tensor_decl=TENSOR_DECL_TEMPLATE.render(name=name, has_bias=has_bias),
-        )
-        common.add_profiler(file_pairs, workdir, op_type, op_name, code)
-    # build
+        instances.append(instance)
+        benchmark_instances.append(benchmark_instance)
+
+    op_func = src_template.render(
+        is_profiler=True,
+        instances="\n".join(instances),
+        func_name=func_name,
+        instance_name_base=instance_name_base,
+        custom_libs=gen_custom_libs(),
+        has_bias=has_bias,
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        shape_eval=shape_func,
+        exec_paths=exec_program,
+        output_addr_calculator=output_addr_calculator,
+        extra_code=extra_code,
+    )
+    benchmark_adims = ["a_dim" + str(i) for i in range(ndims)]
+    benchmark_bdims = ["b_dim" + str(i) for i in range(ndims)]
+    benchmark_cdims = ["c_dim" + str(i) for i in range(ndims)]
+    func_call = FUNC_CALL_TEMPLATE.render(
+        is_profiler=True,
+        func_name=func_name,
+        a_ptr="a_ptr",
+        b_ptr="b_ptr",
+        has_bias=has_bias,
+        bias_ptr="bias_ptr",
+        soft_ptr="soft_ptr",
+        adims=benchmark_adims,
+        bdims=benchmark_bdims,
+        cdims=benchmark_cdims,
+    )
+    code = PROFILER_TEMPLATE.render(
+        op_func=op_func,
+        has_bias=has_bias,
+        args_parse=args_parser_template.render(),
+        func_name=func_name,
+        input_ndims=ndims,
+        weight_ndims=ndims,
+        func_call=func_call,
+        name=instance_name_base,
+        tensor_decl=TENSOR_DECL_TEMPLATE.render(
+            has_bias=has_bias,
+        ),
+        benchmark_instances="\n".join(benchmark_instances),
+        elem_output_type=elem_output_type,
+        elem_type=elem_type,
+    )
+
+    file_pairs = []
+    common.add_profiler(file_pairs, workdir, op_type, profiler_filename, code)
     return common.build_profiler(file_pairs)
