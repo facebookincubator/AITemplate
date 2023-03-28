@@ -16,8 +16,9 @@
 Graph pass to invoke profiling with dynamic shapes.
 """
 import logging
+from collections import OrderedDict
 from copy import deepcopy
-from typing import List, OrderedDict
+from typing import List
 
 from aitemplate.backend import builder, codegen
 from aitemplate.compiler.base import Tensor
@@ -35,12 +36,10 @@ def profile_dynamic_dim(sorted_graph: List[Tensor], workdir="./tmp"):
     compile_engine = builder.Builder()
     compile_engine.make_profilers(generated_profilers, workdir)
     funcs_to_profile = OrderedDict(
-        {
-            func._attrs["name"]: func
-            for node in sorted_graph
-            for func in node.src_ops()
-            if func._attrs["has_profiler"]
-        }
+        (func._attrs["name"], func)
+        for node in sorted_graph
+        for func in node.src_ops()
+        if func._attrs["has_profiler"]
     )
     for f in funcs_to_profile.values():
         f.profile_dynamic_dim(
