@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import unittest
-from typing import OrderedDict
+from collections import OrderedDict
 
 import torch
 import torch as pt
@@ -59,7 +59,7 @@ class NNModule(unittest.TestCase):
         b = PTModule()
         pt_param_names = [x[0] for x in b.named_parameters()]
 
-        for (x, y) in zip(ait_param_names, pt_param_names):
+        for x, y in zip(ait_param_names, pt_param_names):
             assert x == y
 
     def test_sequential_1(self):
@@ -100,7 +100,7 @@ class NNModule(unittest.TestCase):
         ait_param_names = [x[0] for x in a.named_parameters()]
         pt_param_names = [x[0] for x in b.named_parameters()]
 
-        for (x, y) in zip(ait_param_names, pt_param_names):
+        for x, y in zip(ait_param_names, pt_param_names):
             assert x == y
 
     def test_sequential_2(self):
@@ -153,7 +153,7 @@ class NNModule(unittest.TestCase):
         ait_param_names = [x[0] for x in a.named_parameters()]
         pt_param_names = [x[0] for x in b.named_parameters()]
 
-        for (x, y) in zip(ait_param_names, pt_param_names):
+        for x, y in zip(ait_param_names, pt_param_names):
             assert x == y
 
     def test_module_dict(self):
@@ -238,7 +238,7 @@ class NNModule(unittest.TestCase):
         ait_param_names = [x[0] for x in a.named_parameters()]
         pt_param_names = [x[0] for x in b.named_parameters()]
 
-        for (x, y) in zip(ait_param_names, pt_param_names):
+        for x, y in zip(ait_param_names, pt_param_names):
             assert x == y
 
 

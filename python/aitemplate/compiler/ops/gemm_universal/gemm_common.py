@@ -495,11 +495,9 @@ class gemm(Operator):
         filter_func = registry.get(func_key)
         # run compile-time filter
         new_op_instance = OrderedDict(
-            {
-                k: v
-                for k, v in self._attrs["op_instance"].items()
-                if filter_func(k, self._attrs, ab_alignments[0])
-            }
+            (k, v)
+            for k, v in self._attrs["op_instance"].items()
+            if filter_func(k, self._attrs, ab_alignments[0])
         )
         _LOGGER.debug(
             f"Filtered profiler kernels for {self._attrs['op']}: reduced the "
