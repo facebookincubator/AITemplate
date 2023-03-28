@@ -300,8 +300,8 @@ def plot_graph(
         basename = os.path.splitext(os.path.basename(file_path))[0]
         dot_src = dot_graph.to_string()
         modal_src = "\n".join(modal_set)
-        items_src = [f'"{item}"' for item in items]
-        popover_src = json.dumps(popover_data)
+        items_src = json.dumps(items, indent=2)
+        popover_src = json.dumps(popover_data, indent=2)
         index = INDEX_TEMPLATE.render(
             dot_src=dot_src,
             modals=modal_src,
