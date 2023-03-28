@@ -1623,11 +1623,11 @@ def acc_ops_tile(
     input_dim_len = len(input_val.shape())
     result = input_val
     if len(shape_dims) < input_dim_len:
-        for i in range(input_dim_len - len(shape_dims)):
+        for _ in range(input_dim_len - len(shape_dims)):
             shape_dims.insert(0, 1)
     if input_dim_len < len(shape_dims):
         shape = input_val.shape()
-        for i in range(len(shape_dims) - input_dim_len):
+        for _ in range(len(shape_dims) - input_dim_len):
             shape.insert(0, IntImm(1))
         result = expand()(input_val, shape)
 
@@ -1674,7 +1674,11 @@ def acc_ops_new_full(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
-    dtype = kwargs["dtype"] if "dtype" in kwargs else input_val.dtype()
+    dtype = (
+        kwargs["dtype"]
+        if "dtype" in kwargs and kwargs["dtype"] is not None
+        else input_val.dtype()
+    )
     fill_value = kwargs["fill_value"]
     return full()(size, fill_value=fill_value, dtype=dtype)
 
@@ -1698,7 +1702,11 @@ def acc_ops_new_ones(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
-    dtype = kwargs["dtype"] if "dtype" in kwargs else input_val.dtype()
+    dtype = (
+        kwargs["dtype"]
+        if "dtype" in kwargs and kwargs["dtype"] is not None
+        else input_val.dtype()
+    )
     return full()(size, 1, dtype=dtype)
 
 
@@ -1720,7 +1728,11 @@ def acc_ops_new_zeros(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
-    dtype = kwargs["dtype"] if "dtype" in kwargs else input_val.dtype()
+    dtype = (
+        kwargs["dtype"]
+        if "dtype" in kwargs and kwargs["dtype"] is not None
+        else input_val.dtype()
+    )
     return full()(size, 0, dtype=dtype)
 
 
