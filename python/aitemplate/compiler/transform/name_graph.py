@@ -28,6 +28,7 @@ tensor_cnt = 0
 func_name_to_tensor_cnt = {}
 
 MEMO = set()
+user_provided_dim = set()
 
 
 def valid_c_name(name):
@@ -55,6 +56,7 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
     global func_cnt
     global tensor_cnt
     global func_name_to_tensor_cnt
+    global user_provided_dim
     for node in sorted_graph:
         funcs = node.src_ops()
         if len(funcs) == 0:
@@ -95,6 +97,8 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
 
         tensor_name = node._attrs["name"]
         for i, dim in enumerate(node._attrs["shape"]):
+            if dim._attrs["name"] is not None:
+                user_provided_dim.add(dim._attrs["name"])
             if dim._attrs["name"] is None and not isinstance(dim, JaggedIntVar):
                 dim_name = "{tname}_dim_{idx}".format(tname=tensor_name, idx=i)
                 dim._attrs["name"] = dim_name
@@ -118,3 +122,31 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
                 # the batch_dim wasn't named above, so we name it here
                 jagged_int_var_name = jagged_int_var._attrs["name"]
                 batch_dim._attrs["name"] = f"{jagged_int_var_name}_jagged_batch_dim"
+
+
+def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
+    """Rename all shape variable that are identical to the same name.
+
+    Parameters
+    ----------
+    sorted_graph : List[Tensor]
+        Input graph to be simplified
+    """
+    symbolic_to_name = {}
+    global user_provided_dim
+    for node in sorted_graph:
+        for dim in node._attrs["shape"]:
+            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
+                dim_sym = dim.symbolic_value()
+                if (
+                    dim_sym not in symbolic_to_name
+                    or dim_sym in symbolic_to_name
+                    and dim._attrs["name"] in user_provided_dim
+                ):
+                    symbolic_to_name[dim_sym] = dim._attrs["name"]
+
+    for node in sorted_graph:
+        for dim in node._attrs["shape"]:
+            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
+                dim_sym = dim.symbolic_value()
+                dim._attrs["name"] = symbolic_to_name[dim_sym]

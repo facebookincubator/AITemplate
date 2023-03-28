@@ -17,9 +17,10 @@ import unittest
 
 import sympy
 
-from aitemplate.compiler import ops, symbolic
+from aitemplate.compiler import ops, symbolic, transform
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.frontend import Tensor
 
 
 class SymbolTestCase(unittest.TestCase):
@@ -99,6 +100,19 @@ class SymbolTestCase(unittest.TestCase):
         self.assertEqual(mul._attrs["symbolic_value"], sym1 * sym2)
         div = ops.elementwise(FuncEnum.DIV)(tensor1, tensor2)
         self.assertEqual(div._attrs["symbolic_value"], sym1 / sym2)
+
+    def test_dedup_symbolic_name(self):
+        var1 = IntVar(values=[1, 256], name="var_1")
+        var2 = IntVar(
+            values=[1, 256], name="var_2", symbolic_value=var1.symbolic_value()
+        )
+        X_shape = [var1, var2]
+
+        X = Tensor(shape=X_shape, name="input_0", is_input=True)
+
+        self.assertNotEqual(X.shape()[0]._attrs["name"], X.shape()[1]._attrs["name"])
+        transform.dedup_symbolic_name([X])
+        self.assertEqual(X.shape()[0]._attrs["name"], X.shape()[1]._attrs["name"])
 
 
 if __name__ == "__main__":

@@ -32,7 +32,7 @@ from aitemplate.compiler.transform.mark_param_tensor import (
 )
 from aitemplate.compiler.transform.memory_planning import memory_planning
 from aitemplate.compiler.transform.move_view_ops import move_view_op_before_concat
-from aitemplate.compiler.transform.name_graph import name_graph
+from aitemplate.compiler.transform.name_graph import dedup_symbolic_name, name_graph
 from aitemplate.compiler.transform.optimize_graph import optimize_graph
 from aitemplate.compiler.transform.profile import profile
 from aitemplate.compiler.transform.refine_graph import refine_graph

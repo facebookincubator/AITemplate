@@ -232,6 +232,11 @@ def compile_model(
             compiler.transform.name_graph(graph)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
 
+            compiler.transform.dedup_symbolic_name(graph)
+            graph_utils.dump_graph_debug_str_to_file(
+                graph, test_dir, "dedup_symbolic_name"
+            )
+
             compiler.transform.mark_param_tensor(graph)
             graph_utils.dump_graph_debug_str_to_file(
                 graph, test_dir, "mark_param_tensor"
