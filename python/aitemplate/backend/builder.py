@@ -38,7 +38,7 @@ from aitemplate.utils import environ
 
 from aitemplate.utils.debug_settings import AITDebugSettings
 
-from aitemplate.utils.misc import is_debug
+from aitemplate.utils.misc import is_debug, is_windows
 
 # pylint: disable=W0221,C0103
 
@@ -457,7 +457,9 @@ clean_constants:
         build_standalone_rules = ""
         if debug_settings.gen_standalone:
             build_exe_cmd = f"$(CC) $(CFLAGS) -o $@ {standalone_obj} {dll_name}"
-            exe_name = os.path.splitext(dll_name)[0] + ".exe"
+            exe_name = os.path.splitext(dll_name)[0]
+            if is_windows():
+                exe_name += ".exe"
             exe_target_deps = f"{dll_name} {standalone_obj}"
             build_standalone_rules = standalone_rules_template.render(
                 standalone_src=standalone_src,

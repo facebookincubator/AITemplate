@@ -25,6 +25,10 @@ def is_debug():
     return logger.level == logging.DEBUG
 
 
+def is_windows() -> bool:
+    return os.name == "nt"
+
+
 def setup_logger(name):
     root_logger = logging.getLogger(name)
     info_handle = logging.StreamHandler()
