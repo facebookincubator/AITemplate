@@ -198,7 +198,7 @@ class Model:
         num_runtimes : int, optional
             How many runtimes should be stored in the internal pool. This
             determines how many inferences can happen concurrently. By
-            default, set to 2. Must be positive.
+            default, set to 1. Must be positive.
         allocator_kind : AITemplateAllocatorKind, optional
             What type of allocator to use when allocating GPU memory.
         """
