@@ -249,7 +249,7 @@ ModelContainerBase::ModelContainerBase(
 }
 
 ModelContainer* CreateModelContainer(size_t num_runtimes, AITemplateAllocator& allocator) {
-  // num_runtimes, blob_size, workspace_size, num_inputs, num_outputs, num_unbound_constants, param_size, allocator
+  // num_runtimes, num_inputs, num_outputs, num_bound_constants, num_unbound_constants, params_size, allocator
   return new ModelContainer(num_runtimes, {{num_inputs}}, {{num_outputs}}, {{num_bound_constants}}, {{num_unbound_constants}}, {{param_size}}, allocator);
 }
 } // namespace ait
