@@ -17,10 +17,13 @@ Basic data types of AITemplate.
 """
 from __future__ import annotations
 
+import math
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
+from numbers import Number
 from pprint import pformat
 from typing import Any, Dict, Iterable, List, Optional, Set, Union
 
@@ -84,6 +87,9 @@ class IntVar(Node):
     """
     An IntVar represents a dynamic dimension.
     IntVar and IntImm (see below) are used together to represent a Tensor's shape.
+
+    IntVar supports basic arithmetic operations, and returns the most conservative
+    IntVar w.r.t. range of _attrs["values"].
     """
 
     def __init__(
@@ -148,7 +154,149 @@ class IntVar(Node):
         )
 
     def __hash__(self) -> int:
-        return hash((self._attrs["name"], tuple(self._attrs["values"])))
+        return hash(
+            (
+                self._attrs["name"],
+                tuple(self._attrs["values"]),
+                self._attrs["symbolic_value"],
+            )
+        )
+
+    def __add__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym + other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym + other
+        else:
+            raise NotImplementedError(f"Unable to do addition on {self} and {other}")
+
+        new_values = [
+            self_values[0] + other_values[0],
+            self_values[-1] + other_values[-1],
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __radd__(self, other: Union[Any, IntVar]) -> IntVar:
+        return self + other
+
+    def __sub__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym - other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym - other
+        else:
+            raise NotImplementedError(f"Unable to do subtraction on {self} and {other}")
+
+        new_values = [
+            max(0, self_values[0] - other_values[-1]),
+            max(0, self_values[-1] - other_values[0]),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rsub__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = other._attrs["symbolic_value"] - new_sym
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = other - new_sym
+        else:
+            raise NotImplementedError(
+                f"Unable to do r-subtraction on {self} and {other}"
+            )
+
+        new_values = [
+            max(0, other_values[0] - self_values[-1]),
+            max(0, other_values[-1] - self_values[0]),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __mul__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym * other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym * other
+        else:
+            raise NotImplementedError(
+                f"Unable to do multiplication on {self} and {other}"
+            )
+
+        new_values = [
+            self_values[0] * other_values[0],
+            self_values[-1] * other_values[-1],
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rmul__(self, other: Union[Any, IntVar]) -> IntVar:
+        return self * other
+
+    def __truediv__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym / other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym / other
+        else:
+            raise NotImplementedError(f"Unable to do division on {self} and {other}")
+
+        new_values = [
+            math.floor(self_values[0] / max(1, other_values[-1])),
+            math.ceil(self_values[-1] / max(1, other_values[0])),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rtruediv__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = other._attrs["symbolic_value"] / new_sym
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = other / new_sym
+        else:
+            raise NotImplementedError(f"Unable to do r-division on {self} and {other}")
+
+        new_values = [
+            math.floor(other_values[0] / max(1, self_values[-1])),
+            math.ceil(other_values[-1] / max(1, self_values[0])),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
 
     def lower_bound(self) -> int:
         """Returns lower bound of this dynamic dim."""
