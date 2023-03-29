@@ -95,7 +95,7 @@ class bmm_rrr_permute(bmm_rrr):
         if self._attrs["layout"] == "Permute4DBMM_0213":
             b, m, n = output_shape
             d1 = self._attrs["shape"][0]
-            output_shape = [b.value() // d1, m, d1, n]
+            output_shape = [-1, m, d1, n]
             self._extract_epilogue_alignment(output_shape)
             return reshape()(output, output_shape)
         else:
