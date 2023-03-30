@@ -17,6 +17,7 @@ A common place for holding AIT-related env control variables
 """
 import logging
 import os
+from typing import Optional
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,3 +67,17 @@ def shorten_tensor_names_for_plots() -> bool:
     making the graph representation significantly simpler.
     """
     return os.getenv("AIT_PLOT_SHORTEN_TENSOR_NAMES", "0") == "1"
+
+
+def ait_build_cache_dir() -> Optional[str]:
+    """
+    When set to a non-empty string, cache the build artifacts
+    below this directory for significantly faster builds.
+
+    See aitemplate.backend.build_cache
+
+    Returns:
+        Optional[str]: Value of AIT_BUILD_CACHE_DIR environment variable,
+        or None if not set.
+    """
+    return os.environ.get("AIT_BUILD_CACHE_DIR", None)
