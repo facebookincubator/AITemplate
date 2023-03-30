@@ -18,6 +18,7 @@ Target object for AITemplate.
 import logging
 import os
 import pathlib
+import platform
 import shutil
 import tempfile
 from enum import IntEnum
@@ -172,7 +173,15 @@ class Target:
         A command that turns a raw binary file into an object file that
         can be linked into the executable.
         """
-        return "ld -r -b binary -o {target} {src}"
+        cmd = "ld -r -b binary -o {target} {src}"
+        # Support models with >2GB constants on Linux only
+        if platform.system() == "Linux":
+            cmd += (
+                " && objcopy --rename-section"
+                " .data=.lrodata,alloc,load,readonly,data,contents"
+                " {target} {target}"
+            )
+        return cmd
 
     def compile_options(self) -> str:
         """Options for compiling the target.
