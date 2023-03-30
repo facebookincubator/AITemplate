@@ -35,6 +35,7 @@ from aitemplate.compiler.model import (
     Model,
     TorchTensor,
 )
+from aitemplate.compiler.transform.name_graph import reset_name_counters
 from aitemplate.compiler.transform.profile import elapsed_dt_sec
 from aitemplate.utils import graph_utils
 from aitemplate.utils.debug_settings import AITDebugSettings
@@ -212,6 +213,7 @@ def compile_model(
     if int(recompile) == 1:
         os.makedirs(test_dir, exist_ok=True)
         with target:
+            reset_name_counters()
             graph = compiler.transform.toposort(tensor)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "toposort")
 

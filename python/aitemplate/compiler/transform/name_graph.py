@@ -31,6 +31,17 @@ MEMO = set()
 user_provided_dim = set()
 
 
+def reset_name_counters():
+    global func_cnt
+    global tensor_cnt
+    global func_name_to_tensor_cnt
+    global MEMO
+    func_cnt = 0
+    tensor_cnt = 0
+    func_name_to_tensor_cnt = {}
+    MEMO = set()
+
+
 def valid_c_name(name):
     return re.sub(r"\W|^(?=\d)", "_", name)
 
@@ -52,6 +63,8 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
     ----------
     sorted_graph : List[Tensor]
         Input graph to be named
+    reset_counters : bool
+        If True, reset counters which are used to name tensors and functions. (Default: False)
     """
     global func_cnt
     global tensor_cnt

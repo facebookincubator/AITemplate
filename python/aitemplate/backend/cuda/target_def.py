@@ -15,11 +15,13 @@
 """
 CUDA target specialization
 """
+import hashlib
 import json
 import logging
 import os
 import pipes
 import re
+import secrets
 import shutil
 import sys
 import tempfile
@@ -39,7 +41,9 @@ from aitemplate.backend.target import (
 )
 
 from aitemplate.utils import environ
+from aitemplate.utils.io import copytree_with_hash
 from aitemplate.utils.misc import is_debug
+
 
 # pylint: disable=C0415,W0707,W0611,W0702,W1401
 
@@ -200,22 +204,53 @@ class FBCUDA(CUDA):
         static_files_path = parutil.get_dir_path("aitemplate/AITemplate/static")
         self._include_path = None
         if not FBCUDA.cutlass_path_:
-            self._include_path = tempfile.mkdtemp()
-
+            # Copy all of the includes over into an include directory
+            random_key = secrets.token_hex(16)
+            # the random_key part of this path will later be renamed to the content hash
+            self._include_path = os.path.join(
+                tempfile.gettempdir(), "aitemplate_tmp", random_key, "includes"
+            )
+            includes_content_hash = hashlib.sha256()
             FBCUDA.cutlass_path_ = self._include_path + "/cutlass"
             self.cub_path_ = self._include_path + "/cub"
-            shutil.copytree(cutlass_src_path, FBCUDA.cutlass_path_)
-            shutil.copytree(cub_src_path, self.cub_path_)
-
+            # copy recursively, and update a content hash in one go
+            copytree_with_hash(
+                cutlass_src_path, FBCUDA.cutlass_path_, hash=includes_content_hash
+            )
+            copytree_with_hash(cub_src_path, self.cub_path_, hash=includes_content_hash)
             attention_src_path = parutil.get_dir_path(
                 "aitemplate/AITemplate/python/aitemplate/backend/cuda/attention/src"
             )
             attention_include_path = self._include_path + "/att_include"
-            shutil.copytree(attention_src_path, attention_include_path)
-            ait_static_include_path = self._include_path + "/static"
-            shutil.copytree(
-                static_files_path + "/include/kernels", ait_static_include_path
+            copytree_with_hash(
+                attention_src_path, attention_include_path, hash=includes_content_hash
             )
+            ait_static_include_path = self._include_path + "/static"
+            copytree_with_hash(
+                static_files_path + "/include/kernels",
+                ait_static_include_path,
+                hash=includes_content_hash,
+            )
+            # Now we have a content hash over all include contents
+            include_hash_digest = includes_content_hash.hexdigest()
+            # Prepare to rename atomically
+            old_path = os.path.join(tempfile.gettempdir(), "aitemplate_tmp", random_key)
+            new_path = os.path.join(
+                tempfile.gettempdir(), "aitemplate_tmp", include_hash_digest
+            )
+            # if it already exists, we don't want to overwrite it
+            # we can just delete our copy.
+            try:
+                os.rename(old_path, new_path)
+            except OSError:
+                # target directory with identical contents already exists
+                shutil.rmtree(old_path)  # No need to keep out copy
+
+            # set the include paths to the final variant
+            self._include_path = os.path.join(new_path, "includes")
+            self.cub_path_ = self._include_path + "/cub"
+            FBCUDA.cutlass_path_ = self._include_path + "/cutlass"
+
         self.cutlass_path_ = FBCUDA.cutlass_path_
 
         cutlass_lib_path = parutil.get_dir_path(
