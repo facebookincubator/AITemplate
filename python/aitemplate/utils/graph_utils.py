@@ -68,7 +68,7 @@ def sorted_graph_debug_json(tensors) -> str:
     json_dict["Operators"] = get_sorted_ops(tensors)
 
     op_names = gen_unique_op_names(tensors)
-    encoder = GraphJsonEncoder(op_names)
+    encoder = GraphJsonEncoder(op_names, indent=2)
 
     return encoder.encode(json_dict)
 
