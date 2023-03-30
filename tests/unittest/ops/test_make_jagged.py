@@ -124,13 +124,13 @@ class MakeJaggedTestCase(unittest.TestCase):
     def test_make_jagged(self):
         self._test_make_jagged(
             check_sequence_lengths=True,
-            test_name="make_jagged",
+            test_name="test_make_jagged",
         )
 
     def test_make_jagged_no_seq_len_check(self):
         self._test_make_jagged(
             check_sequence_lengths=False,
-            test_name="make_jagged_no_seq_len_check",
+            test_name="test_make_jagged_no_seq_len_check",
         )
 
     def test_make_jagged_with_dynamic_bounds(
@@ -229,6 +229,114 @@ class MakeJaggedTestCase(unittest.TestCase):
         model.run_with_tensors(inputs, [result])
 
         torch.testing.assert_close(result, result_pt)
+
+    def test_make_jagged_multiple_sources(
+        self,
+        num_sources=3,
+        dtype="float16",
+        offsets_dtype="int32",
+    ):
+        B = 4
+        N = 3
+        D = 64
+
+        batch_dim = IntVar(name="batch_size", values=[1, B])
+        max_seq_dim = IntImm(name="max_seq_len", value=N)
+        embedding_dim = IntImm(name="embedding", value=D)
+
+        total_length_dim = IntVar(name="total_length", values=[0, B * N])
+        offsets_dim = IntVar(name="offsets_size", values=[2, B + 1])
+
+        SOURCES = [
+            Tensor(
+                shape=[
+                    total_length_dim,
+                    embedding_dim,
+                ],
+                name=f"source_{i}",
+                dtype=dtype,
+                is_input=True,
+            )
+            for i in range(num_sources)
+        ]
+        OFFSETS_LIST = [
+            Tensor(
+                shape=[
+                    offsets_dim,
+                ],
+                name="offsets",
+                dtype=offsets_dtype,
+                is_input=True,
+            )
+        ]
+        DENSE = Tensor(
+            shape=[
+                batch_dim,
+                max_seq_dim,
+                embedding_dim,
+            ],
+            name="dense",
+            dtype=dtype,
+            is_input=True,
+        )
+
+        JAGGEDS = ops.make_jagged(
+            batch_dim=batch_dim,
+            jagged_dims=[
+                JaggedDim(
+                    min_value=0,
+                    max_value=max_seq_dim,
+                )
+            ],
+        )(
+            source=SOURCES,
+            offsets_list=OFFSETS_LIST,
+        )
+
+        RESULT = DENSE
+        for JAGGED in JAGGEDS:
+            RESULT = ops.elementwise(FuncEnum.ADD)(JAGGED, RESULT)
+
+        assert all(not SOURCE.is_jagged() for SOURCE in SOURCES)
+        assert not DENSE.is_jagged()
+        assert all(JAGGED.is_jagged() for JAGGED in JAGGEDS)
+        assert RESULT.is_jagged()
+
+        RESULT._attrs["name"] = "result"
+        RESULT._attrs["is_output"] = True
+
+        model = compile_model(
+            [RESULT],
+            detect_target(),
+            "./tmp",
+            "test_make_jagged_multiple_sources",
+        )
+
+        offsets = [0, 1, 4, 6, 7]
+        torch_offsets_type = string_to_torch_dtype(offsets_dtype)
+        offsets_pt = torch.tensor(offsets, dtype=torch_offsets_type).cuda()
+        sources_pt = {
+            f"source_{i}": get_random_torch_tensor([offsets[-1], D], dtype=dtype)
+            for i in range(num_sources)
+        }
+        dense_pt = get_random_torch_tensor([B, N, D], dtype=dtype)
+
+        sources_list_pt = list(sources_pt.values())
+        summed_sources_pt = torch.clone(sources_list_pt[0])
+        for source_pt in sources_list_pt[1:]:
+            summed_sources_pt += source_pt
+        result_pt = add_jagged_dense_ref(
+            jagged=summed_sources_pt,
+            offsets_list=[offsets_pt],
+            jagged_max_shape=[B, N, D],
+            dense=dense_pt,
+        )
+        result = torch.empty_like(result_pt)
+
+        inputs = {**sources_pt, "offsets": offsets_pt, "dense": dense_pt}
+        model.run_with_tensors(inputs, [result])
+
+        torch.testing.assert_close(result, result_pt, rtol=1e-2, atol=1e-2)
 
 
 if __name__ == "__main__":
