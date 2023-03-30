@@ -181,7 +181,7 @@ def compile_model(
     num_runtimes: int
         How many runtimes should be stored in the internal pool. This
         determines how many inferences can happen concurrently. By
-        default, set to 2. Must be positive.
+        default, set to 1. Must be positive.
     allocator_kind: AITemplateAllocatorKind, optional
         The GPU allocator to use. If none is specified, use the default allocator.
     debug_settings: AITDebugSettings
