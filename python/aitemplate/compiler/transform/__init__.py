@@ -42,6 +42,7 @@ from aitemplate.compiler.transform.split_large_concat_ops import split_large_con
 from aitemplate.compiler.transform.split_large_split_ops import split_large_split_ops
 from aitemplate.compiler.transform.toposort import toposort
 from aitemplate.compiler.transform.transform_memory_ops import transform_memory_ops
+from aitemplate.compiler.transform.transform_merge_slice_ops import merge_slice_ops
 from aitemplate.compiler.transform.transform_odd_alignment import (
     transform_odd_alignment,
 )
