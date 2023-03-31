@@ -13,6 +13,7 @@
 #  limitations under the License.
 #
 # encoding: utf-8
+import logging
 import operator
 
 import torch  # isort:skip
@@ -28,6 +29,8 @@ from .acc_normalizer import (
     register_custom_acc_mapper_fn,
 )
 from .acc_op_properties import AccOpProperty, register_acc_op_properties
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 this_arg_is_optional = True
 move_to_qparams = True
@@ -485,6 +488,7 @@ def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
         ("dim", "dim", this_arg_is_optional),
         ("output_size", "output_size", this_arg_is_optional),
     ],
+    skip_normalization_if_none=True,
 )
 @register_custom_acc_mapper_fn(
     op_and_target=("call_function", torch.repeat_interleave),
@@ -494,11 +498,17 @@ def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
         ("dim", "dim", this_arg_is_optional),
         ("output_size", "output_size", this_arg_is_optional),
     ],
+    skip_normalization_if_none=True,
 )
 def repeat_interleave_mapper(node: torch.fx.Node, _: nn.Module):
     input_node = node.kwargs["input"]
     repeats = cast(int, node.kwargs["repeats"])
     dim = node.kwargs["dim"]
+    if not (type(repeats) is int):
+        logger.info(
+            "Not mapping repeat_interleave to an acc op. We currently only support `repeat_interleave` with int repeats"
+        )
+        return
     assert (
         type(repeats) is int
     ), "We currently only support `repeat_interleave` with int repeats"

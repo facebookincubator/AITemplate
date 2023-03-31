@@ -83,6 +83,7 @@ class NormalizationInfo(NamedTuple):
         List[Union[Tuple[str, str, bool], Tuple[str, str]]]
     ]
     needs_shapes_for_normalization: bool
+    skip_normalization_if_none: bool
 
 
 # Dict from (op, target) to NormalizationInfo for that op.
@@ -102,6 +103,7 @@ def _insert_fun(
     ] = None,
     needs_shapes_for_normalization=False,
     allow_normalize_from_torch_package=False,
+    skip_normalization_if_none=False,
 ):
     if op_and_target[0] == "call_function":
         assert callable(op_and_target[1])
@@ -143,6 +145,7 @@ def _insert_fun(
         custom_mapping_fn=custom_mapping_fn,
         kwargs_to_move_to_acc_out_ty=kwargs_to_move_to_acc_out_ty,
         needs_shapes_for_normalization=needs_shapes_for_normalization,
+        skip_normalization_if_none=skip_normalization_if_none,
     )
     _normalization_dict[op_and_target] = norm_info
 
@@ -231,6 +234,7 @@ def register_custom_acc_mapper_fn(
     ],
     needs_shapes_for_normalization=False,
     allow_normalize_from_torch_package=False,
+    skip_normalization_if_none=False,
 ):
     def insert(custom_mapping_fn: Callable):
         _insert_fun(
@@ -239,6 +243,7 @@ def register_custom_acc_mapper_fn(
             arg_replacement_tuples=arg_replacement_tuples,  # type: ignore[arg-type]
             needs_shapes_for_normalization=needs_shapes_for_normalization,
             allow_normalize_from_torch_package=allow_normalize_from_torch_package,
+            skip_normalization_if_none=skip_normalization_if_none,
         )
         return custom_mapping_fn
 
@@ -377,12 +382,18 @@ def normalize(
         if normalization_info.custom_mapping_fn is not None:
             # For custom mapping, the normalized_kwargs are used for the original op,
             # i.e. *before* custom acc_ops normalization. Do that now.
+            if normalization_info.skip_normalization_if_none:
+                original_args = node.args
+                original_kwargs = node.kwargs
             node.args = normalized_args
             node.kwargs = normalized_kwargs
             new_node = normalization_info.custom_mapping_fn(node, mod)
             # If a new node is returned then use it to replace the old node. Otherwise
             # the custom mapping function did its own replacement, so return early.
             if new_node is None:
+                if normalization_info.skip_normalization_if_none:
+                    node.args = original_args
+                    node.kwargs = original_kwargs
                 return
         else:
             # If there's kwargs_to_move_to_acc_out_ty then use it to setup acc_out_ty in
