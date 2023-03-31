@@ -1,11 +1,9 @@
 name: ROCM_CI
 
 on: 
-  pull_request: 
-    types: 
-      - [opened, reopened]
-    branches: 
-      - 'ROCmSoftwarePlatform/AITemplate/**'
+  pull_request:
+     label:
+       - rocm_ci
 
 jobs:
   build:
