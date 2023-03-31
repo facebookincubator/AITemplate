@@ -65,7 +65,8 @@ class TestMatMulConverter(DispatchTestCase):
             # Only M can be dynamic: https://github.com/fairinternal/AITemplate/blob/main/tests/unittest/ops/test_gemm.py
             [[[2, 3], [3, 3], [6, 6]], torch.ops.aten.mm.default],
             [[[2, 3], [2, 3], [3, 3], [6, 6]], aten_compose_mm_2d],
-            [[[1, 3], [2, 3], [6, 8], [3, 3], [6, 6]], torch.ops.aten.mm.default],
+            # Cannot test with size=1, we will one specialize
+            # [[[1, 3], [2, 3], [6, 8], [3, 3], [6, 6]], torch.ops.aten.mm.default],
             # FIXME: batch_size cannot be dynamic because the permutation of shape change the names: P544607056
             # b, m, k, n
             [[[2, 2], [6, 8], [3, 3], [6, 6]], aten_compose_bmm_3d, True],
