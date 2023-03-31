@@ -3,7 +3,7 @@ name: ROCM_CI
 on: 
   pull_request:
      label:
-       - rocm_ci
+       - module: rocm
 
 jobs:
   build:
