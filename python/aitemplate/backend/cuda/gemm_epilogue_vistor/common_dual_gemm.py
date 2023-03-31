@@ -100,7 +100,6 @@ EXEC_TEMPLATE = jinja2.Template(
 
 {{indent}}};
 {% if is_profiler %}
-{{indent}}// https://youtu.be/-Rp7UPbhErE
 {{indent}}size_t workspace_size = gemm_op.get_workspace_size(arguments);
 {{indent}}cutlass::device_memory::allocation<uint8_t> local_workspace(workspace_size);
 
@@ -182,8 +181,8 @@ def default_fproc(
     a_layout,
     b_layout,
     c_layout,
-    epiligue_name,
-    epiligue2_name,
+    epilogue_name,
+    epilogue2_name,
     permute_layout=None,
     dtype="float16",
 ):
@@ -228,8 +227,8 @@ def default_fproc(
         # set output major
         op.C.layout = c_layout
         # set epilogue
-        op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epiligue_name]
-        op.epilogue_functor2 = cutlass_lib.library.EpilogueFunctorName[epiligue2_name]
+        op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epilogue_name]
+        op.epilogue_functor2 = cutlass_lib.library.EpilogueFunctorName[epilogue2_name]
         op.element_epilogue = acc_type
         if permute_layout is not None:
             op.permute_layout = cutlass_lib.library.EpiloguePermuteLayoutName[
@@ -261,8 +260,8 @@ def make_fproc(
             a_layout=a_layout,
             b_layout=b_layout,
             c_layout=c_layout,
-            epiligue_name=func_attrs["epilogue"],
-            epiligue2_name=func_attrs["epilogue2"],
+            epilogue_name=func_attrs["epilogue"],
+            epilogue2_name=func_attrs["epilogue2"],
             dtype=dtype,
         )
 

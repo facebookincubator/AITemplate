@@ -266,7 +266,6 @@ class BmmRcrN1TestCase(unittest.TestCase):
         self.assertEqual(src_op._attrs["op"], "bmm_rcr")
 
 
-@unittest.skip("enable it when ck fix")
 class OneByOneConvTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -376,38 +375,41 @@ class OneByOneConvTestCase(unittest.TestCase):
                     Y_pt, Y_ait.permute(0, 3, 1, 2), atol=1e-1, rtol=1e-1
                 )
 
-    def test_1x1_conv_no_bias(self):
-        self._test_simple_1x1_conv(batch=1, CO=256, HH=3, WW=4, CI=2)
-        self._test_simple_1x1_conv(
-            batch=3, CO=100, HH=200, WW=4, CI=2, activation="relu"
-        )
-        self._test_simple_1x1_conv(
-            batch=2, CO=128, HH=10, WW=42, CI=3, activation="sigmoid"
-        )
-        self._test_simple_1x1_conv(batch=5, CO=256, HH=15, WW=5, CI=13)
-        self._test_simple_1x1_conv(batch=(1, 10), CO=128, HH=2, WW=2, CI=10)
+    # !!! SKIPPED TESTS BELOW !!!
+    # TODO: enable the tests when ck is fixed
 
-    def test_1x1_conv_with_bias(self):
-        self._test_simple_1x1_conv(batch=1, CO=256, HH=3, WW=4, CI=2, with_bias=True)
-        self._test_simple_1x1_conv(
-            batch=3,
-            CO=100,
-            HH=200,
-            WW=4,
-            CI=2,
-            activation="relu",
-            with_bias=True,
-        )
-        self._test_simple_1x1_conv(
-            batch=2, CO=128, HH=10, WW=42, CI=3, activation="sigmoid", with_bias=True
-        )
-        self._test_simple_1x1_conv(
-            batch=2, CO=64, HH=10, WW=42, CI=3, activation="hardswish", with_bias=True
-        )
-        self._test_simple_1x1_conv(batch=5, CO=256, HH=15, WW=5, CI=13, with_bias=True)
-        self._test_simple_1x1_conv(
-            batch=(1, 10), CO=128, HH=2, WW=2, CI=10, with_bias=True
-        )
+    # def test_1x1_conv_no_bias(self):
+    #     self._test_simple_1x1_conv(batch=1, CO=256, HH=3, WW=4, CI=2)
+    #     self._test_simple_1x1_conv(
+    #         batch=3, CO=100, HH=200, WW=4, CI=2, activation="relu"
+    #     )
+    #     self._test_simple_1x1_conv(
+    #         batch=2, CO=128, HH=10, WW=42, CI=3, activation="sigmoid"
+    #     )
+    #     self._test_simple_1x1_conv(batch=5, CO=256, HH=15, WW=5, CI=13)
+    #     self._test_simple_1x1_conv(batch=(1, 10), CO=128, HH=2, WW=2, CI=10)
+
+    # def test_1x1_conv_with_bias(self):
+    #     self._test_simple_1x1_conv(batch=1, CO=256, HH=3, WW=4, CI=2, with_bias=True)
+    #     self._test_simple_1x1_conv(
+    #         batch=3,
+    #         CO=100,
+    #         HH=200,
+    #         WW=4,
+    #         CI=2,
+    #         activation="relu",
+    #         with_bias=True,
+    #     )
+    #     self._test_simple_1x1_conv(
+    #         batch=2, CO=128, HH=10, WW=42, CI=3, activation="sigmoid", with_bias=True
+    #     )
+    #     self._test_simple_1x1_conv(
+    #         batch=2, CO=64, HH=10, WW=42, CI=3, activation="hardswish", with_bias=True
+    #     )
+    #     self._test_simple_1x1_conv(batch=5, CO=256, HH=15, WW=5, CI=13, with_bias=True)
+    #     self._test_simple_1x1_conv(
+    #         batch=(1, 10), CO=128, HH=2, WW=2, CI=10, with_bias=True
+    #     )
 
 
 if __name__ == "__main__":

@@ -166,7 +166,7 @@ class group_gemm_rcr(common.gemm):
             offset += output_tensor._attrs["shape"][output_stride_dim]._attrs["values"][
                 0
             ]
-            from ...transform import transform_utils
+            from aitemplate.compiler.transform import transform_utils
 
             transform_utils.remove_tensor_from_sorted_graph(output_tensor)
         return cat_output
@@ -278,11 +278,9 @@ class group_gemm_rcr(common.gemm):
         filter_func = registry.get(func_key)
         # run compile-time filter
         new_op_instance = OrderedDict(
-            {
-                k: v
-                for k, v in self._attrs["op_instance"].items()
-                if filter_func(k, self._attrs, ab_alignments[0])
-            }
+            (k, v)
+            for k, v in self._attrs["op_instance"].items()
+            if filter_func(k, self._attrs, ab_alignments[0])
         )
         _LOGGER.debug(
             f"Filtered profiler kernels for {self._attrs['op']}: reduced the "

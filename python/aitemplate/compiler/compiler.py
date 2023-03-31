@@ -35,6 +35,7 @@ from aitemplate.compiler.model import (
     Model,
     TorchTensor,
 )
+from aitemplate.compiler.transform.name_graph import reset_name_counters
 from aitemplate.compiler.transform.profile import elapsed_dt_sec
 from aitemplate.utils import graph_utils
 from aitemplate.utils.debug_settings import AITDebugSettings
@@ -156,6 +157,7 @@ def compile_model(
     constants: Optional[Dict[str, TorchTensor]] = None,
     allocator_kind: Optional[AITemplateAllocatorKind] = None,
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
+    do_optimize_graph: bool = True,
 ) -> Model:
     """Compiles a model and generates a .so file.
 
@@ -180,7 +182,7 @@ def compile_model(
     num_runtimes: int
         How many runtimes should be stored in the internal pool. This
         determines how many inferences can happen concurrently. By
-        default, set to 2. Must be positive.
+        default, set to 1. Must be positive.
     allocator_kind: AITemplateAllocatorKind, optional
         The GPU allocator to use. If none is specified, use the default allocator.
     debug_settings: AITDebugSettings
@@ -202,7 +204,8 @@ def compile_model(
     # arguments (even if we put quotes around it)!!
     test_name = test_name.replace(",", "_")
     test_dir = os.path.join(workdir, test_name)
-    profile_dir = workdir if profile_dir is None else profile_dir
+    if profile_dir is None:
+        profile_dir = workdir
 
     if debug_settings.dump_ait_to_py:
         dump_program(tensor, debug_settings.dump_ait_to_py)
@@ -210,6 +213,7 @@ def compile_model(
     if int(recompile) == 1:
         os.makedirs(test_dir, exist_ok=True)
         with target:
+            reset_name_counters()
             graph = compiler.transform.toposort(tensor)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "toposort")
 
@@ -230,13 +234,20 @@ def compile_model(
             compiler.transform.name_graph(graph)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
 
+            compiler.transform.dedup_symbolic_name(graph)
+            graph_utils.dump_graph_debug_str_to_file(
+                graph, test_dir, "dedup_symbolic_name"
+            )
+
             compiler.transform.mark_param_tensor(graph)
             graph_utils.dump_graph_debug_str_to_file(
                 graph, test_dir, "mark_param_tensor"
             )
 
             start_t = datetime.now()
-            graph = compiler.transform.optimize_graph(graph, test_dir)
+            graph = compiler.transform.optimize_graph(
+                graph, test_dir, optimize=do_optimize_graph
+            )
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "optimize_graph")
             _LOGGER.info(f"optimized graph elapsed time: {elapsed_dt_sec(start_t)}")
 

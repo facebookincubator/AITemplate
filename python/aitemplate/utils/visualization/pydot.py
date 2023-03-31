@@ -601,7 +601,7 @@ def graph_from_incidence_matrix(matrix, node_prefix="", directed=False):
     return graph
 
 
-class Common(object):
+class Common:
     """Common information to several classes.
 
     Should not be directly used, several classes are derived from

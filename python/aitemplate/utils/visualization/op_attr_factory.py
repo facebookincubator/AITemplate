@@ -13,11 +13,26 @@
 #  limitations under the License.
 #
 
+KEYS = [
+    "op",
+    "depth",
+    "nop",
+    "has_profiler",
+    "epilogue",
+    "epilogue_alignment",
+    "split_k",
+    "permute_shape",
+]
+
 
 def op_to_content(op):
     # TODO (XXX): Add op specialized attrs here, like gemm/conv
     content = {}
-    content["op_type"] = op._attrs["op"]
+    for k in KEYS:
+        v = op._attrs.get(k)
+        if v is not None and v != "":
+            content[k] = v
+
     if op._attrs["op"] == "fused_elementwise":
         content["func"] = ", ".join(
             [str(x._attrs["func"]) for x in op._attrs["elementwise_ops"]]

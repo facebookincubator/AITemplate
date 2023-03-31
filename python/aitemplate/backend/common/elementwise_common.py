@@ -150,6 +150,12 @@ KERNEL_COMPUTE_JAGGED_IDX_THEN_DENSE_IDX_TEMPLATE = jinja2.Template(
             right = mid - 1;
         }
     }
+    if (running_idx - offset_value >= (({{strides[i]}}) / ({{strides[i+1]}}))) {
+        // this element of the jagged volume is
+        // out of bounds of the dense Tensor
+        // i.e., the sequence is longer than max_seq_len
+        return;
+    }
     dense_idx += (running_idx - offset_value) * ({{strides[i+1]}});
     running_idx = offset_idx;
 

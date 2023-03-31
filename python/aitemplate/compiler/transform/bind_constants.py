@@ -35,7 +35,8 @@ def bind_constants(graph: List[Tensor], constants: Dict[str, TorchTensor]) -> No
         Constants to bind
 
     """
-
+    if not constants:
+        return
     for tensor in graph:
         name = tensor._attrs["name"]
         if name not in constants:

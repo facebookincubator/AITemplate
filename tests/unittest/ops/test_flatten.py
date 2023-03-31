@@ -208,15 +208,12 @@ class FlattenTestCase(unittest.TestCase):
         sym3 = var3._attrs["symbolic_value"]
         in_shape = [var1, var2, var3]
 
-        ovar1 = IntVar(values=[21, 110])
-        ovar1._attrs["symbolic_value"] = sym1 * sym2 * sym3
+        ovar1 = IntVar(values=[21, 110], symbolic_value=sym1 * sym2 * sym3)
         self._test_flatten_shape(in_shape, [ovar1], 0, 2)
         self._test_flatten_shape(in_shape, [ovar1], 0, -1)
-        ovar1 = IntVar(values=[3, 10])
-        ovar1._attrs["symbolic_value"] = sym1 * sym2
+        ovar1 = IntVar(values=[3, 10], symbolic_value=sym1 * sym2)
         self._test_flatten_shape(in_shape, [ovar1, var3], 0, 1)
-        ovar1 = IntVar(values=[21, 55])
-        ovar1._attrs["symbolic_value"] = sym2 * sym3
+        ovar1 = IntVar(values=[21, 55], symbolic_value=sym2 * sym3)
         self._test_flatten_shape(in_shape, [var1, ovar1], 1, 2)
         self._test_flatten_shape(in_shape, [var1, ovar1], 1, -1)
 
@@ -234,14 +231,11 @@ class FlattenTestCase(unittest.TestCase):
         ovar1 = IntVar(values=[51, 170])
         ovar1._attrs["symbolic_value"] = sym1 * 17 * sym2
         self._test_flatten_shape(in_shape, [ovar1, var3, imm2], 0, 2)
-        ovar1 = IntVar(values=[6783, 35530])
-        ovar1._attrs["symbolic_value"] = 323 * sym1 * sym2 * sym3
+        ovar1 = IntVar(values=[6783, 35530], symbolic_value=323 * sym1 * sym2 * sym3)
         self._test_flatten_shape(in_shape, [ovar1], 0, -1)
-        ovar1 = IntVar(values=[357, 935])
-        ovar1._attrs["symbolic_value"] = 17 * sym2 * sym3
+        ovar1 = IntVar(values=[357, 935], symbolic_value=17 * sym2 * sym3)
         self._test_flatten_shape(in_shape, [var1, ovar1, imm2], 1, 3)
-        ovar1 = IntVar(values=[6783, 17765])
-        ovar1._attrs["symbolic_value"] = 323 * sym2 * sym3
+        ovar1 = IntVar(values=[6783, 17765], symbolic_value=323 * sym2 * sym3)
         self._test_flatten_shape(in_shape, [var1, ovar1], 1, -1)
 
 

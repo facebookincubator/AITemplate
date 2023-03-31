@@ -23,24 +23,23 @@ from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice, MAX_INT32
 from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
 
-from aitemplate.utils import graph_utils
+from aitemplate.utils import alignment as utils_alignment, graph_utils, shape_utils
 
 
-def _is_supported_gemm(gemm_op: Operator, slice_op: Operator) -> bool:
+def _is_supported_gemm_or_bmm(gemm_or_bmm_op: Operator, slice_op: Operator) -> bool:
+    if not gemm_or_bmm_op._attrs["op"].startswith(("gemm_rcr", "bmm")):
+        return False
     slice_output_tensor = slice_op._attrs["outputs"][0]
     slice_output_rank = slice_output_tensor._rank()
-    # TODO: support other gemm kinds
-    if gemm_op._attrs["op"].startswith("gemm_rcr"):
-        # TODO: support cases where slice_input_tensor is used by non-A/B
-        # matrices, e.g. bias/d1/d2 in gemm_rcr_bias_add_add
-        gemm_inputs = gemm_op._attrs["inputs"]
-        if (
-            gemm_inputs[0] is not slice_output_tensor
-            and gemm_inputs[1] is not slice_output_tensor
-        ):
-            return False
-        return slice_output_rank >= 2
-    return False
+    # TODO: support cases where slice_input_tensor is used by non-A/B
+    # matrices, e.g. bias/d1/d2 in gemm_rcr_bias_add_add
+    op_inputs = gemm_or_bmm_op._attrs["inputs"]
+    if (
+        op_inputs[0] is not slice_output_tensor
+        and op_inputs[1] is not slice_output_tensor
+    ):
+        return False
+    return slice_output_rank >= 2
 
 
 def _sanity_check_concatenate(concat_op: Operator, slice_op: Operator) -> bool:
@@ -61,8 +60,8 @@ def _sanity_check_concatenate(concat_op: Operator, slice_op: Operator) -> bool:
 
 def _is_supported_op(op: Operator, slice_op: Operator) -> bool:
     op_type = op._attrs["op"]
-    if op_type.startswith("gemm"):
-        return _is_supported_gemm(op, slice_op)
+    if op_type.startswith(("bmm", "gemm")):
+        return _is_supported_gemm_or_bmm(op, slice_op)
     if op_type == "concatenate":
         return _sanity_check_concatenate(op, slice_op)
     if op_type == "fused_elementwise" or op_type == "permute021":
@@ -89,6 +88,8 @@ def _is_slice_full_range(dim: IntVar, start_idx: int, end_idx: int) -> bool:
 
 def _valid_alignment(
     op: Operator,
+    slice_dim: int,
+    slice_output_tensor: Tensor,
     slice_input_shape: List[IntVar],
     start_indices: List[int],
     end_indices: List[int],
@@ -96,11 +97,17 @@ def _valid_alignment(
     op_type = op._attrs["op"]
     if (
         op_type in ("fused_elementwise", "concatenate", "permute021")
-        or op._attrs["op"].startswith("layernorm")
-        or op._attrs["op"].startswith("group_layernorm")
+        or op_type.startswith("layernorm")
+        or op_type.startswith("group_layernorm")
     ):
         return True
 
+    dtype = slice_output_tensor.dtype()
+    stride = shape_utils.get_static_stride(slice_input_shape, slice_dim)
+    assert (
+        stride is not None
+    ), f"expected non-None stride for {slice_input_shape=} at {slice_dim=}"
+    start_offset = start_indices[slice_dim] * stride
     if op_type.startswith("gemm_rcr"):
         # for n-d * 2-d cases, we are only able to support a special case
         # where we fully slice all axes except the last one (i.e. -1), because
@@ -122,8 +129,31 @@ def _valid_alignment(
         k_dim = slice_input_shape[-1]
         if not isinstance(k_dim, IntImm):
             return False
-        alignment = math.gcd(k_dim.value(), start_indices[-1])
-        return alignment % 2 == 0
+        alignment = math.gcd(k_dim.value(), start_offset)
+        return utils_alignment.valid_alignment(alignment, dtype)
+
+    if op_type.startswith("bmm"):
+        bmm_inputs = op._attrs["inputs"]
+        if bmm_inputs[0] is slice_output_tensor:
+            # _get_a_leading_dim(m, k)
+            leading_dim = op._get_a_leading_dim(
+                slice_input_shape[op._get_m_idx_in_a(slice_input_shape)],
+                slice_input_shape[op._get_k_idx_in_a(slice_input_shape)],
+            )
+        elif bmm_inputs[1] is slice_output_tensor:
+            # _get_a_leading_dim(n, k)
+            leading_dim = op._get_b_leading_dim(
+                slice_input_shape[op._get_n_idx_in_b(slice_input_shape)],
+                slice_input_shape[op._get_k_idx_in_b(slice_input_shape)],
+            )
+        else:
+            # TODO: support strided access for other inputs
+            return False
+        if not isinstance(leading_dim, IntImm):
+            return False
+        alignment = math.gcd(leading_dim.value(), start_offset)
+        return utils_alignment.valid_alignment(alignment, dtype)
+
     return False
 
 
@@ -202,6 +232,8 @@ def _process_one_slice_dst(
     # Now let's check alignment
     if not _valid_alignment(
         strided_op,
+        slice_dim,
+        slice_output_tensor,
         slice_input_shape,
         normalized_start_indices,
         normalized_end_indices,

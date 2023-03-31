@@ -69,7 +69,7 @@ def conv2d_bias_hardswish_few_channels_gen_profiler(
 @registry.reg("cuda.conv2d_bias_hardswish_few_channels.gen_function")
 def conv2d_bias_hardswish_few_channels_gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
@@ -79,7 +79,7 @@ def conv2d_bias_hardswish_few_channels_gen_function(
     ----------
     func_attrs : Dict
         [description] attributes of conv2d op
-    exec_cond_remplate : [type]
+    exec_cond_template : [type]
         [description]
     shape_eval_template : [type]
         [description]
@@ -93,7 +93,7 @@ def conv2d_bias_hardswish_few_channels_gen_function(
     """
     return cba.gen_function(
         func_attrs=func_attrs,
-        exec_cond_remplate=exec_cond_remplate,
+        exec_cond_template=exec_cond_template,
         shape_eval_template=shape_eval_template,
         shape_save_template=shape_save_template,
     )

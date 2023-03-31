@@ -198,7 +198,7 @@ void {{function_name}} (
 @registry.reg("cuda.max_pool2d.gen_function")
 def gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
@@ -235,7 +235,7 @@ def gen_function(
             stride=func_attrs["stride"],
             dtype=dtype,
         )
-        exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
+        exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return SRC_TEMPLATE.render(
         function_name=func_name,

@@ -398,8 +398,7 @@ class ConcatenateTestCase(unittest.TestCase):
         sym3 = var3._attrs["symbolic_value"]
 
         in_shapes = [[var, 2, 3] for var in [var1, var2, var3]]
-        ovar1 = IntVar(values=[11, 18])
-        ovar1._attrs["symbolic_value"] = sym1 + sym2 + sym3
+        ovar1 = IntVar(values=[11, 18], symbolic_value=sym1 + sym2 + sym3)
         self._test_concatenate_shape(in_shapes, [ovar1, 2, 3], 0)
         self._test_concatenate_shape(in_shapes, [ovar1, 2, 3], -3)
 
@@ -412,8 +411,7 @@ class ConcatenateTestCase(unittest.TestCase):
         sym2 = var2._attrs["symbolic_value"]
 
         in_shapes = [[var1, 2, 3], [imm1, 2, 3], [imm2, 2, 3], [var2, 2, 3]]
-        ovar1 = IntVar(values=[40, 43])
-        ovar1._attrs["symbolic_value"] = sym1 + sym2 + 17 + 19
+        ovar1 = IntVar(values=[40, 43], symbolic_value=sym1 + sym2 + 17 + 19)
         self._test_concatenate_shape(in_shapes, [ovar1, 2, 3], 0)
 
     def test_concatenate_shape_compatible(self):
@@ -423,8 +421,7 @@ class ConcatenateTestCase(unittest.TestCase):
         in_shapes = [[var1, 2, 3], [var1, 2, 3]]
         self._test_concatenate_shape(in_shapes, [var1, 2, 6], -1)
 
-        dup_var1 = IntVar(values=[1, 2])
-        dup_var1._attrs["symbolic_value"] = sym1
+        dup_var1 = IntVar(values=[1, 2], symbolic_value=sym1)
         in_shapes = [[var1, 2, 3], [dup_var1, 2, 3]]
         self._test_concatenate_shape(in_shapes, [var1, 2, 6], -1)
 

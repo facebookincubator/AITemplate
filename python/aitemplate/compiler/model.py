@@ -154,7 +154,7 @@ def _reshape_tensor(tensor: TorchTensor, shape: List[int]) -> TorchTensor:
     return new_tensor.reshape(shape)
 
 
-class Model(object):
+class Model:
     class _DLLWrapper:
         def __init__(
             self,
@@ -198,7 +198,7 @@ class Model(object):
         num_runtimes : int, optional
             How many runtimes should be stored in the internal pool. This
             determines how many inferences can happen concurrently. By
-            default, set to 2. Must be positive.
+            default, set to 1. Must be positive.
         allocator_kind : AITemplateAllocatorKind, optional
             What type of allocator to use when allocating GPU memory.
         """

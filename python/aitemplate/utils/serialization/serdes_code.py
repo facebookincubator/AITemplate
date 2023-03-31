@@ -364,7 +364,9 @@ def dump_program(
     )
 
     if file_path != "":
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        dirs = os.path.dirname(file_path)
+        if dirs != "":
+            os.makedirs(dirs, exist_ok=True)
         with open(file_path, "w") as f:
             f.write(program)
 

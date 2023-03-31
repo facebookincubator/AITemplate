@@ -37,7 +37,7 @@ EXTRA_HEADER = jinja2.Template(
 def gen_function(
     func_attrs,
     template_path,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
@@ -81,7 +81,7 @@ def gen_function(
             position_sensitive=func_attrs["position_sensitive"],
             continuous_coordinate=func_attrs["continuous_coordinate"],
         )
-        exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
+        exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return roi_align_common.SRC_TEMPLATE.render(
         function_name=func_name,

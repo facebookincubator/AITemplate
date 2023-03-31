@@ -18,6 +18,7 @@ Target object for AITemplate.
 import logging
 import os
 import pathlib
+import platform
 import shutil
 import tempfile
 from enum import IntEnum
@@ -49,7 +50,7 @@ class TargetType(IntEnum):
     rocm = 2
 
 
-class Target(object):
+class Target:
     def __init__(self, static_files_path: str):
         """
         Parameters
@@ -172,7 +173,15 @@ class Target(object):
         A command that turns a raw binary file into an object file that
         can be linked into the executable.
         """
-        return "ld -r -b binary -o {target} {src}"
+        cmd = "ld -r -b binary -o {target} {src}"
+        # Support models with >2GB constants on Linux only
+        if platform.system() == "Linux":
+            cmd += (
+                " && objcopy --rename-section"
+                " .data=.lrodata,alloc,load,readonly,data,contents"
+                " {target} {target}"
+            )
+        return cmd
 
     def compile_options(self) -> str:
         """Options for compiling the target.
@@ -268,7 +277,7 @@ class Target(object):
     def force_profile(self) -> bool:
         """Whether to force profile.
 
-        Force profiling regarless in_ci_env, disable_profiler_codegen
+        Force profiling regardless in_ci_env, disable_profiler_codegen
 
         Returns
         -------
@@ -363,20 +372,22 @@ class Target(object):
             return self._profile_cache.conv3d_cache_version
         raise NotImplementedError
 
-    def query_profile_cache(self, op_class: str, args: str) -> Tuple[str]:
+    def query_profile_cache(
+        self, op_class: str, args: Dict[str, Any]
+    ) -> Tuple[str, int]:
         """Query the profile cache for the given op class and args.
 
         Parameters
         ----------
         op_class : str
             Op class name. gemm, conv or normalization
-        args : str
+        args : Dict[str, Any]
             Op arguments.
 
         Returns
         -------
-        Tuple[str]
-            Queried best profile results.
+        Tuple[str, int]
+            Queried best profiling results.
 
         Raises
         ------
@@ -393,7 +404,7 @@ class Target(object):
             return self._profile_cache.query_normalization(args)
         raise NotImplementedError
 
-    def insert_profile_cache(self, op_class: str, args: str):
+    def insert_profile_cache(self, op_class: str, args: Dict[str, Any]):
         """Insert the profile cache for the given op class and args."""
         if op_class == "gemm":
             self._profile_cache.insert_gemm(args)

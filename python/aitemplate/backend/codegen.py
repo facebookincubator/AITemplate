@@ -60,12 +60,12 @@ CONSTANT_FOLDER_MODEL_NAME = "ConstantFolder"
 MODEL_NAME = "Model"
 
 
-def gen_profiler(sorted_graph: list[Tensor], workdir: str, dynamic_profiling_strategy):
+def gen_profiler(sorted_graph: List[Tensor], workdir: str, dynamic_profiling_strategy):
     """Generate operator profiler source code files for the given graph
 
     Parameters
     ----------
-    sorted_graph : list[Tensor]
+    sorted_graph : List[Tensor]
         The network after running toposort transformation
     workdir : str
         Target directory for generated C++ source code files
@@ -83,13 +83,13 @@ def gen_profiler(sorted_graph: list[Tensor], workdir: str, dynamic_profiling_str
 
 
 def gen_function_src(
-    sorted_graph: list[Tensor], workdir: str, model_name: str = ""
-) -> list[Tuple[str, str]]:
+    sorted_graph: List[Tensor], workdir: str, model_name: str = ""
+) -> List[Tuple[str, str]]:
     """Generate functions source code files for the given graph
 
     Parameters
     ----------
-    sorted_graph : list[Tensor]
+    sorted_graph : List[Tensor]
         The network after running toposort transformation
     workdir : str
         Target directory for generated C++ source code files
@@ -98,7 +98,7 @@ def gen_function_src(
 
     Returns
     -------
-    list[Tuple[str, str]]
+    List[Tuple[str, str]]
         List of tuple (source file path, object file path)
     """
     target = Target.current()
@@ -321,7 +321,7 @@ class ModelContainerGenerator:
         graph: List[Tensor],
         output_tensors: List[Tensor],
         model_name: str = MODEL_NAME,
-        additional_unbound_constants: Optional[list[Tensor]] = None,
+        additional_unbound_constants: Optional[List[Tensor]] = None,
         debug_settings: Optional[AITDebugSettings] = None,
     ):
         self.target = Target.current()
@@ -986,7 +986,7 @@ _DEBUG_SETTINGS = AITDebugSettings()
 
 
 def gen_library_src(  # noqa: C901
-    sorted_graph: list[Tensor],
+    sorted_graph: List[Tensor],
     max_blob_size: int,
     max_constant_blob_size: int,
     workspace: Workspace,
@@ -994,13 +994,13 @@ def gen_library_src(  # noqa: C901
     output_tensors: List[Tensor],
     model_name: str = "",
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
-    additional_unbound_constants: Optional[list[Tensor]] = None,
-) -> list[Tuple[str, str]]:
+    additional_unbound_constants: Optional[List[Tensor]] = None,
+) -> List[Tuple[str, str]]:
     """Generate model driver source code files for the given graph
 
     Parameters
     ----------
-    sorted_graph : list[Tensor]
+    sorted_graph : List[Tensor]
         The network after running toposort transformation
     max_blob_size : int
         Total memory for input/output tensor and intermediate results,
@@ -1016,7 +1016,7 @@ def gen_library_src(  # noqa: C901
 
     Returns
     -------
-    list[Tuple[str, str]]
+    List[Tuple[str, str]]
         List of tuple (source file path, object file path)
     """
 

@@ -131,7 +131,7 @@ class Sequential(Module):
             delattr(self, key)
         # To preserve numbering
         str_indices = [str(i) for i in range(len(self._modules))]
-        self._modules = OrderedDict(list(zip(str_indices, self._modules.values())))
+        self._modules = OrderedDict(zip(str_indices, self._modules.values()))
 
     def __len__(self) -> int:
         return len(self._modules)
@@ -309,7 +309,7 @@ class ModuleList(Module):
             delattr(self, self._get_abs_string_index(idx))
         # To preserve numbering, self._modules is being reconstructed with modules after deletion
         str_indices = [str(i) for i in range(len(self._modules))]
-        self._modules = OrderedDict(list(zip(str_indices, self._modules.values())))
+        self._modules = OrderedDict(zip(str_indices, self._modules.values()))
 
     def __len__(self) -> int:
         return len(self._modules)

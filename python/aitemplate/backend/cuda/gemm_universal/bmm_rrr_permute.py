@@ -54,7 +54,7 @@ def bmm_rrr_permute_config(func_attrs, dtype="float16"):
             b_layout=cutlass_lib.library.LayoutType.RowMajor,
             c_layout=cutlass_lib.library.LayoutType.RowMajor,
             dtype=func_attrs["inputs"][0].dtype(),
-            epiligue_name=func_attrs["epilogue"],
+            epilogue_name=func_attrs["epilogue"],
             permute_layout=func_attrs["layout"],
         )
 

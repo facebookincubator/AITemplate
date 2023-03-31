@@ -464,7 +464,7 @@ def ait_cache_version() -> int:
     return __AIT_CACHE_VERSION__
 
 
-class ProfileCacheDB(object):
+class ProfileCacheDB:
     r"""Local SQLite profile cache database."""
 
     def __init__(

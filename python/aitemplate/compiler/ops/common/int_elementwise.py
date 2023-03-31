@@ -117,8 +117,7 @@ class int_elementwise(Operator):
             sym_values = reduce(INT_ELEMENTWISE_FUNC[FuncEnum.DIV], sym_vars)
         else:
             raise RuntimeError(f"Unsupported calculation type {self._attrs['func']}!")
-        dim = shape_utils.gen_int_var_min_max(values)
-        dim._attrs["symbolic_value"] = sym_values
+        dim = shape_utils.gen_int_var_min_max(values, symbolic_value=sym_values)
         for arg, iv in zip(args, int_vars):
             arg._attrs["int_var"] = iv
             assert not arg.is_a_const_num(), f"{arg} cannot be constant"
@@ -126,7 +125,6 @@ class int_elementwise(Operator):
         self._attrs["inputs"] = list(args)
         self._set_depth()
         output = IntVarTensor(dim, src_ops={self})
-        output._attrs["symbolic_value"] = sym_values
         self._attrs["outputs"] = [output]
         return output
 

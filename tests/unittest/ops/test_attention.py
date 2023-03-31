@@ -27,7 +27,10 @@ from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import benchmark_pt, detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_test_env,
+    get_random_torch_tensor,
+)
 from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 from einops import rearrange, repeat
@@ -144,10 +147,6 @@ def ref_attention_bmhk(q, k, v, attn_bias):
     return out.permute((0, 2, 1, 3))
 
 
-@unittest.skipIf(
-    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
-    "Not supported by CUDA < SM80.",
-)
 class AttentionTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -292,8 +291,7 @@ class AttentionTestCase(unittest.TestCase):
                 f"PT:  BS: {batch_size}, Time per iter: {duration:.2f}ms, QPS: {batch_size / duration:.2f}"
             )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_flash_attention(self):
+    def test_flash_attention_sm80(self):
         self._test_flash_attention(
             test_name="flash_attention_fp16",
             dtype="float16",
@@ -395,8 +393,7 @@ class AttentionTestCase(unittest.TestCase):
             )
             _LOGGER.info(f"benchmark compiler model time: {time_per_iter_ms}")
 
-    @unittest.skipIf(detect_target().name() == "cuda", "Not supported by CUDA.")
-    def test_rocm_attention(self):
+    def test_attention_rocm(self):
         self._test_attention(
             test_name="attention_fp16",
             dtype="float16",
@@ -564,8 +561,7 @@ class AttentionTestCase(unittest.TestCase):
                 f"PT:  BS: {batch_size}, Time per iter: {duration:.2f}ms, QPS: {batch_size / duration:.2f}"
             )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_mem_eff_attention_fp16(self):
+    def test_mem_eff_attention_fp16_sm80(self):
         for use_perm in [False, True]:
             self._test_mem_eff_attention(
                 use_perm=use_perm,
@@ -593,9 +589,8 @@ class AttentionTestCase(unittest.TestCase):
             # self._test_mem_eff_attention(batch_size=16, nheads=8, seqlen=16, n=1024, use_perm=use_perm, test_name="mem_eff_attention4")
             # self._test_mem_eff_attention(batch_size=1, nheads=8, seqlen=16, n=64, use_perm=use_perm, test_name="mem_eff_attention5")
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     @unittest.expectedFailure
-    def test_mem_eff_attention_invalid_head_size_fp16(self):
+    def test_mem_eff_attention_invalid_head_size_fp16_sm80(self):
         self._test_mem_eff_attention(
             batch_size=16,
             nheads=8,
@@ -605,8 +600,7 @@ class AttentionTestCase(unittest.TestCase):
             dtype="float16",
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_mem_eff_attention_fp32(self):
+    def test_mem_eff_attention_fp32_sm80(self):
         for use_perm in [False, True]:
             self._test_mem_eff_attention(
                 use_perm=use_perm,
@@ -620,7 +614,6 @@ class AttentionTestCase(unittest.TestCase):
                 dtype="float32",
             )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_mem_eff_attention_bf16(self):
         for use_perm in [False, True]:
             self._test_mem_eff_attention(
@@ -755,8 +748,7 @@ class AttentionTestCase(unittest.TestCase):
 
         torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_cross_attention_fp16(self):
+    def test_cross_attention_fp16_sm80(self):
         self._test_cross_attention(
             test_name="cross_attention_fp16",
             dtype="float16",
@@ -770,8 +762,7 @@ class AttentionTestCase(unittest.TestCase):
             dtype="float16",
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_cross_attention_fp32(self):
+    def test_cross_attention_fp32_sm80(self):
         self._test_cross_attention(
             test_name="cross_attention_fp32",
             dtype="float32",
@@ -785,7 +776,6 @@ class AttentionTestCase(unittest.TestCase):
             dtype="float32",
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_cross_attention_bf16(self):
         self._test_cross_attention(
             test_name="cross_attention_bf16",
@@ -803,6 +793,9 @@ class AttentionTestCase(unittest.TestCase):
             atol=1e-2,
             rtol=1e-2,
         )
+
+
+filter_test_cases_by_test_env(AttentionTestCase)
 
 
 if __name__ == "__main__":

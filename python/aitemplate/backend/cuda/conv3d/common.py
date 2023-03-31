@@ -186,7 +186,7 @@ def gen_function(
     instance_template,
     exec_template,
     src_template,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
     f_emit_instance=emit_instance,
@@ -251,7 +251,7 @@ def gen_function(
     for key in instances:
         fname = "f" + sha1(key.encode()).hexdigest()
         program = exec_template.render(indent="    ", instance=fname, dtype=dtype)
-        exec_inst = exec_cond_remplate.render(indent="  ", cond=key, program=program)
+        exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     return src_template.render(
         instances=instance_decl,

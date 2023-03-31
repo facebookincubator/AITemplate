@@ -18,4 +18,4 @@
 b2b bmm module init
 """
 
-from . import classic_b2b_bmm
+from aitemplate.backend.cuda.b2b_bmm import classic_b2b_bmm

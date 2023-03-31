@@ -114,8 +114,16 @@ class StridedReshapeCatTestCase(unittest.TestCase):
                 concat_op._attrs["input_masks"], [False, False, True, False]
             )
         else:
-            np.testing.assert_equal(concat_op_1._attrs["input_masks"], [False, False])
-            np.testing.assert_equal(concat_op_2._attrs["input_masks"], [True, False])
+            Y_src_ops = list(Y_src_ops)
+            np.testing.assert_equal(len(Y_src_ops), 2)
+            concat_op = (
+                Y_src_ops[0]
+                if Y_src_ops[0]._attrs["op"] == "concatenate"
+                else Y_src_ops[1]
+            )
+            np.testing.assert_equal(
+                concat_op._attrs["input_masks"], [False, False, True, False]
+            )
 
         expected_inputs_group_gemm_op = [X1, W1, X2, W2, X3, W3]
         np.testing.assert_equal(

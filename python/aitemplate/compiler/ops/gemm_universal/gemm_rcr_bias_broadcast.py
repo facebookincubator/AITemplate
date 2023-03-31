@@ -49,7 +49,7 @@ class gemm_rcr_bias_broadcast(gemm_rcr_bias):
             for d in inputs[3:]:
                 d_shape = d.shape()
                 if d_shape != base_shape:
-                    msg = "Additional elementwise shape {d_shape} doesn't match gemm_bias' shape {base_shape}"
+                    msg = f"Additional elementwise shape {d_shape} doesn't match gemm_bias' shape {base_shape}"
                     return False, msg
 
         return True, msg

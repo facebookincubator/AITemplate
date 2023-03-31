@@ -18,6 +18,7 @@ from typing import List
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.dtype import get_dtype_size
 
 
 class full(Operator):
@@ -26,8 +27,8 @@ class full(Operator):
     with the specified `fill_value` (float scalar).
 
     Args:
-        shape (List[IntVar]): the shape of the output Tensor.
-        fill_Value (float): the value to fill the output Tensor with.
+        shape (int or IntVar or List[IntVar]): the shape of the output Tensor.
+        fill_value (int or float): the value to fill the output Tensor with.
         dtype (str): the dtype of the output Tensor.
 
     Returns:
@@ -46,6 +47,19 @@ class full(Operator):
         fill_value: float,
         dtype: str = "float16",
     ) -> Tensor:
+        if isinstance(shape, (int, IntVar)):
+            shape = [shape]
+        if not isinstance(shape, (list, tuple)):
+            raise TypeError(f"shape must be List[IntVar], but got {shape}.")
+        shape = list(shape)
+
+        if not isinstance(fill_value, (int, float)):
+            raise TypeError(f"fill_value must be a scalar, but got {fill_value}.")
+        fill_value = float(fill_value)
+
+        # validation inside
+        get_dtype_size(dtype)
+
         self._attrs["inputs"] = []
         self._attrs["fill_value"] = fill_value
 

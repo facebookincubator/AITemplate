@@ -15,7 +15,7 @@
 """
 Operator definition for gemm_rcr_bias_softmax.
 """
-from aitemplate.compiler.base import _create_host_zero_tensor, Tensor
+from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.gemm_epilogue_vistor.gemm_rcr_softmax import (
     gemm_rcr_softmax,
 )
@@ -59,20 +59,13 @@ class gemm_rcr_bias_softmax(gemm_rcr_softmax):
         output_shape = self._infer_shapes(a, b, bias)
         self._extract_epilogue_alignment(output_shape)
 
-        temp_d = _create_host_zero_tensor(output_shape, dst_ops={self})
-        temp_n = _create_host_zero_tensor(
-            [output_shape[0], 1], dtype="float32", dst_ops={self}
-        )
-
-        self._attrs["inputs"].append(temp_d)
-        self._attrs["inputs"].append(temp_n)
         self._attrs["input_accessors"] = [
             TensorAccessor(tensor) for tensor in self._attrs["inputs"]
         ]
 
         self._set_depth()
 
-        output = Tensor(output_shape, src_ops={self})
+        output = Tensor(output_shape, src_ops={self}, dtype=a._attrs["dtype"])
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output

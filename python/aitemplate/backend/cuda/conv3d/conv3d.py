@@ -532,7 +532,7 @@ def gen_profiler(func_attrs, workdir, profiler_filename, shape_template):
 @registry.reg("cuda.conv3d.gen_function")
 def gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
@@ -542,7 +542,7 @@ def gen_function(
         INSTANCE_TEMPLATE,
         EXEC_TEMPLATE,
         SRC_TEMPLATE,
-        exec_cond_remplate,
+        exec_cond_template,
         shape_eval_template,
         shape_save_template,
     )

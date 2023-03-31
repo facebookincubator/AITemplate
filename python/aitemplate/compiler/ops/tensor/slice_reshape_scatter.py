@@ -80,7 +80,7 @@ class slice_reshape_scatter(Operator):
         )
 
     def _update_inputs_outputs(self, cat_op, reshape_op, cat_op_2):
-        from ...transform import transform_utils
+        from aitemplate.compiler.transform import transform_utils
 
         idx = -1
         for i, input_tensor in enumerate(cat_op_2._attrs["inputs"]):

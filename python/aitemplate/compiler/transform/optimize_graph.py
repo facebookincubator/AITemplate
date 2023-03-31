@@ -35,6 +35,7 @@ from aitemplate.compiler.transform.fuse_parallel_gemms import fuse_parallel_gemm
 from aitemplate.compiler.transform.fuse_permute_bmm_and_gemm import (
     fuse_permute_bmm_and_gemm,
 )
+from aitemplate.compiler.transform.move_view_ops import move_view_op_before_concat
 from aitemplate.compiler.transform.split_large_concat_ops import split_large_concat_ops
 from aitemplate.compiler.transform.split_large_slice_scatter_ops import (
     split_large_slice_scatter_ops,
@@ -92,6 +93,8 @@ def optimize_graph(
         fuse_conv_elementwise,
         fuse_mm_elementwise,
         fuse_mm_reshape_permute,
+        # make sure we run move_view_op_before_concat before transform_memory_ops
+        move_view_op_before_concat,
         transform_memory_ops,
         fuse_ops,
         fuse_elementwise,
@@ -103,6 +106,9 @@ def optimize_graph(
         # op directly. After fuse_ops, there are only FusedElementwise ops.
         transform_special_ops,
         apply_padding,
+        # apply_padding may introduce new concats that can be fused
+        move_view_op_before_concat,
+        transform_memory_ops,
         transform_strided_ops,
         split_large_slice_scatter_ops,
         split_large_concat_ops,
@@ -117,6 +123,9 @@ def optimize_graph(
         funcs = [
             process_singleton_elementwise,
             apply_padding,
+            split_large_slice_scatter_ops,
+            split_large_concat_ops,
+            split_large_split_ops,
         ]
 
     for i, func in enumerate(funcs):

@@ -28,12 +28,13 @@ template <
     typename ArchTag,
     typename ElementAccumulator,
     int kStages,
-    typename ThreadblockShape,
+    typename ThreadblockShape_,
     typename WarpShape,
     typename InstructionShape,
     typename EpilogueFunctorOp,
     typename ThreadblockSwizzle,
-    typename ElementSum_ = ElementAccumulator,
+    typename ElementNorm_ = float,
+    typename ElementSum_ = float,
     typename ElementSoftmax_ = ElementC_>
 
 class GemmSoftmaxUniversal {
@@ -50,9 +51,12 @@ class GemmSoftmaxUniversal {
   using ElementCompute = ElementAccumulator;
   using ElementSum = ElementSum_;
   using ElementSoft = ElementSoftmax_;
+  using ElementSoftmaxCompute = float;
 
   using LayoutA = LayoutA_;
   using LayoutB = LayoutB_;
+
+  using ThreadblockShape = ThreadblockShape_;
 
   static int const kAlignment = kAlignmentA;
 
@@ -71,24 +75,23 @@ class GemmSoftmaxUniversal {
   // This is a mandatory data type for the atomic reduction in the GEMM epilogue
   // to function.
 
-  using ElementN = float;
+  // using ElementN = float;
+  using ElementNorm = ElementNorm_;
+
+  using ApplyShape = MatrixShape<1, 1024>;
 
   // These are mandatory layouts.
   using LayoutC = cutlass::layout::RowMajor;
   using LayoutN = cutlass::layout::RowMajor;
+  using LayoutS = cutlass::layout::RowMajor;
   using LayoutSoft = cutlass::layout::RowMajor;
 
   using TensorRefA = TensorRef<ElementA, LayoutA>;
   using TensorRefB = TensorRef<ElementB, LayoutB>;
   using TensorRefC = TensorRef<ElementC, LayoutC>;
-  using TensorRefN = TensorRef<ElementN, LayoutN>;
+  using TensorRefN = TensorRef<ElementNorm, LayoutN>;
+  using TensorRefSum = TensorRef<ElementSum, LayoutS>;
   using TensorRefSoft = TensorRef<ElementSoft, LayoutSoft>;
-
-  // using OperatorClass       = cutlass::arch::OpClassTensorOp;
-  // using ArchTag             = cutlass::arch::Sm80;
-  // static int const kStages  = Stages;
-  // using ThreadblockSwizzle =
-  // cutlass::gemm::threadblock::GemmBatchedIdentityThreadblockSwizzle;
 
   ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -96,10 +99,10 @@ class GemmSoftmaxUniversal {
   using DefaultGemmKernel = typename cutlass::gemm::kernel::DefaultGemm<
       ElementA,
       LayoutA,
-      kAlignment,
+      kAlignmentA,
       ElementB,
       LayoutB,
-      kAlignment,
+      kAlignmentB,
       ElementC,
       LayoutC,
       ElementCompute,
@@ -124,12 +127,16 @@ class GemmSoftmaxUniversal {
   ///////////////////////////////////////////////////////////////////////////////////////////////
 
   // Epilogue visitor
-  using EpilogueVisitor = kernel::EpilogueVisitorBiasMax<
-      ThreadblockShape,
-      DefaultGemmKernel::kThreadCount,
-      typename DefaultGemmKernel::Epilogue::OutputTileIterator,
-      ElementCompute,
-      EpilogueFunctorOp>;
+  using EpilogueVisitor =
+      typename cutlass::epilogue::threadblock::EpilogueVisitorSoftmax<
+          ThreadblockShape,
+          DefaultGemmKernel::kThreadCount,
+          typename DefaultGemmKernel::Epilogue::OutputTileIterator,
+          ElementCompute,
+          ElementNorm,
+          ElementSum,
+          ElementSoftmaxCompute,
+          EpilogueFunctorOp>;
 
   /// Epilogue
   using Epilogue = typename cutlass::epilogue::threadblock::
@@ -146,11 +153,19 @@ class GemmSoftmaxUniversal {
   // Softmax kernel
   using SoftmaxApplyKernel = kernel::ApplySoftmax<
       ElementC,
-      ElementN,
+      ElementNorm,
       ElementSum,
       ElementSoft,
+      ElementSoftmaxCompute,
       kAlignmentC,
-      MatrixShape<1, 1024>>;
+      ApplyShape>;
+
+  using ApplyFinalReductionKernel =
+      cutlass::reduction::kernel::ApplySoftmaxFinalReduction<
+          ElementNorm,
+          ElementSum,
+          ElementSoftmaxCompute,
+          ThreadblockShape>;
 
  public:
   /// Arguments class
@@ -158,6 +173,8 @@ class GemmSoftmaxUniversal {
     typename GemmKernel::Arguments gemm;
 
     typename SoftmaxApplyKernel::Arguments softmax;
+    typename ApplyFinalReductionKernel::Arguments reduction;
+    cutlass::gemm::GemmCoord extent;
 
     //
     // Methods
@@ -173,12 +190,14 @@ class GemmSoftmaxUniversal {
         TensorRefC ref_D_,
         typename EpilogueFunctorOp::Params linear_scaling,
         TensorRefN ref_N_,
+        TensorRefSum ref_S_,
         TensorRefSoft ref_Softmax_,
         int64_t batch_stride_A_ = 0,
         int64_t batch_stride_B_ = 0,
         int64_t batch_stride_C_ = 0,
         int64_t batch_stride_D_ = 0,
         int64_t batch_stride_Max_ = 0,
+        int64_t batch_stride_Sum_ = 0,
         int64_t batch_stride_Softmax_ = 0)
         : gemm(
               cutlass::gemm::GemmUniversalMode::kBatched,
@@ -186,38 +205,55 @@ class GemmSoftmaxUniversal {
               batch_count_,
               ref_A_,
               ref_B_,
+              ref_C_,
+              ref_D_,
+              ref_N_.data(),
+              ref_S_.data(),
               batch_stride_A_,
               batch_stride_B_,
               typename EpilogueVisitor::Arguments(
                   linear_scaling,
-                  ref_C_,
-                  ref_D_,
-                  ref_N_.data(),
                   batch_stride_C_,
                   batch_stride_D_,
-                  batch_stride_Max_)),
+                  batch_stride_Max_,
+                  batch_stride_Sum_)),
+          reduction(
+              problem_size,
+              ref_N_.data(),
+              ref_S_.data(),
+              batch_stride_Max_,
+              batch_stride_Sum_),
           softmax(
               MatrixCoord(problem_size.m(), problem_size.n()),
               batch_count_,
               ref_D_,
               ref_N_,
+              ref_S_,
               ref_Softmax_,
               batch_stride_D_,
               batch_stride_Max_,
-              batch_stride_Softmax_) {}
+              batch_stride_Sum_,
+              batch_stride_Softmax_),
+          extent(problem_size) {}
   };
 
   struct Params {
     typename GemmKernel::Params gemm;
 
     typename SoftmaxApplyKernel::Params softmax;
+    typename ApplyFinalReductionKernel::Params reduction;
+    MatrixCoord extent;
 
     //
     // Methods
     //
     Params() {}
 
-    Params(Arguments const& args) : gemm(args.gemm), softmax(args.softmax) {}
+    Params(Arguments const& args)
+        : gemm(args.gemm),
+          reduction(args.reduction),
+          softmax(args.softmax),
+          extent(MatrixCoord(args.extent.m(), args.extent.n())) {}
   };
 
  public:
@@ -254,10 +290,52 @@ class GemmSoftmaxUniversal {
 
     int gemm_smem_size = int(sizeof(typename GemmKernel::SharedStorage));
 
+    cudaError_t result;
+
+    if (gemm_smem_size >= (48 << 10)) {
+      result = cudaFuncSetAttribute(
+          cutlass::Kernel<GemmKernel>,
+          cudaFuncAttributeMaxDynamicSharedMemorySize,
+          gemm_smem_size);
+
+      if (result != cudaSuccess) {
+        return Status::kErrorInternal;
+      }
+    }
+
     cutlass::Kernel<GemmKernel>
         <<<gemm_grid, gemm_block, gemm_smem_size, stream>>>(params_.gemm);
 
-    cudaError_t result = cudaGetLastError();
+    result = cudaGetLastError();
+
+    if (result != cudaSuccess) {
+      return cutlass::Status::kErrorInternal;
+    }
+
+    //
+    // Launch the ApplyFinalReductionKernel
+    //
+
+    int thread_per_block = 128;
+    int block_per_row =
+        (params_.extent.row() + thread_per_block - 1) / thread_per_block;
+    if (block_per_row < 4) {
+      thread_per_block = 32;
+      block_per_row =
+          (params_.extent.row() + thread_per_block - 1) / thread_per_block;
+    }
+
+    dim3 final_reduction_grid(
+        block_per_row, 1, params_.softmax.args.batch_count);
+    dim3 final_reduction_block(thread_per_block);
+
+    Kernel<ApplyFinalReductionKernel>
+        <<<final_reduction_grid,
+           final_reduction_block,
+           sizeof(typename ApplyFinalReductionKernel::SharedStorage),
+           stream>>>(params_.reduction);
+
+    result = cudaGetLastError();
 
     if (result != cudaSuccess) {
       return cutlass::Status::kErrorInternal;
@@ -268,15 +346,18 @@ class GemmSoftmaxUniversal {
     //
 
     dim3 apply_block(
-        SoftmaxApplyKernel::Shape::kColumn, SoftmaxApplyKernel::Shape::kRow);
+        SoftmaxApplyKernel::ApplyShape::kColumn,
+        SoftmaxApplyKernel::ApplyShape::kRow);
 
-    int cta_rows = SoftmaxApplyKernel::Shape::kRow;
-    int cta_columns =
-        SoftmaxApplyKernel::Shape::kColumn * SoftmaxApplyKernel::kAlignment;
+    int threadblock_rows = SoftmaxApplyKernel::ApplyShape::kRow;
+    int threadblock_columns = SoftmaxApplyKernel::ApplyShape::kColumn *
+        SoftmaxApplyKernel::kAlignment;
 
     dim3 apply_grid(
-        (params_.softmax.args.extent.row() + cta_rows - 1) / cta_rows,
-        (params_.softmax.args.extent.column() + cta_columns - 1) / cta_columns,
+        (params_.softmax.args.extent.row() + threadblock_rows - 1) /
+            threadblock_rows,
+        (params_.softmax.args.extent.column() + threadblock_columns - 1) /
+            threadblock_columns,
         params_.softmax.args.batch_count);
 
     Kernel<SoftmaxApplyKernel>

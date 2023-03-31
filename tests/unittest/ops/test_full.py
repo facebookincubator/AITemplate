@@ -36,15 +36,18 @@ class TestFull(unittest.TestCase):
         dtype="float16",
         test_name="full",
     ) -> None:
+        Y = ops.full()(shape, fill_value, dtype)
+        Y._attrs["name"] = "Y"
+
+        if not isinstance(shape, list):
+            shape = [shape]
+
         X = Tensor(
             shape=shape,
             name="X",
             dtype=dtype,
             is_input=True,
         )
-
-        Y = ops.full()(X.shape(), fill_value, dtype)
-        Y._attrs["name"] = "Y"
 
         Z = ops.elementwise(FuncEnum.ADD)(X, Y)
         Z._attrs["name"] = "Z"
@@ -73,8 +76,10 @@ class TestFull(unittest.TestCase):
             param(1, [1], 1, "float16"),
             param(2, [10, 20, 30], 3.14, "float16"),
             param(3, [IntVar([10, 20]), 30], 0, "float16"),
-            param(4, [20, 30], 2.71, "float32"),
-            param(5, [IntVar([1, 128]), 10], -1.23, "float32"),
+            param(4, 123, -5, "float16"),
+            param(5, [20, 30], 2.71, "float32"),
+            param(6, [IntVar([1, 128]), 10], -1.23, "float32"),
+            param(7, IntVar([1, 128]), 1234, "float32"),
         ]
     )
     def test_full(self, i, shape, fill_value, dtype):

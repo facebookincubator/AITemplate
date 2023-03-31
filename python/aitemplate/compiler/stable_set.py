@@ -19,12 +19,12 @@ It also tries to preserve the original element order as much as possible, which 
 potentially make debugging (e.g. comparison with the original graph, comparison between
 AIT GPU trace and other GPU traces) easier.
 """
+from collections import abc
+from typing import Any, Iterable
 
-from typing import Any, Sequence
 
-
-class StableSet:
-    def __init__(self, s: Sequence[Any] = None):
+class StableSet(abc.MutableSet):
+    def __init__(self, s: Iterable[Any] = None):
         if s is None:
             s = []
         self._d = {item: None for item in s}

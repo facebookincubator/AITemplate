@@ -40,12 +40,12 @@ def gen_profiler(func_attrs, workdir, profiler_filename, shape_template):
 @registry.reg("cuda.group_gemm_rcr_bias_sigmoid.gen_function")
 def gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
 ):
     return group_common_bias.gen_function(
         func_attrs,
-        exec_cond_remplate,
+        exec_cond_template,
         shape_eval_template,
     )
 

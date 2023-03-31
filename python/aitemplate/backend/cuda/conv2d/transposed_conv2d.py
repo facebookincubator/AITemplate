@@ -53,13 +53,13 @@ def transposed_conv2d_gen_profiler(
 @registry.reg("cuda.transposed_conv2d.gen_function")
 def transposed_conv2d_gen_function(
     func_attrs,
-    exec_cond_remplate,
+    exec_cond_template,
     shape_eval_template,
     shape_save_template,
 ):
     return common.gen_function(
         func_attrs=func_attrs,
-        exec_cond_remplate=exec_cond_remplate,
+        exec_cond_template=exec_cond_template,
         shape_eval_template=shape_eval_template,
         shape_save_template=shape_save_template,
         f_emit_instance=ctc.emit_instance,

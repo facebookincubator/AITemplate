@@ -146,8 +146,11 @@ class _reshape_base(_view):
             else:
                 # dynamic dimension
                 dim_name = int_var._attrs["name"]
-                var = IntVar(name=dim_name, values=dim_values)
-                var._attrs["symbolic_value"] = int_var._attrs["symbolic_value"]
+                var = IntVar(
+                    name=dim_name,
+                    values=dim_values,
+                    symbolic_value=int_var._attrs["symbolic_value"],
+                )
                 output_shape.append(var)
         return output_shape
 
@@ -333,8 +336,7 @@ class reshape(_reshape_base):
                             ), "Unable to deduce dynamic symbol"
 
                             values = simplify_intvar_values(dynamic_symbol)
-                            new_var = IntVar(values)
-                            new_var._attrs["symbolic_value"] = dynamic_symbol
+                            new_var = IntVar(values, symbolic_value=dynamic_symbol)
 
                             y_shapes.append(new_var)
                     elif isinstance(val, int):
@@ -342,8 +344,9 @@ class reshape(_reshape_base):
                     elif val in x_symbolic_shapes_mapping:
                         y_shapes.append(x_symbolic_shapes_mapping[val])
                     elif is_symbolic(val):
-                        val_var = gen_int_var_min_max(new_shape_values[idx])
-                        val_var._attrs["symbolic_value"] = val
+                        val_var = gen_int_var_min_max(
+                            new_shape_values[idx], symbolic_value=val
+                        )
                         y_shapes.append(val_var)
                     else:
                         raise ValueError(f"Unknown sym type for handling {val}")
@@ -433,8 +436,7 @@ class flatten(_reshape_base):
         if min_val == max_val:
             flatten_shape = IntImm(value=min_val)
         else:
-            flatten_shape = IntVar(values=[min_val, max_val])
-            flatten_shape._attrs["symbolic_value"] = sym_val
+            flatten_shape = IntVar(values=[min_val, max_val], symbolic_value=sym_val)
         new_shapes.append(flatten_shape)
 
         for var in x._attrs["shape"][end + 1 :]:
@@ -627,7 +629,7 @@ class unsqueeze(squeeze):
 
 class make_jagged(_view):
     """
-    Creates a jagged Tensor from a normal Tensor, offsets, and metadata.
+    Creates jagged Tensors from normal Tensors, offsets, and metadata.
 
     Jagged Tensors are normal Tensors with the first dynamic dimensions
     represented with a JaggedIntVar instance (as opposed to a vanilla
@@ -666,12 +668,14 @@ class make_jagged(_view):
             docstrings for the details.
 
     __call__ Args:
-        source : Tensor
-            The source Tensor of the jagged Tensor created by this op.
-            The jagged Tensor is a view of the source Tensor. The main
-            difference is that the resulting jagged Tensor's first
-            dimension is set to a JaggedIntVar, constructed from the
-            batch_dim, jagged_dims, and the offsets_list.
+        source : Union[Tensor, List[Tensor]]
+            One or more source Tensors of the jagged Tensor(s) created by this op.
+            The jagged Tensor is a view of the source Tensor. The main difference
+            is that the resulting jagged Tensor's first dimension is set to a
+            JaggedIntVar, constructed from the batch_dim, jagged_dims, and the
+            offsets_list. The same JaggedIntVar instance is set as the first
+            dimension of every resulting jagged Tensor: one for each source
+            Tensor in the `source`.
         offsets_list : List[Tensor]
             The list of rank-1 offsets Tensors describing the variable-length
             layout of each of the jagged_dims. There must be exactly as many
@@ -679,12 +683,18 @@ class make_jagged(_view):
             the jagged_dims list. Each offsets Tensor is associated with the
             corresponding JaggedDim before constructing a JaggedIntVar from
             them for the resulting jagged Tensor.
+
+    Returns:
+        Union[Tensor, List[Tensor]]
+            The resulting jagged Tensor or a list thereof, depending on whether
+            the `source` argument is a Tensor or a List[Tensor].
     """
 
     def __init__(
         self,
         batch_dim: IntVar,
         jagged_dims: List[JaggedDim],
+        check_sequence_lengths: bool = True,
     ) -> None:
         if type(batch_dim) != IntVar:
             raise TypeError(
@@ -704,6 +714,7 @@ class make_jagged(_view):
         self._attrs["op"] = "make_jagged"
         self._attrs["batch_dim"] = batch_dim
         self._attrs["jagged_dims"] = list(jagged_dims)
+        self._attrs["check_sequence_lengths"] = check_sequence_lengths
 
     def _set_jagged_dim_offsets(self, offsets_list: List[Tensor]):
         jagged_dims = self._attrs["jagged_dims"]
@@ -718,18 +729,37 @@ class make_jagged(_view):
                     )
             jagged_dim._attrs["offsets"] = offsets
 
-    def _infer_shapes(self, source: Tensor) -> List[IntVar]:
-        jagged_int_var = JaggedIntVar(
-            batch_dim=self._attrs["batch_dim"],
-            jagged_dims=self._attrs["jagged_dims"],
-            total_length=source._attrs["shape"][0],
-        )
+    def __call__(
+        self,
+        source: Union[Tensor, List[Tensor]],
+        offsets_list: List[Tensor],
+    ) -> Tensor:
+        sources_list = [source] if isinstance(source, Tensor) else source
 
-        return [jagged_int_var] + source._attrs["shape"][1:]
+        if not sources_list:
+            raise ValueError("There must be at least one source Tensor in the list.")
 
-    def __call__(self, source: Tensor, offsets_list: List[Tensor]) -> Tensor:
-        if source.is_jagged():
-            # already a jagged Tensor
+        for s in sources_list:
+            if len(s._attrs["shape"]) == 0:
+                raise ValueError(
+                    "The source Tensors must be at least rank-1, but given rank-0."
+                )
+            if type(s._attrs["shape"][0]) != IntVar:
+                raise ValueError(
+                    "The source Tensor's first dim (total_length) must be "
+                    f"dynamic (IntVar), but given {s._attrs['shape']=}."
+                )
+
+        total_length = sources_list[0]._attrs["shape"][0]
+        for s in sources_list[1:]:
+            if s._attrs["shape"][0] != total_length:
+                raise ValueError(
+                    "All source Tensors must have the same first (total_length) dimension, "
+                    f"but got {s[0]._attrs['shape']=}, {s._attrs['shape']=}."
+                )
+
+        if isinstance(total_length, JaggedIntVar):
+            # already jagged Tensors
             return source
 
         jagged_dims = self._attrs["jagged_dims"]
@@ -748,33 +778,37 @@ class make_jagged(_view):
                     "The offsets Tensors can be either int32 or int64, "
                     f"but given the Tensor of type {offsets._attrs['dtype']}."
                 )
-        if len(source._attrs["shape"]) == 0:
-            raise ValueError(
-                "The source Tensor must be at least rank-1, but given rank-0."
-            )
-        if type(source._attrs["shape"][0]) != IntVar:
-            raise ValueError(
-                "The source Tensor's first dim (total_length) must be dynamic (IntVar), "
-                f"but given {type(source._attrs['shape'][0]).__name__}."
-            )
 
-        self._attrs["inputs"] = [source, *offsets_list]
+        self._attrs["num_sources"] = len(sources_list)
+        self._attrs["inputs"] = sources_list + offsets_list
         self._set_depth()
         self._set_jagged_dim_offsets(offsets_list)
-        output_shape = self._infer_shapes(source)
-        output = Tensor(
-            shape=output_shape,
-            src_ops={self},
-            is_view_of=source,
-        )
-        self._attrs["outputs"] = [output]
 
-        return output
+        jagged_int_var = JaggedIntVar(
+            batch_dim=self._attrs["batch_dim"],
+            jagged_dims=self._attrs["jagged_dims"],
+            total_length=total_length,
+        )
+
+        outputs = [
+            Tensor(
+                shape=[jagged_int_var] + s._attrs["shape"][1:],
+                src_ops={self},
+                is_view_of=s,
+            )
+            for s in sources_list
+        ]
+        self._attrs["outputs"] = outputs
+        if isinstance(source, Tensor):
+            outputs = outputs[0]
+
+        return outputs
 
     def _get_op_attributes(self):
         return {
             "batch_dim": self._attrs["batch_dim"],
             "jagged_dims": self._attrs["jagged_dims"],
+            "check_sequence_lengths": self._attrs["check_sequence_lengths"],
         }
 
     def gen_function(self) -> str:

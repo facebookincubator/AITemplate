@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import unittest
-from typing import OrderedDict
+from collections import OrderedDict
 
 import torch
 import torch as pt

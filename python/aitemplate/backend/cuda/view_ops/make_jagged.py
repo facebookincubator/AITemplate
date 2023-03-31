@@ -71,6 +71,7 @@ __global__ void check_offsets(
     return;
   }
 
+{% if check_sequence_lengths %}
   {{offsets_type}} group_size = data[offset_id + 1] - data[offset_id];
   if (group_size < bounds.min_values[dim_id] || group_size > bounds.max_values[dim_id]) {
     printf(
@@ -89,6 +90,7 @@ __global__ void check_offsets(
     );
     __trap();
   }
+{% endif %}
 
   if (offset_id == 0) {
     {{offsets_type}} first_offset = data[0];
@@ -221,7 +223,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {% endfor %}
 {{indent}}  {{offsets_var_name}},
 {{indent}}  &{{batch_dim_name}},
-{{indent}}  {{source_first_dim_name}},
+{{indent}}  {{total_length_name}},
 {{indent}}  stream
 {{indent}});
 """,
@@ -249,7 +251,8 @@ def _get_jagged_dynamic_bound_dims(jagged_int_var: JaggedIntVar) -> Set[IntVar]:
 @registry.reg("cuda.make_jagged.gen_function")
 def make_jagged_gen_function(func_attrs):
     func_name = func_attrs["name"]
-    offsets_list = func_attrs["inputs"][1:]
+    num_sources = func_attrs["num_sources"]
+    offsets_list = func_attrs["inputs"][num_sources:]
     backend_spec = CUDASpec()
 
     output = func_attrs["outputs"][0]
@@ -284,6 +287,7 @@ def make_jagged_gen_function(func_attrs):
 
     batch_dim = jagged_int_var.batch_dim()
     isolated_batch_dim = batch_dim._attrs.get("isolated", False)
+    check_sequence_lengths = func_attrs["check_sequence_lengths"]
 
     return SRC_TEMPLATE.render(
         func_name=func_name,
@@ -295,13 +299,15 @@ def make_jagged_gen_function(func_attrs):
         isolated_batch_dim=isolated_batch_dim,
         jagged_dynamic_bound_names=jagged_dynamic_bound_names,
         index_type=backend_spec.index_type,
+        check_sequence_lengths=check_sequence_lengths,
     )
 
 
 @registry.reg("cuda.make_jagged.func_decl")
 def make_jagged_gen_function_decl(func_attrs):
     func_name = func_attrs["name"]
-    offsets_list = func_attrs["inputs"][1:]
+    num_sources = func_attrs["num_sources"]
+    offsets_list = func_attrs["inputs"][num_sources:]
     backend_spec = CUDASpec()
 
     output = func_attrs["outputs"][0]
@@ -321,8 +327,9 @@ def make_jagged_gen_function_decl(func_attrs):
 @registry.reg("cuda.make_jagged.func_call")
 def make_jagged_gen_function_call(func_attrs, indent="  "):
     func_name = func_attrs["name"]
-    source = func_attrs["inputs"][0]
-    offsets_list = func_attrs["inputs"][1:]
+    num_sources = func_attrs["num_sources"]
+    total_length = func_attrs["inputs"][0]._attrs["shape"][0]
+    offsets_list = func_attrs["inputs"][num_sources:]
     output = func_attrs["outputs"][0]
     jagged_int_var = output._attrs["shape"][0]
 
@@ -331,7 +338,7 @@ def make_jagged_gen_function_call(func_attrs, indent="  "):
     ]
     offsets_data_names = [offsets._attrs["name"] for offsets in offsets_list]
     batch_dim_name = jagged_int_var.batch_dim()._attrs["name"]
-    source_first_dim_name = source._attrs["shape"][0]._attrs["name"]
+    total_length_name = total_length._attrs["name"]
 
     jagged_dynamic_bound_names = [
         dim._attrs["name"] for dim in _get_jagged_dynamic_bound_dims(jagged_int_var)
@@ -345,6 +352,6 @@ def make_jagged_gen_function_call(func_attrs, indent="  "):
         offsets_first_dim_names=offsets_first_dim_names,
         offsets_data_names=offsets_data_names,
         batch_dim_name=batch_dim_name,
-        source_first_dim_name=source_first_dim_name,
+        total_length_name=total_length_name,
         jagged_dynamic_bound_names=jagged_dynamic_bound_names,
     )

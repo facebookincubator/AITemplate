@@ -17,14 +17,18 @@ Basic data types of AITemplate.
 """
 from __future__ import annotations
 
+import math
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
+from numbers import Number
 from pprint import pformat
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 
 import numpy as np
+import sympy
 
 from aitemplate.compiler import symbolic
 from aitemplate.compiler.dtype import get_dtype_size, normalize_dtype
@@ -83,18 +87,22 @@ class IntVar(Node):
     """
     An IntVar represents a dynamic dimension.
     IntVar and IntImm (see below) are used together to represent a Tensor's shape.
+
+    IntVar supports basic arithmetic operations, and returns the most conservative
+    IntVar w.r.t. range of _attrs["values"].
     """
 
     def __init__(
         self,
         values: List[int],
         name: str = None,
+        symbolic_value: Optional[sympy.Basic] = None,
     ) -> None:
         """Initializes an IntVar.
 
         Parameters
         ----------
-        values : list[int]
+        values : List[int]
             A list of possible values of this dynamic dimension.
             len(values) must be >= 2.
 
@@ -109,6 +117,9 @@ class IntVar(Node):
         name : str, optional
             Name of this dimension, by default None.
             This field must be set for dims which are used by input tensors.
+
+        symbolic_value: sympy.Basic, optional
+            The symbolic value for this IntVar. If None is provided, we will generate a symbol for this IntVar.
         """
         super().__init__()
         self._attrs["name"] = name
@@ -128,9 +139,10 @@ class IntVar(Node):
             self._attrs["symbolic_value"] = self._attrs["values"][0]
             self._attrs["values"] = self._attrs["values"] * 2
         else:
-            symbolic_value = symbolic.create_new_symbol(name, values)
+            if symbolic_value is None:
+                symbolic_value = symbolic.create_new_symbol(name, values)
+                symbolic.store_intvar(symbolic_value.name, self)
             self._attrs["symbolic_value"] = symbolic_value
-            symbolic.store_intvar(symbolic_value.name, self)
 
     def __str__(self) -> str:
         return pformat(self._attrs, indent=2)
@@ -142,7 +154,149 @@ class IntVar(Node):
         )
 
     def __hash__(self) -> int:
-        return hash((self._attrs["name"], tuple(self._attrs["values"])))
+        return hash(
+            (
+                self._attrs["name"],
+                tuple(self._attrs["values"]),
+                self._attrs["symbolic_value"],
+            )
+        )
+
+    def __add__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym + other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym + other
+        else:
+            raise NotImplementedError(f"Unable to do addition on {self} and {other}")
+
+        new_values = [
+            self_values[0] + other_values[0],
+            self_values[-1] + other_values[-1],
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __radd__(self, other: Union[Any, IntVar]) -> IntVar:
+        return self + other
+
+    def __sub__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym - other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym - other
+        else:
+            raise NotImplementedError(f"Unable to do subtraction on {self} and {other}")
+
+        new_values = [
+            max(0, self_values[0] - other_values[-1]),
+            max(0, self_values[-1] - other_values[0]),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rsub__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = other._attrs["symbolic_value"] - new_sym
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = other - new_sym
+        else:
+            raise NotImplementedError(
+                f"Unable to do r-subtraction on {self} and {other}"
+            )
+
+        new_values = [
+            max(0, other_values[0] - self_values[-1]),
+            max(0, other_values[-1] - self_values[0]),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __mul__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym * other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym * other
+        else:
+            raise NotImplementedError(
+                f"Unable to do multiplication on {self} and {other}"
+            )
+
+        new_values = [
+            self_values[0] * other_values[0],
+            self_values[-1] * other_values[-1],
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rmul__(self, other: Union[Any, IntVar]) -> IntVar:
+        return self * other
+
+    def __truediv__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym / other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym / other
+        else:
+            raise NotImplementedError(f"Unable to do division on {self} and {other}")
+
+        new_values = [
+            math.floor(self_values[0] / max(1, other_values[-1])),
+            math.ceil(self_values[-1] / max(1, other_values[0])),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rtruediv__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = other._attrs["symbolic_value"] / new_sym
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = other / new_sym
+        else:
+            raise NotImplementedError(f"Unable to do r-division on {self} and {other}")
+
+        new_values = [
+            math.floor(other_values[0] / max(1, self_values[-1])),
+            math.ceil(other_values[-1] / max(1, self_values[0])),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
 
     def lower_bound(self) -> int:
         """Returns lower bound of this dynamic dim."""
@@ -584,8 +738,8 @@ class Tensor(Node):
         self,
         shape: List[IntVar],
         name: str = None,
-        src_ops: StableSet[Node] = None,
-        dst_ops: StableSet[Node] = None,
+        src_ops: Iterable[Node] = None,
+        dst_ops: Iterable[Node] = None,
         dtype: str = "float16",
         is_input: bool = False,
         is_output: bool = False,
@@ -602,16 +756,16 @@ class Tensor(Node):
         shape : List[IntVar]
             Shape of this Tensor.
         name : str, optional
-            Name of this Tensor. By default it's None.
-        src_ops : Set[Node], optional
+            Name of this Tensor. By default, it's None.
+        src_ops : Iterable[Node], optional
             Source operators of this Tensor which write to this Tensor.
-            By default it's an empty set.
-        dst_ops : Set[Node], optional
+            By default, it's an empty set.
+        dst_ops : Iterable[Node], optional
             Destination operators of this Tensor which take this Tensor as
             one of their inputs.
-            By default it's an empty set.
+            By default, it's an empty set.
         dtype : str, optional
-            Date type of this Tensor. By default it's "float16".
+            Date type of this Tensor. By default, it's "float16".
         is_input : bool, optional
             Whether this Tensor is an input Tensor of a graph.
             Note that constant Tensors (e.g. weights) are NOT input Tensors.
@@ -632,12 +786,8 @@ class Tensor(Node):
         super().__init__()
         self._attrs["shape"] = self._convert_shape(shape)
         self._attrs["name"] = name
-        self._attrs["src_ops"] = (
-            StableSet(src_ops) if src_ops is not None else StableSet()
-        )
-        self._attrs["dst_ops"] = (
-            StableSet(dst_ops) if dst_ops is not None else StableSet()
-        )
+        self._attrs["src_ops"] = StableSet(src_ops)
+        self._attrs["dst_ops"] = StableSet(dst_ops)
         self._attrs["dtype"] = dtype
         self._attrs["is_output"] = is_output
         self._attrs["is_input"] = is_input
@@ -743,7 +893,7 @@ class Tensor(Node):
         )
 
     def size_bytes(self, alignment: int = 1) -> int:
-        """Returns acutal size (in bytes) of this Tensor."""
+        """Returns actual size (in bytes) of this Tensor."""
         return get_aligned_size(self._attrs["shape"], self.dtype(), alignment)
 
     def pseudo_code(self, with_shape=True) -> str:
@@ -1016,7 +1166,7 @@ class Operator(Node):
             A list of device ids which can be used for profiling.
         dynamic_profiling_strategy: DynamicProfileStrategy, optional
             Profiling strategy used when there are dynamic dims.
-            By default MAX is used, i.e. to profile a dynamic range, an upper bound will be used.
+            By default, MAX is used, i.e. to profile a dynamic range, an upper bound will be used.
         """
 
         return
@@ -1062,10 +1212,6 @@ class Operator(Node):
         example, the FuncEnum for a elementwise op.
 
         This is used when we need to copy the op with identical behaviour.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
