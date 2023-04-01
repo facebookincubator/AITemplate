@@ -541,6 +541,7 @@ class JaggedIntVar(IntVar):
         super().__init__(
             values=total_length._attrs["values"],
             name=total_length._attrs["name"],
+            symbolic_value=total_length._attrs["symbolic_value"],
         )
 
         self._attrs["batch_dim"] = batch_dim
@@ -910,6 +911,9 @@ class Tensor(Node):
         data = self._attrs["data"]
         if data is not None:
             args.append(f"data=({data.size()} bytes)")
+
+        if self.is_jagged():
+            args.append("jagged=True")
 
         return f"Tensor({', '.join(args)})"
 
