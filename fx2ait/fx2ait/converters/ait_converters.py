@@ -988,25 +988,6 @@ def acc_ops_flatten(
     return flatten(start_dim=start_dim, end_dim=end_dim)(input_val)
 
 
-def acc_ops_bmm(name: str, lhs: AITTensor, rhs: AITTensor) -> ConverterOutput:
-    lhs_shape = lhs.shape()
-    rhs_shape = rhs.shape()
-    if (
-        lhs_shape[0] == rhs_shape[0]
-        and lhs_shape[0]._attrs["name"] is None
-        and rhs_shape[0]._attrs["name"] is None
-    ):
-        lhs_shape[0]._attrs["name"] = f"acc_{name}_batch_size"
-        rhs_shape[0]._attrs["name"] = f"acc_{name}_batch_size"
-    elif lhs_shape[0] != rhs_shape[0]:
-        if lhs_shape[0]._attrs["values"] == rhs_shape[0]._attrs["values"]:
-            if lhs_shape[0]._attrs["name"] is None:
-                lhs_shape[0] = rhs_shape[0]
-            else:
-                rhs_shape[0] = lhs_shape[0]
-    return bmm_rrr()(lhs, rhs)
-
-
 @ait_converter(acc_ops.matmul)
 def acc_ops_matmul(
     target: Target,
@@ -1033,7 +1014,7 @@ def acc_ops_matmul(
     if len(rhs_shape) == 2:
         return gemm_rrr()(lhs, rhs)
     elif len(lhs_shape) <= 3 and len(rhs_shape) <= 3:
-        return acc_ops_bmm(name, lhs, rhs)
+        return bmm_rrr()(lhs, rhs)
     elif len(lhs_shape) == 4 and len(rhs_shape) == 4 and lhs_shape[1] == rhs_shape[1]:
         assert all(isinstance(i, IntImm) for i in lhs_shape[1:])
         assert all(isinstance(i, IntImm) for i in rhs_shape[1:])
@@ -1052,7 +1033,7 @@ def acc_ops_matmul(
             shape_1 = (batch_size * channel, K, N)
             shape_2 = (batch_size, channel, M, N)
         elif isinstance(lhs_shape[0], IntVar) and isinstance(rhs_shape[0], IntVar):
-            if lhs_shape[0]._attrs["values"] != rhs_shape[0]._attrs["values"]:
+            if lhs_shape[0] != rhs_shape[0]:
                 raise ValueError(
                     f"Batch size mismatch on matmul. Expected: {lhs_shape[0]} == {rhs_shape[0]}"
                 )
@@ -1067,7 +1048,7 @@ def acc_ops_matmul(
             )
         reshape_op_0 = reshape()(lhs, shape_0)
         reshape_op_1 = reshape()(rhs, shape_1)
-        return reshape()(acc_ops_bmm(name, reshape_op_0, reshape_op_1), shape_2)
+        return reshape()(bmm_rrr()(reshape_op_0, reshape_op_1), shape_2)
     else:
         raise NotImplementedError(
             f"This case is unsupported in {name}: {len(lhs_shape)} and {len(rhs_shape)}"

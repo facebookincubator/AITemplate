@@ -38,7 +38,7 @@ class TestFlattenConverter(DispatchTestCase):
                 return torch.flatten(x, self.start, self.end)
 
         model = TestModule(start_dim, end_dim).cuda().half()
-        inputs = (torch.randn(1, 2, 3, 1).half().cuda(),)
+        inputs = (torch.randn(2, 3, 4, 5).half().cuda(),)
 
         self.run_test(model, inputs, expected_ops={torch.ops.aten.view.default})
 
@@ -61,10 +61,10 @@ class TestFlattenConverter(DispatchTestCase):
         model = TestModule(start_dim, end_dim).cuda().half()
         inputs_spec = TensorSpec.create_spec_from_shapes(
             inputs_min=[
-                [1, 2, 3, 4],
+                [2, 3, 4, 5],
             ],
             inputs_max=[
-                [10, 20, 3, 4],
+                [10, 20, 4, 5],
             ],
             dtype_list=[
                 torch.float16,
