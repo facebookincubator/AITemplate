@@ -102,13 +102,15 @@ template <
     bool kSingleValueIteration,
     // Activation functor
     template <typename T>
-    class ActivationFunctor>
+    class ActivationFunctor,
+    typename offset_t_ = int64_t>
 struct AttentionKernel {
   using scalar_t = scalar_t_;
   using accum_t = accum_t_;
   using output_t = scalar_t;
   // Accumulator between 2 iterations
   using output_accum_t = accum_t;
+  using offset_t = offset_t_;
   static constexpr bool kIsAligned = isAligned_;
   static constexpr bool kPreloadV = ArchTag::kMinComputeCapability >= 80 &&
       cutlass::sizeof_bits<scalar_t>::value == 16;
@@ -133,8 +135,6 @@ struct AttentionKernel {
     scalar_t* key_ptr; // [num_keys, num_heads, head_dim]
     scalar_t* value_ptr; // [num_keys, num_heads, head_dim_value]
     scalar_t* attn_bias_ptr = nullptr; // [num_heads, num_queries, num_keys]
-    int32_t* cu_seqlens_q_ptr = nullptr;
-    int32_t* cu_seqlens_k_ptr = nullptr;
 
     // Output tensors
     output_t* output_ptr; // [num_queries, num_heads, head_dim_value]
@@ -144,6 +144,7 @@ struct AttentionKernel {
     // Scale
     accum_t scale;
     accum_t activation_scale;
+    bool activation_scale_divide_by_seq_len{false};
 
     // Dimensions/strides
     int32_t head_dim;
@@ -151,6 +152,22 @@ struct AttentionKernel {
     int32_t seq_length;
     int32_t num_queries;
     int32_t num_keys;
+    int32_t num_batches;
+    int32_t num_heads;
+
+    // When offset_ptr is not null, support variable sequence length.
+    // offset is a vector of offset of sequence length per batch.
+    // len(offset) = batch_size + 1
+    // In this case, seq_length / num_queries / num_keys are max_seq_length.
+    // offset is applied to queries, keys and values.
+    //
+    // e.g. If input tensor shape is:
+    // num_batches = 3
+    // batch0: seq_length_0=4, H, head_dim
+    // batch1: seq_length_0=2, H, head_dim
+    // batch2: seq_length_0=10, H, head_dim
+    // offset=[0, 4, 6, 16]
+    const offset_t* offset_ptr;
 
     enum CausalType {
       NO_CAUSAL = 0,
@@ -174,8 +191,6 @@ struct AttentionKernel {
     int64_t k_strideB;
     int64_t v_strideB;
     int32_t bias_strideB;
-    int32_t num_batches;
-    int32_t num_heads;
 
     CUTLASS_HOST_DEVICE int32_t o_strideM() const {
       return head_dim_value * num_heads;
@@ -186,20 +201,18 @@ struct AttentionKernel {
       auto batch_id = blockIdx.z;
       auto head_id = blockIdx.y;
       auto query_start = blockIdx.x * kQueriesPerBlock;
+      int64_t q_start = 0;
+      int64_t k_start = 0;
 
-      int64_t q_start, k_start;
       // Advance to current batch - in case of different sequence lengths
-      if (cu_seqlens_q_ptr != nullptr) {
-        assert(cu_seqlens_k_ptr != nullptr);
-        cu_seqlens_q_ptr += batch_id;
-        cu_seqlens_k_ptr += batch_id;
-        q_start = cu_seqlens_q_ptr[0];
-        k_start = cu_seqlens_k_ptr[0];
-        int64_t q_next_start = cu_seqlens_q_ptr[1];
-        int64_t k_next_start = cu_seqlens_k_ptr[1];
-        num_queries = q_next_start - q_start;
-        num_keys = k_next_start - k_start;
-
+      if (offset_ptr) {
+        auto start = offset_ptr[batch_id];
+        auto end = offset_ptr[batch_id + 1];
+        q_start = static_cast<int64_t>(start);
+        k_start = static_cast<int64_t>(start);
+        auto actual_seq_length = static_cast<int32_t>(end - start);
+        num_queries = actual_seq_length;
+        num_keys = actual_seq_length;
         if (query_start >= num_queries) {
           return false;
         }
@@ -232,11 +245,10 @@ struct AttentionKernel {
         // Accumulate directly in the destination buffer (eg for f32)
         output_accum_ptr = (accum_t*)output_ptr;
       }
-      num_queries -= query_start;
       if (causal_type == CausalType::UPPER_RIGHT_EMPTY) {
-        num_keys = cutlass::fast_min(
-            int32_t(query_start + kQueriesPerBlock), num_keys);
+        num_keys = cutlass::fast_min(num_queries, num_keys);
       }
+      num_queries -= query_start;
       num_batches = 0; // no longer used after
 
       // Make sure the compiler knows these variables are the same on all
@@ -652,8 +664,8 @@ struct AttentionKernel {
           [&](int accum_m) {},
           [&](int accum_m, int accum_n, int idx) {
             if (accum_m < problem_size_0_m && accum_n < problem_size_0_n) {
-              int x = accum_m + query_start;
-              int y = accum_n + iter_key_start;
+              // int x = accum_m + query_start;
+              // int y = accum_n + iter_key_start;
               accum[idx] = accum[idx] * p.scale;
               if (p.attn_bias_ptr != nullptr) {
                 accum[idx] = accum[idx] +
@@ -662,12 +674,21 @@ struct AttentionKernel {
               }
               accum[idx] = ActivationFunctor<accum_t>()(accum[idx]) *
                   (accum_t)(p.activation_scale);
+              if (p.activation_scale_divide_by_seq_len) {
+                // Divide by max_seq_len instead of actual_seq_len.
+                // Might beed to be configured to use either max_seq_len or
+                // actual_seq_len in the future.
+                accum[idx] = accum[idx] / (accum_t)(p.seq_length);
+              }
+            } else {
+              // Need to set out-of-bound elements to 0 as these elements
+              // will also be used in the accum@V MMA.
+              accum[idx] = (accum_t)(0);
             }
           },
           [&](int accum_m) {});
 
       // Mask out last if causal
-      //      if (p.causal && p.num_keys - iter_key_start <= kKeysPerBlock) {
       if (p.causal_type != Params::CausalType::NO_CAUSAL) {
         int32_t last_col;
         MM0::ScalingCoefsUpdater::iterateRows(
@@ -678,14 +699,19 @@ struct AttentionKernel {
             [&](int accum_m, int accum_n, int idx) {
               switch (p.causal_type) {
                 case Params::CausalType::UPPER_RIGHT_EMPTY:
-                  if (accum_n > last_col && accum_m < problem_size_0_m &&
-                      accum_n < problem_size_0_n) {
-                    accum[idx] = accum_t(0);
+                  // Need to set out-of-bound elements to 0 as these elements
+                  // will also be used in the accum@V MMA.
+                  if (accum_n > last_col) {
+                    accum[idx] = (accum_t)(0);
                   }
                   break;
                 case Params::CausalType::LOWER_LEFT_EMPTY:
-                  if (accum_n < last_col && accum_m < problem_size_0_m) {
-                    accum[idx] = accum_t(0);
+                  // Need to set out-of-bound elements to 0 as these elements
+                  // will also be used in the accum@V MMA.
+                  if ((accum_n < last_col && accum_m < problem_size_0_m) ||
+                      accum_m >= problem_size_0_m ||
+                      accum_n >= problem_size_0_n) {
+                    accum[idx] = (accum_t)(0);
                   }
                   break;
               }

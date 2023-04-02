@@ -25,38 +25,15 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import epilogue_math_name_to_torch_fn
+from aitemplate.testing.test_utils import (
+    epilogue_math_name_to_torch_fn,
+    get_attn_mask_per_causal_type,
+)
 from aitemplate.utils import shape_utils
 from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _get_attn_mask_per_causal_type(
-    m: int, n: int, causal_type: CausalType, torch_dtype: str
-) -> torch.Tensor:
-    if causal_type == CausalType.NO_CAUSAL:
-        invalid_attn_mask = torch.ones((m, n), dtype=torch_dtype, device="cuda")
-    elif causal_type == CausalType.LOWER_LEFT_EMPTY:
-        invalid_attn_mask: torch.Tensor = 1.0 - torch.tril(
-            torch.ones(
-                (m, n),
-                dtype=torch.bool,
-                device="cuda",
-            )
-        ).fill_diagonal_(False).to(torch_dtype)
-    elif causal_type == CausalType.UPPER_RIGHT_EMPTY:
-        invalid_attn_mask: torch.Tensor = torch.tril(
-            torch.ones(
-                (m, n),
-                dtype=torch_dtype,
-                device="cuda",
-            )
-        )
-    else:
-        raise NotImplementedError(f"Unsupported {causal_type=}!")
-    return invalid_attn_mask
 
 
 @unittest.skipIf(
@@ -144,7 +121,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
             attn = alpha0 * (q_pt @ k_pt.transpose(-2, -1)) + bias_pt
             attn = epilogue_math_name_to_torch_fn(epilogue_math_name)(attn)
             attn = alpha1 * attn
-            invalid_attn_mask = _get_attn_mask_per_causal_type(
+            invalid_attn_mask = get_attn_mask_per_causal_type(
                 m, n0, causal_type, torch_dtype
             )
             attn = attn * invalid_attn_mask
@@ -309,7 +286,7 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
                 attn = attn + bias_pt
             attn = epilogue_math_name_to_torch_fn(epilogue_math_name)(attn)
             attn = alpha1 * attn
-            invalid_attn_mask = _get_attn_mask_per_causal_type(
+            invalid_attn_mask = get_attn_mask_per_causal_type(
                 m, n0, causal_type, torch_dtype
             )
             attn = attn * invalid_attn_mask

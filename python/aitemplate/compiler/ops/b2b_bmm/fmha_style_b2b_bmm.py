@@ -60,7 +60,7 @@ class fmha_style_b2b_bmm(b2b_bmm_base):
         self._attrs["workspace"] = 0
 
     def _infer_shapes(self):
-        """infer the output shape for classic_b2b_bmm."""
+        """infer the output shape for fmha_style_b2b_bmm."""
         q, k, v = self._attrs["inputs"][0:3]
         q_shape = q._attrs["shape"]
         k_shape = k._attrs["shape"]
