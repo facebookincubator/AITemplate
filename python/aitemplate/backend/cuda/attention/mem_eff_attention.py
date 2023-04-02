@@ -156,7 +156,7 @@ using namespace gemm_kernel_utils;
     }
     if (!Attention::check_supported(p)) {
       std::string error_msg = std::string("Got error: kernel does not support these inputs") +
-           " at " + __FILE__ + ": " + std::to_string(__LINE__);          
+           " at " + __FILE__ + ": " + std::to_string(__LINE__);
       throw std::runtime_error(error_msg);
     }
     kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
