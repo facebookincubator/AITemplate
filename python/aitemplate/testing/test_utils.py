@@ -176,3 +176,18 @@ def get_shape(shape: List[IntVar], dim_to_value_dict: Dict[str, int]):
         for dim in shape
     ]
     return res
+
+
+def epilogue_math_name_to_torch_fn(epilogue_math_name: str) -> Callable[[Any], Any]:
+    if epilogue_math_name == "Identity":
+        return lambda x: x
+    elif epilogue_math_name == "Sigmoid":
+        return torch.sigmoid
+    elif epilogue_math_name == "SiLu":
+        return torch.nn.functional.silu
+    elif epilogue_math_name == "ReLu":
+        return torch.nn.functional.relu
+    elif epilogue_math_name == "Tanh":
+        return torch.nn.functional.tanh
+    else:
+        raise NotImplementedError(f"Unsupported {epilogue_math_name=}!")
