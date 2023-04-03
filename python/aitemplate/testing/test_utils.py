@@ -15,12 +15,17 @@
 """
 Utils for unit tests.
 """
+import inspect
 import itertools
+import secrets
 import unittest
+from collections import defaultdict
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import torch
+
+from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.dtype import normalize_dtype
@@ -191,3 +196,87 @@ def epilogue_math_name_to_torch_fn(epilogue_math_name: str) -> Callable[[Any], A
         return torch.nn.functional.tanh
     else:
         raise NotImplementedError(f"Unsupported {epilogue_math_name=}!")
+
+
+test_id_counters = defaultdict(lambda: 0)
+
+
+def current_test_id(with_counter=True) -> str:
+    """Returns an ( ideally ) unique test name.
+
+    The name of this test is formed in the following way:
+
+    The call stack is traversed upwards until we find an instance
+    of a unittest.TestCase that is being passed as "self" to a method.
+    If it is, we invoke the id method of the test case, split the id into
+    pieces using "." as a separator.
+    If we don't find this, the name of the highest level function that
+    starts with "_test" is used to form a test id base.
+
+    Additionally, locals on the stack upward until we could determine a test
+    base name are inspected for a variable called "target" that is an
+    instance of Target ( e.g. CUDA, ROCM, etc... ) - if yes, it's class
+    name is lowercased and also appended to the name of the test.
+
+    Finally, if "with_counter" is set to True, a counter is being
+    incremented for each test id (starting with number 1). The counter is
+    also appended to the test name separated by an underscore.
+
+    If no matching function is found in the call stack, a
+    random string is returned which has been created using
+    the secrets module ( secrets.token_hex(16) )
+
+    Usage:
+        safe_compile_model( ..., test_name=current_test_id(), ...)
+
+    Returns:
+        str: A test id which should be usable as the base name for a build directory
+    """
+    global test_id_counters
+    target, test_name = _search_callstack_for_test_info()
+    if test_name is not None:
+
+        # it is copied and not referenced, which could
+        # lead to reference cycles and mem leaks.
+        if target is not None:
+            test_name += "_" + str(target.__class__.__name__).lower()
+        if with_counter:
+            test_id_counters[test_name] += 1
+            call_count = test_id_counters[test_name]
+            test_name = test_name + "_" + str(call_count)
+        return test_name
+    else:
+        return secrets.token_hex(16)
+
+
+def _search_callstack_for_test_info():
+    # Get the current call stack
+    stack = inspect.stack()
+    target = None
+    fname = None
+    fname_candidate = None
+    # Traverse the call stack, looking for a function with the given prefix
+    for frameinfo in stack:
+        # Get the name of the function associated with the current frame
+        if (fname is not None) and (target is not None):
+            break
+        func_name = frameinfo.function
+        if target is None:
+            maybe_target = frameinfo.frame.f_locals.get("target", None)
+            if isinstance(maybe_target, Target):
+                target = maybe_target
+        if fname is None:
+            maybe_test = frameinfo.frame.f_locals.get("self", None)
+            if isinstance(maybe_test, unittest.TestCase):
+                # If we find a real test case, use it's id method as base name
+                fname = maybe_test.id().split(".")[-1]
+                if fname.startswith("test_"):
+                    fname = fname[5:]
+            if func_name.startswith("test_"):
+                fname_candidate = func_name[
+                    5:
+                ]  # We append this to an empty string to ensure
+
+    if fname is None:
+        fname = fname_candidate
+    return target, fname

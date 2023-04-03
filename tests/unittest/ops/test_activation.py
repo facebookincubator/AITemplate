@@ -25,6 +25,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    current_test_id,
     filter_test_cases_by_params,
     get_random_torch_tensor,
     TestEnv,
@@ -78,7 +79,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
 
         x1_pt = get_random_torch_tensor(input_size, dtype=dtype)
         OP_pt = torch.nn.LeakyReLU(negative_slope)
@@ -87,6 +90,17 @@ class FusedElementwiseTestCase(unittest.TestCase):
         x2 = torch.empty_like(x2_pt)
         module.run_with_tensors([x1_pt], [x2])
         torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2)
+
+    def _compile_model_with_unique_build_dir(self, *args, **kwargs):
+        # there were problems with race conditions in this tests case when multiple
+        # tests were accessing the same build dir concurrently.
+        # This prevents that by enforcing that the build dir name is unique
+        if "test_name" in kwargs:
+            kwargs["test_name"] += "." + current_test_id()
+        else:
+            args = list(args)  # in order to be able to update
+            args[3] += "." + current_test_id()
+        return compile_model(*args, **kwargs)
 
     def _test_floor_div(
         self,
@@ -118,7 +132,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         x2_pt = torch.div(x1_pt, dividend, rounding_mode="floor")
@@ -165,7 +181,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.Hardtanh(min_val=min_val, max_val=max_val)
@@ -213,7 +231,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.Softplus(beta=beta, threshold=threshold)
@@ -241,7 +261,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         x2_pt = TORCH_EQUIVALENTS[function](x1_pt)
@@ -274,7 +296,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.ELU(alpha=alpha)
         x2_pt = OP_pt(x1_pt)
@@ -304,7 +328,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
 
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.Softsign()
@@ -343,7 +369,9 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["name"] = "output0"
 
         target = detect_target()
-        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        module = self._compile_model_with_unique_build_dir(
+            X2, target, "./tmp", f"{test_name}_{dtype}"
+        )
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.CELU(alpha=alpha)
         x2_pt = OP_pt(x1_pt)
