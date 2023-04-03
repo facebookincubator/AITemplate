@@ -17,7 +17,7 @@ import logging
 import operator
 
 import torch  # isort:skip
-from typing import cast, Iterable, List, Sequence
+from typing import cast, Iterable, List, Optional, Sequence
 
 import torch.nn as nn
 from torch.fx.passes.shape_prop import _extract_tensor_metadata, TensorMetadata
@@ -462,14 +462,27 @@ def tile(*, input, dims):
         ("input", "input"),
         ("*", "sizes"),
     ],
+    skip_normalization_if_none=True,
 )
-def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
+def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> Optional[torch.fx.Node]:
     """
     Map repeat to tile.
     """
     with node.graph.inserting_before(node):
         inputs = node.kwargs["input"]
         dims = node.kwargs["sizes"]
+        # Skip repeat mapping when the list of dims is not all ints (ie. contains
+        # some calculated value). torch.tile cannot support cases where dims
+        # are Proxy nodes
+        if (
+            isinstance(dims, (list, tuple))
+            and len(dims) > 0
+            and not all(isinstance(x, int) for x in dims)
+        ):
+            logger.info(
+                "Not mapping repeat to an acc op. We can't handle variable dims."
+            )
+            return
         new_node = node.graph.create_node(
             "call_function",
             tile,
