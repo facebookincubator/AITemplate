@@ -311,8 +311,7 @@ void AITModelImpl::allocateOutputs(
         allocator->allocate(size_bytes),
         allocator,
         /*resizable=*/true);
-    ait_outputs.emplace_back(
-        storage_impl->unsafe_data<void>(), shape, ait_dtype);
+    ait_outputs.emplace_back(storage_impl->mutable_data(), shape, ait_dtype);
     output_index_to_output_storage_impl[output_index] = std::move(storage_impl);
   }
 }
