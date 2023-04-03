@@ -24,12 +24,12 @@ import jinja2
 EXEC_TEMPLATE = jinja2.Template(
     """
 {{indent}}FPNRoiAlign<float, {{num_rois}}, {{pooled_size}}>(
-{{indent}}    in_ptr_p2,
-{{indent}}    in_ptr_p3,
-{{indent}}    in_ptr_p4,
-{{indent}}    in_ptr_p5,
-{{indent}}    rois_ptr,
-{{indent}}    out_ptr,
+{{indent}}    static_cast<{{elem_input_type}}*>(in_ptr_p2),
+{{indent}}    static_cast<{{elem_input_type}}*>(in_ptr_p3),
+{{indent}}    static_cast<{{elem_input_type}}*>(in_ptr_p4),
+{{indent}}    static_cast<{{elem_input_type}}*>(in_ptr_p5),
+{{indent}}    static_cast<{{elem_input_type}}*>(rois_ptr),
+{{indent}}    static_cast<{{elem_output_type}}*>(out_ptr),
 {{indent}}    batchSize,
 {{indent}}    featureCount,
 {{indent}}    imageSize,
@@ -143,7 +143,7 @@ __global__ void roiAlign_kernel(
   const Trois* roi = rois + 5 * (batch * roiCount + roiIdx);
   float hw;
 
-{% if elem_input_type == "half" %}
+{% if elem_input_type in ["half", "ck::half_t"] %}
   float x1 = __half2float(roi[1]);
   float y1 = __half2float(roi[2]);
   float x2 = __half2float(roi[3]);
@@ -290,12 +290,12 @@ void FPNRoiAlign(
 } // namespace
 
 void {{function_name}} (
-    {{elem_input_type}}* in_ptr_p2,
-    {{elem_input_type}}* in_ptr_p3,
-    {{elem_input_type}}* in_ptr_p4,
-    {{elem_input_type}}* in_ptr_p5,
-    {{elem_input_type}}* rois_ptr,
-    {{elem_output_type}}* out_ptr,
+    void* in_ptr_p2,
+    void* in_ptr_p3,
+    void* in_ptr_p4,
+    void* in_ptr_p5,
+    void* rois_ptr,
+    void* out_ptr,
     {{index_type}}* batch, {{index_type}}* in_ch,
     {{index_type}}* p2_h, {{index_type}}* p2_w,
     {{index_type}}* p3_h, {{index_type}}* p3_w,
@@ -329,12 +329,12 @@ void {{function_name}} (
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-  {{elem_input_type}}*,
-  {{elem_input_type}}*,
-  {{elem_input_type}}*,
-  {{elem_input_type}}*,
-  {{elem_input_type}}*,
-  {{elem_output_type}}*,
+  void*,
+  void*,
+  void*,
+  void*,
+  void*,
+  void*,
   {{index_type}}*,
   {{index_type}}*,
   {{index_type}}*,
@@ -360,12 +360,12 @@ void {{func_name}}(
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
-{{indent}}    static_cast<{{elem_input_type}}*>({{in_ptr_p2}}),
-{{indent}}    static_cast<{{elem_input_type}}*>({{in_ptr_p3}}),
-{{indent}}    static_cast<{{elem_input_type}}*>({{in_ptr_p4}}),
-{{indent}}    static_cast<{{elem_input_type}}*>({{in_ptr_p5}}),
-{{indent}}    static_cast<{{elem_input_type}}*>({{rois_ptr}}),
-{{indent}}    static_cast<{{elem_output_type}}*>({{out_ptr}}),
+{{indent}}    {{in_ptr_p2}},
+{{indent}}    {{in_ptr_p3}},
+{{indent}}    {{in_ptr_p4}},
+{{indent}}    {{in_ptr_p5}},
+{{indent}}    {{rois_ptr}},
+{{indent}}    {{out_ptr}},
 {{indent}}    {{p_batch}},
 {{indent}}    {{p_in_ch}},
 {{indent}}    {{p2_h}}, {{p2_w}},

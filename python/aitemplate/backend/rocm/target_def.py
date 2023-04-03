@@ -124,10 +124,10 @@ class ROCM(Target):
         ]
         if self._arch in {"GFX908", "gfx908"}:
             options.append("-DCK_AMD_GPU_GFX908")
-            options.append("--amdgpu-target=gfx908")
+            options.append("--offload-arch=gfx908")
         elif self._arch in {"GFX90a", "gfx90a"}:
             options.append("-DCK_AMD_GPU_GFX90A")
-            options.append("--amdgpu-target=gfx90a")
+            options.append("--offload-arch=gfx90a")
         else:
             raise RuntimeError("Unsupported GPU Arch")
         for path in ck_paths:
