@@ -1248,4 +1248,5 @@ class Operator(Node):
         args = self._pseudo_code_helper(self._args_for_pseudo_code(), with_shape)
         inputs = self._pseudo_code_helper(self._inputs_for_pseudo_code(), with_shape)
         outputs = self._pseudo_code_helper(self._outputs_for_pseudo_code(), with_shape)
-        return f"({outputs}) \n= {self._attrs['op']}({args})(\n{inputs})\n"
+        name = self._attrs.get("name", None)
+        return f"# {name}\n({outputs}) \n= {self._attrs['op']}({args})(\n{inputs})\n"
