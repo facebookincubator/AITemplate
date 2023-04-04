@@ -24,6 +24,7 @@ import torch
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.dtype import normalize_dtype
+from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
 from aitemplate.testing.detect_target import detect_target
 from aitemplate.utils.graph_utils import get_sorted_ops
 from aitemplate.utils.torch_utils import string_to_torch_dtype
@@ -191,3 +192,29 @@ def epilogue_math_name_to_torch_fn(epilogue_math_name: str) -> Callable[[Any], A
         return torch.nn.functional.tanh
     else:
         raise NotImplementedError(f"Unsupported {epilogue_math_name=}!")
+
+
+def get_attn_mask_per_causal_type(
+    m: int, n: int, causal_type: CausalType, torch_dtype: str
+) -> torch.Tensor:
+    if causal_type == CausalType.NO_CAUSAL:
+        invalid_attn_mask = torch.ones((m, n), dtype=torch_dtype, device="cuda")
+    elif causal_type == CausalType.LOWER_LEFT_EMPTY:
+        invalid_attn_mask: torch.Tensor = 1.0 - torch.tril(
+            torch.ones(
+                (m, n),
+                dtype=torch.bool,
+                device="cuda",
+            )
+        ).fill_diagonal_(False).to(torch_dtype)
+    elif causal_type == CausalType.UPPER_RIGHT_EMPTY:
+        invalid_attn_mask: torch.Tensor = torch.tril(
+            torch.ones(
+                (m, n),
+                dtype=torch_dtype,
+                device="cuda",
+            )
+        )
+    else:
+        raise NotImplementedError(f"Unsupported {causal_type=}!")
+    return invalid_attn_mask

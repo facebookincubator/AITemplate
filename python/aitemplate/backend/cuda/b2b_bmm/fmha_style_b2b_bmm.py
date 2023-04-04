@@ -37,8 +37,8 @@ FUNC_TEMPLATE = jinja2.Template(
 namespace {
 // Hardcode these sizes for now until we get profiling ready.
 constexpr int kQueriesPerBlock = 64;
-constexpr int kKeysPerBlock = ({{n1}} <= 64 ? 64 : 128);
-constexpr bool kSingleValueIteration = ({{n1}} <= kKeysPerBlock);
+constexpr int kKeysPerBlock = ({{head_dim_value}} <= 64 ? 64 : 128);
+constexpr bool kSingleValueIteration = ({{head_dim_value}} <= kKeysPerBlock);
 }  // end namespace
 
 {{func_signature}} {
@@ -54,16 +54,17 @@ constexpr bool kSingleValueIteration = ({{n1}} <= kKeysPerBlock);
     kQueriesPerBlock,
     kKeysPerBlock,
     kSingleValueIteration,
-    {{activation_functor}}
+    {{activation_functor}},
+    {{offset_t}}
   >;
 
   ElementAccumulator alpha0 = ElementAccumulator({{alpha0}});
   ElementAccumulator alpha1 = ElementAccumulator({{alpha1}});
 
-  int64_t seq_length = m0;
-  int64_t seq_length_kv = {{n0}};
-  int64_t head_dim = k0;
-  int64_t head_dim_value = {{n1}};
+  int64_t seq_length = {{seq_length}};
+  int64_t seq_length_kv = {{seq_length_kv}};
+  int64_t head_dim = {{head_dim}};
+  int64_t head_dim_value = {{head_dim_value}};
 
   typename Attention::Params p;
   { // set parameters
@@ -81,6 +82,7 @@ constexpr bool kSingleValueIteration = ({{n1}} <= kKeysPerBlock);
 
     p.scale = alpha0;
     p.activation_scale = alpha1;
+    p.activation_scale_divide_by_seq_len = {{alpha1_divide_by_seq_len}};
 
     p.num_heads = {{num_heads}};
     p.num_batches = batch_size;
@@ -105,7 +107,7 @@ constexpr bool kSingleValueIteration = ({{n1}} <= kKeysPerBlock);
     p.k_strideB = p.k_strideM * seq_length_kv;
     p.v_strideB = p.v_strideM * seq_length_kv;
 
-    int32_t bias_stride = {{n0}};
+    int32_t bias_stride = {{seq_length_kv}};
     {% if bias_broadcast[2] %}
     p.bias_strideM = 0;
     {% else %}
@@ -125,6 +127,8 @@ constexpr bool kSingleValueIteration = ({{n1}} <= kKeysPerBlock);
     {% else %}
     p.bias_strideB = bias_stride;
     {% endif %}
+
+    p.offset_ptr = static_cast<const {{offset_t}}*>({{offset_ptr}});
   }
 
   // launch kernel :)
@@ -143,11 +147,11 @@ constexpr bool kSingleValueIteration = ({{n1}} <= kKeysPerBlock);
   if (!Attention::check_supported(p)) {
     throw std::runtime_error(
       std::string("Kernel does not support these inputs. ") +
-      "Function: {{function_name}}. " +
-      "m0: " + std::to_string(m0) +
-      ", k0: " + std::to_string(k0) +
-      ", n0: " + std::to_string({{n0}}) +
-      ", n1: " + std::to_string({{n1}}) + "."
+      "Function: {{func_name}}. " +
+      "m0: " + std::to_string({{seq_length}}) +
+      ", k0: " + std::to_string({{head_dim}}) +
+      ", n0: " + std::to_string({{seq_length_kv}}) +
+      ", n1: " + std::to_string({{head_dim_value}}) + "."
     );
   }
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);
@@ -193,7 +197,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def _causal_type_to_kernel_str(causal_type: CausalType) -> str:
+def causal_type_to_kernel_str(causal_type: CausalType) -> str:
     if causal_type == CausalType.NO_CAUSAL:
         return "CausalType::NO_CAUSAL"
     elif causal_type == CausalType.UPPER_RIGHT_EMPTY:
@@ -245,14 +249,19 @@ def fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         elem_input_type=elem_input_type,
         elem_output_type=elem_output_type,
         elem_accum_type=elem_accum_type,
-        n0=str(n0.value()),
-        n1=str(n1.value()),
-        causal_type=_causal_type_to_kernel_str(func_attrs["causal_type"]),
+        offset_t="int64_t",
+        seq_length="m0",
+        seq_length_kv=str(n0.value()),
+        head_dim="k0",
+        head_dim_value=str(n1.value()),
+        causal_type=causal_type_to_kernel_str(func_attrs["causal_type"]),
         num_heads=str(func_attrs["num_heads"]),
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
+        alpha1_divide_by_seq_len="false",
         activation_functor=activation_functor,
         bias_broadcast=bias_broadcast,
+        offset_ptr="nullptr",
     )
 
 
