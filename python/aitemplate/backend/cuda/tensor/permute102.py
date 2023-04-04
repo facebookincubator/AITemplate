@@ -29,6 +29,7 @@ Header_files = """
 #include "cutlass/cutlass.h"
 #include "cutlass/util/host_tensor.h"
 
+using bfloat16 = __nv_bfloat16;
 """
 
 

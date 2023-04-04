@@ -228,33 +228,6 @@ def compile_module(
     return mod
 
 
-def load_module(
-    batch_size: int,
-    seq_length: int,
-    hidden_size: int,
-    activation: str,
-    use_fp16_acc: bool,
-    encoders_only: bool,
-    pt_model: torch.nn.Module,
-) -> None:
-    model_name = f"BERT_{activation}_{batch_size}_{seq_length}"
-
-    if encoders_only:
-        model = BertBaseEncodersOnly(batch_size, seq_length, hidden_act=activation)
-    else:
-        model = BertBaseUncased(batch_size, seq_length, hidden_act=activation)
-
-    # Mark all parameters with name same to PyTorch name convention
-    model.name_parameter_tensor()
-
-    params = map_pt_params(model, pt_model, batch_size, seq_length)
-
-    mod = Model(os.path.join("./tmp", model_name, "test.so"))
-
-    for k, v in params.items():
-        mod.set_constant_with_tensor(k, v)
-
-    return mod
 
 
 @click.command()
@@ -308,19 +281,6 @@ def compile_and_benchmark(
     pt_model = BertPt(pretrained=use_pretrained_pt_model)._model
     pt_model.eval()
     hidden_size = pt_model.config.hidden_size
-
-    if batch_size >= 1 and seq_length >= 1:
-        mod = load_module(
-            batch_size,
-            seq_length,
-            hidden_size,
-            activation,
-            use_fp16_acc,
-            encoders_only,
-            pt_model,
-        )
-        benchmark(batch_size, seq_length, hidden_size, mod, graph_mode, encoders_only)
-        return
 
     if batch_size < 1:
         batch_sizes = [1, 2, 4, 8, 16, 32, 64, 128, 256]
