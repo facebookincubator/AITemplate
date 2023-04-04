@@ -233,7 +233,9 @@ __global__ void roiAlign_kernel(
             interpolateBilinear(src, srcDims, ySample, xSample, featureCount);
       }
     }
-{% if elem_output_type == "half" %}
+{% if elem_output_type == "ck::half_t" %}
+    *out = __half(result) / __float2half_rn(samplingCount);
+{% elif elem_output_type == "half" %}
     *out = result / __float2half_rn(samplingCount);
 {% elif elem_output_type == "float" %}
     *out = result / samplingCount;

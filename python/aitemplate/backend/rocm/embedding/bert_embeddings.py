@@ -133,9 +133,9 @@ def python_int_dtype_to_c_dtype(dtype):
 @registry.reg("rocm.bert_embeddings.gen_function")
 def bert_embeddings_gen_function(func_attrs: Dict[str, Any]) -> str:
     backend_spec = ROCMSpec()
-    elem_input_type = backend_spec.dtype_to_ck_type[
+    elem_input_type = backend_spec.dtype_to_lib_type(
         func_attrs["inputs"][3]._attrs["dtype"]
-    ]
+    )
     (
         input_ids,
         token_type_ids,
