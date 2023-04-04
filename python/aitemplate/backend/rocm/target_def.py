@@ -20,7 +20,6 @@ Rocm target specialization.
 import json
 import logging
 import os
-import platform
 import re
 import shutil
 import sys
@@ -35,6 +34,7 @@ from aitemplate.backend.target import (
 )
 
 from aitemplate.utils import environ
+from aitemplate.utils.misc import is_linux
 
 # pylint: disable=W0613
 
@@ -369,7 +369,7 @@ class FBROCM(ROCM):
         objcopy = self.hipcc_options_json["objcopy"]
         cmd = " ".join([ld, "-r -b binary -o {target} {src}"])
         # Support models with >2GB constants on Linux only
-        if platform.system() == "Linux":
+        if is_linux():
             cmd += (
                 f" && {objcopy} --rename-section"
                 " .data=.lrodata,alloc,load,readonly,data,contents"

@@ -20,7 +20,6 @@ import json
 import logging
 import os
 import pipes
-import platform
 import re
 import secrets
 import shutil
@@ -43,7 +42,7 @@ from aitemplate.backend.target import (
 
 from aitemplate.utils import environ
 from aitemplate.utils.io import copytree_with_hash
-from aitemplate.utils.misc import is_debug
+from aitemplate.utils.misc import is_debug, is_linux
 
 
 # pylint: disable=C0415,W0707,W0611,W0702,W1401
@@ -333,7 +332,7 @@ class FBCUDA(CUDA):
         objcopy = self.nvcc_options_json["objcopy"]
         cmd = " ".join([ld, "-r -b binary -o {target} {src}"])
         # Support models with >2GB constants on Linux only
-        if platform.system() == "Linux":
+        if is_linux():
             cmd += (
                 f" && {objcopy} --rename-section"
                 " .data=.lrodata,alloc,load,readonly,data,contents"
