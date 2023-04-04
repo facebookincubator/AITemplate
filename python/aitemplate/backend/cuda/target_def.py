@@ -369,7 +369,7 @@ class FBCUDA(CUDA):
             res = f.read()
             return res
 
-    def in_ci_env(self):
+    def in_ci_env(self) -> bool:
         return (
             os.environ.get("INSIDE_RE_WORKER", None) == "1" and not self.trick_ci_env()
         )

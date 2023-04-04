@@ -22,7 +22,7 @@ import platform
 import shutil
 import tempfile
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from aitemplate.backend import registry
 from aitemplate.backend.profiler_cache import ProfileCacheDB
@@ -249,13 +249,13 @@ class Target:
         """
         return os.environ.get("TRICK_CI_ENV", None) == "1"
 
-    def in_ci_env(self) -> Union[None, str]:
+    def in_ci_env(self) -> bool:
         """Check if the current environment is CI.
 
         Returns
         -------
-        Union[None, str]
-            CI environment name if in CI environment, otherwise None.
+        bool
+            Returns True if env CI_FLAG=CIRCLECI and TRICK_CI_ENV is not set (or 0).
         """
         return os.environ.get("CI_FLAG", None) == "CIRCLECI" and not self.trick_ci_env()
 
