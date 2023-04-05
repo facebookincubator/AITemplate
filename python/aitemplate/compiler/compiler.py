@@ -93,7 +93,7 @@ def _verify_outputs_still_in_graph(sorted_graph: List[Tensor], outputs: List[Ten
     for tensor, was_seen in seen.items():
         if not was_seen:
             raise ValueError(
-                f"Output {tensor} was not found in the graph after opitmizations."
+                f"Output {tensor} was not found in the graph after optimizations."
             )
 
 
@@ -183,10 +183,17 @@ def compile_model(
         How many runtimes should be stored in the internal pool. This
         determines how many inferences can happen concurrently. By
         default, set to 1. Must be positive.
+    profile_dir: str
+        The base dir to generate profiling source codes. By default, workdir/test_name
+    constants: Dict[str, TorchTensor], optional
+        User-provided constants to bind to the graph. The constants can be folded and packaged into
+        the final *.so.
     allocator_kind: AITemplateAllocatorKind, optional
         The GPU allocator to use. If none is specified, use the default allocator.
     debug_settings: AITDebugSettings
         specify debug settings such as where to dump AITemplate model Python file, etc.
+    do_optimize_graph: bool
+        Apply full list of graph optimizations. Default: True
 
     Returns
     -------
