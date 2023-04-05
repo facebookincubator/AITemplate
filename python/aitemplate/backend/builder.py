@@ -30,7 +30,7 @@ from typing import List, Optional, Tuple, Union
 
 import jinja2
 
-from aitemplate.backend.build_cache import BUILD_CACHE
+from aitemplate.backend import build_cache
 from aitemplate.backend.build_cache_base import write_binhash_file
 
 from aitemplate.backend.target import Target
@@ -146,9 +146,10 @@ def _log_error_context(
 def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
     _LOGGER.debug(f"make {cmds=}")
     if allow_cache:
-        cached_results_available, store_cache_key = BUILD_CACHE.retrieve_build_cache(
-            cmds, build_dir
-        )
+        (
+            cached_results_available,
+            store_cache_key,
+        ) = build_cache.BUILD_CACHE.retrieve_build_cache(cmds, build_dir)
     else:
         cached_results_available, store_cache_key = False, None
     if not cached_results_available:
@@ -179,7 +180,7 @@ def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
                 _LOGGER.debug(f"make stdout:\n\n{stdout}")
                 _LOGGER.debug(f"make stderr:\n\n{stderr}")
         if store_cache_key is not None:
-            BUILD_CACHE.store_build_cache(cmds, build_dir, store_cache_key)
+            build_cache.BUILD_CACHE.store_build_cache(cmds, build_dir, store_cache_key)
 
 
 def process_task(task: Task) -> None:
