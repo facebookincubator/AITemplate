@@ -20,13 +20,17 @@ import unittest
 from pathlib import Path
 
 import torch
+
+from aitemplate.backend import build_cache
 from aitemplate.backend.build_cache_base import (
     create_dir_hash,
     FileBasedBuildCache,
     is_source,
+    makefile_normalizer,
+    NoBuildCache,
 )
-from aitemplate.backend.cuda.target_def import FBCUDA
 
+from aitemplate.backend.cuda.target_def import FBCUDA
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
@@ -107,131 +111,166 @@ class BuildCacheTestCase(unittest.TestCase):
             )
 
     def test_deterministic_codegen(self, dtype="float32"):
-        # Tests, whether repeated invocation of compilation results in identical generated source files
-        test_name = "test_deterministic_codegen"
-        basepath = "./tmp"
+        old_build_cache = build_cache.BUILD_CACHE
+        try:
+            build_cache.BUILD_CACHE = NoBuildCache()
 
-        # Clean previous test results. These are usually kept for debugging purposes
-        # but we need a clean slate here.
-        if os.path.exists(basepath):
-            existing_dirs = [
-                d
-                for d in os.listdir(basepath)
-                if d.startswith(test_name) and os.path.isdir(os.path.join(basepath, d))
-            ]
-            for d in existing_dirs:
-                oldpath = os.path.join(basepath, d)
-                if os.path.exists(oldpath) and test_name in oldpath:
-                    shutil.rmtree(oldpath)
-        else:
-            os.mkdir(basepath)
+            # Tests, whether repeated invocation of compilation results in identical generated source files
+            test_name = "test_deterministic_codegen"
+            basepath = "./tmp"
 
-        Y = self._create_model_graph()
-        target = detect_target()
-        debug_settings = AITDebugSettings(gen_standalone=False)
-        dll_name = "test.so"
-        build_dir = os.path.join("./tmp", test_name)
-        compile_model(
-            Y,
-            target,
-            "./tmp",
-            test_name + "_1",
-            dll_name=dll_name,
-            debug_settings=debug_settings,
+            # Clean previous test results. These are usually kept for debugging purposes
+            # but we need a clean slate here.
+            if os.path.exists(basepath):
+                existing_dirs = [
+                    d
+                    for d in os.listdir(basepath)
+                    if d.startswith(test_name)
+                    and os.path.isdir(os.path.join(basepath, d))
+                ]
+                for d in existing_dirs:
+                    oldpath = os.path.join(basepath, d)
+                    if os.path.exists(oldpath) and test_name in oldpath:
+                        shutil.rmtree(oldpath)
+            else:
+                os.mkdir(basepath)
+
+            Y = self._create_model_graph()
+            target = detect_target()
+            debug_settings = AITDebugSettings(gen_standalone=False)
+            dll_name = "test.so"
+            build_dir = os.path.join("./tmp", test_name)
+            compile_model(
+                Y,
+                target,
+                "./tmp",
+                test_name + "_1",
+                dll_name=dll_name,
+                debug_settings=debug_settings,
+            )
+            hash1 = create_dir_hash(
+                ["test_name"], build_dir + "_1", is_source, debug=True
+            )
+            Y = self._create_model_graph()
+            target = detect_target()
+            # Variant 2: Clean build
+            compile_model(
+                Y,
+                target,
+                "./tmp",
+                test_name + "_2",
+                dll_name=dll_name,
+                debug_settings=debug_settings,
+            )
+            hash2 = create_dir_hash(
+                ["test_name"], build_dir + "_2", is_source, debug=True
+            )
+            assert (
+                hash1 == hash2
+            ), "Code generation was not deterministic. Cache key mismatch between first and second code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
+            # Variant 3: Build over existing build dir
+            Y = self._create_model_graph()
+            target = detect_target()
+            compile_model(
+                Y,
+                target,
+                "./tmp",
+                test_name + "_2",
+                dll_name=dll_name,
+                debug_settings=debug_settings,
+            )
+            hash3 = create_dir_hash(
+                ["test_name"], build_dir + "_2", is_source, debug=True
+            )
+            assert (
+                hash2 == hash3
+            ), "Code generation was not deterministic. Cache key mismatch between second and third code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
+
+            # Variant 4: Let's provoke to copy the includes again, maybe to a new path?
+            Y = self._create_model_graph()
+            FBCUDA.cutlass_path_ = None
+            compile_model(
+                Y,
+                target,
+                "./tmp",
+                test_name + "_4",
+                dll_name=dll_name,
+                debug_settings=debug_settings,
+            )
+            hash4 = create_dir_hash(
+                ["test_name"], build_dir + "_4", is_source, debug=True
+            )
+
+            assert (
+                hash3 == hash4
+            ), "Code generation was not deterministic. Cache key mismatch between third and fourth code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
+
+            with open(
+                os.path.join(build_dir + "_4", "Makefile"), "a", encoding="utf-8"
+            ) as f:
+                f.write("\n")
+
+            hash5 = create_dir_hash(
+                ["test_name"], build_dir + "_4", is_source, debug=True
+            )
+            assert (
+                hash4 != hash5
+            ), "Directory hash was not sensitive to a change in the Makefile, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            with open(
+                os.path.join(build_dir + "_4", "anything.cu"), "w", encoding="utf-8"
+            ) as f:
+                f.write("// Nothing, really\n")
+
+            hash6 = create_dir_hash(
+                ["test_name"], build_dir + "_4", is_source, debug=True
+            )
+            assert (
+                hash6 != hash5
+            ), "Directory hash was not sensitive to a change in a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+
+            os.rename(
+                os.path.join(build_dir + "_4", "anything.cu"),
+                os.path.join(build_dir + "_4", "anything_.cu"),
+            )
+            hash7 = create_dir_hash(
+                ["test_name"], build_dir + "_4", is_source, debug=True
+            )
+            assert (
+                hash7 != hash6
+            ), "Directory hash was not sensitive to a change of name of a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+
+            Y = self._create_model_graph()
+            target = detect_target()
+            debug_settings = AITDebugSettings(gen_standalone=True)
+            compile_model(
+                Y,
+                target,
+                "./tmp",
+                test_name + "_8",
+                dll_name=dll_name,
+                debug_settings=debug_settings,
+            )
+            hash8 = create_dir_hash(
+                ["test_name"], build_dir + "_8", is_source, debug=True
+            )
+
+            assert (
+                hash8 != hash1
+            ), "Directory hash was not sensitive to a change of Makefile (standalone codegen) and possibly source code, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+        finally:
+            build_cache.BUILD_CACHE = old_build_cache
+
+    def test_makefile_rewrite(self):
+        tmpdir = os.path.join(tempfile.gettempdir(), f"{os.getuid()}_aitemplate_tmp")
+        makefile = f"""
+                TMPDIR: {tmpdir}
+        """
+        assert tmpdir in makefile
+        rewritten_makefile = makefile_normalizer(makefile.encode("utf-8")).decode(
+            "utf-8"
         )
-        hash1 = create_dir_hash(["test_name"], build_dir + "_1", is_source, debug=True)
-        Y = self._create_model_graph()
-        target = detect_target()
-        # Variant 2: Clean build
-        compile_model(
-            Y,
-            target,
-            "./tmp",
-            test_name + "_2",
-            dll_name=dll_name,
-            debug_settings=debug_settings,
-        )
-        hash2 = create_dir_hash(["test_name"], build_dir + "_2", is_source, debug=True)
-        assert (
-            hash1 == hash2
-        ), "Code generation was not deterministic. Cache key mismatch between first and second code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
-        # Variant 3: Build over existing build dir
-        Y = self._create_model_graph()
-        target = detect_target()
-        compile_model(
-            Y,
-            target,
-            "./tmp",
-            test_name + "_2",
-            dll_name=dll_name,
-            debug_settings=debug_settings,
-        )
-        hash3 = create_dir_hash(["test_name"], build_dir + "_2", is_source, debug=True)
-        assert (
-            hash2 == hash3
-        ), "Code generation was not deterministic. Cache key mismatch between second and third code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
-
-        # Variant 4: Let's provoke to copy the includes again, maybe to a new path?
-        Y = self._create_model_graph()
-        FBCUDA.cutlass_path_ = None
-        compile_model(
-            Y,
-            target,
-            "./tmp",
-            test_name + "_4",
-            dll_name=dll_name,
-            debug_settings=debug_settings,
-        )
-        hash4 = create_dir_hash(["test_name"], build_dir + "_4", is_source, debug=True)
-
-        assert (
-            hash3 == hash4
-        ), "Code generation was not deterministic. Cache key mismatch between third and fourth code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
-
-        with open(
-            os.path.join(build_dir + "_4", "Makefile"), "a", encoding="utf-8"
-        ) as f:
-            f.write("\n")
-
-        hash5 = create_dir_hash(["test_name"], build_dir + "_4", is_source, debug=True)
-        assert (
-            hash4 != hash5
-        ), "Directory hash was not sensitive to a change in the Makefile, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
-        with open(
-            os.path.join(build_dir + "_4", "anything.cu"), "w", encoding="utf-8"
-        ) as f:
-            f.write("// Nothing, really\n")
-
-        hash6 = create_dir_hash(["test_name"], build_dir + "_4", is_source, debug=True)
-        assert (
-            hash6 != hash5
-        ), "Directory hash was not sensitive to a change in a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
-
-        os.rename(
-            os.path.join(build_dir + "_4", "anything.cu"),
-            os.path.join(build_dir + "_4", "anything_.cu"),
-        )
-        hash7 = create_dir_hash(["test_name"], build_dir + "_4", is_source, debug=True)
-        assert (
-            hash7 != hash6
-        ), "Directory hash was not sensitive to a change of name of a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
-
-        Y = self._create_model_graph()
-        target = detect_target()
-        debug_settings = AITDebugSettings(gen_standalone=True)
-        compile_model(
-            Y,
-            target,
-            "./tmp",
-            test_name + "_8",
-            dll_name=dll_name,
-            debug_settings=debug_settings,
-        )
-        hash8 = create_dir_hash(["test_name"], build_dir + "_8", is_source, debug=True)
-
-        assert (
-            hash8 != hash1
-        ), "Directory hash was not sensitive to a change of Makefile (standalone codegen) and possibly source code, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+        assert tmpdir not in rewritten_makefile
+        assert "$USER" in rewritten_makefile
 
 
 filter_test_cases_by_test_env(BuildCacheTestCase)
