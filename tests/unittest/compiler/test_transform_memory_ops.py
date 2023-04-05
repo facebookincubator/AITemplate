@@ -1031,6 +1031,68 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
             test_name="test_non_fusible_strided_cat_cat",
         )
 
+    def _test_non_fusible_split_reshape_cat(self, M, test_name, dtype="float16"):
+        # make the following graph
+        # split_0, split_1 = split(x0)
+        # unsqueeze_2 = unsqueeze(dim=1)(split_0)
+        # unsqueeze_3 = unsqueeze(dim=1)(split_1)
+        # add_4 = add(x1, x1)
+        # y = concat([unsqueeze_2, unsqueeze_3, add_4], dim=1)
+        batch_sizes = [1, self.BATCH_SIZE]
+        batch_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_0")
+        assert M % 2 == 0, f"expected {M=} % 2 == 0"
+        X0 = Tensor(
+            shape=[batch_dim, IntImm(M)],
+            dtype=dtype,
+            name="x0",
+            is_input=True,
+        )
+        X1 = Tensor(
+            shape=[batch_dim, IntImm(2), IntImm(M // 2)],
+            dtype=dtype,
+            name="x1",
+            is_input=True,
+        )
+        dim = 1
+        split_0, split_1 = ops.split()(X0, [M // 2, M // 2], dim=dim)
+        unsqueeze_2 = ops.unsqueeze(dim=dim)(split_0)
+        unsqueeze_3 = ops.unsqueeze(dim=dim)(split_1)
+        add_4 = ops.elementwise(FuncEnum.ADD)(X1, X1)
+        Y = ops.concatenate()([unsqueeze_2, unsqueeze_3, add_4], dim=dim)
+        Y._attrs["name"] = "output0"
+        Y._attrs["is_output"] = True
+
+        target = detect_target()
+        module = compile_model(Y, target, "./tmp", test_name)
+        sorted_graph = module.debug_sorted_graph
+        sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+        self.assertEqual(len(sorted_ops), 3)
+
+        for batch in [1, self.BATCH_SIZE]:
+            x0_pt = get_random_torch_tensor([batch, M], dtype)
+            x1_pt = get_random_torch_tensor([batch, 2, M // 2], dtype)
+
+            split_0_pt, split_1_pt = torch.split(x0_pt, [M // 2, M // 2], dim=dim)
+            unsqueeze_2_pt = torch.unsqueeze(split_0_pt, dim)
+            unsqueeze_3_pt = torch.unsqueeze(split_1_pt, dim)
+            add_4_pt = x1_pt + x1_pt
+            y_pt = torch.cat([unsqueeze_2_pt, unsqueeze_3_pt, add_4_pt], dim=dim)
+
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
+            inputs = {
+                "x0": x0_pt,
+                "x1": x1_pt,
+            }
+            outputs = [y]
+            module.run_with_tensors(inputs, outputs)
+            torch.testing.assert_close(y_pt, y, atol=0.01, rtol=0.01)
+
+    def test_non_fusible_split_reshape_cat(self):
+        self._test_non_fusible_split_reshape_cat(
+            M=32,
+            test_name="test_non_fusible_split_reshape_cat",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
