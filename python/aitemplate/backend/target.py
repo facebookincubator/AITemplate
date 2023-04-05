@@ -18,7 +18,6 @@ Target object for AITemplate.
 import logging
 import os
 import pathlib
-import platform
 import shutil
 import tempfile
 from enum import IntEnum
@@ -26,6 +25,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from aitemplate.backend import registry
 from aitemplate.backend.profiler_cache import ProfileCacheDB
+from aitemplate.utils.misc import is_linux
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -175,7 +175,7 @@ class Target:
         """
         cmd = "ld -r -b binary -o {target} {src}"
         # Support models with >2GB constants on Linux only
-        if platform.system() == "Linux":
+        if is_linux():
             cmd += (
                 " && objcopy --rename-section"
                 " .data=.lrodata,alloc,load,readonly,data,contents"
