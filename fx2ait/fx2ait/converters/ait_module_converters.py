@@ -41,6 +41,17 @@ def multi_head_attention_module(
     value = kwargs["value"] if "value" in kwargs else args[2]
     bsz, seq_len_q, dim = query.shape()
     _, seq_len, _ = key.shape()
+
+    assert (
+        submod.embed_dim % submod.num_heads == 0
+    ), f"embed_dim {submod.embed_dim} must be divisible by num_heads {submod.num_heads}"
+    head_size = submod.embed_dim // submod.num_heads
+    if head_size % 4 != 0:
+        raise ValueError(
+            f"The head size {head_size} (ie. embed_dim ({submod.embed_dim}) / num_heads ({submod.num_heads}) "
+            " must be divisible by 4. Please fix the model or consider using the complete_video_view_all_page_types preset",
+        )
+
     attn = nn.CrossAttention(
         dim=submod.embed_dim,
         seq_len=seq_len_q.value(),
