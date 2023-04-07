@@ -32,6 +32,20 @@ from aitemplate.utils import shape_utils
 from parameterized import parameterized
 
 
+def custom_name_func_1(testcase_func, param_num, param):
+    return "%s_%s_sm80" % (
+        testcase_func.__name__[:-5],
+        param.args[-2],
+    )
+
+
+def custom_name_func_2(testcase_func, param_num, param):
+    return "%s_%s_sm80" % (
+        testcase_func.__name__[:-5],
+        str(param.args[0].__name__),
+    )
+
+
 class FusePermuteBmmCase(unittest.TestCase):
     def _create_permute_bmm_graph(
         self, A_shape, B_shape, bmm_type, permA, permB, dtype, bias_shape=None
@@ -122,61 +136,75 @@ class FusePermuteBmmCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_misalign_bmm_float_sm80(self):
-        self._test_missing_alignment_bmm(
-            [2, 4, 7],
-            [2, 7, 8],
-            "bmm_crr",
-            True,
-            False,
-            "bmm_crr_misalign_a",
-            dtype="float",
-        )
-        self._test_missing_alignment_bmm(
-            [2, 4, 7],
-            [2, 8, 4],
-            "bmm_rcr",
-            True,
-            False,
-            "bmm_rcr_misalign_a",
-            dtype="float",
-        )
-        self._test_missing_alignment_bmm(
-            [2, 4, 7],
-            [2, 4, 8],
-            "bmm_rrr",
-            True,
-            False,
-            "bmm_rrr_misalign_a",
-            dtype="float",
-        )
-        self._test_missing_alignment_bmm(
-            [2, 8, 4],
-            [2, 8, 7],
-            "bmm_ccr",
-            False,
-            True,
-            "bmm_ccr_misalign_b",
-            dtype="float",
-        )
-        self._test_missing_alignment_bmm(
-            [2, 7, 8],
-            [2, 8, 7],
-            "bmm_crr",
-            False,
-            True,
-            "bmm_crr_misalign_b",
-            dtype="float",
-        )
-        self._test_missing_alignment_bmm(
-            [2, 4, 8],
-            [2, 8, 7],
-            "bmm_rcr",
-            False,
-            True,
-            "bmm_rcr_misalign_b",
-            dtype="float",
-        )
+    @parameterized.expand(
+        [
+            (
+                _test_missing_alignment_bmm,
+                [2, 4, 7],
+                [2, 7, 8],
+                "bmm_crr",
+                True,
+                False,
+                "bmm_crr_misalign_a",
+                "float",
+            ),
+            (
+                _test_missing_alignment_bmm,
+                [2, 4, 7],
+                [2, 8, 4],
+                "bmm_rcr",
+                True,
+                False,
+                "bmm_rcr_misalign_a",
+                "float",
+            ),
+            (
+                _test_missing_alignment_bmm,
+                [2, 4, 7],
+                [2, 4, 8],
+                "bmm_rrr",
+                True,
+                False,
+                "bmm_rrr_misalign_a",
+                "float",
+            ),
+            (
+                _test_missing_alignment_bmm,
+                [2, 8, 4],
+                [2, 8, 7],
+                "bmm_ccr",
+                False,
+                True,
+                "bmm_ccr_misalign_b",
+                "float",
+            ),
+            (
+                _test_missing_alignment_bmm,
+                [2, 7, 8],
+                [2, 8, 7],
+                "bmm_crr",
+                False,
+                True,
+                "bmm_crr_misalign_b",
+                "float",
+            ),
+            (
+                _test_missing_alignment_bmm,
+                [2, 4, 8],
+                [2, 8, 7],
+                "bmm_rcr",
+                False,
+                True,
+                "bmm_rcr_misalign_b",
+                "float",
+            ),
+        ],
+        name_func=custom_name_func_1,
+    )
+    def test_misalign_bmm_float_sm80(
+        self, func, A_shape, B_shape, bmm_type, permA, permB, testname, dtype
+    ):
+        func(self, A_shape, B_shape, bmm_type, permA, permB, testname, dtype)
 
     def _test_permute_bmm(
         self,
@@ -758,9 +786,23 @@ class FusePermuteBmmCase(unittest.TestCase):
         self._test_gemm_broadcast_rrr_to_crr(False)
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_gemm_broadcast_float_sm80(self):
-        self._test_gemm_broadcast_rcr_to_ccr(True, dtype="float")
-        self._test_gemm_broadcast_rrr_to_crr(False, dtype="float")
+    @parameterized.expand(
+        [
+            (
+                _test_gemm_broadcast_rcr_to_ccr,
+                True,
+                float,
+            ),
+            (
+                _test_gemm_broadcast_rrr_to_crr,
+                False,
+                float,
+            ),
+        ],
+        name_func=custom_name_func_2,
+    )
+    def test_gemm_broadcast_float_sm80(self, func, test_bias, dtype):
+        func(self, test_bias, dtype)
 
     @parameterized.expand(
         filter_test_cases_by_params(
