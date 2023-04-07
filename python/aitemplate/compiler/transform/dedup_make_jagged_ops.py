@@ -205,6 +205,9 @@ def _apply_make_jagged_to_inputs(
         new_make_jagged_op = make_jagged(
             batch_dim=data.jagged_int_var.batch_dim(),
             jagged_dims=data.jagged_int_var.jagged_dims(),
+            check_sequence_lengths=all(
+                d.op._attrs["check_sequence_lengths"] for d in make_jagged_group
+            ),
         )
         jagged_tensors = new_make_jagged_op(
             source=sources_list,
