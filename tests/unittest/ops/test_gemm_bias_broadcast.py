@@ -25,6 +25,15 @@ from aitemplate.testing.test_utils import (
     get_torch_empty_tensor,
 )
 
+from parameterized import parameterized
+
+
+def custom_name_func(testcase_func, param_num, param):
+    return "%s_%s_sm80" % (
+        testcase_func.__name__[:-5],
+        str(param.args[0].__name__),
+    )
+
 
 class GEMMBiasBroadcastTestCase(unittest.TestCase):
     def _init_tensors(self, m, k, n, m0=None, m1=None, dtype="float16"):
@@ -322,29 +331,38 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
     def test_bias_rcr_mul_tanh_rocm(self):
         self._test_bias_rcr_mul_tanh(8, None, None, 8, 8)
 
-    def test_gemm_bias_broadcast_float32_sm80(self):
-        self._test_bias_rcr_mul_add(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_add(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_add_add_relu(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="float32")
-        self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="float32")
+    @parameterized.expand(
+        [
+            (_test_bias_rcr_mul_add, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_sigmoid_mul, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_sigmoid_mul_tanh, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_add, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_add_relu, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_add_add_relu, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_mul, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_add_add, None, 2, 32, 256, 128, "float32"),
+            (_test_bias_rcr_mul_tanh, None, 2, 32, 256, 128, "float32"),
+        ],
+        name_func=custom_name_func,
+    )
+    def test_gemm_bias_broadcast_float32_sm80(self, func, m, m0, m1, k, n, dtype):
+        func(self, m, m0, m1, k, n, dtype)
 
-    def test_gemm_bias_broadcast_bfloat16_bf16(self):
-        self._test_bias_rcr_mul_add(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_sigmoid_mul(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_sigmoid_mul_tanh(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_add(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_add_relu(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_add_add_relu(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_mul(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_add_add(None, 2, 32, 256, 128, dtype="bfloat16")
-        self._test_bias_rcr_mul_tanh(None, 2, 32, 256, 128, dtype="bfloat16")
+    @parameterized.expand(
+        [
+            (_test_bias_rcr_mul_add, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_sigmoid_mul, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_sigmoid_mul_tanh, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_add, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_add_relu, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_add_add_relu, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_mul, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_add_add, None, 2, 32, 256, 128, "bfloat16"),
+            (_test_bias_rcr_mul_tanh, None, 2, 32, 256, 128, "bfloat16"),
+        ],
+    )
+    def test_gemm_bias_broadcast_bfloat16_bf16(self, func, m, m0, m1, k, n, dtype):
+        func(self, m, m0, m1, k, n, dtype)
 
     def test_gemm_bias_broadcast_use_fp16_acc_sm80(self):
         self._test_bias_rcr_mul(
