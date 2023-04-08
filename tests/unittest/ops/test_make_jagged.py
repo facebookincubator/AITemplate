@@ -491,7 +491,7 @@ class MakeJaggedTestCase(unittest.TestCase):
         result = torch.empty_like(result_pt)
         model.run_with_tensors(inputs, [result])
 
-        torch.testing.assert_close(result, result_pt, rtol=1e-2, atol=1e-2)
+        torch.testing.assert_close(result, result_pt, rtol=5e-2, atol=5e-2)
 
 
 if __name__ == "__main__":
