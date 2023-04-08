@@ -750,7 +750,7 @@ clean:
 
         commands = []
         num_compiled_sources = 0
-        num_linked_executables = 0
+        target_names = set()
         for target, srcs in dependencies.items():
             # for each "target: srcs" pair,
             # generate two lines for the Makefile
@@ -769,28 +769,35 @@ clean:
             command = f"{dep_line}\n\t{cmd_line}\n"
             commands.append(command)
 
-            # increment compilation statistics
+            # update compilation statistics
             num_compiled_sources += sum(1 for s in srcs if s.endswith(".cu"))
-            num_linked_executables += 0 if target.endswith(".obj") else 1
+            if not target.endswith(".obj"):
+                target_names.add(os.path.split(target)[-1])
 
         _LOGGER.info(f"compiling {num_compiled_sources} profiler sources")
-        _LOGGER.info(f"linking {num_linked_executables} profiler executables")
+        _LOGGER.info(f"linking {len(target_names)} profiler executables")
 
         makefile_str = makefile_template.render(
             targets=" ".join(set(targets)),
             commands="\n".join(commands),
         )
 
-        dumpfile = os.path.join(profiler_dir, "Makefile")
+        # make the Makefile name dependent on the built target names
+        target_names_str = "_".join(sorted(target_names))  # stable order
+        makefile_suffix = sha1(target_names_str.encode("utf-8")).hexdigest()
+        makefile_name = f"Makefile_{makefile_suffix}"
+        dumpfile = os.path.join(profiler_dir, makefile_name)
         with open(dumpfile, "w+") as f:
             f.write(makefile_str)
+
+        return makefile_name
 
     def make_profilers(self, generated_profilers, workdir):
         file_pairs = [f for gp in generated_profilers for f in gp]
         if not file_pairs:
             return
         build_dir = shlex.quote(os.path.join(workdir, "profiler"))
-        self._gen_makefile_for_profilers(file_pairs, build_dir)
+        makefile_name = self._gen_makefile_for_profilers(file_pairs, build_dir)
         # Write compiler version string(s) into build directory, so these can be used as part of cache key
         self._gen_compiler_version_files(build_dir)
 
@@ -801,6 +808,7 @@ clean:
         make_path = shlex.quote(Target.current().make())
         make_flags = " ".join(
             [
+                f"-f {makefile_name}",
                 "--output-sync",
                 f"-C {build_dir}",
             ]

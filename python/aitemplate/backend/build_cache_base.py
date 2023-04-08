@@ -54,6 +54,8 @@ source_filenames = {
     "makefile"
 }
 
+source_filename_prefixes = ["makefile"]
+
 # File extensions of files to be considered cache artifacts ( unless they are considered source files )
 cache_extensions = {"obj", "so", "dll", "exe", ""}
 
@@ -91,7 +93,11 @@ def is_source(filename: str) -> bool:
         bool: Whether the filename is a source file
     """
     file_basename, file_ext = filename_norm_split(filename)
-    return (file_basename in source_filenames) or (file_ext in source_extensions)
+    return (
+        (file_basename in source_filenames)
+        or (file_ext in source_extensions)
+        or any(file_basename.startswith(p) for p in source_filename_prefixes)
+    )
 
 
 def is_cache_artifact(filename: str) -> bool:
@@ -181,7 +187,7 @@ def create_dir_hash(
                 continue
             hash_object.update(str(fpath).encode("utf-8"))
             fullpath = str(basepath / fpath)
-            if fpath.name.lower() == "makefile":
+            if fpath.name.lower().startswith("makefile"):
                 makefile_content = (basepath / fpath).read_bytes()
                 makefile_content = makefile_normalizer(makefile_content)
                 hash_object.update(makefile_content)
