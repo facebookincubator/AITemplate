@@ -37,6 +37,7 @@ MODEL_TEMPLATE = jinja2.Template(
 #include <string>
 #include <unordered_map>
 #include <math.h>
+#include <iomanip>
 
 {{ function_decl }}
 

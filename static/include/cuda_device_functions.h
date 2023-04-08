@@ -14,6 +14,7 @@
 //
 #pragma once
 
+#include <sstream>
 #include <string>
 
 #include "cutlass/conv/conv2d_problem_size.h"
