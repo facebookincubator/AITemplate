@@ -25,6 +25,7 @@ import re
 import subprocess
 from collections import namedtuple
 from queue import Queue
+from time import sleep
 from typing import Callable, List, Tuple, Union
 
 from aitemplate.backend.target import Target
@@ -43,6 +44,9 @@ PROF_RUNTIME_PATTERN = re.compile(r"OP:([a-zA-Z0-9_]+),TIME:([\d\.]+),WS:([\d]+)
 # same profiling mechanism as gemm for conv and amd
 RUNTIME_PATTERN = re.compile(r"TIME:([\d\.]+)")
 WORKSPACE_PATTERN = re.compile(r"WS:([\d]+)")
+
+PROFILER_RUN_MAX_ATTEMPTS = 3
+PROFILER_RUN_RETRY_DELAY_SECONDS = 5
 
 ProfileResult = namedtuple("ProfileResult", "op_config duration workspace")
 """Object to store profiling result
@@ -216,14 +220,29 @@ def run_task(cmds, queue, dev_select_flag):
     device = queue.get()
     _LOGGER.debug(f"running profiler {cmds=} on GPU #{device}")
 
-    completed_process = subprocess.run(
-        cmds,
-        env=update_inplace(os.environ.copy(), {dev_select_flag: device}),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        shell=False,
-    )
+    attempts = 0
+    while True:
+        try:
+            completed_process = subprocess.run(
+                cmds,
+                env=update_inplace(os.environ.copy(), {dev_select_flag: device}),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                shell=False,
+            )
+            break
+        except Exception as ex:
+            attempts += 1
+            if attempts >= PROFILER_RUN_MAX_ATTEMPTS:
+                raise
+            _LOGGER.debug(
+                f"[{attempts} / {PROFILER_RUN_MAX_ATTEMPTS}] "
+                f"Failed to run profiler {cmds=} due to exception: {ex}. "
+                f"Will retry in {PROFILER_RUN_RETRY_DELAY_SECONDS} seconds."
+            )
+            sleep(PROFILER_RUN_RETRY_DELAY_SECONDS)
+
     queue.put(device)
     return completed_process.stdout, completed_process.stderr
 
