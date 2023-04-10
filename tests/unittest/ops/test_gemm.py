@@ -81,7 +81,7 @@ class GEMMTestCase(unittest.TestCase):
         self._test_rcr([1024], 256, 512, "static")
 
     def test_rcr_simple_static_rocm(self) -> None:
-        self._test_rcr([1024], 256, 512, "static")
+        self._test_rcr([1024], 256, 512, "static_rocm")
 
     @parameterized.expand(
         [
@@ -144,9 +144,9 @@ class GEMMTestCase(unittest.TestCase):
         )
 
     def test_rcr_dynamic_n_rocm(self):
-        self._test_rcr([16, 1 * 29, 64], 256, 300000, "einsum_1")
+        self._test_rcr([16, 1 * 29, 64], 256, 300000, "einsum_1_rocm")
         self._test_rcr_dynamic_n(
-            [16, 1 * 29, 64], 256, [100000, 300000], "einsum_dynamic_n"
+            [16, 1 * 29, 64], 256, [100000, 300000], "einsum_dynamic_n_rocm"
         )
 
     def _test_3d_2d_rcr(self, m0s, m1s, k, n, test_name, dtype="float16"):
@@ -228,7 +228,7 @@ class GEMMTestCase(unittest.TestCase):
         self._test_rrr([1, 99, 1024, 2048], 256, 16, "dynamic")
 
     def test_rrr_rocm(self):
-        self._test_rrr([256], 128, 32, "static")
+        self._test_rrr([256], 128, 32, "static_rocm")
 
     def _test_3d_2d_rrr(self, m0s, m1s, k, n, test_name, dtype="float16"):
         target = detect_target()
@@ -249,7 +249,7 @@ class GEMMTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         module = compile_model(
-            Y, target, "./tmp", f"gemm_rrr_{test_name}_{self._test_id}"
+            Y, target, "./tmp", f"gemm_3d_2d_rrr_{test_name}_{self._test_id}"
         )
         self._test_id += 1
 
@@ -269,7 +269,10 @@ class GEMMTestCase(unittest.TestCase):
         self._test_3d_2d_rrr([2], [24, 36], 256, 16, "dynamic2")
         self._test_3d_2d_rrr([2, 34, 48], [1, 3, 5], 256, 16, "dynamic3")
 
-    def _test_h_rcr(self, ait_dtype):
+    def _test_h_rcr(self, ait_dtype, test_name=None):
+        if test_name is None:
+            test_name = ait_dtype
+
         M = 256
         K = 256
         N = 512
@@ -281,7 +284,7 @@ class GEMMTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
         module = compile_model(
-            Y, target, "./tmp", f"hgemm_rcr_{ait_dtype}_{self._test_id}"
+            Y, target, "./tmp", f"hgemm_rcr_{test_name}_{self._test_id}"
         )
         self._test_id += 1
         X_pt = get_random_torch_tensor((M, K), ait_dtype)
@@ -297,7 +300,7 @@ class GEMMTestCase(unittest.TestCase):
         self._test_h_rcr(ait_dtype="float16")
 
     def test_h_rcr_float16_rocm(self):
-        self._test_h_rcr(ait_dtype="float16")
+        self._test_h_rcr(ait_dtype="float16", test_name="float16_rocm")
 
     def test_h_rcr_float32_sm80(self):
         self._test_h_rcr(ait_dtype="float32")
