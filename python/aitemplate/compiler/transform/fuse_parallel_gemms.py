@@ -58,6 +58,10 @@ def _is_valid_gemm_op(tensor: Tensor, f_check_src_op: Callable) -> bool:
     if len(tensor.dst_ops()) != 1 or len(tensor.src_ops()) != 1:
         return False
 
+    # Don't fuse if tensor is an output tensor
+    if tensor._attrs["is_output"]:
+        return False
+
     gemm_op = list(tensor.src_ops())[0]
     if gemm_op._attrs["op"] != "gemm_rcr_bias":
         return False
