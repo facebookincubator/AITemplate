@@ -174,7 +174,7 @@ class DUALGEMMTestCase(unittest.TestCase):
             K=256,
             fast_gelu=False,
             broadcast_b1=False,
-            test_name="dual_gemm_silu_fp16",
+            test_name="dual_gemm_silu_fp16_1",
             dtype="float16",
         )
         self._test_dual_gemm(
@@ -183,7 +183,7 @@ class DUALGEMMTestCase(unittest.TestCase):
             K=2048,
             fast_gelu=False,
             broadcast_b1=False,
-            test_name="dual_gemm_silu_fp16",
+            test_name="dual_gemm_silu_fp16_2",
             dtype="float16",
         )
         self._test_dual_gemm(
@@ -192,7 +192,7 @@ class DUALGEMMTestCase(unittest.TestCase):
             K=8192,
             fast_gelu=False,
             broadcast_b1=False,
-            test_name="dual_gemm_silu_fp16",
+            test_name="dual_gemm_silu_fp16_3",
             dtype="float16",
         )
 
@@ -214,7 +214,7 @@ class DUALGEMMTestCase(unittest.TestCase):
             K=256,
             fast_gelu=True,
             broadcast_b1=False,
-            test_name="dual_gemm_fast_gelu_fp16",
+            test_name="dual_gemm_fast_gelu_fp16_1",
             dtype="float16",
         )
         self._test_dual_gemm(
@@ -223,7 +223,7 @@ class DUALGEMMTestCase(unittest.TestCase):
             K=2048,
             fast_gelu=True,
             broadcast_b1=False,
-            test_name="dual_gemm_fast_gelu_fp16",
+            test_name="dual_gemm_fast_gelu_fp16_2",
             dtype="float16",
         )
         self._test_dual_gemm(
@@ -232,7 +232,7 @@ class DUALGEMMTestCase(unittest.TestCase):
             K=8192,
             fast_gelu=True,
             broadcast_b1=False,
-            test_name="dual_gemm_fast_gelu_fp16",
+            test_name="dual_gemm_fast_gelu_fp16_3",
             dtype="float16",
         )
 
