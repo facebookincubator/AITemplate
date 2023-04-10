@@ -152,8 +152,8 @@ using namespace gemm_kernel_utils;
         p.num_batches = *batch_size;
         p.head_dim = head_size;
         p.head_dim_value = head_size_v;
-        p.num_queries = seq_len_q;
-        p.num_keys = seq_len_kv;
+        p.num_queries = *seq_len_q;
+        p.num_keys = *seq_len_kv;
         p.causal = is_causal;
 
 
@@ -161,14 +161,14 @@ using namespace gemm_kernel_utils;
         p.k_strideM = head_size;
         p.v_strideM = head_size_v;
 
-        p.q_strideH = p.q_strideM * seq_len_q;
-        p.k_strideH = p.k_strideM * seq_len_kv;
-        p.v_strideH = p.v_strideM * seq_len_kv;
+        p.q_strideH = p.q_strideM * (*seq_len_q);
+        p.k_strideH = p.k_strideM * (*seq_len_kv);
+        p.v_strideH = p.v_strideM * (*seq_len_kv);
         p.o_strideH = head_size_v;
         p.q_strideB = p.q_strideH * num_heads;
         p.k_strideB = p.k_strideH * num_heads;
         p.v_strideB = p.v_strideH * num_heads;
-        p.o_strideB = head_size_v * seq_len_q * num_heads;
+        p.o_strideB = head_size_v * (*seq_len_q) * num_heads;
     }
 
     // launch kernel
@@ -381,8 +381,8 @@ using namespace gemm_kernel_utils;
           "Error when synchronizing stream after copying sequence lengths from device!");
   }
 
-  int mq_full = seq_len_q;
-  int mkv_full = seq_len_kv;
+  int mq_full = *seq_len_q;
+  int mkv_full = *seq_len_kv;
 
   for (int i = 0; i < *batch_size; ++i) {
     // Problems belonging to the same batch share the same seq len
@@ -644,8 +644,8 @@ void {{func_name}}(void* output,
                    void* key,
                    void* value,
                    int64_t* batch_size,
-                   int seq_len_kv,
-                   int seq_len_q,
+                   int64_t* seq_len_kv,
+                   int64_t* seq_len_q,
                    int num_heads,
                    int head_size,
                    int head_size_v,
@@ -752,7 +752,7 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
     batch_size = "&" + xshape[0]._attrs["name"]
-    seq_len_q = x._attrs["shape"][2]._attrs["values"][0]
+    seq_len_q = "&" + xshape[2]._attrs["name"]
 
     num_heads = x._attrs["shape"][1]._attrs["values"][0]
     head_size = x._attrs["shape"][3]._attrs["values"][0]
@@ -761,7 +761,9 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
     softmax_scale = head_size ** (-0.5)
 
     v = func_attrs["inputs"][2]
-    seq_len_kv = v._attrs["shape"][2]._attrs["values"][0]
+    vshape = v._attrs["shape"]
+    seq_len_kv = "&" + vshape[2]._attrs["name"]
+
     head_size_v = v._attrs["shape"][3]._attrs["values"][0]
 
     return FUNC_CALL_TEMPLATE.render(

@@ -864,12 +864,64 @@ class AttentionTestCase(unittest.TestCase):
         benchmark_ait=False,
         benchmark_pt=False,
         copy_op=False,
+        cache_size=1,
         atol=1e-3,
         rtol=1e-3,
     ):
         torch_dtype = string_to_torch_dtype(dtype)
 
-        with torch.no_grad():
+        Q = Tensor(
+            shape=[
+                batch_size,
+                num_heads,
+                IntVar(values=[1, 1024], name="seq_q"),
+                head_size,
+            ],
+            dtype=dtype,
+            name="q",
+            is_input=True,
+        )
+        K = Tensor(
+            shape=[
+                batch_size,
+                num_heads,
+                IntVar(values=[1, 1024], name="seq_kv"),
+                head_size,
+            ],
+            dtype=dtype,
+            name="k",
+            is_input=True,
+        )
+        V = Tensor(
+            shape=[
+                batch_size,
+                num_heads,
+                IntVar(values=[1, 1024], name="seq_kv"),
+                head_size_v,
+            ],
+            dtype=dtype,
+            name="v",
+            is_input=True,
+        )
+
+        mem_eff_attention_op = ops.mem_eff_attention(
+            causal=causal,
+        )
+        if copy_op:
+            mem_eff_attention_op = ops.mem_eff_attention(
+                **mem_eff_attention_op._get_op_attributes()
+            )
+        Y = mem_eff_attention_op(Q, K, V)
+        Y._attrs["is_output"] = True
+        Y._attrs["name"] = "output"
+
+        if rebuild:
+            target = detect_target()
+            module = compile_model(Y, target, "./tmp", test_name)
+        else:
+            module = Model(os.path.join("./tmp", test_name, "test.so"))
+
+        for i in range(cache_size):
             q = torch.randn(
                 batch_size,
                 seqlen,
@@ -880,7 +932,7 @@ class AttentionTestCase(unittest.TestCase):
             )
             k = torch.randn(
                 batch_size,
-                seqlen_kv,
+                seqlen_kv + i,
                 num_heads,
                 head_size,
                 device="cuda",
@@ -888,7 +940,7 @@ class AttentionTestCase(unittest.TestCase):
             )
             v = torch.randn(
                 batch_size,
-                seqlen_kv,
+                seqlen_kv + i,
                 num_heads,
                 head_size_v,
                 device="cuda",
@@ -896,42 +948,6 @@ class AttentionTestCase(unittest.TestCase):
             )
 
             y_pt = ref_cross_attention(q, k, v)
-
-            Q = Tensor(
-                shape=[batch_size, num_heads, seqlen, head_size],
-                dtype=dtype,
-                name="q",
-                is_input=True,
-            )
-            K = Tensor(
-                shape=[batch_size, num_heads, seqlen_kv, head_size],
-                dtype=dtype,
-                name="k",
-                is_input=True,
-            )
-            V = Tensor(
-                shape=[batch_size, num_heads, seqlen_kv, head_size_v],
-                dtype=dtype,
-                name="v",
-                is_input=True,
-            )
-
-            mem_eff_attention_op = ops.mem_eff_attention(
-                causal=causal,
-            )
-            if copy_op:
-                mem_eff_attention_op = ops.mem_eff_attention(
-                    **mem_eff_attention_op._get_op_attributes()
-                )
-            Y = mem_eff_attention_op(Q, K, V)
-            Y._attrs["is_output"] = True
-            Y._attrs["name"] = "output"
-
-            if rebuild:
-                target = detect_target()
-                module = compile_model(Y, target, "./tmp", test_name)
-            else:
-                module = Model(os.path.join("./tmp", test_name, "test.so"))
 
             q = torch.permute(q, (0, 2, 1, 3))
             k = torch.permute(k, (0, 2, 1, 3))
@@ -991,6 +1007,7 @@ class AttentionTestCase(unittest.TestCase):
             head_size=64,
             head_size_v=64,
             test_name=f"cross_attention2_{dtype}",
+            cache_size=16,
             dtype=dtype,
             atol=atol,
             rtol=rtol,
