@@ -16,16 +16,19 @@
 Flash attention.
 """
 import itertools
+import logging
 from collections import OrderedDict
-from typing import List
+from typing import List, Optional, Tuple
 
 import jinja2
 import numpy as np
 
 from aitemplate import backend
 from aitemplate.backend import registry
-from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.base import IntVar, Operator, Tensor
 from aitemplate.utils import shape_utils
+
+_LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=C0103,W0221,W0102,W0223
 
@@ -58,7 +61,14 @@ class mem_eff_attention(Operator):
     where :math:`head_i = \text{Attention}(QW_i^Q, KW_i^K, VW_i^V)`.
     """
 
-    def __init__(self, causal, dropout=0) -> None:
+    def __init__(
+        self,
+        causal,
+        dropout=0,
+        variable_seq_length_kv=False,
+        variable_seq_length_q=False,
+        use_grouped_fmha=False,
+    ) -> None:
         """Initialize attention module"""
         super().__init__()
         assert dropout == 0
@@ -66,8 +76,11 @@ class mem_eff_attention(Operator):
         self._attrs["has_profiler"] = False
         self._attrs["dropout"] = dropout
         self._attrs["causal"] = causal
+        self._attrs["variable_seq_length_kv"] = variable_seq_length_kv
+        self._attrs["variable_seq_length_q"] = variable_seq_length_q
         self._attrs["head_size"] = -1
         self._attrs["workspace"] = 0
+        self._attrs["use_grouped_fmha"] = use_grouped_fmha
         self.exec_key_template = EXEC_KEY_TEMPLATE
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
 
@@ -114,7 +127,14 @@ class mem_eff_attention(Operator):
         output_shape = [batch_info, x._attrs["shape"][2], x._attrs["shape"][1], w._attrs["shape"][-1]]
         return output_shape
 
-    def __call__(self, q: Tensor, k: Tensor, v: Tensor) -> Tensor:
+    def __call__(
+        self,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        lengths_kv: Optional[Tensor] = None,
+        lengths_q: Optional[Tensor] = None,
+    ) -> Tensor:
         """call the op
 
         Parameters
@@ -132,13 +152,21 @@ class mem_eff_attention(Operator):
         self._attrs["head_size"] = head_size_v
 
         self._attrs["inputs"] = [q, k, v]
+        if self._attrs["variable_seq_length_kv"]:
+            assert lengths_kv is not None
+            self._attrs["inputs"].append(lengths_kv)
+        if self._attrs["variable_seq_length_q"]:
+            assert lengths_q is not None
+            self._attrs["inputs"].append(lengths_q)
         self._set_depth()
         self._extract_exec_path(q)
         output_shape = self._infer_shapes(q, v)
 
-        o_shape = [var._attrs["values"][-1] for var in output_shape]
-        if o_shape[-1] > 128:
-            self._attrs["workspace"] = 4 * np.prod(o_shape)
+        required_workspace_size = self._compute_required_workspace(
+            output_shape, q._attrs["shape"], k._attrs["shape"]
+        )
+        self._attrs["workspace"] = required_workspace_size
+        _LOGGER.debug(f"Required workspace size: {required_workspace_size}")
         output = Tensor(
             output_shape,
             src_ops={self},
@@ -146,6 +174,58 @@ class mem_eff_attention(Operator):
         )
         self._attrs["outputs"] = [output]
         return output
+
+    def _compute_required_workspace(
+        self,
+        output_shape: Tuple[IntVar, IntVar, IntVar, IntVar],
+        q_shape: Tuple[IntVar, IntVar, IntVar, IntVar],
+        k_shape: Tuple[IntVar, IntVar, IntVar, IntVar],
+    ) -> int:
+        """
+        Compute workspace size required for attention op.
+        """
+        is_float32 = self._attrs["inputs"][0]._attrs["dtype"] not in [
+            "float16",
+            "bfloat16",
+        ]
+
+        o_shape = [var._attrs["values"][-1] for var in output_shape]
+        # We need a separate buffer of output accumulation
+        # - when the intermediate output can't fit into the register file.
+        # - when the accumulation type (float) is different from the output type.
+        # See https://github.com/NVIDIA/cutlass/blob/209faf7b94ce4ba573d27389fb643962e75d0581/examples/41_fused_multi_head_attention/fmha_grouped.h#L79-L95
+        needs_output_accum_buffer = (o_shape[-1] > 128) or not is_float32
+        if needs_output_accum_buffer:  # Needs output accumulator buffer
+            size_of_accum_element = 4  # Accumulation is always in float
+            accu_size = size_of_accum_element * np.prod(o_shape)
+        else:
+            accu_size = 0
+
+        # The backend which uses kernel_forward.h only needs accumulator buffer
+        if not self._attrs["use_grouped_fmha"]:
+            return accu_size
+
+        # Number of problems is batch_size * num_heads
+        problem_count = q_shape[0].upper_bound() * q_shape[1].upper_bound()
+
+        size_of_int = 4
+        size_of_int64 = 8
+        # GEMM size is specified by 3 ints: m, n, k
+        size_of_gemm_coord = 3 * size_of_int
+
+        # There are two GEMM sizes for each problem, corresponding to 2 matrix
+        # multiplications in attention
+        problem_sizes_size = 2 * size_of_gemm_coord * problem_count
+
+        # For each problem, need space for leading dimensions of 5 matrices:
+        # Q, K, V, O. Leading dimensions are in int64.
+        ld_sizes = 4 * size_of_int64 * problem_count
+
+        # For each problem, pointers to 5 matrices: Q, K, V, O, O_accum
+        size_of_ptr = 8  # 64-bit arch
+        ptrs_sizes = 5 * size_of_ptr * problem_count
+        total_size = problem_sizes_size + accu_size + ld_sizes + ptrs_sizes
+        return total_size
 
     def _get_op_attributes(self):
         target_attrs = ["causal"]
@@ -177,6 +257,7 @@ class mem_eff_attention(Operator):
     def gen_function(self) -> str:
         """call backend functions"""
         target = backend.target.Target.current()
+        self._attrs["arch"] = target._arch
         func_key = "{target}.{op}.gen_function".format(
             target=target.name(), op=self._attrs["op"]
         )

@@ -60,7 +60,7 @@ struct AITemplateParamShape {
 
   size_t Numel() const {
     return std::accumulate(
-        shape_data, shape_data + size, 1, std::multiplies<int64_t>());
+        shape_data, shape_data + size, (int64_t)1, std::multiplies<int64_t>());
   }
 };
 
@@ -104,6 +104,7 @@ inline size_t AITemplateDtypeSizeBytes(AITemplateDtype dtype) {
     case AITemplateDtype::kUnset:
       throw std::runtime_error("Unset dtype has no size!");
   }
+  throw std::runtime_error("dtype handling is not implemented!");
 }
 
 struct AITemplateStreamOpaque {};

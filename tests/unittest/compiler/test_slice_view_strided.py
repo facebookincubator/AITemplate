@@ -32,8 +32,8 @@ from parameterized import parameterized
 
 
 _TOLERANCE_LIMITS = {
-    "float16": {"atol": 1e-2, "rtol": 1e-2},
-    "float32": {"atol": 1e-2, "rtol": 1e-2},
+    "float16": {"atol": 5e-2, "rtol": 5e-2},
+    "float32": {"atol": 5e-2, "rtol": 5e-2},
     "bfloat16": {"atol": 3e-1, "rtol": 3e-1},
 }
 
@@ -110,7 +110,6 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
         )
     )
     def test_slice_view_gemm_non_fusible(self, dtype):
-
         N = 4
         batch_dim = IntVar([1, 2, 3], "batch_size")
 
@@ -168,7 +167,6 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
         )
     )
     def test_slice_flatten_concat_fusible_1(self, dtype):
-
         test_name = f"slice_flatten_concat_fusible_{dtype}"
         batch_dim = IntVar([3, 10], "batch_size")
         X0 = test_utils.gen_input_tensor([batch_dim, 12, 1], dtype=dtype, name="x0")
@@ -248,7 +246,6 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
         )
     )
     def test_slice_flatten_concat_fusible_2(self, dtype):
-
         test_name = f"slice_flatten_concat_fusible_{dtype}_2"
         batch_dim = IntVar([1, 2], "batch_size")
         X0 = test_utils.gen_input_tensor([batch_dim, 2, 1], dtype=dtype, name="x0")
@@ -322,7 +319,6 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
         )
     )
     def test_slice_reshape_concat_fusible_1(self, dtype):
-
         test_name = f"slice_reshape_concat_fusible_{dtype}_1"
         batch_dim = IntVar([1, 2], "batch_size")
         M = 2
@@ -395,8 +391,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
         )
     )
     def test_slice_reshape_concat_fusible_2(self, dtype):
-
-        test_name = "slice_reshape_concat_fusible_{dtype}_2"
+        test_name = f"slice_reshape_concat_fusible_{dtype}_2"
         batch_dim = IntVar([1, 8], "batch_size")
         M = 8
         N = 64

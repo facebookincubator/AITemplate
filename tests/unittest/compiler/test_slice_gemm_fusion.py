@@ -348,7 +348,6 @@ class SliceGemmFusionTestCase(unittest.TestCase):
         no_fusion=False,
         dtype="float16",
     ):
-
         X = Tensor(
             shape=slice_input_shape,
             dtype=dtype,
@@ -826,7 +825,6 @@ class SliceGemmFusionTestCase(unittest.TestCase):
             slice_start_indices=(0, 8),
             slice_end_indices=(None, 16),
             test_name="slice_gemm_rcr_fusion_a_2_float",
-            no_fusion=True,
             dtype="float",
         )
         self._test_slice_gemm_rcr_bias_add(

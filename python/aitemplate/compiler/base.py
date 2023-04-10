@@ -17,12 +17,15 @@ Basic data types of AITemplate.
 """
 from __future__ import annotations
 
+import math
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
+from numbers import Number
 from pprint import pformat
-from typing import Any, Dict, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Set, Union
 
 import numpy as np
 import sympy
@@ -84,6 +87,9 @@ class IntVar(Node):
     """
     An IntVar represents a dynamic dimension.
     IntVar and IntImm (see below) are used together to represent a Tensor's shape.
+
+    IntVar supports basic arithmetic operations, and returns the most conservative
+    IntVar w.r.t. range of _attrs["values"].
     """
 
     def __init__(
@@ -148,7 +154,149 @@ class IntVar(Node):
         )
 
     def __hash__(self) -> int:
-        return hash((self._attrs["name"], tuple(self._attrs["values"])))
+        return hash(
+            (
+                self._attrs["name"],
+                tuple(self._attrs["values"]),
+                self._attrs["symbolic_value"],
+            )
+        )
+
+    def __add__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym + other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym + other
+        else:
+            raise NotImplementedError(f"Unable to do addition on {self} and {other}")
+
+        new_values = [
+            self_values[0] + other_values[0],
+            self_values[-1] + other_values[-1],
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __radd__(self, other: Union[Any, IntVar]) -> IntVar:
+        return self + other
+
+    def __sub__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym - other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym - other
+        else:
+            raise NotImplementedError(f"Unable to do subtraction on {self} and {other}")
+
+        new_values = [
+            max(0, self_values[0] - other_values[-1]),
+            max(0, self_values[-1] - other_values[0]),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rsub__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = other._attrs["symbolic_value"] - new_sym
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = other - new_sym
+        else:
+            raise NotImplementedError(
+                f"Unable to do r-subtraction on {self} and {other}"
+            )
+
+        new_values = [
+            max(0, other_values[0] - self_values[-1]),
+            max(0, other_values[-1] - self_values[0]),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __mul__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym * other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym * other
+        else:
+            raise NotImplementedError(
+                f"Unable to do multiplication on {self} and {other}"
+            )
+
+        new_values = [
+            self_values[0] * other_values[0],
+            self_values[-1] * other_values[-1],
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rmul__(self, other: Union[Any, IntVar]) -> IntVar:
+        return self * other
+
+    def __truediv__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = new_sym / other._attrs["symbolic_value"]
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = new_sym / other
+        else:
+            raise NotImplementedError(f"Unable to do division on {self} and {other}")
+
+        new_values = [
+            math.floor(self_values[0] / max(1, other_values[-1])),
+            math.ceil(self_values[-1] / max(1, other_values[0])),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
+
+    def __rtruediv__(self, other: Union[Any, IntVar]) -> IntVar:
+        self_values = self._attrs["values"]
+        new_sym = self._attrs["symbolic_value"]
+        if isinstance(other, IntVar):
+            other_values = other._attrs["values"]
+            new_sym = other._attrs["symbolic_value"] / new_sym
+        elif isinstance(other, Number):
+            other_values = [other]
+            new_sym = other / new_sym
+        else:
+            raise NotImplementedError(f"Unable to do r-division on {self} and {other}")
+
+        new_values = [
+            math.floor(other_values[0] / max(1, self_values[-1])),
+            math.ceil(other_values[-1] / max(1, self_values[0])),
+        ]
+        if new_values[0] == new_values[1]:
+            return IntImm(value=new_values[0])
+
+        return IntVar(values=new_values, symbolic_value=new_sym)
 
     def lower_bound(self) -> int:
         """Returns lower bound of this dynamic dim."""
@@ -393,6 +541,7 @@ class JaggedIntVar(IntVar):
         super().__init__(
             values=total_length._attrs["values"],
             name=total_length._attrs["name"],
+            symbolic_value=total_length._attrs["symbolic_value"],
         )
 
         self._attrs["batch_dim"] = batch_dim
@@ -590,8 +739,8 @@ class Tensor(Node):
         self,
         shape: List[IntVar],
         name: str = None,
-        src_ops: Sequence[Node] = None,
-        dst_ops: Sequence[Node] = None,
+        src_ops: Iterable[Node] = None,
+        dst_ops: Iterable[Node] = None,
         dtype: str = "float16",
         is_input: bool = False,
         is_output: bool = False,
@@ -608,16 +757,16 @@ class Tensor(Node):
         shape : List[IntVar]
             Shape of this Tensor.
         name : str, optional
-            Name of this Tensor. By default it's None.
-        src_ops : Set[Node], optional
+            Name of this Tensor. By default, it's None.
+        src_ops : Iterable[Node], optional
             Source operators of this Tensor which write to this Tensor.
-            By default it's an empty set.
-        dst_ops : Set[Node], optional
+            By default, it's an empty set.
+        dst_ops : Iterable[Node], optional
             Destination operators of this Tensor which take this Tensor as
             one of their inputs.
-            By default it's an empty set.
+            By default, it's an empty set.
         dtype : str, optional
-            Date type of this Tensor. By default it's "float16".
+            Date type of this Tensor. By default, it's "float16".
         is_input : bool, optional
             Whether this Tensor is an input Tensor of a graph.
             Note that constant Tensors (e.g. weights) are NOT input Tensors.
@@ -762,6 +911,9 @@ class Tensor(Node):
         data = self._attrs["data"]
         if data is not None:
             args.append(f"data=({data.size()} bytes)")
+
+        if self.is_jagged():
+            args.append("jagged=True")
 
         return f"Tensor({', '.join(args)})"
 
@@ -1018,7 +1170,7 @@ class Operator(Node):
             A list of device ids which can be used for profiling.
         dynamic_profiling_strategy: DynamicProfileStrategy, optional
             Profiling strategy used when there are dynamic dims.
-            By default MAX is used, i.e. to profile a dynamic range, an upper bound will be used.
+            By default, MAX is used, i.e. to profile a dynamic range, an upper bound will be used.
         """
 
         return
@@ -1096,4 +1248,5 @@ class Operator(Node):
         args = self._pseudo_code_helper(self._args_for_pseudo_code(), with_shape)
         inputs = self._pseudo_code_helper(self._inputs_for_pseudo_code(), with_shape)
         outputs = self._pseudo_code_helper(self._outputs_for_pseudo_code(), with_shape)
-        return f"({outputs}) \n= {self._attrs['op']}({args})(\n{inputs})\n"
+        name = self._attrs.get("name", None)
+        return f"# {name}\n({outputs}) \n= {self._attrs['op']}({args})(\n{inputs})\n"

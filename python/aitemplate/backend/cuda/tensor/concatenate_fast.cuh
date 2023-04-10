@@ -99,7 +99,7 @@ Tensor ConcatKernelDimN(const TestCase & tc, int64_t concatDim) {
 */
 
 ////////////////////////////////////////////////////////////
-// Here go the facilities that are resposible for post-processing,
+// Here go the facilities that are responsible for post-processing,
 //   such as applying tanh on top of values on a concatenated tensor.
 
 // does no processing

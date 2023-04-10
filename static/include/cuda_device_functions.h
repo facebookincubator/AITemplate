@@ -365,7 +365,8 @@ inline DeviceError GetLastError() {
 }
 
 inline std::string GetLastErrorString() {
-  return cudaGetErrorString(cudaGetLastError());
+  auto err = cudaGetLastError();
+  return cudaGetErrorString(err);
 }
 
 inline DeviceError StreamSynchronize(StreamType stream) {

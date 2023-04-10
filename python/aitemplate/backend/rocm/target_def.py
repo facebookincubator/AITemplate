@@ -34,6 +34,7 @@ from aitemplate.backend.target import (
 )
 
 from aitemplate.utils import environ
+from aitemplate.utils.misc import is_linux
 
 # pylint: disable=W0613
 
@@ -365,7 +366,16 @@ class FBROCM(ROCM):
         There is no ld by default in the prod env. Instead, we use ld from the gvfs path.
         """
         ld = self.hipcc_options_json["ld"]
-        return " ".join([ld, "-r -b binary -o {target} {src}"])
+        objcopy = self.hipcc_options_json["objcopy"]
+        cmd = " ".join([ld, "-r -b binary -o {target} {src}"])
+        # Support models with >2GB constants on Linux only
+        if is_linux():
+            cmd += (
+                f" && {objcopy} --rename-section"
+                " .data=.lrodata,alloc,load,readonly,data,contents"
+                " {target} {target}"
+            )
+        return cmd
 
     def cc(self):
         return self.hipcc_options_json["hipcc_bin"]

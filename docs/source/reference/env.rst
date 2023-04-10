@@ -29,7 +29,7 @@ Profiling
 
 **HIP_VISIBLE_DEVICES**: This one is from ROCm itself. It's used to set the number of GPU devices available for profiling. Set to "0,1,2,3,4,5,6,7" to speed up profiling. For benchmarking, it's useful to set to a particular device to lower noise.
 
-**FORCE_PROFILE**: If set to "1", it will do profiling regarless in_ci_env and disable_profiler_codegen. For non-NIGHTLY CI, we do not do profiling, and we could use FORCE_PROFILE=1 in these CI to do runs with codegen, compile, and profile.
+**FORCE_PROFILE**: If set to "1", it will do profiling regardless in_ci_env and disable_profiler_codegen. For non-NIGHTLY CI, we do not do profiling, and we could use FORCE_PROFILE=1 in these CI to do runs with codegen, compile, and profile.
 
 **COMBINE_PROFILER_MULTI_SOURCES**: Whether to combine multiple profiler sources per target. "0" - Disabled, "1" - Enabled (default).
 

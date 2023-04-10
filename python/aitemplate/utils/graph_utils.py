@@ -68,7 +68,7 @@ def sorted_graph_debug_json(tensors) -> str:
     json_dict["Operators"] = get_sorted_ops(tensors)
 
     op_names = gen_unique_op_names(tensors)
-    encoder = GraphJsonEncoder(op_names)
+    encoder = GraphJsonEncoder(op_names, indent=2)
 
     return encoder.encode(json_dict)
 
@@ -208,7 +208,7 @@ def track_graph_timings(
         # profiler records the results under the original_name
         op_name = op._attrs["original_name"]
 
-        # replace op_name with an unique name, if provided
+        # replace op_name with a unique name, if provided
         if op_name is not None:
             if op_name not in op_durations:
                 # op_name was not found in the profiler report

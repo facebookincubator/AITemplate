@@ -23,6 +23,7 @@ from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import IntImm
+from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
 
 # pylint: disable=C0301
 
@@ -247,7 +248,9 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         elem_accum_type=elem_accum_type,
         n0=str(n0.value()),
         n1=str(n1.value()),
-        has_causal="true" if func_attrs["causal"] else "false",
+        has_causal=(
+            "true" if func_attrs["causal_type"] != CausalType.NO_CAUSAL else "false"
+        ),
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
         epilogue_math=epilogue_math,

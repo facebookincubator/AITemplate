@@ -981,25 +981,6 @@ def acc_ops_flatten(
     return flatten(start_dim=start_dim, end_dim=end_dim)(input_val)
 
 
-def acc_ops_bmm(name: str, lhs: AITTensor, rhs: AITTensor) -> ConverterOutput:
-    lhs_shape = lhs.shape()
-    rhs_shape = rhs.shape()
-    if (
-        lhs_shape[0] == rhs_shape[0]
-        and lhs_shape[0]._attrs["name"] is None
-        and rhs_shape[0]._attrs["name"] is None
-    ):
-        lhs_shape[0]._attrs["name"] = f"acc_{name}_batch_size"
-        rhs_shape[0]._attrs["name"] = f"acc_{name}_batch_size"
-    elif lhs_shape[0] != rhs_shape[0]:
-        if lhs_shape[0]._attrs["values"] == rhs_shape[0]._attrs["values"]:
-            if lhs_shape[0]._attrs["name"] is None:
-                lhs_shape[0] = rhs_shape[0]
-            else:
-                rhs_shape[0] = lhs_shape[0]
-    return bmm_rrr()(lhs, rhs)
-
-
 @ait_converter(acc_ops.matmul)
 def acc_ops_matmul(
     target: Target,
@@ -1026,7 +1007,7 @@ def acc_ops_matmul(
     if len(rhs_shape) == 2:
         return gemm_rrr()(lhs, rhs)
     elif len(lhs_shape) <= 3 and len(rhs_shape) <= 3:
-        return acc_ops_bmm(name, lhs, rhs)
+        return bmm_rrr()(lhs, rhs)
     elif len(lhs_shape) == 4 and len(rhs_shape) == 4 and lhs_shape[1] == rhs_shape[1]:
         assert all(isinstance(i, IntImm) for i in lhs_shape[1:])
         assert all(isinstance(i, IntImm) for i in rhs_shape[1:])
@@ -1045,7 +1026,7 @@ def acc_ops_matmul(
             shape_1 = (batch_size * channel, K, N)
             shape_2 = (batch_size, channel, M, N)
         elif isinstance(lhs_shape[0], IntVar) and isinstance(rhs_shape[0], IntVar):
-            if lhs_shape[0]._attrs["values"] != rhs_shape[0]._attrs["values"]:
+            if lhs_shape[0] != rhs_shape[0]:
                 raise ValueError(
                     f"Batch size mismatch on matmul. Expected: {lhs_shape[0]} == {rhs_shape[0]}"
                 )
@@ -1060,7 +1041,7 @@ def acc_ops_matmul(
             )
         reshape_op_0 = reshape()(lhs, shape_0)
         reshape_op_1 = reshape()(rhs, shape_1)
-        return reshape()(acc_ops_bmm(name, reshape_op_0, reshape_op_1), shape_2)
+        return reshape()(bmm_rrr()(reshape_op_0, reshape_op_1), shape_2)
     else:
         raise NotImplementedError(
             f"This case is unsupported in {name}: {len(lhs_shape)} and {len(rhs_shape)}"
@@ -1623,11 +1604,11 @@ def acc_ops_tile(
     input_dim_len = len(input_val.shape())
     result = input_val
     if len(shape_dims) < input_dim_len:
-        for i in range(input_dim_len - len(shape_dims)):
+        for _ in range(input_dim_len - len(shape_dims)):
             shape_dims.insert(0, 1)
     if input_dim_len < len(shape_dims):
         shape = input_val.shape()
-        for i in range(len(shape_dims) - input_dim_len):
+        for _ in range(len(shape_dims) - input_dim_len):
             shape.insert(0, IntImm(1))
         result = expand()(input_val, shape)
 
@@ -1670,9 +1651,17 @@ def acc_ops_neg(
 def acc_ops_new_full(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
+    dtype = (
+        kwargs["dtype"]
+        if "dtype" in kwargs and kwargs["dtype"] is not None
+        else input_val.dtype()
+    )
     fill_value = kwargs["fill_value"]
-    return full()(size, fill_value=fill_value, dtype="float16")
+    return full()(size, fill_value=fill_value, dtype=dtype)
 
 
 @ait_converter(acc_ops.full_like)
@@ -1683,15 +1672,23 @@ def acc_ops_full_like(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     fill_value = kwargs["fill_value"]
-    return full()(input_val.shape(), fill_value=fill_value, dtype="float16")
+    return full()(input_val.shape(), fill_value=fill_value, dtype=input_val.dtype())
 
 
 @ait_converter(acc_ops.new_ones)
 def acc_ops_new_ones(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
-    return full()(size, 1, dtype="float16")
+    dtype = (
+        kwargs["dtype"]
+        if "dtype" in kwargs and kwargs["dtype"] is not None
+        else input_val.dtype()
+    )
+    return full()(size, 1, dtype=dtype)
 
 
 @ait_converter(acc_ops.ones_like)
@@ -1701,15 +1698,23 @@ def acc_ops_ones_like(
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
-    return full()(input_val.shape(), 1, dtype="float16")
+    return full()(input_val.shape(), 1, dtype=input_val.dtype())
 
 
 @ait_converter(acc_ops.new_zeros)
 def acc_ops_new_zeros(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
 ) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     size = kwargs["size"]
-    return full()(size, 0, dtype="float16")
+    dtype = (
+        kwargs["dtype"]
+        if "dtype" in kwargs and kwargs["dtype"] is not None
+        else input_val.dtype()
+    )
+    return full()(size, 0, dtype=dtype)
 
 
 @ait_converter(acc_ops.zeros_like)
@@ -1719,4 +1724,4 @@ def acc_ops_zeros_like(
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
-    return full()(input_val.shape(), 0, dtype="float16")
+    return full()(input_val.shape(), 0, dtype=input_val.dtype())

@@ -300,8 +300,9 @@ def make_function_strided_args(
         if has_bias:
             # FIXME: we don't suppor strided bias yet. Will enable it once
             # we support it.
+            input_bias_accessor = func_attrs["input_accessors"][2]
             assert (
-                not input_b_accessor.is_from_strided_tensor
+                not input_bias_accessor.is_from_strided_tensor
             ), f'strided bias is not supported for op {func_attrs["name"]}'
 
     input_addr_calculator = common.INPUT_ADDR_CALCULATOR.render(
@@ -432,13 +433,6 @@ def gen_profiler(
             gemm_op=gemm_op,
             gemm_op_name=op_name,
             func_name=f"benchmark_{function_name}",
-            a_ptr="memory_pool->RequestTensorByIdx(0)",
-            b_ptr="memory_pool->RequestTensorByIdx(1)",
-            has_bias=has_bias,
-            bias_ptr=bias_ptr_arg,
-            c_ptr="memory_pool->RequestTensorByIdx(2)",
-            d_ptr="memory_pool->RequestTensorByIdx(%d)" % (4 if has_bias else 3),
-            has_d=has_d,
             adims=a_dims_ptr,
             bdims=b_dims_ptr,
             cdims=c_dims_ptr,
@@ -463,12 +457,12 @@ def gen_profiler(
     func_call = FUNC_CALL_TEMPLATE.render(
         is_profiler=True,
         func_name=function_name,
-        a_ptr="a_ptr",
-        b_ptr="b_ptr",
+        a_ptr="memory_pool->RequestTensorByIdx(0)",
+        b_ptr="memory_pool->RequestTensorByIdx(1)",
         has_bias=has_bias,
-        bias_ptr="bias_ptr",
-        c_ptr="c_ptr",
-        d_ptr="d_ptr",
+        bias_ptr=bias_ptr_arg,
+        c_ptr="memory_pool->RequestTensorByIdx(2)",
+        d_ptr="memory_pool->RequestTensorByIdx(%d)" % (4 if has_bias else 3),
         has_d=has_d,
         a_dims_ptr=benchmark_adims,
         b_dims_ptr=benchmark_bdims,

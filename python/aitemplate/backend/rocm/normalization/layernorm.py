@@ -15,9 +15,9 @@
 """
 Layernorm codegen for ROCM.
 """
-
+from collections import OrderedDict
 from hashlib import sha1
-from typing import Any, Dict, OrderedDict
+from typing import Any, Dict
 
 import jinja2
 

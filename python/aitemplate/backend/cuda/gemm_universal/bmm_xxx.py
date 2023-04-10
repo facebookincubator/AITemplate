@@ -61,7 +61,7 @@ def get_config(a_layout, b_layout, c_layout):
                 b_layout=layout_choice[b_layout],
                 c_layout=layout_choice[c_layout],
                 dtype=func_attrs["inputs"][0].dtype(),
-                epiligue_name=func_attrs["epilogue"],
+                epilogue_name=func_attrs["epilogue"],
             )
 
         func_attrs["op_instance"] = common.extract_config(fproc)

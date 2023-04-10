@@ -19,6 +19,7 @@ from typing import List
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.transform.apply_padding import apply_padding
+from aitemplate.compiler.transform.dedup_make_jagged_ops import dedup_make_jagged_ops
 from aitemplate.compiler.transform.fuse_bmm_permute import fuse_bmm_permute
 from aitemplate.compiler.transform.fuse_conv_elementwise import fuse_conv_elementwise
 from aitemplate.compiler.transform.fuse_group_ops import fuse_group_ops
@@ -87,6 +88,7 @@ def optimize_graph(
     """
 
     funcs = [
+        dedup_make_jagged_ops,
         fuse_permute_bmm_and_gemm,
         fuse_bmm_permute,
         transform_odd_alignment,
@@ -106,6 +108,9 @@ def optimize_graph(
         # op directly. After fuse_ops, there are only FusedElementwise ops.
         transform_special_ops,
         apply_padding,
+        # apply_padding may introduce new concats that can be fused
+        move_view_op_before_concat,
+        transform_memory_ops,
         transform_strided_ops,
         split_large_slice_scatter_ops,
         split_large_concat_ops,

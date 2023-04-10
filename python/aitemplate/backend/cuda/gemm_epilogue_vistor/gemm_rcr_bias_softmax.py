@@ -34,41 +34,53 @@ from aitemplate.backend.cuda.gemm_universal import common
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
     /*
-        A: M*K (RowMajor)
-        B: N*K (ColumnMajor)
-        C/D/sofmax: M*N (RowMajor)
-        N: M*1 (RowMajor)
+        A: (M, K) (RowMajor)
+        B: (N, K) (ColumnMajor)
+        C, D, Soft: (M, N) (RowMajor)
+        N, S: (block_num, M) (RowMajor)
     */
 
-    {M, N, K},               // cutlass::gemm::GemmCoord problem_size
-    1,                       // int32_t batch_count_
-    {a_ptr, LayoutA(K)},     // TensorRefA ref_A_
-    {b_ptr, LayoutB(K)},     // TensorRefB ref_B_
-    {c_ptr, 0},              // TensorRefC ref_C_
-    {d_ptr, LayoutC(N)},     // TensorRefC ref_D_
+    {M, N, K},                                                                                                                     // cutlass::gemm::GemmCoord problem_size
+    1,                                                                                                                             // int32_t batch_count_
+    {reinterpret_cast<{{elem_input_type}}*>(a_ptr), LayoutA(K)},                                                                   // TensorRefA ref_A_
+    {reinterpret_cast<{{elem_input_type}}*>(b_ptr), LayoutB(K)},                                                                   // TensorRefB ref_B_
+    {reinterpret_cast<{{elem_output_type}}*>(bias_ptr), 0},                                                                        // TensorRefC ref_C_
+    {reinterpret_cast<{{elem_output_type}}*>(workspace + M * N * sizeof({{elem_output_type}})), LayoutC(N)},                       // TensorRefC ref_D_
     {
         float(1.0),
         float(1.0)
-    },                       // typename EpilogueFunctorOp::Params linear_scaling
-    {n_ptr, LayoutC(1)},     // ???
-    {soft_ptr, LayoutC(N)},  // ???
+    },                                                                                                                             // typename EpilogueFunctorOp::Params linear_scaling
+    {reinterpret_cast<float*>(workspace + 2 * M * N * sizeof({{elem_output_type}})), LayoutC(1)},                                  // TensorRefN ref_N_
+    {reinterpret_cast<float*>(workspace + 2 * M * N * sizeof({{elem_output_type}}) + M * block_num * sizeof(float)), LayoutC(1)},  // TensorRefSum ref_S_
+    {reinterpret_cast<{{elem_output_type}}*>(soft_ptr) + output_offset, LayoutC(output_stride)},                                   // TensorRefSoft ref_Softmax_
 """
 )
 
 
 @registry.reg("cuda.gemm_rcr_bias_softmax.config")
 def gemm_rcr_bias_softmax_config(func_attrs, dtype="float16"):
-    return gemm_rcr_softmax.gemm_rcr_softmax_config(func_attrs, dtype)
+    gemm_rcr_softmax.gemm_rcr_softmax_config(
+        func_attrs=func_attrs,
+        dtype=dtype,
+    )
 
 
 @registry.reg("cuda.gemm_rcr_bias_softmax.gen_profiler")
-def gen_profiler(func_attrs, workdir, dim_info_dict):
+def gen_profiler(
+    func_attrs,
+    workdir,
+    profiler_filename,
+    dim_info_dict,
+):
     return gemm_rcr_softmax.common_gen_profiler(
-        func_attrs,
-        workdir,
-        dim_info_dict,
-        common_softmax.SRC_TEMPLATE,
-        PROBLEM_ARGS_TEMPLATE,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=common_softmax.SRC_TEMPLATE,
+        problem_args_template=PROBLEM_ARGS_TEMPLATE,
+        args_parser_template=gemm_rcr_softmax.ARGS_PARSER_TEMPLATE,
+        bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
     )
 
 
@@ -79,23 +91,31 @@ def gen_function(
     dim_info_dict,
 ):
     return gemm_rcr_softmax.gen_function(
-        func_attrs,
-        exec_cond_template,
-        dim_info_dict,
-        PROBLEM_ARGS_TEMPLATE,
+        func_attrs=func_attrs,
+        exec_cond_template=exec_cond_template,
+        dim_info_dict=dim_info_dict,
+        problem_args_template=PROBLEM_ARGS_TEMPLATE,
+        has_bias=True,
     )
 
 
 @registry.reg("cuda.gemm_rcr_bias_softmax.func_decl")
 def gen_function_decl(func_attrs):
-    return gemm_rcr_softmax.gen_function_decl(func_attrs)
+    return gemm_rcr_softmax.gen_function_decl(
+        func_attrs=func_attrs,
+        has_bias=True,
+    )
 
 
 @registry.reg("cuda.gemm_rcr_bias_softmax.func_call")
 def gen_function_call(func_attrs, indent="  "):
+    bias = func_attrs["inputs"][2]
+
     return gemm_rcr_softmax.gen_function_call(
-        func_attrs,
-        indent,
+        func_attrs=func_attrs,
+        indent=indent,
+        has_bias=True,
+        bias_ptr=bias._attrs["name"],
     )
 
 

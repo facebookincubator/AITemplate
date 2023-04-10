@@ -86,6 +86,6 @@ class AITBasicProgram:
     def model(self) -> Union[Tensor, Tuple[Tensor]]:
         """
         This function defines the AIT program.
-        Returns a output tensor, or a tuple of output tensors.
+        Returns an output tensor, or a tuple of output tensors.
         """
         pass

@@ -222,7 +222,6 @@ EXEC_TEMPLATE = jinja2.Template(
 
 {{indent}}};
 {% if is_profiler %}
-{{indent}}// https://www.youtube.com/watch?v=rRwxfYlgG-M
 {{indent}}size_t workspace_size = gemm_op.get_workspace_size(arguments);
 {{indent}}cutlass::device_memory::allocation<uint8_t> local_workspace(workspace_size);
 {{indent}}workspace = local_workspace.get();
@@ -309,18 +308,7 @@ BENCHMARK_INSTANCE_TEMPLATE = jinja2.Template(
 {{indent}}ret = {{func_name}}(
 {{indent}}    {{gemm_op}},
 {{indent}}    gemm_op_name,
-{{indent}}    {{a_ptr}},
-{{indent}}    {{b_ptr}},
-{% if has_bias %}
-{{indent}}    {{bias_ptr}},
-{% endif %}
-{% if has_d %}
-{{indent}}    {{d_ptr}},
-{% endif %}
-{% if has_d1 %}
-{{indent}}    {{d1_ptr}},
-{% endif %}
-{{indent}}    {{c_ptr}},
+{{indent}}    memory_pool.get(),
 {{indent}}    global_workspace_,
 {% if support_split_k %}
 {{indent}}    {{split_k}},
@@ -377,7 +365,11 @@ PROFILER_TEMPLATE = jinja2.Template(
 size_t GLOBAL_WORKSPACE_SIZE = 0;
 
 #include <sstream>
+
 {{op_func}}
+
+template <typename DType>
+struct ProfilerMemoryPool;
 
 template <typename GemmInstance>
 int benchmark_{{function_name}} (
@@ -408,18 +400,7 @@ int benchmark_{{function_name}} (
 
     GemmInstance &gemm_op,
     const char *gemm_op_name,
-    void* a_ptr,
-    void* b_ptr,
-{% if has_bias %}
-    void* bias_ptr,
-{% endif %}
-{% if has_d %}
-    void* d_ptr,
-{% endif %}
-{% if has_d1 %}
-    void* d1_ptr,
-{% endif %}
-    void* c_ptr,
+    ProfilerMemoryPool<{{elem_type}}>* memory_pool,
     uint8_t* global_workspace_,
 {% if support_split_k %}
     int split_k,
@@ -999,11 +980,6 @@ def gen_profiler(
             gemm_op=gemm_op,
             gemm_op_name=op_name,
             func_name=f"benchmark_{function_name}",
-            a_ptr="memory_pool->RequestTensorByIdx(0)",
-            b_ptr="memory_pool->RequestTensorByIdx(1)",
-            has_bias=has_bias,
-            bias_ptr=bias_ptr_arg,
-            c_ptr="memory_pool->RequestTensorByIdx(2)",
             support_split_k=support_split_k,
             split_k="split_k",
             adims=adims,
@@ -1038,11 +1014,11 @@ def gen_profiler(
     func_call = FUNC_CALL_TEMPLATE.render(
         is_profiler=True,
         func_name=function_name,
-        a_ptr="a_ptr",
-        b_ptr="b_ptr",
+        a_ptr="memory_pool->RequestTensorByIdx(0)",
+        b_ptr="memory_pool->RequestTensorByIdx(1)",
         has_bias=has_bias,
-        bias_ptr="bias_ptr",
-        c_ptr="c_ptr",
+        bias_ptr=bias_ptr_arg,
+        c_ptr="memory_pool->RequestTensorByIdx(2)",
         split_k="split_k",
         adims=benchmark_adims,
         bdims=benchmark_bdims,
@@ -1093,11 +1069,12 @@ def gen_local_dim_defs(func_attrs, indent="  "):
             # skip dynamic dims
             if isinstance(dim, IntImm):
                 input_shape = func_attrs["inputs"][input_idx]._attrs["shape"]
-                name = input_shape[idx]._attrs["name"]
-                if name in dims:
-                    assert dims[name] == dim.value(), "bmm inputs shape mismatch"
-                else:
-                    dims[name] = dim.value()
+                if idx < len(input_shape):
+                    name = input_shape[idx]._attrs["name"]
+                    if name in dims:
+                        assert dims[name] == dim.value(), "bmm inputs shape mismatch"
+                    else:
+                        dims[name] = dim.value()
     return DIM_DEFS_TEMPLATE.render(dims=dims, indent=indent)
 
 
@@ -1131,7 +1108,7 @@ def gen_function_call(func_attrs, indent="  ", bias_ptr_arg=None):
 
 
 def default_fproc(
-    *, op, a_layout, b_layout, c_layout, dtype, epiligue_name, permute_layout=None
+    *, op, a_layout, b_layout, c_layout, dtype, epilogue_name, permute_layout=None
 ):
     import copy
 
@@ -1183,7 +1160,7 @@ def default_fproc(
         # set output major
         op.C.layout = c_layout
         # set epilogue
-        op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epiligue_name]
+        op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epilogue_name]
         op.element_epilogue = acc_type
         if permute_layout is not None:
             op.permute_layout = cutlass_lib.library.EpiloguePermuteLayoutName[
@@ -1212,7 +1189,7 @@ def make_fproc(func_attrs, layout):
             b_layout=b_layout,
             c_layout=c_layout,
             dtype=func_attrs["inputs"][0].dtype(),
-            epiligue_name=func_attrs["epilogue"],
+            epilogue_name=func_attrs["epilogue"],
         )
 
     func_attrs["op_instance"] = extract_config(fproc)

@@ -15,7 +15,8 @@
 """
 Graph pass for topological sort.
 """
-from typing import List, Union
+import heapq
+from typing import List, Tuple, Union
 
 from aitemplate.compiler.base import Tensor
 
@@ -35,6 +36,10 @@ def toposort(nodes: Union[Tensor, List[Tensor]]) -> List[Tensor]:
     List[Tensor]
         Sorted graph
     """
+    return _priSort(nodes, SizePriTensorHelper())
+
+
+def _dfsSort(nodes: Union[Tensor, List[Tensor]]) -> List[Tensor]:
     visited = set()
     sorted_graph = []
     stack = []
@@ -68,5 +73,80 @@ def toposort(nodes: Union[Tensor, List[Tensor]]) -> List[Tensor]:
             for idx in visit_seq:
                 arg = args[idx]
                 stack.append((arg, False))
+    return sorted_graph
 
+
+class PriTensorHelper:
+    def __init__(self) -> None:
+        self.entry_cnt = -1
+
+    def get_heap_input(self, node: Tensor) -> Tuple[float, int, Tensor]:
+        # input is built based on heapq doc suggestion:
+        # https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
+        # the return tuple is: (
+        #   priority_ (less is more important),
+        #   entry_cnt (so earlier entered item is chosen if same priority),
+        #   element (here is tensor)
+        # )
+        self.entry_cnt += 1
+        return (
+            self.get_priority(node),
+            self.entry_cnt,
+            node,
+        )
+
+    def get_tensor_from_heap_output(
+        self, heap_output: Tuple[float, int, Tensor]
+    ) -> Tensor:
+        return heap_output[2]
+
+    def get_priority(self, node: Tensor) -> float:
+        # please implement your own priority function
+        # note that smaller value would be in higher-pri
+        pass
+
+
+class SizePriTensorHelper(PriTensorHelper):
+    def get_priority(self, node: Tensor) -> float:
+        # use negative byte size since
+        # we'd like to pop larger size first
+        return -node.size_bytes()
+
+
+def _priSort(
+    nodes: Union[Tensor, List[Tensor]], pri_tensor_helper: PriTensorHelper
+) -> List[Tensor]:
+    # do a DFS to get all nodes in a list
+    nodes = _dfsSort(nodes)
+    # number of src tensors
+    in_degree = {}
+    for node in nodes:
+        in_degree[node] = 0
+        for src_op in node.src_ops():
+            # sometimes it'd have 2 same nodes in one list
+            # change to set to de-dupe these nodes
+            in_degree[node] += len(set(src_op._attrs["inputs"]))
+
+    queue = []
+    sorted_graph = []
+    for node in nodes:
+        if in_degree[node] == 0:
+            # input nodes need to be in the original order,
+            # hence add them to the sorted graph here
+            # instead of going through the pri heap
+            sorted_graph.append(node)
+            heapq.heappush(queue, pri_tensor_helper.get_heap_input(node))
+
+    while queue:
+        node = pri_tensor_helper.get_tensor_from_heap_output(heapq.heappop(queue))
+        if node not in sorted_graph:
+            sorted_graph.append(node)
+
+        for dst_op in node.dst_ops():
+            for next_node in set(dst_op._attrs["outputs"]):
+                if next_node not in in_degree:
+                    continue
+                in_degree[next_node] -= 1
+                if in_degree[next_node] == 0:
+                    heapq.heappush(queue, pri_tensor_helper.get_heap_input(next_node))
     return sorted_graph

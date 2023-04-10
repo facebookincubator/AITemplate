@@ -28,6 +28,18 @@ tensor_cnt = 0
 func_name_to_tensor_cnt = {}
 
 MEMO = set()
+user_provided_dim = set()
+
+
+def reset_name_counters():
+    global func_cnt
+    global tensor_cnt
+    global func_name_to_tensor_cnt
+    global MEMO
+    func_cnt = 0
+    tensor_cnt = 0
+    func_name_to_tensor_cnt = {}
+    MEMO = set()
 
 
 def valid_c_name(name):
@@ -51,10 +63,13 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
     ----------
     sorted_graph : List[Tensor]
         Input graph to be named
+    reset_counters : bool
+        If True, reset counters which are used to name tensors and functions. (Default: False)
     """
     global func_cnt
     global tensor_cnt
     global func_name_to_tensor_cnt
+    global user_provided_dim
     for node in sorted_graph:
         funcs = node.src_ops()
         if len(funcs) == 0:
@@ -95,6 +110,8 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
 
         tensor_name = node._attrs["name"]
         for i, dim in enumerate(node._attrs["shape"]):
+            if dim._attrs["name"] is not None:
+                user_provided_dim.add(dim._attrs["name"])
             if dim._attrs["name"] is None and not isinstance(dim, JaggedIntVar):
                 dim_name = "{tname}_dim_{idx}".format(tname=tensor_name, idx=i)
                 dim._attrs["name"] = dim_name
@@ -128,14 +145,20 @@ def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
         Input graph to be simplified
     """
     symbolic_to_name = {}
+    global user_provided_dim
     for node in sorted_graph:
-        tensor_name = node._attrs["name"]
-        for i, dim in enumerate(node._attrs["shape"]):
-            if not isinstance(dim, JaggedIntVar):
+        for dim in node._attrs["shape"]:
+            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
                 dim_sym = dim.symbolic_value()
-                if dim_sym in symbolic_to_name:
-                    dim._attrs["name"] = symbolic_to_name[dim_sym]
-                else:
-                    dim_name = "{tname}_dim_{idx}".format(tname=tensor_name, idx=i)
-                    symbolic_to_name[dim_sym] = dim_name
-                    dim._attrs["name"] = dim_name
+                if (
+                    dim_sym not in symbolic_to_name
+                    or dim_sym in symbolic_to_name
+                    and dim._attrs["name"] in user_provided_dim
+                ):
+                    symbolic_to_name[dim_sym] = dim._attrs["name"]
+
+    for node in sorted_graph:
+        for dim in node._attrs["shape"]:
+            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
+                dim_sym = dim.symbolic_value()
+                dim._attrs["name"] = symbolic_to_name[dim_sym]

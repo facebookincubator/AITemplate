@@ -18,11 +18,20 @@ miscellaneous utilities
 import hashlib
 import logging
 import os
+import platform
 
 
 def is_debug():
     logger = logging.getLogger("aitemplate")
     return logger.level == logging.DEBUG
+
+
+def is_linux() -> bool:
+    return platform.system() == "Linux"
+
+
+def is_windows() -> bool:
+    return os.name == "nt"
 
 
 def setup_logger(name):

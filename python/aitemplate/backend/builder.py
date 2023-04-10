@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import logging
 import multiprocessing
-
 import os
 import re
 import shlex
@@ -31,6 +30,9 @@ from typing import List, Optional, Tuple, Union
 
 import jinja2
 
+from aitemplate.backend import build_cache
+from aitemplate.backend.build_cache_base import write_binhash_file
+
 from aitemplate.backend.target import Target
 from aitemplate.backend.task_runner import BaseRunner, Task
 
@@ -38,7 +40,7 @@ from aitemplate.utils import environ
 
 from aitemplate.utils.debug_settings import AITDebugSettings
 
-from aitemplate.utils.misc import is_debug
+from aitemplate.utils.misc import is_debug, is_windows
 
 # pylint: disable=W0221,C0103
 
@@ -141,34 +143,44 @@ def _log_error_context(
                 _LOGGER.info(f"{path}:\n\n{summary}")
 
 
-def _run_make_cmds(cmds, timeout, build_dir):
+def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
     _LOGGER.debug(f"make {cmds=}")
-    proc = subprocess.Popen(
-        [" && ".join(cmds)],
-        shell=True,
-        env=os.environ.copy(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    try:
-        out, err = proc.communicate(timeout)
-    except subprocess.TimeoutExpired as e:
-        proc.kill()
-        out, err = proc.communicate()
-        raise e
-    finally:
-        stdout = out.decode()
-        stderr = err.decode()
-        if proc.returncode != 0:
-            _LOGGER.info(f"make stdout:\n\n{stdout}")
-            _LOGGER.info(f"make stderr:\n\n{stderr}")
+    if allow_cache:
+        (
+            cached_results_available,
+            store_cache_key,
+        ) = build_cache.BUILD_CACHE.retrieve_build_cache(cmds, build_dir)
+    else:
+        cached_results_available, store_cache_key = False, None
+    if not cached_results_available:
+        proc = subprocess.Popen(  # noqa: P204
+            [" && ".join(cmds)],
+            shell=True,
+            env=os.environ.copy(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        try:
+            out, err = proc.communicate(timeout)
+        except subprocess.TimeoutExpired as e:
+            proc.kill()
+            out, err = proc.communicate()
+            raise e
+        finally:
+            stdout = out.decode()
+            stderr = err.decode()
+            if proc.returncode != 0:
+                _LOGGER.info(f"make stdout:\n\n{stdout}")
+                _LOGGER.info(f"make stderr:\n\n{stderr}")
 
-            _log_error_context(stderr, build_dir)
+                _log_error_context(stderr, build_dir)
 
-            raise RuntimeError("Build has failed.")
-        else:
-            _LOGGER.debug(f"make stdout:\n\n{stdout}")
-            _LOGGER.debug(f"make stderr:\n\n{stderr}")
+                raise RuntimeError("Build has failed.")
+            else:
+                _LOGGER.debug(f"make stdout:\n\n{stdout}")
+                _LOGGER.debug(f"make stderr:\n\n{stderr}")
+        if store_cache_key is not None:
+            build_cache.BUILD_CACHE.store_build_cache(cmds, build_dir, store_cache_key)
 
 
 def process_task(task: Task) -> None:
@@ -457,7 +469,9 @@ clean_constants:
         build_standalone_rules = ""
         if debug_settings.gen_standalone:
             build_exe_cmd = f"$(CC) $(CFLAGS) -o $@ {standalone_obj} {dll_name}"
-            exe_name = os.path.splitext(dll_name)[0] + ".exe"
+            exe_name = os.path.splitext(dll_name)[0]
+            if is_windows():
+                exe_name += ".exe"
             exe_target_deps = f"{dll_name} {standalone_obj}"
             build_standalone_rules = standalone_rules_template.render(
                 standalone_src=standalone_src,
@@ -736,7 +750,7 @@ clean:
 
         commands = []
         num_compiled_sources = 0
-        num_linked_executables = 0
+        target_names = set()
         for target, srcs in dependencies.items():
             # for each "target: srcs" pair,
             # generate two lines for the Makefile
@@ -755,31 +769,46 @@ clean:
             command = f"{dep_line}\n\t{cmd_line}\n"
             commands.append(command)
 
-            # increment compilation statistics
+            # update compilation statistics
             num_compiled_sources += sum(1 for s in srcs if s.endswith(".cu"))
-            num_linked_executables += 0 if target.endswith(".obj") else 1
+            if not target.endswith(".obj"):
+                target_names.add(os.path.split(target)[-1])
 
         _LOGGER.info(f"compiling {num_compiled_sources} profiler sources")
-        _LOGGER.info(f"linking {num_linked_executables} profiler executables")
+        _LOGGER.info(f"linking {len(target_names)} profiler executables")
 
         makefile_str = makefile_template.render(
             targets=" ".join(set(targets)),
             commands="\n".join(commands),
         )
 
-        dumpfile = os.path.join(profiler_dir, "Makefile")
+        # make the Makefile name dependent on the built target names
+        target_names_str = "_".join(sorted(target_names))  # stable order
+        makefile_suffix = sha1(target_names_str.encode("utf-8")).hexdigest()
+        makefile_name = f"Makefile_{makefile_suffix}"
+        dumpfile = os.path.join(profiler_dir, makefile_name)
         with open(dumpfile, "w+") as f:
             f.write(makefile_str)
+
+        return makefile_name
 
     def make_profilers(self, generated_profilers, workdir):
         file_pairs = [f for gp in generated_profilers for f in gp]
         if not file_pairs:
             return
         build_dir = shlex.quote(os.path.join(workdir, "profiler"))
-        self._gen_makefile_for_profilers(file_pairs, build_dir)
+        makefile_name = self._gen_makefile_for_profilers(file_pairs, build_dir)
+        # Write compiler version string(s) into build directory, so these can be used as part of cache key
+        self._gen_compiler_version_files(build_dir)
+
+        # hash all .bin files and write hash into it, so we can use their hash to build the cache key,
+        # even if we delete the actual .bin file afterwards
+        write_binhash_file(build_dir)
+
         make_path = shlex.quote(Target.current().make())
         make_flags = " ".join(
             [
+                f"-f {makefile_name}",
                 "--output-sync",
                 f"-C {build_dir}",
             ]
@@ -787,12 +816,60 @@ clean:
         make_clean_cmd = f" {make_path} {make_flags} clean "
         make_all_cmd = f" {make_path} {make_flags} -j{self._n_jobs} all "
         cmds = [make_clean_cmd, make_all_cmd]
-        _run_make_cmds(cmds, self._timeout, build_dir)
+        _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=True)
+
+    def _gen_compiler_version_files(self, target_dir):
+        # Write compiler version string(s) into build directory
+        # for cache invalidation purposes (different compiler versions
+        # should not reuse same cached build artifacts )
+        cc = Target.current().cc()
+        compilers = {"main_compiler": cc}
+        if "nvcc" in cc:
+            ccbin_match = re.search(r'-ccbin "?([^ "]+)', cc)
+            if ccbin_match:
+                nvcc_host_compiler = ccbin_match.group(1)
+            else:
+                nvcc_host_compiler = "g++"  # default, using PATH resolution
+            compilers["nvcc_host_compiler"] = nvcc_host_compiler
+
+        # Write compiler version string(s)
+        # into the build directory, to enable using them for cache hash determination
+        for compiler_name, compiler_cmd in compilers.items():
+            try:
+                version_bytes = subprocess.check_output([compiler_cmd, "--version"])
+                with open(
+                    os.path.join(target_dir, compiler_name + ".version"),
+                    "wb",  # version_bytes is bytes obj
+                ) as fh:
+                    fh.write(version_bytes)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                _LOGGER.warn("CACHE: Could not determine version of host compiler.")
+                # This will always invalidate the cache, due to the inclusion of a timestamp
+                with open(
+                    os.path.join(target_dir, compiler_name + ".error.version"),
+                    "w",
+                    encoding="utf-8",
+                ) as fh:
+                    fh.write(f"Could not determine version of {compiler_cmd}\n")
 
     def make(
-        self, file_pairs, dll_name, workdir, test_name, debug_settings=_DEBUG_SETTINGS
+        self,
+        file_pairs,
+        dll_name,
+        workdir,
+        test_name,
+        debug_settings=_DEBUG_SETTINGS,
+        allow_cache=True,
     ):
         self.gen_makefile(file_pairs, dll_name, workdir, test_name, debug_settings)
+
+        # Write compiler version string(s) into build directory, so these can be used as part of cache key
+        self._gen_compiler_version_files(os.path.join(workdir, test_name))
+
+        # hash all .bin files and write hash into it, so we can use their hash to build the cache key,
+        # even if we delete the actual .bin file afterwards
+        write_binhash_file(os.path.join(workdir, test_name))
+
         make_path = shlex.quote(Target.current().make())
         build_dir = shlex.quote(os.path.join(workdir, test_name))
         make_flags = " ".join(
@@ -807,4 +884,4 @@ clean:
         cmds = [make_clean_cmd, make_all_cmd]
         if not is_debug():
             cmds.append(make_clean_constants_cmd)
-        _run_make_cmds(cmds, self._timeout, build_dir)
+        _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=allow_cache)
