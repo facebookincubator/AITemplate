@@ -26,7 +26,7 @@ import torch.nn.functional as F
 
 from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
-from aitemplate.frontend import Tensor
+from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import benchmark_pt, detect_target
 from aitemplate.testing.test_utils import (
     filter_test_cases_by_params,
