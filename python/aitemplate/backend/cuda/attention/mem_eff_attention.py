@@ -381,8 +381,8 @@ using namespace gemm_kernel_utils;
           "Error when synchronizing stream after copying sequence lengths from device!");
   }
 
-  int mq_full = seq_len_q;
-  int mkv_full = seq_len_kv;
+  int mq_full = *seq_len_q;
+  int mkv_full = *seq_len_kv;
 
   for (int i = 0; i < *batch_size; ++i) {
     // Problems belonging to the same batch share the same seq len
@@ -752,7 +752,6 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
     x = func_attrs["inputs"][0]
     xshape = x._attrs["shape"]
     batch_size = "&" + xshape[0]._attrs["name"]
-    # seq_len = x._attrs["shape"][2]._attrs["values"][0]
     seq_len_q = "&" + xshape[2]._attrs["name"]
 
     num_heads = x._attrs["shape"][1]._attrs["values"][0]
@@ -762,7 +761,6 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
     softmax_scale = head_size ** (-0.5)
 
     v = func_attrs["inputs"][2]
-    # seq_len_kv = v._attrs["shape"][2]._attrs["values"][0]
     vshape = v._attrs["shape"]
     seq_len_kv = "&" + vshape[2]._attrs["name"]
 
