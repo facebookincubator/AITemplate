@@ -94,6 +94,7 @@ EXEC_TEMPLATE = jinja2.Template(
 //{{indent}}using ElementComputeEpilogue = typename {{instance}}::ElementAccumulator;
 {{indent}}using ElementCompute = typename {{instance}}::DualGemmKernel::Epilogue0::OutputOp::ElementCompute;
 
+{{indent}}using coord_t = cutlass::gemm::GemmCoord::Index;
 {{indent}}typename {{instance}}::Arguments arguments{
 
 {{problem_args}}

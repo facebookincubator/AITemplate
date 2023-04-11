@@ -32,7 +32,11 @@ from aitemplate.backend.cuda.gemm_universal.layout import RCR
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
     cutlass::gemm::DualGemmMode::kGemm,            // DualGemmMode mode
-    cutlass::gemm::GemmCoord{M, N, K},             // GemmCoord problem_size_
+    cutlass::gemm::GemmCoord{
+        static_cast<coord_t>(M),
+        static_cast<coord_t>(N),
+        static_cast<coord_t>(K)
+    },                                             // GemmCoord problem_size_
     {({{elem_input_type}}*)a_ptr, LayoutA(K)},     // TensorRef<ElementA const, LayoutA> ref_A0_
     {({{elem_input_type}}*)b_ptr, LayoutB(K)},     // TensorRef<ElementB const, LayoutB0> ref_B0_
     ref_B0,                                        // TensorRef<ElementC const, LayoutC> ref_C0_

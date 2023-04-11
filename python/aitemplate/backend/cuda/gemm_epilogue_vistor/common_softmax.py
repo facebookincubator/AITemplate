@@ -125,6 +125,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}{{instance}} gemm_op;
 {% endif %}
 
+{{indent}}using coord_t = cutlass::gemm::GemmCoord::Index;
 {{indent}}typename {{instance}}::Arguments arguments{
 {{problem_args}}
 {{indent}}};
