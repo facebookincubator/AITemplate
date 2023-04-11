@@ -53,7 +53,7 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
         max_seq_lens: Tuple[int, List[int]] = 256,
         head_dim=128,
         head_dim_value=256,
-        num_heads=1,
+        num_heads: Tuple[int, List[int]] = 1,
         has_bias=False,
         bias_broadcast=None,
         epilogue_math_name="Identity",
@@ -72,6 +72,8 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
             batch_sizes = [batch_sizes, batch_sizes]
         if isinstance(max_seq_lens, int):
             max_seq_lens = [max_seq_lens, max_seq_lens]
+        if isinstance(num_heads, int):
+            num_heads = [num_heads, num_heads]
         alpha0 = 1.0 / (head_dim**0.5)
         batch_size_dim = IntVar(
             values=[min(batch_sizes), max(batch_sizes)], name="batch_size"
@@ -79,6 +81,7 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
         max_seq_len_dim = shape_utils.gen_int_var_min_max(
             max_seq_lens, name="max_seq_len"
         )
+        num_heads_dim = shape_utils.gen_int_var_min_max(num_heads, name="num_heads")
         jagged_dims = [JaggedDim(min_value=0, max_value=max_seq_len_dim)]
         total_length_dim = IntVar(
             values=[0, batch_size_dim.upper_bound() * max_seq_len_dim.upper_bound()],
@@ -89,19 +92,19 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
             name="offset_length",
         )
         Q_dense = Tensor(
-            shape=[total_length_dim, num_heads, head_dim],
+            shape=[total_length_dim, num_heads_dim, head_dim],
             dtype=dtype,
             name="q",
             is_input=True,
         )
         K_dense = Tensor(
-            shape=[total_length_dim, num_heads, head_dim],
+            shape=[total_length_dim, num_heads_dim, head_dim],
             dtype=dtype,
             name="k",
             is_input=True,
         )
         V_dense = Tensor(
-            shape=[total_length_dim, num_heads, head_dim_value],
+            shape=[total_length_dim, num_heads_dim, head_dim_value],
             dtype=dtype,
             name="v",
             is_input=True,
@@ -122,7 +125,7 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
         )
         Bias = None
         if has_bias:
-            shape = [batch_size_dim, num_heads, max_seq_len_dim, max_seq_len_dim]
+            shape = [batch_size_dim, num_heads_dim, max_seq_len_dim, max_seq_len_dim]
             if bias_broadcast:
                 for i, broadcast in enumerate(bias_broadcast):
                     if broadcast:
@@ -139,7 +142,6 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
             alpha1=1.0,
             alpha1_divide_by_seq_len=alpha1_divide_by_seq_len,
             epilogue_math_name=epilogue_math_name,
-            num_heads=num_heads,
         )
         if copy_op:
             grouped_fmha_style_b2b_bmm_op = ops.grouped_fmha_style_b2b_bmm(
@@ -156,8 +158,8 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
         # Run tests.
         torch_dtype = string_to_torch_dtype(dtype)
         offsets_torch_dtype = string_to_torch_dtype(offsets_dtype)
-        for batch_size, max_seq_len in itertools.product(
-            sorted(set(batch_sizes)), sorted(set(max_seq_lens))
+        for batch_size, max_seq_len, num_head in itertools.product(
+            sorted(set(batch_sizes)), sorted(set(max_seq_lens)), sorted(set(num_heads))
         ):
             # Initialize inputs
             lengths = torch.randint(
@@ -169,15 +171,15 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
             total_length = offsets[-1]
             offsets_pt = offsets.cuda()
             q_pt = torch.rand(
-                (total_length, num_heads, head_dim), dtype=torch_dtype
+                (total_length, num_head, head_dim), dtype=torch_dtype
             ).cuda()
             k_pt = torch.rand(
-                (total_length, num_heads, head_dim), dtype=torch_dtype
+                (total_length, num_head, head_dim), dtype=torch_dtype
             ).cuda()
             v_pt = torch.rand(
-                (total_length, num_heads, head_dim_value), dtype=torch_dtype
+                (total_length, num_head, head_dim_value), dtype=torch_dtype
             ).cuda()
-            bias_shape = [batch_size, num_heads, max_seq_len, max_seq_len]
+            bias_shape = [batch_size, num_head, max_seq_len, max_seq_len]
             if bias_broadcast:
                 for i, broadcast in enumerate(bias_broadcast):
                     if broadcast:
@@ -194,7 +196,7 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
             if has_bias:
                 inputs["bias"] = bias_pt
             y = torch.empty(
-                [total_length, num_heads, head_dim_value],
+                [total_length, num_head, head_dim_value],
                 dtype=torch_dtype,
                 device="cuda",
             )
@@ -303,6 +305,11 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
             has_bias=True,
             num_heads=2,
             bias_broadcast=[True, True, True, False],
+        )
+        self._test_grouped_fmha_style_b2b_bmm(
+            test_name="grouped_fmha_style_b2b_bmm_fp16_dynamic_multi_head",
+            dtype="float16",
+            num_heads=[2, 4],
         )
         self._test_grouped_fmha_style_b2b_bmm(
             test_name="grouped_fmha_style_b2b_bmm_fp16_complex",

@@ -682,7 +682,12 @@ class ModelContainerGenerator:
 
         batch_dim_name = jagged_int_var.batch_dim()._attrs["name"]
         if batch_dim_name not in self.visited_dims:
-            self.dim_decl.append(self.f_var_decl(batch_dim_name, 0))
+            batch_dim_value = (
+                0
+                if not isinstance(jagged_int_var.batch_dim(), IntImm)
+                else jagged_int_var.batch_dim().value()
+            )
+            self.dim_decl.append(self.f_var_decl(batch_dim_name, batch_dim_value))
             self.visited_dims.add(batch_dim_name)
 
     def _process_dims_for_tensor(self, node: Tensor) -> None:

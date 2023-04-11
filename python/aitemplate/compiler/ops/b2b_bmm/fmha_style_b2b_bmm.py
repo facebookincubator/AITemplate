@@ -39,24 +39,30 @@ from typing import Optional
 import numpy as np
 
 from aitemplate.backend import registry, target
-from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import b2b_bmm_base, CausalType
 from aitemplate.utils import shape_utils
 
 
 class fmha_style_b2b_bmm(b2b_bmm_base):
+    """See comments at the head of this file."""
+
     def __init__(
         self,
         causal_type: CausalType,
         epilogue_math_name: str,
         alpha0: float,
         alpha1: float,
-        num_heads: int,
+        alpha1_divide_by_seq_len: bool = False,
     ) -> None:
-        """Initialize fmha_style_b2b_bmm op."""
-        super().__init__(causal_type, epilogue_math_name, alpha0, alpha1)
+        """Initialize fmha_style_b2b_bmm op.
+        Check aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base for more details
+        about these args.
+        """
+        super().__init__(
+            causal_type, epilogue_math_name, alpha0, alpha1, alpha1_divide_by_seq_len
+        )
         self._attrs["op"] = "fmha_style_b2b_bmm"
-        self._attrs["num_heads"] = num_heads
         self._attrs["workspace"] = 0
 
     def _infer_shapes(self):
@@ -83,10 +89,6 @@ class fmha_style_b2b_bmm(b2b_bmm_base):
                 f"QKV must have same head size! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
             )
         batch_size = q_shape[0]
-        if q_shape[2] != IntImm(self._attrs["num_heads"]):
-            raise RuntimeError(
-                f"num_heads are not equal! {self._attrs['num_heads']=}, {q_shape[2]=}"
-            )
         M0 = q_shape[1]
         K0 = q_shape[3]
         if K0 != k_shape[3]:
@@ -106,8 +108,7 @@ class fmha_style_b2b_bmm(b2b_bmm_base):
                     f"When causal_type is enabled, M0 must be equal to N0. Current {M0=}, {N0=}."
                 )
 
-        head_size = IntImm(self._attrs["num_heads"])
-
+        head_size = q_shape[2]
         output_shape = [batch_size, M0, head_size, N1]
 
         if len(self._attrs["inputs"]) == 4:
@@ -119,7 +120,7 @@ class fmha_style_b2b_bmm(b2b_bmm_base):
             )
             if len(bias_shape) != 4:
                 raise RuntimeError(
-                    f"Expected bias rank 4. Current bias rank: {len(bias)}."
+                    f"Expected bias rank 4. Current bias rank: {len(bias_shape)}."
                 )
             if not broadcastable:
                 raise RuntimeError(
@@ -179,7 +180,7 @@ class fmha_style_b2b_bmm(b2b_bmm_base):
             "epilogue_math_name",
             "alpha0",
             "alpha1",
-            "num_heads",
+            "alpha1_divide_by_seq_len",
         ]
         attr = {}
 

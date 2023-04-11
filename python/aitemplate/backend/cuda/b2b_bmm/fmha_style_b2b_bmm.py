@@ -61,8 +61,6 @@ constexpr bool kSingleValueIteration = ({{head_dim_value}} <= kKeysPerBlock);
   ElementAccumulator alpha0 = ElementAccumulator({{alpha0}});
   ElementAccumulator alpha1 = ElementAccumulator({{alpha1}});
 
-  int64_t seq_length = {{seq_length}};
-  int64_t seq_length_kv = {{seq_length_kv}};
   int64_t head_dim = {{head_dim}};
   int64_t head_dim_value = {{head_dim_value}};
 
@@ -84,7 +82,7 @@ constexpr bool kSingleValueIteration = ({{head_dim_value}} <= kKeysPerBlock);
     p.activation_scale = alpha1;
     p.activation_scale_divide_by_seq_len = {{alpha1_divide_by_seq_len}};
 
-    p.num_heads = {{num_heads}};
+    p.num_heads = num_heads;
     p.num_batches = batch_size;
 
     p.head_dim = head_dim;
@@ -107,7 +105,7 @@ constexpr bool kSingleValueIteration = ({{head_dim_value}} <= kKeysPerBlock);
     p.k_strideB = p.k_strideM * seq_length_kv;
     p.v_strideB = p.v_strideM * seq_length_kv;
 
-    int32_t bias_stride = {{seq_length_kv}};
+    int32_t bias_stride = seq_length_kv;
     {% if bias_broadcast[2] %}
     p.bias_strideM = 0;
     {% else %}
@@ -148,10 +146,10 @@ constexpr bool kSingleValueIteration = ({{head_dim_value}} <= kKeysPerBlock);
     throw std::runtime_error(
       std::string("Kernel does not support these inputs. ") +
       "Function: {{func_name}}. " +
-      "m0: " + std::to_string({{seq_length}}) +
-      ", k0: " + std::to_string({{head_dim}}) +
-      ", n0: " + std::to_string({{seq_length_kv}}) +
-      ", n1: " + std::to_string({{head_dim_value}}) + "."
+      "seq_length: " + std::to_string(seq_length) +
+      ", head_dim: " + std::to_string({{head_dim}}) +
+      ", seq_length_kv: " + std::to_string(seq_length_kv) +
+      ", head_dim_value: " + std::to_string({{head_dim_value}}) + "."
     );
   }
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);
@@ -170,8 +168,9 @@ void {{func_name}}(
   void* bias,
   void* accum_ptr,
   int64_t batch_size,
-  int64_t m0,
-  int64_t k0,
+  int64_t seq_length,
+  int64_t seq_length_kv,
+  int64_t num_heads,
   cudaStream_t stream)
     """
 )
@@ -186,11 +185,15 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
 {{indent}}    {{output}},
-{{indent}}    {{query}}, {{key}}, {{value}}, {{bias}},
+{{indent}}    {{query}},
+{{indent}}    {{key}},
+{{indent}}    {{value}},
+{{indent}}    {{bias}},
 {{indent}}    {{accum_ptr}},
 {{indent}}    {{batch_size}},
-{{indent}}    {{m0}},
-{{indent}}    {{k0}},
+{{indent}}    {{seq_length}},
+{{indent}}    {{seq_length_kv}},
+{{indent}}    {{num_heads}},
 {{indent}}    stream
 {{indent}});
     """
@@ -218,11 +221,11 @@ def fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         bias = func_attrs["inputs"][3]
         bias_broadcast = [var == IntImm(1) for var in bias.shape()]
 
-    n0 = k._attrs["shape"][1]
+    k0 = k._attrs["shape"][3]
     n1 = v._attrs["shape"][3]
-    if not isinstance(n0, IntImm) or not isinstance(n1, IntImm):
+    if not isinstance(k0, IntImm) or not isinstance(n1, IntImm):
         raise RuntimeError(
-            f"n0 and n1 must be static dims. {func_attrs['name']=}, {n0=}, {n1=}"
+            f"k0 and n1 must be static dims. {func_attrs['name']=}, {k0=}, {n1=}"
         )
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_lib_type(
@@ -250,15 +253,14 @@ def fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         elem_output_type=elem_output_type,
         elem_accum_type=elem_accum_type,
         offset_t="int64_t",
-        seq_length="m0",
-        seq_length_kv=str(n0.value()),
-        head_dim="k0",
+        head_dim=str(k0.value()),
         head_dim_value=str(n1.value()),
         causal_type=causal_type_to_kernel_str(func_attrs["causal_type"]),
-        num_heads=str(func_attrs["num_heads"]),
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
-        alpha1_divide_by_seq_len="false",
+        alpha1_divide_by_seq_len="true"
+        if func_attrs["alpha1_divide_by_seq_len"]
+        else "false",
         activation_functor=activation_functor,
         bias_broadcast=bias_broadcast,
         offset_ptr="nullptr",
@@ -291,9 +293,11 @@ def fmha_style_b2b_bmm_gen_function_call(func_attrs, indent="  "):
         bias_name = func_attrs["inputs"][3]._attrs["name"]
 
     q_shape = func_attrs["inputs"][0]._attrs["shape"]
+    k_shape = func_attrs["inputs"][1]._attrs["shape"]
     batch_size = q_shape[0]._attrs["name"]
-    m0 = q_shape[1]._attrs["name"]
-    k0 = q_shape[3]._attrs["name"]
+    seq_length = q_shape[1]._attrs["name"]
+    seq_length_kv = k_shape[1]._attrs["name"]
+    num_heads = q_shape[2]._attrs["name"]
 
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
@@ -304,7 +308,8 @@ def fmha_style_b2b_bmm_gen_function_call(func_attrs, indent="  "):
         bias=bias_name,
         accum_ptr="global_workspace_",
         batch_size=batch_size,
-        m0=m0,
-        k0=k0,
+        seq_length=seq_length,
+        seq_length_kv=seq_length_kv,
+        num_heads=num_heads,
         indent=indent,
     )

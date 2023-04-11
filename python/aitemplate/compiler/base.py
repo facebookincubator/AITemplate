@@ -504,11 +504,6 @@ class JaggedIntVar(IntVar):
                 "total_length must be dynamic (IntVar), "
                 f"but given {type(total_length).__name__}."
             )
-        if batch_dim is None or type(batch_dim) != IntVar:
-            raise TypeError(
-                "batch_dim must be dynamic (IntVar), "
-                f"but given {type(batch_dim).__name__}."
-            )
         if not jagged_dims or not all(
             isinstance(dim, JaggedDim) for dim in jagged_dims
         ):

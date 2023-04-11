@@ -15,7 +15,7 @@
 
 """
 Base class for back-to-back batched gemm fused kernels.
-Computes bmm(causal_masks(alpha1(activation(alpha0 * bmm(Q, K) + bias))), V),
+Computes bmm(causal_mask(alpha1 * (activation(alpha0 * bmm(Q, K) + bias))), V),
 
 where:
 Q: [B, M0, (H,) K0] (row_major),
@@ -23,11 +23,6 @@ K: [B, N0, (H,) K0] (column_major),
 V: [B, N0, (H,) N1] (row_major),
 bias: [B, (H,) M0, N0] (row_major).
 Layouts are fixed for now.
-
-causal_masks have 3 types:
-NO_CAUSAL: no causal masks
-UPPER_RIGHT_EMPTY: the upper right triangular part of the matrix is 0
-LOWER_LEFT_EMPTY: the bottom left triangular part of the matrix is 0
 """
 
 from enum import Enum
@@ -48,18 +43,35 @@ def _check_max_alignment(shape: IntVar, dtype: str, error_msg: str) -> None:
 
 
 class CausalType(Enum):
-    NO_CAUSAL = 0
-    UPPER_RIGHT_EMPTY = 1
-    LOWER_LEFT_EMPTY = 2
+    NO_CAUSAL = 0  # no causal mask
+    UPPER_RIGHT_EMPTY = 1  # upper right triangular part of the matrix is 0
+    LOWER_LEFT_EMPTY = 2  # bottom left triangular part of the matrix is 0
 
 
 class b2b_bmm_base(Operator):
+    r"""Base class for back-to-back batched gemm fused kernels.
+
+    Computes bmm(causal_mask(alpha1 * (activation(alpha0 * bmm(Q, K) + bias))), V),
+
+    Args:
+    * causal_type (CausalType): Type of causal_mask. See comments above.
+    * epilogue_math_name (str): Name of the activation function.
+      Supported epilogue functions can be found from
+      python/aitemplate/utils/mk_cutlass_lib/extra_enum.py.
+    * alpha0 (float): See the math function above.
+    * alpha1 (float): See the math function above.
+    * alpha1_divide_by_seq_len (bool) Whether divide alpha1 by seq_len.
+      Useful when seq_len is a dynamic value so that alpah1 cannot be
+      computed in advance.
+    """
+
     def __init__(
         self,
         causal_type: CausalType,
         epilogue_math_name: str,
         alpha0: float,
         alpha1: float,
+        alpha1_divide_by_seq_len: bool = False,
     ) -> None:
         """Initialize classic_b2b_bmm op."""
         super().__init__()
@@ -67,6 +79,7 @@ class b2b_bmm_base(Operator):
         self._attrs["causal_type"] = causal_type
         self._attrs["alpha0"] = alpha0
         self._attrs["alpha1"] = alpha1
+        self._attrs["alpha1_divide_by_seq_len"] = alpha1_divide_by_seq_len
 
         import cutlass_lib
 
