@@ -696,11 +696,6 @@ class make_jagged(_view):
         jagged_dims: List[JaggedDim],
         check_sequence_lengths: bool = True,
     ) -> None:
-        if type(batch_dim) != IntVar:
-            raise TypeError(
-                "batch_dim must be dynamic (IntVar), "
-                f"but given {type(batch_dim).__name__}."
-            )
         if not jagged_dims or not all(
             isinstance(dim, JaggedDim) for dim in jagged_dims
         ):

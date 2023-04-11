@@ -36,10 +36,26 @@ void {{func_name}}(
   void* key,
   void* value,
   void* bias,
+
+  // Used as an internal cache to compute output values when the output is too
+  // large to be computed in a single iteration.
   void* accum_ptr,
+
   int64_t batch_size,
-  int64_t max_seq_length,
+
+  // Max sequence lengths of the query, key and values.
+  // This kernel always assumes that seq_length == seq_length_kv.
+  int64_t seq_length,
+  int64_t seq_length_kv,
+
+  int64_t num_heads,
+
+  // A pointer to the offset of the variable sequence lengths
+  // of the query and key tensors.
+  // e.g. when batch_size=4, seq_length is [2, 1, 4, 5]
+  // offset array is [0, 2, 3, 7, 12].
   const void* offset,
+
   cudaStream_t stream)
     """
 )
@@ -57,7 +73,9 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{query}}, {{key}}, {{value}}, {{bias}},
 {{indent}}    {{accum_ptr}},
 {{indent}}    {{batch_size}},
-{{indent}}    {{max_seq_length}},
+{{indent}}    {{seq_length}},
+{{indent}}    {{seq_length_kv}},
+{{indent}}    {{num_heads}},
 {{indent}}    {{offset}},
 {{indent}}    stream
 {{indent}});
@@ -116,7 +134,7 @@ def grouped_fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         causal_type=fmha_style_b2b_bmm.causal_type_to_kernel_str(
             func_attrs["causal_type"]
         ),
-        num_heads=str(func_attrs["num_heads"]),
+        num_heads="num_heads",
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
         alpha1_divide_by_seq_len="true"
@@ -150,19 +168,21 @@ def grouped_fmha_style_b2b_bmm_gen_function_call(func_attrs, indent="  "):
     if len(func_attrs["inputs"]) == 4:
         bias_name = func_attrs["inputs"][3]._attrs["name"]
 
-    jagged_intvar = func_attrs["inputs"][0]._attrs["shape"][0]
-    batch_size = jagged_intvar.batch_dim()._attrs["name"]
+    q_shape = func_attrs["inputs"][0]._attrs["shape"]
+    jagged_intvar = q_shape[0]
+    batch_size_str = jagged_intvar.batch_dim()._attrs["name"]
     if len(jagged_intvar.jagged_dims()) != 1:
         raise RuntimeError(
             "Only support 1 jagged dim in grouped_fmha_style_b2b_bmm for now! "
             f"Current jagged intvar: {jagged_intvar}"
         )
     max_seq_length_dim = jagged_intvar.jagged_dims()[0].max_value()
-    max_seq_length = (
+    max_seq_length_str = (
         str(max_seq_length_dim.value())
         if isinstance(max_seq_length_dim, IntImm)
         else max_seq_length_dim._attrs["name"]
     )
+    num_heads_str = q_shape[1]._attrs["name"]
     offset = f"{jagged_intvar.offsets_var_name()}.data[0]"
 
     return FUNC_CALL_TEMPLATE.render(
@@ -173,8 +193,10 @@ def grouped_fmha_style_b2b_bmm_gen_function_call(func_attrs, indent="  "):
         value=v_name,
         bias=bias_name,
         accum_ptr="global_workspace_",
-        batch_size=batch_size,
-        max_seq_length=max_seq_length,
+        batch_size=batch_size_str,
+        seq_length=max_seq_length_str,
+        seq_length_kv=max_seq_length_str,
+        num_heads=num_heads_str,
         offset=offset,
         indent=indent,
     )

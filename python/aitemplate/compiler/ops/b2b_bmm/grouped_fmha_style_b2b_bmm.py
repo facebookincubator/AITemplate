@@ -44,19 +44,24 @@ from aitemplate.utils import shape_utils
 
 
 class grouped_fmha_style_b2b_bmm(fmha_style_b2b_bmm):
+    """See comments at the head of this file."""
+
     def __init__(
         self,
         causal_type: CausalType,
         epilogue_math_name: str,
         alpha0: float,
         alpha1: float,
-        alpha1_divide_by_seq_len: bool,
-        num_heads: int,
+        alpha1_divide_by_seq_len: bool = False,
     ) -> None:
-        """Initialize grouped_fmha_style_b2b_bmm op."""
-        super().__init__(causal_type, epilogue_math_name, alpha0, alpha1, num_heads)
+        """Initialize grouped_fmha_style_b2b_bmm op.
+        Check aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base for more details
+        about these args.
+        """
+        super().__init__(
+            causal_type, epilogue_math_name, alpha0, alpha1, alpha1_divide_by_seq_len
+        )
         self._attrs["op"] = "grouped_fmha_style_b2b_bmm"
-        self._attrs["alpha1_divide_by_seq_len"] = alpha1_divide_by_seq_len
 
     def _infer_shapes(self):
         """infer the output shape for grouped_fmha_style_b2b_bmm."""
@@ -87,19 +92,14 @@ class grouped_fmha_style_b2b_bmm(fmha_style_b2b_bmm):
             raise RuntimeError(
                 f"QKV must have same head size! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
             )
-        if q_shape[1] != IntImm(self._attrs["num_heads"]):
-            raise RuntimeError(
-                f"num_heads are not equal! {self._attrs['num_heads']=}, {q_shape[1]=}"
-            )
         K0 = q_shape[2]
         if K0 != k_shape[2]:
             raise RuntimeError(
                 f"Q K shapes are not compatible! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
             )
 
-        head_size = IntImm(self._attrs["num_heads"])
-
-        output_shape = [q_shape[0], head_size, v_shape[2]]
+        num_heads = q_shape[1]
+        output_shape = [q_shape[0], num_heads, v_shape[2]]
 
         if len(self._attrs["inputs"]) == 4:
             batch_size = q_shape[0].batch_dim()
@@ -108,7 +108,7 @@ class grouped_fmha_style_b2b_bmm(fmha_style_b2b_bmm):
             bias_shape = bias._attrs["shape"]
             bias_expected_shape = [
                 batch_size,
-                head_size,
+                num_heads,
                 max_seq_length,
                 max_seq_length,
             ]
@@ -162,20 +162,3 @@ class grouped_fmha_style_b2b_bmm(fmha_style_b2b_bmm):
                 )
 
         return output_shape
-
-    def _get_op_attributes(self):
-        target_attrs = [
-            "causal_type",
-            "epilogue_math_name",
-            "alpha0",
-            "alpha1",
-            "alpha1_divide_by_seq_len",
-            "num_heads",
-        ]
-        attr = {}
-
-        for target_attr in target_attrs:
-            if target_attr in self._attrs:
-                attr[target_attr] = self._attrs[target_attr]
-
-        return attr
