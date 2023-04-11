@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import re
 import unittest
 
 import torch
@@ -38,11 +39,15 @@ def _generate_model_name(shape, permutation, is_reshape, dtype, is_complex):
         [
             ("test_permute_complex" if is_complex else "test_permute"),
             ("to_reshape" if is_reshape else "not_to_reshape"),
-            "x".join([str(s) for s in shape]),
-            "".join([str(s) for s in permutation]),
+            "x".join([str(s) for s in shape]),  #  these  can contain characters
+            "".join([str(s) for s in permutation]),  #  unsafe for usage in filenames
             dtype,
         ]
     )
+    # replace non-alphanumeric characters with underscores
+    # The ^ within the [^a-zA-Z0-9_] is a negation of the
+    # character class so it matches every character not in that class,
+    model_name = re.sub(r"[^a-zA-Z0-9_]", "_", model_name)
     return model_name
 
 
