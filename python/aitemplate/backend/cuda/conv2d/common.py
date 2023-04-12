@@ -150,9 +150,12 @@ void {{function_name}} (
     int64_t* out_batch,
     int64_t* out_h,
     int64_t* out_w,
-    int stride,
-    int dilation,
-    int pad,
+    int strideh,
+    int dilationh,
+    int padh,
+    int stridew,
+    int dilationw,
+    int padw,
     cudaStream_t stream
   ) {
 
@@ -193,9 +196,9 @@ void {{function_name}} (
 {% else %}
     {i32_out_ch, i32_kernel_h, i32_kernel_w, i32_in_ch},  // cutlass::Tensor4DCoord filter_size
 {% endif %}
-    {pad, pad, pad, pad},                                 // cutlass::Tensor4DCoord padding
-    {stride, stride},                                     // cutlass::MatrixCoord stride
-    {dilation, dilation},                                 // cutlass::MatrixCoord dilation
+    {padh, padh, padw, padw},                                 // cutlass::Tensor4DCoord padding
+    {strideh, stridew},                                     // cutlass::MatrixCoord stride
+    {dilationh, dilationw},                                 // cutlass::MatrixCoord dilation
 {% if is_transpose %}
     {i32_batch, i32_in_h, i32_in_w, i32_in_ch},           // cutlass::Tensor4DCoord output_size
 {% else %}
@@ -232,9 +235,12 @@ BENCHMARK_INSTANCE_TEMPLATE = jinja2.Template(
 {{indent}}      {{no}},
 {{indent}}      {{ho}},
 {{indent}}      {{wo}},
-{{indent}}      {{stride}},
-{{indent}}      {{dilation}},
-{{indent}}      {{pad}},
+{{indent}}      {{strideh}},
+{{indent}}      {{dilationh}},
+{{indent}}      {{padh}},
+{{indent}}      {{stridew}},
+{{indent}}      {{dilationw}},
+{{indent}}      {{padw}},
 {{indent}}      global_workspace_,
 {{indent}}      stream
 {{indent}}    );
@@ -269,6 +275,9 @@ int benchmark_{{function_name}} (
   int,
   int,
   int,
+  int,
+  int,
+  int,
   uint8_t*,
   cudaStream_t
 );
@@ -290,9 +299,12 @@ int benchmark_{{function_name}} (
   int64_t NO,
   int64_t HO,
   int64_t WO,
-  int stride,
-  int dilation,
-  int pad,
+  int strideh,
+  int dilationh,
+  int padh,
+  int stridew,
+  int dilationw,
+  int padw,
   uint8_t* global_workspace_,
   cudaStream_t stream
 ) {
@@ -367,9 +379,12 @@ int main(int argc, char** argv) {
   int64_t kernel_h = std::stoi(argv[5]);
   int64_t kernel_w = std::stoi(argv[6]);
   int64_t out_ch = std::stoi(argv[7]);
-  int stride = std::stoi(argv[8]);
-  int pad = std::stoi(argv[9]);
-  int dilation = std::stoi(argv[10]);
+  int strideh = std::stoi(argv[8]);
+  int padh = std::stoi(argv[9]);
+  int dilationh = std::stoi(argv[10]);
+  int stridew = std::stoi(argv[11]);
+  int padw = std::stoi(argv[12]);
+  int dilationw = std::stoi(argv[13]);
 
 {{shape_func}}
 
@@ -411,6 +426,9 @@ void {{func_name}}(
   int,
   int,
   int,
+  int,
+  int,
+  int,
   cudaStream_t
 );
 """
@@ -439,9 +457,12 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{p_out_batch}},
 {{indent}}    {{p_out_h}},
 {{indent}}    {{p_out_w}},
-{{indent}}    {{stride}},
-{{indent}}    {{dilation}},
-{{indent}}    {{pad}},
+{{indent}}    {{strideh}},
+{{indent}}    {{dilationh}},
+{{indent}}    {{padh}},
+{{indent}}    {{stridew}},
+{{indent}}    {{dilationw}},
+{{indent}}    {{padw}},
 {{indent}}    stream
 {{indent}});
 """
@@ -662,9 +683,12 @@ def gen_profiler(
             p_out_batch="&NO",
             p_out_h="&HO",
             p_out_w="&WO",
-            stride="stride",
-            dilation="dilation",
-            pad="pad",
+            strideh="strideh",
+            dilationh="dilationh",
+            padh="padh",
+            stridew="stridew",
+            dilationw="dilationw",
+            padw="padw",
         )
         benchmark = BENCHMARK_TEMPLATE.render(
             is_bias=is_bias,
@@ -695,9 +719,12 @@ def gen_profiler(
             no="NO",
             ho="HO",
             wo="WO",
-            stride="stride",
-            dilation="dilation",
-            pad="pad",
+            strideh="SH",
+            dilationh="DH",
+            padh="PH",
+            stridew="SW",
+            dilationw="DW",
+            padw="PW",
         )
         benchmark_instances.append(benchmark_instance)
 
@@ -717,9 +744,12 @@ def gen_profiler(
         w_dim0="out_ch",
         w_dim1="kernel_h",
         w_dim2="kernel_w",
-        stride="stride",
-        dilate="dilation",
-        pad="pad",
+        strideh="strideh",
+        dilateh="dilationh",
+        padh="padh",
+        stridew="stridew",
+        dilatew="dilationw",
+        padw="padw",
     )
     profiler_main_code = PROFILER_MAIN_TEMPLATE.render(
         shape_func=shape_func,
@@ -798,9 +828,12 @@ def gen_function(
         w_dim0="*out_ch",
         w_dim1="*kernel_h",
         w_dim2="*kernel_w",
-        stride="stride",
-        dilate="dilation",
-        pad="pad",
+        strideh="strideh",
+        dilateh="dilationh",
+        padh="padh",
+        stridew="stridew",
+        dilatew="dilationw",
+        padw="padw",
         div="/",
     )
     shape_save_func = shape_save_template.render(
@@ -905,9 +938,24 @@ def gen_function_call(
         p_out_batch="&" + yshape[0]._attrs["name"],
         p_out_h="&" + yshape[1]._attrs["name"],
         p_out_w="&" + yshape[2]._attrs["name"],
-        stride=func_attrs["stride"],
-        dilation=func_attrs["dilate"],
-        pad=func_attrs["pad"],
+        strideh=func_attrs["stride"]
+        if isinstance(func_attrs["stride"], int)
+        else func_attrs["stride"][0],
+        dilationh=func_attrs["dilate"]
+        if isinstance(func_attrs["dilate"], int)
+        else func_attrs["dilate"][0],
+        padh=func_attrs["pad"]
+        if isinstance(func_attrs["pad"], int)
+        else func_attrs["pad"][0],
+        stridew=func_attrs["stride"]
+        if isinstance(func_attrs["stride"], int)
+        else func_attrs["stride"][1],
+        dilationw=func_attrs["dilate"]
+        if isinstance(func_attrs["dilate"], int)
+        else func_attrs["dilate"][1],
+        padw=func_attrs["pad"]
+        if isinstance(func_attrs["pad"], int)
+        else func_attrs["pad"][1],
         indent=indent,
     )
 

@@ -16,6 +16,7 @@
 from aitemplate.frontend.nn.container import ModuleDict, ModuleList, Sequential
 from aitemplate.frontend.nn.embedding import BertEmbeddings, Embedding
 from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.conv1d import *
 from aitemplate.frontend.nn.conv2d import *
 from aitemplate.frontend.nn.conv3d import *
 from aitemplate.frontend.nn.linear import *
