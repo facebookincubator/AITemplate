@@ -99,7 +99,7 @@ class ReduceTestCase(unittest.TestCase):
         atol=1e-2,
     ):
         self._run_reduce(
-            test_name="reduce_sum",
+            test_name=f"reduce_sum_{input_type}_{output_type}",
             reduce_op=ops.reduce_sum,
             torch_reduce_op=torch.sum,
             dim=dim,
@@ -219,7 +219,7 @@ class ReduceTestCase(unittest.TestCase):
         output_type=None,
     ):
         self._run_reduce(
-            test_name="reduce_mean",
+            test_name=f"reduce_mean_{input_type}_{output_type}",
             reduce_op=ops.reduce_mean,
             torch_reduce_op=torch.mean,
             dim=dim,
@@ -231,7 +231,11 @@ class ReduceTestCase(unittest.TestCase):
 
     def test_reduce_mean(self):
         self._run_reduce_mean(
-            dim=0, input_shape=[1], keepdim=True, input_type="float16", output_type=None
+            dim=0,
+            input_shape=[1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
         )
         self._run_reduce_mean(
             dim=1,
@@ -445,7 +449,7 @@ class ReduceTestCase(unittest.TestCase):
         output_type=None,
     ):
         self._run_batched_reduce(
-            test_name="reduce_sum_batched",
+            test_name=f"reduce_sum_batched_{input_type}_{output_type}",
             reduce_op=ops.reduce_sum,
             torch_reduce_op=torch.sum,
             dim=dim,
