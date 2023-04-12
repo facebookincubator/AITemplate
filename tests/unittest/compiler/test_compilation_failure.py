@@ -12,16 +12,20 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 import os
 import unittest
 from unittest.mock import patch
 
 import jinja2
+from aitemplate.backend.build_cache_base import SkipBuildCache
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import DynamicProfileStrategy
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class _EnableForceProfile:
@@ -67,14 +71,14 @@ class CompilationFailureTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-
-        compile_model(
-            Y,
-            target,
-            f"./tmp/{test_name}",
-            test_name,
-            dynamic_profiling_strategy=DynamicProfileStrategy.HINTS,
-        )
+        with SkipBuildCache():
+            compile_model(
+                Y,
+                target,
+                f"./tmp/{test_name}",
+                test_name,
+                dynamic_profiling_strategy=DynamicProfileStrategy.HINTS,
+            )
 
     def test_compilation_failure_profiler(self):
         target = detect_target().name()
@@ -95,6 +99,32 @@ class CompilationFailureTestCase(unittest.TestCase):
             mock_gen_function.return_value = "BAD CODE!"
             with self.assertRaisesRegex(RuntimeError, "Build has failed."):
                 self._test_compilation_failure(test_name="compilation_failure_function")
+
+    def test_unsafe_build_dir_failures(self):
+        for test_name in [
+            "contains spaces",
+            "contains$sign",
+            " starts-with-space",
+            "with{curly",
+            "with|pipe",
+            ".",
+            "..",
+            "[8]",
+            "<",
+            ">",
+            "?",
+            "*",
+            "!",
+            "#",
+            r"a\b",
+            "a:b",
+            "",
+        ]:
+            with self.assertRaisesRegex(
+                AssertionError,
+                "The test_name argument has to be a non-empty and valid subdirectory name",
+            ):
+                self._test_compilation_failure(test_name=test_name)
 
 
 if __name__ == "__main__":

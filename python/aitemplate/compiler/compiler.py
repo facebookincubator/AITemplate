@@ -39,6 +39,7 @@ from aitemplate.compiler.transform.name_graph import reset_name_counters
 from aitemplate.compiler.transform.profile import elapsed_dt_sec
 from aitemplate.utils import graph_utils
 from aitemplate.utils.debug_settings import AITDebugSettings
+from aitemplate.utils.io import is_safe_dir_name
 from aitemplate.utils.serialization.serdes_code import dump_program
 
 # pylint: disable=W0102
@@ -173,7 +174,8 @@ def compile_model(
     workdir : str
         A workdir to store profiling and execution source codes, as well as the result .so file.
     test_name : str
-        Name of the test. Used as the name of the subdir which stores the generated .so file.
+        Name of the test. Used as the name of the subdir which stores the generated .so file. May only consist of
+        english alphanumeric characters, underscores, dashes, slashes, commas and dots. No whitespace or special characters permitted.
     profile_devs : List[int], optional
         A list of profiling devices, by default device 0 will be used.
     dynamic_profiling_strategy: DynamicProfileStrategy, optional
@@ -201,6 +203,9 @@ def compile_model(
     Model
         A model object.
     """
+    assert is_safe_dir_name(
+        test_name
+    ), f"The test_name argument has to be a non-empty and valid subdirectory name. Permitted characters are alphanumeric chars, underscore, dash and dot. Current value: '{test_name}'"
     if constants is None:
         constants = {}
 
