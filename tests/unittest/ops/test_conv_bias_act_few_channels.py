@@ -106,7 +106,7 @@ class ConvBiasActFewChannelsTestCase(unittest.TestCase):
         )
         self._test_conv_bias_relu_few_channels(
             copy_op=True,
-            test_name="conv_bias_relu_few_channels_{dtype}_copy_op",
+            test_name=f"conv_bias_relu_few_channels_{dtype}_copy_op",
             dtype=dtype,
         )
 
