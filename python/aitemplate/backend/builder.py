@@ -162,6 +162,10 @@ def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
         )
         try:
             out, err = proc.communicate(timeout)
+            if store_cache_key is not None:
+                build_cache.BUILD_CACHE.store_build_cache(
+                    cmds, build_dir, store_cache_key
+                )
         except subprocess.TimeoutExpired as e:
             proc.kill()
             out, err = proc.communicate()
@@ -179,8 +183,6 @@ def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
             else:
                 _LOGGER.debug(f"make stdout:\n\n{stdout}")
                 _LOGGER.debug(f"make stderr:\n\n{stderr}")
-        if store_cache_key is not None:
-            build_cache.BUILD_CACHE.store_build_cache(cmds, build_dir, store_cache_key)
 
 
 def process_task(task: Task) -> None:
@@ -816,7 +818,12 @@ clean:
         make_clean_cmd = f" {make_path} {make_flags} clean "
         make_all_cmd = f" {make_path} {make_flags} -j{self._n_jobs} all "
         cmds = [make_clean_cmd, make_all_cmd]
-        _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=True)
+        _run_make_cmds(
+            cmds,
+            self._timeout,
+            build_dir,
+            allow_cache=(not environ.ait_build_cache_skip_profiler()),
+        )
 
     def _gen_compiler_version_files(self, target_dir):
         # Write compiler version string(s) into build directory
