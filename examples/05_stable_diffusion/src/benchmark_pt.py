@@ -33,9 +33,9 @@ from diffusers import StableDiffusionPipeline
 def run(local_dir, prompt, benchmark):
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
-        revision="fp16",
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
     ).to("cuda")
+    pipe.unet = torch.compile(pipe.unet)
 
     with torch.autocast("cuda"):
         image = pipe(prompt).images[0]

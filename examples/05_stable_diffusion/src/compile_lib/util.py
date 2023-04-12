@@ -12,6 +12,9 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+
+import torch
+
 def mark_output(y):
     if type(y) is not tuple:
         y = (y,)
@@ -20,3 +23,12 @@ def mark_output(y):
         y[i]._attrs["name"] = "output_%d" % (i)
         y_shape = [d._attrs["values"][0] for d in y[i]._attrs["shape"]]
         print("AIT output_{} shape: {}".format(i, y_shape))
+
+def torch_dtype_from_str(dtype: str): 
+    if dtype == "float16":
+        torch_dtype = torch.float16
+    elif dtype == "float32":
+        torch_dtype = torch.float32
+    else:
+        raise ValueError("dtype not supported yet!")
+    return torch_dtype

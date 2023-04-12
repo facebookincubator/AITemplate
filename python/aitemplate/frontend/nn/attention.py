@@ -55,6 +55,7 @@ class FlashAttention(Module):
             dropout=dropout,
             max_seq_len=max_seq_len,
             causal=causal,
+            dtype=dtype,
         )
 
     def forward(self, *args):
@@ -105,6 +106,7 @@ class MultiheadAttention(Module):
         causal=False,
         mask_seq=0,
         use_mem_eff=False,
+        dtype="float16",
     ):
         super().__init__()
         assert (
@@ -120,12 +122,14 @@ class MultiheadAttention(Module):
         self.has_residual = has_residual
         self.mask_seq = mask_seq
         self.use_mem_eff = use_mem_eff
+        self.dtype = dtype
 
         flash_head_dims = {8, 16, 32, 64, 128}
         # simple heuristic, may need refinement
         self.use_flash = (
             not (seq_len >= 512 and batch_size <= 2)
         ) and head_dim in flash_head_dims
+        self.use_flash = False
         # odd seq try use flash
         if seq_len % 2 == 1:
             self.use_flash = True
@@ -146,7 +150,7 @@ class MultiheadAttention(Module):
         self.cu_length = Parameter(shape=[batch_size + 1], dtype="int32")
         if self.mask_seq:
             self.output_mask = Parameter(
-                shape=[mask_seq, num_heads, head_dim], dtype="float16"
+                shape=[mask_seq, num_heads, head_dim], dtype=dtype,
             )
 
         if self.USE_CUDA:
@@ -155,13 +159,14 @@ class MultiheadAttention(Module):
             # input: (B, S, H)
             # output: (B*S, 3, num_heads, head_dim)
             if self.use_flash:
-                self.qkv = Linear(dim, dim * 3, bias=qkv_bias)
+                self.qkv = Linear(dim, dim * 3, bias=qkv_bias, dtype=dtype)
             else:
                 self.qkv = Linear(
                     dim,
                     dim * 3,
                     specialization="permute",
                     shape=(seq_len, 3, self.num_heads),
+                    dtype=dtype,
                 )
         else:
             # on ROCM ck attention (bmm_softmax_bmm) takes three inputs (Q, K, V)
@@ -176,10 +181,11 @@ class MultiheadAttention(Module):
                 specialization="permute",
                 shape=(seq_len, 3, self.num_heads),
                 layout="m2n3",
+                dtype=dtype,
             )
 
         self.attn_drop = Dropout(attn_drop)
-        self.proj = Linear(dim, dim, specialization="add" if has_residual else None)
+        self.proj = Linear(dim, dim, specialization="add" if has_residual else None, dtype=dtype)
         self.proj_drop = Dropout(proj_drop)
 
     def get_shape(self, x):
@@ -225,7 +231,7 @@ class MultiheadAttention(Module):
             # permute: (B, Seqlen, num_heads, head_dim)
             if self.USE_CUDA:
                 scale = Tensor(
-                    shape=[], dtype="float16", name="scale", value=self.scale
+                    shape=[], dtype=self.dtype, name="scale", value=self.scale
                 )
                 # [3, b, num_heads, seqlen, d]
                 _, b, num_heads, seqlen, d = self.get_shape(x)

@@ -79,6 +79,7 @@ def compile_vae(
     width=64,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
+    dtype="float16",
 ):
     in_channels = 3
     out_channels = 3
@@ -113,11 +114,13 @@ def compile_vae(
         act_fn=act_fn,
         latent_channels=latent_channels,
         sample_size=sample_size,
+        dtype=dtype,
     )
     ait_input = Tensor(
         shape=[batch_size, height, width, latent_channels],
         name="vae_input",
         is_input=True,
+        dtype=dtype,
     )
     ait_vae.name_parameter_tensor()
 

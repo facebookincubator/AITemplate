@@ -79,6 +79,7 @@ def compile_clip(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
     act_layer="gelu",
+    dtype="float16",
 ):
     mask_seq = 0
     causal = True
@@ -92,6 +93,7 @@ def compile_clip(
         causal=causal,
         mask_seq=mask_seq,
         act_layer=act_layer,
+        dtype=dtype,
     )
     ait_mod.name_parameter_tensor()
 

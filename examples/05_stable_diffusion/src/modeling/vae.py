@@ -34,12 +34,13 @@ class Decoder(nn.Module):
         block_out_channels=(64,),
         layers_per_block=2,
         act_fn="silu",
+        dtype="float16",
     ):
         super().__init__()
         self.layers_per_block = layers_per_block
 
         self.conv_in = nn.Conv2dBias(
-            in_channels, block_out_channels[-1], kernel_size=3, stride=1, padding=1
+            in_channels, block_out_channels[-1], kernel_size=3, stride=1, padding=1, dtype=dtype,
         )
 
         # mid
@@ -55,6 +56,7 @@ class Decoder(nn.Module):
             attn_num_head_channels=None,
             resnet_groups=32,
             temb_channels=None,
+            dtype=dtype,
         )
 
         # up
@@ -78,6 +80,7 @@ class Decoder(nn.Module):
                 resnet_eps=1e-6,
                 resnet_act_fn=act_fn,
                 attn_num_head_channels=None,
+                dtype=dtype,
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel
@@ -89,9 +92,10 @@ class Decoder(nn.Module):
             num_groups=num_groups_out,
             eps=1e-6,
             use_swish=True,
+            dtype=dtype,
         )
         self.conv_out = nn.Conv2dBias(
-            block_out_channels[0], out_channels, kernel_size=3, padding=1, stride=1
+            block_out_channels[0], out_channels, kernel_size=3, padding=1, stride=1, dtype=dtype,
         )
 
     def forward(self, z) -> Tensor:
@@ -126,6 +130,7 @@ class AutoencoderKL(nn.Module):
         act_fn: str = "silu",
         latent_channels: int = 4,
         sample_size: int = 32,
+        dtype: str = "float16",
     ):
         super().__init__()
         self.decoder = Decoder(
@@ -138,9 +143,10 @@ class AutoencoderKL(nn.Module):
             block_out_channels=block_out_channels,
             layers_per_block=layers_per_block,
             act_fn=act_fn,
+            dtype=dtype,
         )
         self.post_quant_conv = nn.Conv2dBias(
-            latent_channels, latent_channels, kernel_size=1, stride=1, padding=0
+            latent_channels, latent_channels, kernel_size=1, stride=1, padding=0, dtype=dtype,
         )
 
     def decode(self, z: Tensor, return_dict: bool = True):
