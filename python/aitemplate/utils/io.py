@@ -18,6 +18,7 @@ Util functions to handle file or network io
 import hashlib
 import logging
 import os
+import re
 import tarfile
 import time
 from io import BytesIO, FileIO
@@ -73,6 +74,16 @@ def file_sizes(directory, filter_function=None):
                 total_size += os.path.getsize(file_path)
 
     return total_size
+
+
+def is_safe_dir_name(test_name):
+    # Returns true if test_name is a nonempty string consisting of only alphanumerics,
+    # underscores, hyphens, forward-slash, commas and dots, and is not equal to ".." or "."
+    if not isinstance(test_name, str):
+        return False
+    if test_name in ["..", ".", ""]:
+        return False
+    return re.fullmatch(r"[a-zA-Z0-9_.,\-/]+", test_name) is not None
 
 
 # Utility functions to be used by (not yet existing) distributed cache implementations
