@@ -203,19 +203,3 @@ def ait_ncdhw2ndhwc(ait_tensor: AITTensor) -> AITTensor:
 
 def ait_ndhwc2ncdhw(ait_tensor: AITTensor) -> AITTensor:
     return permute()(ait_tensor, [0, 4, 1, 2, 3])
-
-
-# TODO:  This is a hack to workaround AIT's dynamic shape requirement.
-# Detailed explanation can be found in D41743385 (aten2ait) D41974191(fx2ait).
-# We will throw this one after AIT provides vanilla support.
-def unify_dynamic_shape_name(input_val, weight):
-    input_shape = input_val.shape()
-    weight_shape = weight.shape()
-    if len(input_shape) == len(weight_shape):
-        for a, b in zip(input_shape, weight_shape):
-            if a._attrs["values"] == b._attrs["values"]:
-                if a._attrs["name"] is None:
-                    a._attrs["name"] = b._attrs["name"]
-                elif b._attrs["name"] is None:
-                    b._attrs["name"] = a._attrs["name"]
-    return input_shape, weight_shape

@@ -84,7 +84,6 @@ from .utils import (
     identical_elem_tuple_to_int,
     ncdhw2ndhwc,
     nchw2nhwc,
-    unify_dynamic_shape_name,
     weight_ncdhw2ndhwc,
     weight_nchw2nhwc,
 )
@@ -346,10 +345,6 @@ def acc_ops_cat(
     if not isinstance(dim, int):
         raise ValueError(f"Unexpected {type(dim)} dim for {name}: {dim}")
 
-    # TODO:  unify_dynamic_shape_name is a hack to workaround AIT's dynamic shape requirement.
-    # We will remove it after AIT provides vanilla support.
-    for i in range(len(tensors) - 1):
-        unify_dynamic_shape_name(tensors[i], tensors[i + 1])
     return concatenate()(tensors, dim=dim)
 
 
