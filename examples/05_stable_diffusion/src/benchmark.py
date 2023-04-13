@@ -273,7 +273,7 @@ def benchmark_vae(
 @click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
 def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
-    # assert batch_size == 1, "batch size must be 1 for submodule verification"
+    assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
@@ -291,7 +291,7 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
         benchmark_pt=benchmark_pt,
         verify=verify,
     )
-    # # UNet
+    # UNet
     benchmark_unet(
         pipe.unet,
         batch_size=batch_size * 2,

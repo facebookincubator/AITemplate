@@ -13,8 +13,6 @@
 #  limitations under the License.
 #
 
-import re
-
 import click
 import torch
 

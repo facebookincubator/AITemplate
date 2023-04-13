@@ -327,8 +327,6 @@ class CrossAttention(Module):
         self.causal = causal
         self.has_residual = has_residual
         self.dim = dim
-        # self.seqlen = seq_len
-        # self.seqlen_kv = seq_len_kv
 
         self.op = ops.mem_eff_attention(causal=causal)
 
