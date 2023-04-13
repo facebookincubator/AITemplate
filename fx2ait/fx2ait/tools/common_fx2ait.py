@@ -87,6 +87,7 @@ class AITTestCase(TestCase):
         passes: List[Callable] = [],  # noqa: B006
         leaf_module: Callable = None,  # one leaf module
         apply_passes_to_lowered_module_only=False,
+        use_fp16_acc=True,
     ):
         # TODO: add precision to interpreter once AIT supports multiple precision level
         # TODO: @qxy11 remove permute options once AIT supports channels-first format
@@ -119,6 +120,7 @@ class AITTestCase(TestCase):
             inputs,
             "/tmp",
             f"test-fx2ait-{uuid.uuid1()}",
+            use_fp16_acc=use_fp16_acc,
         )
         with torch.no_grad():
             cuda_inputs = []
