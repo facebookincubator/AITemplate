@@ -147,9 +147,12 @@ CONV_INIT_TEMPLATE = jinja2.Template(
   kh INTEGER NOT NULL,
   kw INTEGER NOT NULL,
   co INTEGER NOT NULL,
-  stride INTEGER NOT NULL,
-  pad INTEGER NOT NULL,
-  dilate INTEGER NOT NULL,
+  strideh INTEGER NOT NULL,
+  padh INTEGER NOT NULL,
+  dilateh INTEGER NOT NULL,
+  stridew INTEGER NOT NULL,
+  padw INTEGER NOT NULL,
+  dilatew INTEGER NOT NULL,
   op_type VARCHAR(512) NOT NULL,
   epilogue VARCHAR(512) NOT NULL,
   device VARCHAR(16) NOT NULL,
@@ -178,9 +181,12 @@ major_c={{major_c}} AND
 kh={{kh}} AND
 kw={{kw}} AND
 co={{co}} AND
-stride={{stride}} AND
-pad={{pad}} AND
-dilate={{dilate}} AND
+strideh={{strideh}} AND
+padh={{padh}} AND
+dilateh={{dilateh}} AND
+stridew={{stridew}} AND
+padw={{padw}} AND
+dilatew={{dilatew}} AND
 op_type='{{op_type}}' AND
 device='{{device}}' AND
 epilogue={{epilogue}} AND
@@ -204,9 +210,12 @@ INSERT INTO {{dev}}_conv_{{version}} (
     kh,
     kw,
     co,
-    stride,
-    pad,
-    dilate,
+    strideh,
+    padh,
+    dilateh,
+    stridew,
+    padw,
+    dilatew,
     op_type,
     epilogue,
     device,
@@ -227,9 +236,12 @@ VALUES (
     {{kh}},
     {{kw}},
     {{co}},
-    {{stride}},
-    {{pad}},
-    {{dilate}},
+    {{strideh}},
+    {{padh}},
+    {{dilateh}},
+    {{stridew}},
+    {{padw}},
+    {{dilatew}},
     '{{op_type}}',
     {{epilogue}},
     '{{device}}',
@@ -818,9 +830,12 @@ class ProfileCacheDB:
             kh=args["kh"],
             kw=args["kw"],
             co=args["co"],
-            stride=args["stride"],
-            pad=args["pad"],
-            dilate=args["dilate"],
+            strideh=args["strideh"],
+            padh=args["padh"],
+            dilateh=args["dilateh"],
+            stridew=args["stridew"],
+            padw=args["padw"],
+            dilatew=args["dilatew"],
             op_type=args["op_type"],
             device=args["device"],
             epilogue=args["epilogue"],

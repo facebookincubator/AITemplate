@@ -34,9 +34,12 @@ class ConvQueryEntry:
     kh: int
     kw: int
     co: int
-    stride: int
-    pad: int
-    dilate: int
+    strideh: int
+    stridew: int
+    padh: int
+    padw: int
+    dilateh: int
+    dilatew: int
     op_type: str
     device: str
     epilogue: int
@@ -60,9 +63,12 @@ class ConvRecordEntry:
     kh: int
     kw: int
     co: int
-    stride: int
-    pad: int
-    dilate: int
+    strideh: int
+    stridew: int
+    padh: int
+    padw: int
+    dilateh: int
+    dilatew: int
     op_type: str
     epilogue: int
     device: str
