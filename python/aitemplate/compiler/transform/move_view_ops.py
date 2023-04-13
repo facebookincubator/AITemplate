@@ -290,6 +290,16 @@ def _move_view_op_before_concat(
         next_ops = first_cat_output._attrs["dst_ops"]
         if len(next_ops) == 0:
             continue
+        # skip cases where the first cat op is directly connected with another cat op,
+        # because moving a view op between other two cat ops would insert a view op
+        # between the directly-connected cat ops. The transformed graph would contain
+        # a valid rewrite pattern which could trigger another re-write, and so on.
+        # Consequently, we would end up with an infinite rewriting loop, e.g.
+        # cat1 + reshape + cat2, cat1 + cat3 => cat1 + cat2, cat1 + reshape + cat3 =>
+        # cat1 + reshape + cat2, cat1 + cat3 => ...
+        concat_ops = [op for op in next_ops if op._attrs["op"] == "concatenate"]
+        if len(concat_ops) > 0:
+            continue
         view_ops = [op for op in next_ops if op._attrs["op"] in _SUPPORTED_VIEW_OPS]
         # skip if none of the next ops is one of the supported view ops
         if len(view_ops) == 0:
