@@ -553,7 +553,7 @@ class CrossAttnUpBlock2D(nn.Module):
             )
 
             hidden_states = resnet(hidden_states, temb=temb)
-            # hidden_states = attn(hidden_states, context=encoder_hidden_states)
+            hidden_states = attn(hidden_states, context=encoder_hidden_states)
 
         if self.upsamplers is not None:
             for upsampler in self.upsamplers:

@@ -67,20 +67,20 @@ def benchmark_unet(
     text_embeddings_pt = torch.randn(batch_size, 77, hidden_dim).cuda().half()
     timesteps_pt = torch.Tensor([1, 1]).cuda().half()
 
-    # with autocast("cuda"):
-    #     pt_ys = pt_mod(
-    #         latent_model_input_pt,
-    #         timesteps_pt,
-    #         encoder_hidden_states=text_embeddings_pt,
-    #     ).sample
+    with autocast("cuda"):
+        pt_ys = pt_mod(
+            latent_model_input_pt,
+            timesteps_pt,
+            encoder_hidden_states=text_embeddings_pt,
+        ).sample
 
-    #     # PT benchmark
-    #     if benchmark_pt:
-    #         args = (latent_model_input_pt, 1, text_embeddings_pt)
-    #         pt_time = benchmark_torch_function(100, pt_mod, *args)
-    #         print(f"PT batch_size: {batch_size}, {pt_time} ms")
-    #         with open("sd_pt_benchmark.txt", "a") as f:
-    #             f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
+        # PT benchmark
+        if benchmark_pt:
+            args = (latent_model_input_pt, 1, text_embeddings_pt)
+            pt_time = benchmark_torch_function(100, pt_mod, *args)
+            print(f"PT batch_size: {batch_size}, {pt_time} ms")
+            with open("sd_pt_benchmark.txt", "a") as f:
+                f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
 
     # print("pt output:", pt_ys.shape)
 
@@ -95,9 +95,11 @@ def benchmark_unet(
     num_outputs = len(exe_module.get_output_name_to_index_map())
     for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
+        shape[1] = height
+        shape[2] = width
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)
-    return
+    # return
 
     # verification
     y_transpose = ys[0].permute((0, 3, 1, 2))
@@ -114,11 +116,11 @@ def benchmark_unet(
 
     # AIT benchmark
     # warmup
-    exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
-    # benchmark
-    t, _, _ = exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
-    with open("sd_ait_benchmark.txt", "a") as f:
-        f.write(f"unet batch_size: {batch_size}, latency: {t} ms\n")
+    #exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
+    ## benchmark
+    #t, _, _ = exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
+    #with open("sd_ait_benchmark.txt", "a") as f:
+    #    f.write(f"unet batch_size: {batch_size}, latency: {t} ms\n")
 
 
 def benchmark_clip(
@@ -320,7 +322,7 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
         benchmark_pt=benchmark_pt,
         verify=verify,
         hidden_dim=pipe.text_encoder.config.hidden_size,
-        height=64, width=64,
+        height=48, width=32,
     )
     # VAE
     # benchmark_vae(

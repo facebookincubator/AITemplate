@@ -136,29 +136,33 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
                 jagged_int_var_name = jagged_int_var._attrs["name"]
                 batch_dim._attrs["name"] = f"{jagged_int_var_name}_jagged_batch_dim"
 
+
 def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
     """Rename all shape variable that are identical to the same name.
-
     Parameters
     ----------
     sorted_graph : List[Tensor]
         Input graph to be simplified
     """
     symbolic_to_name = {}
-    global user_provided_dim
     for node in sorted_graph:
-        for dim in node._attrs["shape"]:
-            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
+        tensor_name = node._attrs["name"]
+        for i, dim in enumerate(node._attrs["shape"]):
+            if not isinstance(dim, JaggedIntVar):
                 dim_sym = dim.symbolic_value()
-                if (
-                    dim_sym not in symbolic_to_name
-                    or dim_sym in symbolic_to_name
-                    and dim._attrs["name"] in user_provided_dim
-                ):
-                    symbolic_to_name[dim_sym] = dim._attrs["name"]
-
+                if dim_sym in symbolic_to_name:
+                    dim._attrs["name"] = symbolic_to_name[dim_sym]
+                else:
+                    dim_name = "{tname}_dim_{idx}".format(tname=tensor_name, idx=i)
+                    symbolic_to_name[dim_sym] = dim_name
+                    dim._attrs["name"] = dim_name
     for node in sorted_graph:
-        for dim in node._attrs["shape"]:
-            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
-                dim_sym = dim.symbolic_value()
-                dim._attrs["name"] = symbolic_to_name[dim_sym]
+        for op in node._attrs["dst_ops"]:
+            input_accessors = op._attrs.get("input_accessors", None)
+            if input_accessors:
+                for ta in input_accessors:
+                    if ta.original_shapes:
+                        for dim in ta.original_shapes:
+                            dim_sym = dim.symbolic_value()
+                            assert dim_sym in symbolic_to_name
+                            dim._attrs["name"] = symbolic_to_name[dim_sym]
