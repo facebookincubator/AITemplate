@@ -248,7 +248,7 @@ class conv2d(Operator):
         KHEff = (w_shape[1] - 1) * self._attrs["dilate"] + 1
         KWEff = (w_shape[2] - 1) * self._attrs["dilate"] + 1
         out_h = (in_h + 2 * self._attrs["pad"] - KHEff) // self._attrs["stride"] + 1
-        out_w = (in_w + 2 * self._attrs["pad"] - KHEff) // self._attrs["stride"] + 1
+        out_w = (in_w + 2 * self._attrs["pad"] - KWEff) // self._attrs["stride"] + 1
         output_shape[1]._attrs["symbolic_value"] = out_h
         output_shape[2]._attrs["symbolic_value"] = out_w
 

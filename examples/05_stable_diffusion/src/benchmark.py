@@ -128,8 +128,6 @@ def benchmark_clip(
     benchmark_pt=False,
     verify=False,
 ):
-    mask_seq = 0
-
     exe_module = Model("./tmp/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")

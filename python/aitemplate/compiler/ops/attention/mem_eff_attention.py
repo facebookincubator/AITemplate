@@ -26,7 +26,6 @@ import numpy as np
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
-from aitemplate.utils import shape_utils
 
 _LOGGER = logging.getLogger(__name__)
 
