@@ -15,6 +15,7 @@
 """
 Unittests for b2b bmm Operators.
 """
+import itertools
 import logging
 import unittest
 from typing import List, Tuple
@@ -64,7 +65,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
         if isinstance(batch_sizes, int):
             batch_sizes = [batch_sizes]
         alpha0 = 1.0 / (k0**0.5)
-        alpha1 = 1.0 / m
+        alpha1 = 1.0
         batch_size_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_size")
 
         Q = Tensor(
@@ -95,6 +96,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
             causal_type=causal_type,
             alpha0=alpha0,
             alpha1=alpha1,
+            alpha1_divide_by_seq_len=True,
             epilogue_math_name=epilogue_math_name,
         )
         if copy_op:
@@ -120,7 +122,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
             # Run PT reference.
             attn = alpha0 * (q_pt @ k_pt.transpose(-2, -1)) + bias_pt
             attn = epilogue_math_name_to_torch_fn(epilogue_math_name)(attn)
-            attn = alpha1 * attn
+            attn = alpha1 / m * attn
             invalid_attn_mask = get_attn_mask_per_causal_type(
                 m, n0, causal_type, torch_dtype
             )
@@ -191,11 +193,11 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
     def _test_fmha_style_b2b_bmm(
         self,
         batch_sizes: Tuple[int, List[int]] = 1024,
-        m=256,
+        seq_lens: Tuple[int, List[int]] = 256,
         k0=128,
-        n0=256,
+        seq_lens_kv: Tuple[int, List[int]] = 256,
         n1=256,
-        num_heads=1,
+        num_heads: Tuple[int, List[int]] = 1,
         has_bias=False,
         bias_broadcast=None,
         epilogue_math_name="Identity",
@@ -210,31 +212,40 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
         # Initialize AIT fmha_style_b2b_bmm operator.
         if isinstance(batch_sizes, int):
             batch_sizes = [batch_sizes]
+        if isinstance(seq_lens, int):
+            seq_lens = [seq_lens]
+        if isinstance(seq_lens_kv, int):
+            seq_lens_kv = [seq_lens_kv]
+        if isinstance(num_heads, int):
+            num_heads = [num_heads]
         alpha0 = 1.0 / (k0**0.5)
-        alpha1 = 1.0 / m
+        alpha1 = 1.0
         batch_size_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_size")
+        seq_lens_dim = shape_utils.gen_int_var_min_max(seq_lens, "seq_len")
+        seq_lens_kv_dim = shape_utils.gen_int_var_min_max(seq_lens_kv, "seq_len_kv")
+        num_heads_dim = shape_utils.gen_int_var_min_max(num_heads, "num_heads")
 
         Q = Tensor(
-            shape=[batch_size_dim, m, num_heads, k0],
+            shape=[batch_size_dim, seq_lens_dim, num_heads_dim, k0],
             dtype=dtype,
             name="q",
             is_input=True,
         )
         K = Tensor(
-            shape=[batch_size_dim, n0, num_heads, k0],
+            shape=[batch_size_dim, seq_lens_kv_dim, num_heads_dim, k0],
             dtype=dtype,
             name="k",
             is_input=True,
         )
         V = Tensor(
-            shape=[batch_size_dim, n0, num_heads, n1],
+            shape=[batch_size_dim, seq_lens_kv_dim, num_heads_dim, n1],
             dtype=dtype,
             name="v",
             is_input=True,
         )
         Bias = None
         if has_bias:
-            shape = [batch_size_dim, num_heads, m, n0]
+            shape = [batch_size_dim, num_heads_dim, seq_lens_dim, seq_lens_kv_dim]
             if bias_broadcast:
                 for i, broadcast in enumerate(bias_broadcast):
                     if broadcast:
@@ -249,8 +260,8 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             causal_type=causal_type,
             alpha0=alpha0,
             alpha1=alpha1,
+            alpha1_divide_by_seq_len=True,
             epilogue_math_name=epilogue_math_name,
-            num_heads=num_heads,
         )
         if copy_op:
             fmha_style_b2b_bmm_op = ops.fmha_style_b2b_bmm(
@@ -266,12 +277,20 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
 
         # Run tests.
         torch_dtype = string_to_torch_dtype(dtype)
-        for batch_size in batch_sizes:
+        for batch_size, seq_len, seq_len_kv, num_head in itertools.product(
+            batch_sizes, seq_lens, seq_lens_kv, num_heads
+        ):
             # Initialize inputs
-            q_pt = torch.rand(batch_size, m, num_heads, k0, dtype=torch_dtype).cuda()
-            k_pt = torch.rand(batch_size, n0, num_heads, k0, dtype=torch_dtype).cuda()
-            v_pt = torch.rand(batch_size, n0, num_heads, n1, dtype=torch_dtype).cuda()
-            shape = [batch_size, num_heads, m, n0]
+            q_pt = torch.rand(
+                batch_size, seq_len, num_head, k0, dtype=torch_dtype
+            ).cuda()
+            k_pt = torch.rand(
+                batch_size, seq_len_kv, num_head, k0, dtype=torch_dtype
+            ).cuda()
+            v_pt = torch.rand(
+                batch_size, seq_len_kv, num_head, n1, dtype=torch_dtype
+            ).cuda()
+            shape = [batch_size, num_head, seq_len, seq_len_kv]
             if bias_broadcast:
                 for i, broadcast in enumerate(bias_broadcast):
                     if broadcast:
@@ -285,9 +304,9 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             if has_bias:
                 attn = attn + bias_pt
             attn = epilogue_math_name_to_torch_fn(epilogue_math_name)(attn)
-            attn = alpha1 * attn
+            attn = alpha1 / seq_len * attn
             invalid_attn_mask = get_attn_mask_per_causal_type(
-                m, n0, causal_type, torch_dtype
+                seq_len, seq_len_kv, causal_type, torch_dtype
             )
             attn = attn * invalid_attn_mask
             output = (attn @ v_pt.transpose(1, 2)).transpose(1, 2)
@@ -302,7 +321,7 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             if has_bias:
                 inputs["bias"] = bias_pt
             y = torch.empty(
-                [batch_size, m, num_heads, n1],
+                [batch_size, seq_len, num_head, n1],
                 dtype=torch_dtype,
                 device="cuda",
             )
@@ -322,11 +341,26 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             batch_sizes=[3, 8, 10],
         )
         self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_fp16_dynamic_seq_len",
+            dtype="float16",
+            seq_lens=[128, 256],
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_fp16_dynamic_seq_len_kv",
+            dtype="float16",
+            seq_lens_kv=[128, 256],
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_fp16_dynamic_num_heads",
+            dtype="float16",
+            num_heads=[1, 2],
+        )
+        self._test_fmha_style_b2b_bmm(
             test_name="fmha_style_b2b_bmm_fp16_rectangular",
             dtype="float16",
             batch_sizes=[2],
-            m=512,
-            n0=128,
+            seq_lens=512,
+            seq_lens_kv=128,
             n1=128,
         )
         self._test_fmha_style_b2b_bmm(
@@ -388,8 +422,8 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             bias_broadcast=[False, False, True, False],
             num_heads=2,
             use_fp16_acc=False,
-            m=512,
-            n0=512,
+            seq_lens=512,
+            seq_lens_kv=512,
         )
 
 

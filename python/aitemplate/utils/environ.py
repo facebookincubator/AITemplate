@@ -81,3 +81,39 @@ def ait_build_cache_dir() -> Optional[str]:
         or None if not set.
     """
     return os.environ.get("AIT_BUILD_CACHE_DIR", None)
+
+
+def ait_build_cache_skip_percentage() -> int:
+    """
+    When set to a non-empty string, and if AIT_BUILD_CACHE_DIR
+    is set, the build cache will be skipped randomly with
+    a probability correspinding to the specified percentage
+
+    Returns:
+        int: Integer value of AIT_BUILD_CACHE_SKIP_PERCENTAGE environment variable,
+        or 5 if not set.
+    """
+    return int(os.environ.get("AIT_BUILD_CACHE_SKIP_PERCENTAGE", "30"))
+
+
+def ait_build_cache_skip_profiler() -> bool:
+    """
+    boolean value of AIT_BUILD_CACHE_SKIP_PROFILER environment variable.
+    Will return True if that variable is not set, if it is equal to "0",
+    an empty string or "False" ( case insensitive ). Will return True
+    in all other cases.
+    """
+    ret = os.environ.get("AIT_BUILD_CACHE_SKIP_PROFILER", "1")
+    if ret is None or ret == "" or ret == "0" or ret.lower() == "false":
+        return False
+    return True
+
+
+def ait_build_cache_max_mb() -> int:
+    """
+    boolean value of AIT_BUILD_CACHE_MAX_MB environment variable.
+    This determines the maximum size of the artifact data to be cached
+    in MB. For larger (raw, uncompressed) data the build cache will
+    be skipped. Defaults to 30.
+    """
+    return int(os.environ.get("AIT_BUILD_CACHE_MAX_MB", "30"))

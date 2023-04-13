@@ -112,7 +112,7 @@ class ConvBiasAddHardswishTestCase(unittest.TestCase):
         )
         self._test_conv_bias_add_hardswish(
             copy_op=True,
-            test_name="conv2d_bias_add_hardswish_{dtype}_copy_op",
+            test_name=f"conv2d_bias_add_hardswish_{dtype}_copy_op",
             dtype=dtype,
         )
 

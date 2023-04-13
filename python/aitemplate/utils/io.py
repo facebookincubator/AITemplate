@@ -16,12 +16,15 @@
 Util functions to handle file or network io
 """
 import hashlib
+import logging
 import os
 import tarfile
 import time
-from io import BytesIO
+from io import BytesIO, FileIO
 from pathlib import Path
-from typing import Optional, Union
+from typing import BinaryIO, Callable, Optional, Union
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def touch(file_path):
@@ -61,11 +64,26 @@ def file_age(file_path):
     return file_age_seconds
 
 
+def file_sizes(directory, filter_function=None):
+    total_size = 0
+    for root, _dirs, files in os.walk(directory):
+        for _file in files:
+            file_path = os.path.join(root, _file)
+            if filter_function is not None and filter_function(file_path):
+                total_size += os.path.getsize(file_path)
+
+    return total_size
+
+
 # Utility functions to be used by (not yet existing) distributed cache implementations
 # to minimize the amount of network roundtrips and network bandwidth needed
 
 
-def create_archive(directory_path: str, filter_func=None) -> bytes:
+def create_archive(
+    directory_path: str,
+    filter_func: Callable[[str], bool] = None,
+    output_file: Optional[str] = None,
+) -> Optional[bytes]:
     """Create tar.gz archive in-memory and return the archive contents as
     a bytes object.
 
@@ -74,14 +92,20 @@ def create_archive(directory_path: str, filter_func=None) -> bytes:
         filter_func (_type_, optional): A function which, being passed a filename,
                                         returns whether to include it or not.
                                         Defaults to None (include all).
+        output_file (str): Output filename to write the archive to. Usually it ends on .tar.gz.
+                           If set to None ( default), the archive will not be written to
+                           file but returned as a bytes object.
 
     Returns:
-        bytes: Archive contents as a bytes object.
+        Optional[bytes]: Archive contents as a bytes object if output_file was not None
     """
     # Archive files in a directory.
 
     # Create an in-memory bytes buffer
-    buffer = BytesIO()
+    if output_file is None:
+        buffer = BytesIO()
+    else:
+        buffer = FileIO(output_file, mode="w+")
 
     # Determine the appropriate compression mode
     compression_mode = None
@@ -94,9 +118,7 @@ def create_archive(directory_path: str, filter_func=None) -> bytes:
             for _file in files:
                 # Check if the file should be included based on the filter function
                 if filter_func is not None:
-                    file_basename = os.path.basename(_file)
-                    file_root, file_extension = os.path.splitext(_file)
-                    if not filter_func(file_basename, file_extension):
+                    if not filter_func(_file):
                         continue
 
                 # Calculate the relative path of the file
@@ -108,6 +130,9 @@ def create_archive(directory_path: str, filter_func=None) -> bytes:
                 archive.add(os.path.join(root, _file), arcname=relative_path)
 
     # Get the bytes from the buffer
+    if output_file is not None:
+        buffer.close()
+        return None
     buffer.seek(0)
     compressed_bytes = buffer.read()
 
@@ -115,22 +140,19 @@ def create_archive(directory_path: str, filter_func=None) -> bytes:
 
 
 def extract_archive(
-    archive_bytes: bytes, target_directory: str, overwrite: bool = False
+    archive_data: BinaryIO, target_directory: str, overwrite: bool = False
 ):
     """Extract a tar.gz archive (written for example via create_archive) from a bytes buffer
     into a target directory.
 
     Args:
-        archive_bytes (bytes): Byte contents of the tar.gz archive to be extracted.
+        archive_data (BinaryIO): BinaryIO object ( typicall BytesIO or FileIO ) of the tar.gz archive to be extracted.
         target_directory (str): Target directory to extract to.
         overwrite (bool, optional): Whether to overwrite files or not.
                                     If False, files will be silently skipped
                                     if they already exist. Defaults to False.
     """
-    # Create an in-memory bytes buffer
-    buffer = BytesIO(archive_bytes)
-
-    archive = tarfile.open(fileobj=buffer, mode="r:gz")
+    archive = tarfile.open(fileobj=archive_data, mode="r:gz")
 
     # Extract the archive contents into the target directory
     for member in archive.getmembers():
@@ -140,8 +162,14 @@ def extract_archive(
         # Check if the file or directory already exists
         if os.path.exists(target_path):
             if not overwrite:
+                _LOGGER.debug(
+                    f"extract_archive: Skipping extraction of file to {os.path.abspath(target_path)}: A file at that path already exists, and overwrite is not enabled."
+                )
                 continue
             else:
+                _LOGGER.debug(
+                    f"extract_archive: Replacing existing file at {os.path.abspath(target_path)} with file from archive."
+                )
                 os.remove(target_path)
 
         # Extract the file or directory from the archive
@@ -181,8 +209,8 @@ def copytree_with_hash(
         if not dst_path.is_dir():
             raise OSError("Target path exists and is not a directory.")
         dst_path = dst_path / src_path.name
-    hash_obj.update(dst_path.name.encode("utf-8"))
     if src_path.is_file():
+        hash_obj.update(dst_path.name.encode("utf-8"))
         # Copy the file to the destination
         with open(dst_path, "wb") as dst_file:
             with open(src_path, "rb") as src_file:
@@ -198,7 +226,7 @@ def copytree_with_hash(
     elif src_path.is_dir():
         # Recursively copy the directory contents
         os.makedirs(dst_path, exist_ok=True)
-        for sub_path in src_path.iterdir():
+        for sub_path in sorted(src_path.iterdir()):
             sub_dst_path = dst_path / sub_path.name
             copytree_with_hash(
                 sub_path, sub_dst_path, buffer_size, hash_obj, max_depth - 1

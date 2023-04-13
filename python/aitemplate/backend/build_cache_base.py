@@ -16,6 +16,7 @@
 import hashlib
 import logging
 import os
+import random
 import secrets
 import shutil
 import tempfile
@@ -24,6 +25,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
+
+from aitemplate.utils import environ as aitemplate_env
 
 from aitemplate.utils.io import file_age, touch
 
@@ -57,7 +60,51 @@ source_filenames = {
 source_filename_prefixes = ["makefile"]
 
 # File extensions of files to be considered cache artifacts ( unless they are considered source files )
-cache_extensions = {"obj", "so", "dll", "exe", ""}
+# note: we're not caching .obj files anymore as these are not strictly necessary to keep.
+cache_extensions = {"so", "dll", "exe", ""}
+
+skip_cache_flag = False  # Global flag that cache implementations should check whether
+# the cache is enabled or not. Used by skip_build_cache decorator
+
+
+class SkipBuildCache:
+    def __init__(self, context_skip_cache_flag: bool = True):
+        """
+        Context manager to temporarily disable the build cache within an execution context.
+        """
+        self.context_skip_cache_flag = context_skip_cache_flag
+
+    def __enter__(self):
+        global skip_cache_flag
+        self.old_skip_cache_flag = skip_cache_flag
+        skip_cache_flag = self.context_skip_cache_flag
+
+    def __exit__(self, *args, **kwargs):
+        global skip_cache_flag
+        skip_cache_flag = self.old_skip_cache_flag
+
+
+def should_skip_build_cache():
+    """
+    This function should be called by cache implementations to determine whether the cache should be skipped or not
+    """
+    global skip_cache_flag
+    if skip_cache_flag:
+        return True
+    skip_percentage = aitemplate_env.ait_build_cache_skip_percentage()
+    if skip_percentage is not None:
+        skip_percentage = int(skip_percentage)
+        assert (
+            skip_percentage >= 0 and skip_percentage <= 100
+        ), f"Skip percentage has to be in the range [0,100]. Actual value: {skip_percentage}"
+        if skip_percentage == 100:
+            return True
+        if skip_percentage == 0:
+            return False
+        rndi = random.randint(0, 99)
+        if rndi < skip_percentage:
+            return True
+    return False
 
 
 def filename_norm_split(filename: str) -> Tuple[str, str]:
@@ -166,12 +213,13 @@ def create_dir_hash(
     Returns:
         str: SHA256 Hash of the build directory contents in the form of a hexdigest string.
     """
-
+    hash_log = None
     try:
-        hash_log = None
+        if not os.path.isdir(build_dir):
+            return "empty_dir"
         if debug:
             hash_log = open(  # noqa: P201 - this is actually closed properly in the finally close below
-                os.path.join(build_dir, "cache_key.log"), mode="w", encoding="utf8"
+                os.path.join(build_dir, "cache_key.log"), mode="a", encoding="utf8"
             )
             hash_log.write(f"Building dir hash of {build_dir}\n")
         basepath = Path(build_dir)
@@ -182,6 +230,8 @@ def create_dir_hash(
                 build_dir, "${BUILD_DIR}"
             )  # Make sure we can cache regardless of the build directory location.
             hash_object.update(_cmd.encode("utf-8"))
+            if debug:
+                hash_log.write(f"\tCOMMAND: {_cmd} -> {hash_object.hexdigest()}\n")
         for fpath in sorted(files):
             if not filter_func(str(fpath)):
                 continue
@@ -359,7 +409,9 @@ class FileBasedBuildCache(BuildCache):
         from_sources_filter_func: Callable[[str], bool] = is_source,
     ) -> Tuple[bool, Optional[str]]:
         """See docstring of implemented method interface in parent class"""
-
+        if should_skip_build_cache():
+            _LOGGER.info(f"CACHE: Skipped build cache for {build_dir}")
+            return False, None
         self.maybe_cleanup(self.lru_retention_hours, self.cleanup_max_age_seconds)
         cache_dir = self.cache_dir
         dir_hash = create_dir_hash(

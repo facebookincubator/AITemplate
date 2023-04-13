@@ -32,20 +32,28 @@ However, N0 / N1 must be <= 512.
 """
 
 from aitemplate.backend import registry, target
-from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.base import IntImm, Tensor
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import b2b_bmm_base, CausalType
 
 
 class classic_b2b_bmm(b2b_bmm_base):
+    """See comments at the head of this file."""
+
     def __init__(
         self,
         causal_type: CausalType,
         epilogue_math_name: str,
         alpha0: float,
         alpha1: float,
+        alpha1_divide_by_seq_len: bool = False,
     ) -> None:
-        """Initialize classic_b2b_bmm op."""
-        super().__init__(causal_type, epilogue_math_name, alpha0, alpha1)
+        """Initialize classic_b2b_bmm op.
+        Check aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base for more details
+        about these args.
+        """
+        super().__init__(
+            causal_type, epilogue_math_name, alpha0, alpha1, alpha1_divide_by_seq_len
+        )
         self._attrs["op"] = "classic_b2b_bmm"
         if (
             causal_type != CausalType.NO_CAUSAL
@@ -90,6 +98,10 @@ class classic_b2b_bmm(b2b_bmm_base):
         if N0.upper_bound() > 512 or N1.upper_bound() > 512:
             raise RuntimeError(
                 f"classic_b2b_bmm only supports <=512 N0 / N1. Current length: {N0=}, {N1=}"
+            )
+        if not isinstance(N0, IntImm) or not isinstance(N1, IntImm):
+            raise RuntimeError(
+                f"classic_b2b_bmm only supports static N0 / N1. Current {N0=}, {N1=}."
             )
         if self._attrs["causal_type"] != CausalType.NO_CAUSAL:
             if M0 != N0:
@@ -143,7 +155,13 @@ class classic_b2b_bmm(b2b_bmm_base):
         return output
 
     def _get_op_attributes(self):
-        target_attrs = ["causal_type", "epilogue_math_name", "alpha0", "alpha1"]
+        target_attrs = [
+            "causal_type",
+            "epilogue_math_name",
+            "alpha0",
+            "alpha1",
+            "alpha1_divide_by_seq_len",
+        ]
         attr = {}
 
         for target_attr in target_attrs:

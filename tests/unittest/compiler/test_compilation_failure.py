@@ -17,6 +17,7 @@ import unittest
 from unittest.mock import patch
 
 import jinja2
+from aitemplate.backend.build_cache_base import SkipBuildCache
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import DynamicProfileStrategy
@@ -67,14 +68,14 @@ class CompilationFailureTestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-
-        compile_model(
-            Y,
-            target,
-            f"./tmp/{test_name}",
-            test_name,
-            dynamic_profiling_strategy=DynamicProfileStrategy.HINTS,
-        )
+        with SkipBuildCache():
+            compile_model(
+                Y,
+                target,
+                f"./tmp/{test_name}",
+                test_name,
+                dynamic_profiling_strategy=DynamicProfileStrategy.HINTS,
+            )
 
     def test_compilation_failure_profiler(self):
         target = detect_target().name()

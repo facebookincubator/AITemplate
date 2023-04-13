@@ -123,7 +123,8 @@ def _mark_isolated_int_vars(sorted_graph: List[Tensor]):
                 int_vars[name] = dim
                 if isinstance(dim, JaggedIntVar):
                     batch_dim = dim.batch_dim()
-                    int_vars[batch_dim._attrs["name"]] = batch_dim
+                    if not isinstance(batch_dim, IntImm):
+                        int_vars[batch_dim._attrs["name"]] = batch_dim
                     total_length = dim.total_length()
                     int_vars[total_length._attrs["name"]] = total_length
                     for jagged_dim in dim.jagged_dims():
