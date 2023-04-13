@@ -448,3 +448,33 @@ class TensorAccessor:
             f"actual tensor: {self.actual_shapes}!"
         )
         self._try_gen_dim_mapping()
+
+    def is_rightmost_dim_contiguous(self, cat_dim: int) -> bool:
+        """Check if the rightmost diminsion would be contiguous after
+        concatenation along a given cat_dim. This is a necessary condition for
+        GEMM+concat fusion, since GEMM doesn't support discontinuous rightmost
+        dimension for row-major outout. Rightmost diminsion is contiguous iff
+        the concat dimension corresponds to one of the dimensions in the
+        original shape and it's the first dimension in its group of actual
+        dimensions.
+        """
+        num_groups = len(self._dim_mapping)
+        for group_idx in range(num_groups):
+            original_group, actual_group = self._dim_mapping[group_idx]
+            if cat_dim in actual_group:
+                if actual_group.index(cat_dim):
+                    # Concat dimension isn't the first in its group
+                    return False
+                # Check that there is at least one non-empty original group to the
+                # right of the group where cat_dim found (inclusive)
+                while (group_idx < num_groups) and not len(
+                    self._dim_mapping[group_idx][0]
+                ):
+                    group_idx += 1
+                if group_idx >= num_groups:
+                    # There are no original dimensions to the right (inclusive) of concat
+                    # dimension. Concat dimension is an unsqueezed dimension at the end
+                    # of the shape, fusion is impossible.
+                    return False
+                return True
+        return False

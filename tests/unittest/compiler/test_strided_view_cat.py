@@ -97,6 +97,24 @@ class StridedViewCatOpTestCase(unittest.TestCase):
                 expected_num_tensors=14,
                 expected_num_ops=9,
             ),
+            param(
+                # Concat along rightmost unsqueezed dim - not fusible.
+                "gemm_reshape_cat_non_fusible_stride_dim_rightmost_unsqueezed",
+                n=2,
+                new_shape=[-1, 2, 2, 1],
+                cat_dim=3,
+                expected_num_tensors=16,
+                expected_num_ops=9,
+            ),
+            param(
+                # Concat along inner unsqueezed dim - fusible.
+                "gemm_reshape_cat_fusible_stride_dim_inner_unsqueezed",
+                n=2,
+                new_shape=[-1, 2, 1, 2],
+                cat_dim=2,
+                expected_num_tensors=10,
+                expected_num_ops=9,
+            ),
         ],
         name_func=custom_name_func,
     )

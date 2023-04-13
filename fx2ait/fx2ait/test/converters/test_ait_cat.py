@@ -78,3 +78,23 @@ class TestCatConverter(AITTestCase):
         )
 
         self.run_test_with_dynamic_shape(model, inputs_spec, expected_ops={acc_ops.cat})
+
+    def test_linear_stack(self):
+        """Pass _fuse_strided_op_and_cat shouldn't try to fuse GEMM and concat
+        in this graph, because that would require GEMM last dimension to be
+        non-contiguous, which it doesn't support. This is checked by
+        _dim_is_inside_original_shape in transform_strided_ops.
+        """
+
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                self.w = torch.randn(4, 3).half().cuda()
+                y = torch.nn.functional.linear(x, self.w)
+                z = torch.randn(2, 4).half().cuda()
+                return torch.stack([y, z], dim=2)
+
+        model = TestModule().cuda()
+        inputs = [
+            torch.randn(2, 3).half().cuda(),
+        ]
+        self.run_test(model, inputs, expected_ops={})
