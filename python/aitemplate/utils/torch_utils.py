@@ -34,7 +34,7 @@ def types_mapping():
 
 
 def torch_dtype_to_string(dtype):
-    for (torch_dtype, ait_dtype) in types_mapping():
+    for torch_dtype, ait_dtype in types_mapping():
         if dtype == torch_dtype:
             return ait_dtype
     raise ValueError(
@@ -49,7 +49,7 @@ def string_to_torch_dtype(string_dtype):
         # handling None is useful here.
         return None
 
-    for (torch_dtype, ait_dtype) in types_mapping():
+    for torch_dtype, ait_dtype in types_mapping():
         if string_dtype == ait_dtype:
             return torch_dtype
     raise ValueError(

@@ -118,7 +118,12 @@ class mem_eff_attention(Operator):
             return sorted(set(vector))
 
         batch_info = x._attrs["shape"][0]
-        output_shape = [batch_info, x._attrs["shape"][2], x._attrs["shape"][1], w._attrs["shape"][-1]]
+        output_shape = [
+            batch_info,
+            x._attrs["shape"][2],
+            x._attrs["shape"][1],
+            w._attrs["shape"][-1],
+        ]
         return output_shape
 
     def __call__(

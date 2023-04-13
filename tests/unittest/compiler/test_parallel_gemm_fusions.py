@@ -717,7 +717,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
                 module.run_with_tensors([x_pt], out)
 
                 # Do comparisons.
-                for (out_ait, out_pt) in zip(out, cat_output_pt):
+                for out_ait, out_pt in zip(out, cat_output_pt):
                     self.assertTrue(
                         torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2)
                     )

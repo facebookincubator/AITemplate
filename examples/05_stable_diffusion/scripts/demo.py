@@ -55,7 +55,9 @@ def run(local_dir, width, height, batch, prompt, negative_prompt, benchmark):
         image = pipe(prompt, height, width).images[0]
         if benchmark:
             t = benchmark_torch_function(10, pipe, prompt, height=height, width=width)
-            print(f"sd e2e: width={width}, height={height}, batchsize={batch}, latency={t} ms")
+            print(
+                f"sd e2e: width={width}, height={height}, batchsize={batch}, latency={t} ms"
+            )
 
     image.save("example_ait.png")
 

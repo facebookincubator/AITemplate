@@ -23,7 +23,6 @@ from .util import mark_output
 
 
 def map_clip_params(pt_mod, batch_size, seqlen, depth):
-
     params_ait = {}
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():

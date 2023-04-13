@@ -95,5 +95,6 @@ def compile_diffusers(
         convert_conv_to_gemm=convert_conv_to_gemm,
     )
 
+
 if __name__ == "__main__":
     compile_diffusers()

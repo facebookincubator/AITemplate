@@ -535,7 +535,6 @@ class CLIPTextEmbeddings(nn.Module):
         position_ids: Tensor,
         inputs_embeds: Optional[Tensor] = None,
     ) -> Tensor:
-
         input_shape = ops.size()(input_ids)
 
         # [B * S]

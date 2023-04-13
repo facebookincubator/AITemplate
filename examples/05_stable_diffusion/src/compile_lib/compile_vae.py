@@ -128,7 +128,6 @@ def compile_vae(
     height_d = IntVar(values=[32, 64], name="height")
     width_d = IntVar(values=[32, 64], name="width")
 
-
     ait_input = Tensor(
         shape=[batch_size, height_d, width_d, latent_channels],
         name="vae_input",

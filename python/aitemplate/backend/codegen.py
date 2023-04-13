@@ -374,7 +374,11 @@ class ModelContainerGenerator:
         self.graph = graph
 
         self.num_inputs, self.num_outputs = count_inputs_outputs(graph)
-        (self.max_blob_size, self.max_constant_blob_size, self.workspace,) = (
+        (
+            self.max_blob_size,
+            self.max_constant_blob_size,
+            self.workspace,
+        ) = (
             max_blob_size,
             max_constant_blob_size,
             workspace,

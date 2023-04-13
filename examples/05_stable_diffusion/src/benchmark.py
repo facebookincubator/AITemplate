@@ -117,7 +117,7 @@ def benchmark_unet(
     # benchmark
     t, _, _ = exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
     with open("sd_ait_benchmark.txt", "a") as f:
-       f.write(f"unet batch_size: {batch_size}, latency: {t} ms\n")
+        f.write(f"unet batch_size: {batch_size}, latency: {t} ms\n")
 
 
 def benchmark_clip(
@@ -301,7 +301,10 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     )
     # VAE
     benchmark_vae(
-        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
+        pipe.vae,
+        batch_size=batch_size,
+        benchmark_pt=benchmark_pt,
+        verify=verify,
     )
 
 

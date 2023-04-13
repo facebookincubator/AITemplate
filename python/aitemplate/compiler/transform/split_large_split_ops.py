@@ -101,7 +101,7 @@ def split_large_split_ops(sorted_graph: List[Tensor], _: str) -> List[Tensor]:
             sorted_graph += list(new_outputs)
             output_mapping += list(zip(outputs[start:end], new_outputs))
 
-        for (old_output, new_output) in output_mapping:
+        for old_output, new_output in output_mapping:
             transform_utils.replace_tensor(old_output, new_output)
 
     if not modified:

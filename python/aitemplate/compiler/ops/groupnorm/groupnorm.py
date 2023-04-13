@@ -23,7 +23,6 @@ from collections import OrderedDict
 from hashlib import sha1
 from operator import itemgetter
 from typing import Any, List, Union
-from aitemplate.utils import shape_utils
 
 import jinja2
 
@@ -41,6 +40,7 @@ from aitemplate.compiler.base import (
 from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
 
 from aitemplate.testing import detect_target
+from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,W0223
 
@@ -67,6 +67,7 @@ SHAPE_FUNC_TEMPLATE = jinja2.Template(
 {{indent}}{{dtype}}CO = {{x_dim3}};
 """
 )
+
 
 class group_norm(Operator):
     """Standalone group norm op.
@@ -167,8 +168,8 @@ class group_norm(Operator):
             shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
         ]
 
-        in_h = x._attrs["shape"][1]._attrs['symbolic_value']
-        in_w = x._attrs["shape"][2]._attrs['symbolic_value']
+        in_h = x._attrs["shape"][1]._attrs["symbolic_value"]
+        in_w = x._attrs["shape"][2]._attrs["symbolic_value"]
         output_shape[1]._attrs["symbolic_value"] = in_h
         output_shape[2]._attrs["symbolic_value"] = in_w
         return output_shape

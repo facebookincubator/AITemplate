@@ -24,6 +24,7 @@ from aitemplate.utils.mk_ck_lib import (
     softmax_operation as softmax,
 )
 
+
 ###########################################################################################################
 # Convolution for 2D Fwd operations
 def CreateConv2dFwdOperator(manifest, operation_kind, out_element_op, out_data_op=""):
@@ -1390,7 +1391,6 @@ def CreateBmmSoftmaxBmmOperator(
     ]
     c_block_descriptions, b1_block_descriptions = [], []
     for i in range(len(tile_descriptions)):
-
         if i in [0, 2, 4, 5, 9, 11]:
             block_transfer = [16, 16, 1]
         else:
@@ -1505,7 +1505,6 @@ def CreateBmmSoftmaxBmmPermOperator(
 
     c_block_descriptions, b1_block_descriptions = [], []
     for i in range(len(tile_descriptions)):
-
         if i in [0, 2, 4, 5, 9, 11]:
             block_transfer = [16, 16, 1]
         else:

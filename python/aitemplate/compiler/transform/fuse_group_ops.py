@@ -397,6 +397,7 @@ def _get_sorted_candidate_ops(
 # the arguments to gpu memory with sync memcpy, which is bad for perf
 _MAX_LAYERNORM_GROUP = 39
 
+
 # TODO: remove after switching to async copy for group layernorm args
 def _break_layernorm_groups(group: List[Operator]) -> List[List[Operator]]:
     if len(group) <= _MAX_LAYERNORM_GROUP:

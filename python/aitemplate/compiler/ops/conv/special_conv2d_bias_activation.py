@@ -19,6 +19,7 @@ from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.conv.conv2d import conv2d
 from aitemplate.compiler.ops.padding import nhwc3to4, nhwc3to8
 
+
 # pylint: disable=C0103
 class special_conv2d_bias_activation(conv2d):
     """Special_conv2d_bias_activation.

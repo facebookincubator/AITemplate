@@ -19,8 +19,9 @@ Implementations are translated from https://github.com/huggingface/diffusers/blo
 
 from typing import Optional
 
-from aitemplate.compiler.ops import reshape
 from aitemplate.compiler import ops
+
+from aitemplate.compiler.ops import reshape
 from aitemplate.frontend import nn, Tensor
 
 

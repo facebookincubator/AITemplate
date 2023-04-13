@@ -568,7 +568,6 @@ def gen_profiler(
     src_template=SRC_TEMPLATE,
     prob_args_template=PROBLEM_ARGS_TEMPLATE,
 ):
-
     """Generates standalone executables for profiler.
 
     Parameters
