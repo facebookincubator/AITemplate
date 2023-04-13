@@ -26,7 +26,6 @@ from diffusers import StableDiffusionPipeline
 )
 def download_pipeline_files(token, save_directory) -> None:
     StableDiffusionPipeline.from_pretrained(
-        # "stabilityai/stable-diffusion-2-1-base",
         "runwayml/stable-diffusion-v1-5",
         revision="fp16",
         torch_dtype=torch.float16,

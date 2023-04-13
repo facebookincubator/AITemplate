@@ -82,8 +82,6 @@ def benchmark_unet(
             with open("sd_pt_benchmark.txt", "a") as f:
                 f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
 
-    # print("pt output:", pt_ys.shape)
-
     # run AIT unet model
     inputs = {
         "input0": latent_model_input_pt.permute((0, 2, 3, 1)).contiguous(),
@@ -99,7 +97,6 @@ def benchmark_unet(
         shape[2] = width
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)
-    # return
 
     # verification
     y_transpose = ys[0].permute((0, 3, 1, 2))
@@ -116,11 +113,11 @@ def benchmark_unet(
 
     # AIT benchmark
     # warmup
-    #exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
-    ## benchmark
-    #t, _, _ = exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
-    #with open("sd_ait_benchmark.txt", "a") as f:
-    #    f.write(f"unet batch_size: {batch_size}, latency: {t} ms\n")
+    exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
+    # benchmark
+    t, _, _ = exe_module.benchmark_with_tensors(inputs, ys, count=100, repeat=4)
+    with open("sd_ait_benchmark.txt", "a") as f:
+       f.write(f"unet batch_size: {batch_size}, latency: {t} ms\n")
 
 
 def benchmark_clip(
@@ -152,8 +149,6 @@ def benchmark_clip(
     )
     input_ids = text_input["input_ids"].cuda()
 
-    # attention_mask = torch.ones((batch_size, seqlen))
-    # attention_mask[-1, -mask_seq:] = 0
     attention_mask = None
 
     position_ids = torch.arange(seqlen).expand((batch_size, -1)).cuda()
@@ -230,20 +225,7 @@ def benchmark_vae(
             with open("sd_pt_benchmark.txt", "a") as f:
                 f.write(f"vae batch_size: {batch_size}, latency: {pt_time} ms\n")
 
-    print(pt_output.shape)
-    # return
     # run AIT vae
-    # y = (
-    #     torch.empty(
-    #         pt_output.size(0),
-    #         height, #pt_output.size(2),
-    #         width, #pt_output.size(3),
-    #         512, #pt_output.size(1),
-    #     )
-    #     .cuda()
-    #     .half()
-    # )
-
     y = (
         torch.empty(
             pt_output.size(0),
@@ -254,14 +236,9 @@ def benchmark_vae(
         .cuda()
         .half()
     )
-    print("ait out:", y.shape)
-    # returns
-    ait_input_pt_tensor = torch.permute(pt_input, (0, 2, 3, 1)).contiguous()
-    print("input pt tensor size: ", ait_input_pt_tensor.shape)
-    print("output pt tensor size: ", y.shape)
 
+    ait_input_pt_tensor = torch.permute(pt_input, (0, 2, 3, 1)).contiguous()
     exe_module.run_with_tensors([ait_input_pt_tensor], [y])
-    # return
 
     # verification
     if verify:
@@ -274,7 +251,6 @@ def benchmark_vae(
             rtol=eps,
         )
         logging.info("VAE Verification done!")
-        return
 
     # AIT benchmark:
     # warmup
@@ -309,12 +285,12 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     ).to("cuda")
 
     # CLIP
-    # benchmark_clip(
-    #     pipe.text_encoder,
-    #     batch_size=batch_size,
-    #     benchmark_pt=benchmark_pt,
-    #     verify=verify,
-    # )
+    benchmark_clip(
+        pipe.text_encoder,
+        batch_size=batch_size,
+        benchmark_pt=benchmark_pt,
+        verify=verify,
+    )
     # # UNet
     benchmark_unet(
         pipe.unet,
@@ -322,13 +298,11 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
         benchmark_pt=benchmark_pt,
         verify=verify,
         hidden_dim=pipe.text_encoder.config.hidden_size,
-        height=48, width=32,
     )
     # VAE
-    # benchmark_vae(
-    #     pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
-    #     height=32, width=32,
-    # )
+    benchmark_vae(
+        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify,
+    )
 
 
 if __name__ == "__main__":

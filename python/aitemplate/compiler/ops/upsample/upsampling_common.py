@@ -132,7 +132,6 @@ class upsampling2d_base(Operator):
         out_h = in_h * int(self._attrs["scale_factor"])
         out_w = in_w * int(self._attrs["scale_factor"])
 
-        # print(out_h, out_w)
         output_shape[1]._attrs["symbolic_value"] = out_h
         output_shape[2]._attrs["symbolic_value"] = out_w
 

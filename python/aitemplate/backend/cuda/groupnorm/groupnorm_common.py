@@ -147,10 +147,6 @@ def groupnorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     use_swish = True if "swish" in func_attrs["name"] else False
     input_shape = func_attrs["inputs"][0].shape()
 
-    # H = input_shape[1].value()
-    # W = input_shape[2].value()
-    # H = input_shape[1]._attrs["name"]
-    # W = input_shape[2]._attrs["name"]
     C = input_shape[3].value()
     G = func_attrs["num_groups"]
 

@@ -33,33 +33,6 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
             ait_name = ait_name.replace("out_proj", "proj")
         elif name.endswith("out_proj.bias"):
             ait_name = ait_name.replace("out_proj", "proj")
-        # elif name.endswith("q_proj.weight"):
-        #     ait_name = ait_name.replace("q_proj", "qkv")
-        #     prefix = key[: -len("q_proj.weight")]
-        #     q = pt_params[prefix + "q_proj.weight"]
-        #     k = pt_params[prefix + "k_proj.weight"]
-        #     v = pt_params[prefix + "v_proj.weight"]
-        #     qkv_weight = torch.cat([q, k, v], dim=0)
-        #     params_ait[ait_name] = qkv_weight
-        #     continue
-        # elif name.endswith("q_proj.bias"):
-        #     ait_name = ait_name.replace("q_proj", "qkv")
-        #     prefix = key[: -len("q_proj.bias")]
-        #     q = pt_params[prefix + "q_proj.bias"]
-        #     k = pt_params[prefix + "k_proj.bias"]
-        #     v = pt_params[prefix + "v_proj.bias"]
-        #     qkv_bias = torch.cat([q, k, v], dim=0)
-        #     params_ait[ait_name] = qkv_bias
-        #     continue
-        # elif name.endswith("k_proj.weight"):
-        #     continue
-        # elif name.endswith("k_proj.bias"):
-        #     continue
-        # elif name.endswith("v_proj.weight"):
-        #     continue
-        # elif name.endswith("v_proj.bias"):
-        #     continue
-
         elif "q_proj" in name:
             ait_name = ait_name.replace("q_proj", "proj_q")
         elif "k_proj" in name:
@@ -67,12 +40,6 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
         elif "v_proj" in name:
             ait_name = ait_name.replace("v_proj", "proj_v")
         params_ait[ait_name] = arr
-
-        # if detect_target().name() == "cuda":
-        #     for i in range(depth):
-        #         prefix = "encoder_layers_%d_self_attn_cu_length" % (i)
-        #         cu_len = np.cumsum([0] + [seqlen] * batch_size).astype("int32")
-        #         params_ait[prefix] = torch.from_numpy(cu_len).cuda()
 
     return params_ait
 
@@ -115,8 +82,6 @@ def compile_clip(
     )
     Y = ait_mod(input_ids=input_ids_ait, position_ids=position_ids_ait)
     mark_output(Y)
-
-    # return
 
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm

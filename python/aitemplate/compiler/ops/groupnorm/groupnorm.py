@@ -198,7 +198,6 @@ class group_norm(Operator):
         self._sanity_check(x, gamma, beta)
         self._set_depth()
         output_shape = self._infer_shapes(x)
-        # print(output_shape)
         output = Tensor(output_shape, src_ops={self}, dtype=x.dtype())
 
         batch_size = output_shape[0]._attrs["values"][-1]

@@ -233,9 +233,6 @@ class reshape(_reshape_base):
         #         i.e. we should skip the deduction when all shapes are known.
         is_intvar = all([isinstance(var, IntVarTensor) for var in self._attrs["shape"]])
         self._attrs["is_intvar"] = is_intvar
-        # print("="*100)
-        # print("is_intvar: ",  self._attrs["is_intvar"])
-        # print("="*100)
 
         if not is_intvar:
             # x_symbolic_shapes is a list of symbolic_values

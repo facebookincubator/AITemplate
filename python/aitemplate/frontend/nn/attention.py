@@ -353,8 +353,6 @@ class CrossAttention(Module):
         self.proj_drop = Dropout(proj_drop)
 
     def attention(self, q, k, v):
-        # seqlen = self.seqlen
-        # seqlen_kv = self.seqlen_kv
         batch = q.shape()[0]
         head_dim = self.dim // self.num_heads
 
@@ -378,7 +376,6 @@ class CrossAttention(Module):
         """forward pass for calling mha module"""
         assert len(args) >= 3
         x = args[0]
-        # seq = self.seqlen
         batch = x.shape()[0]
         attn_output = self.attention(args[0], args[1], args[2])
         attn_output = ops.reshape()(attn_output, [batch, -1, self.dim])

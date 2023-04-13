@@ -43,10 +43,6 @@ from src.pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
 def run(local_dir, width, height, batch, prompt, negative_prompt, benchmark):
-    # pattern = r"(?!\b4k\b)(?!\b8k\b)[\d.\(\):_<-\\\t\n]*"
-    # prompt = re.sub(pattern, "", prompt)
-    # negative_prompt = re.sub(pattern, "", negative_prompt)
-
     pipe = StableDiffusionAITPipeline.from_pretrained(
         local_dir,
         scheduler=EulerDiscreteScheduler.from_pretrained(
@@ -54,7 +50,7 @@ def run(local_dir, width, height, batch, prompt, negative_prompt, benchmark):
         ),
         revision="fp16",
         torch_dtype=torch.float16,
-    )  # .to("cuda")
+    ).to("cuda")
 
     prompt = [prompt] * batch
     with torch.autocast("cuda"):

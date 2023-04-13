@@ -40,20 +40,6 @@ def map_vae_params(ait_module, pt_module, batch_size, seq_len):
                 ).contiguous()
             else:
                 mapped_pt_params[ait_name] = pt_params[name]
-        # elif name.endswith("attention.qkv.weight"):
-        #     prefix = name[: -len("attention.qkv.weight")]
-        #     q_weight = pt_params[prefix + "query.weight"]
-        #     k_weight = pt_params[prefix + "key.weight"]
-        #     v_weight = pt_params[prefix + "value.weight"]
-        #     qkv_weight = torch.cat([q_weight, k_weight, v_weight], dim=0)
-        #     mapped_pt_params[ait_name] = qkv_weight
-        # elif name.endswith("attention.qkv.bias"):
-        #     prefix = name[: -len("attention.qkv.bias")]
-        #     q_bias = pt_params[prefix + "query.bias"]
-        #     k_bias = pt_params[prefix + "key.bias"]
-        #     v_bias = pt_params[prefix + "value.bias"]
-        #     qkv_bias = torch.cat([q_bias, k_bias, v_bias], dim=0)
-        #     mapped_pt_params[ait_name] = qkv_bias
         elif name.endswith("attention.proj.weight"):
             prefix = name[: -len("attention.proj.weight")]
             pt_name = prefix + "proj_attn.weight"
@@ -64,8 +50,6 @@ def map_vae_params(ait_module, pt_module, batch_size, seq_len):
             mapped_pt_params[ait_name] = pt_params[pt_name]
         elif name.endswith("attention.cu_length"):
             ...
-        #    cu_len = np.cumsum([0] + [seq_len] * batch_size).astype("int32")
-        #    mapped_pt_params[ait_name] = torch.from_numpy(cu_len).cuda()
         elif name.endswith("attention.proj_q.weight"):
             prefix = name[: -len("attention.proj_q.weight")]
             pt_name = prefix + "query.weight"
@@ -140,7 +124,7 @@ def compile_vae(
         latent_channels=latent_channels,
         sample_size=sample_size,
     )
-    batch_size = IntVar(values=[1, 8], name="batch_size")
+    # batch_size = IntVar(values=[1, 8], name="batch_size")
     height_d = IntVar(values=[32, 64], name="height")
     width_d = IntVar(values=[32, 64], name="width")
 

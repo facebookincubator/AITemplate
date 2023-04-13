@@ -40,7 +40,7 @@ def _detect_cuda_with_nvidia_smi():
         stdout, stderr = proc.communicate()
         stdout = stdout.decode("utf-8")
         if "H100" in stdout:
-            return "80"
+            return "90"
         if any(a in stdout for a in ["A100", "A10G", "RTX 30", "A30", "RTX 40"]):
             return "80"
         if "V100" in stdout:

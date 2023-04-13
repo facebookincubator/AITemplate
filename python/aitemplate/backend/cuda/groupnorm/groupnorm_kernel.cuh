@@ -1022,39 +1022,22 @@ cudaError_t invokeGroupNorm(
   // C_G must be even, or we can have misaligned address for cp.async
   // reserve some shared_mem for block reduction
   if (H > 0 && H % 8 == 0 && C_G % 2 == 0 && smem <= max_smem_size - 1000) {
-    constexpr int num_threads = 1024; //std::min(1024, H / ILP * W * C_G_2);
-
-   // if constexpr (num_threads > 0) {
-      auto kernel_func = group_norm_smem<
-          TInput,
-          FuseSwish,
-          C,
-          C_G,
-          ILP,
-          BANK_CONFLICT,
-          num_threads>;
-      GROUP_NORM_CUDA_CHECK(cudaFuncSetAttribute(
-          kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, smem));
-      dim3 block(num_threads);
-      kernel_func<<<dim3(G, N), block, smem, stream>>>(
-          input, output, gamma, beta, N, H, W, eps);
-    // } else {
-    //   DispatchGroupNormForwardGpu<TInput, float, FuseSwish>(
-    //       stream,
-    //       num_instances,
-    //       norm_size,
-    //       channel_size,
-    //       spatial_size,
-    //       epsilon,
-    //       input,
-    //       gamma,
-    //       beta,
-    //       output,
-    //       static_cast<float*>(workspace),
-    //       static_cast<float*>(workspace) + num_instances,
-    //       channels_first);
-    // }
-  } else {
+    constexpr int num_threads = 1024;
+    auto kernel_func = group_norm_smem<
+        TInput,
+        FuseSwish,
+        C,
+        C_G,
+        ILP,
+        BANK_CONFLICT,
+        num_threads>;
+    GROUP_NORM_CUDA_CHECK(cudaFuncSetAttribute(
+        kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, smem));
+    dim3 block(num_threads);
+    kernel_func<<<dim3(G, N), block, smem, stream>>>(
+        input, output, gamma, beta, N, H, W, eps);
+  }
+  else {
     DispatchGroupNormForwardGpu<TInput, float, FuseSwish>(
         stream,
         num_instances,

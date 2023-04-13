@@ -62,18 +62,17 @@ def compile_diffusers(
     hh = height // 8
 
     # CLIP
-    # compile_clip(
-    #     pipe.text_encoder,
-    #     batch_size=batch_size,
-    #     seqlen=77,
-    #     use_fp16_acc=use_fp16_acc,
-    #     convert_conv_to_gemm=convert_conv_to_gemm,
-    #     depth=pipe.text_encoder.config.num_hidden_layers,
-    #     num_heads=pipe.text_encoder.config.num_attention_heads,
-    #     dim=pipe.text_encoder.config.hidden_size,
-    #     act_layer=pipe.text_encoder.config.hidden_act,
-    # )
-    # return
+    compile_clip(
+        pipe.text_encoder,
+        batch_size=batch_size,
+        seqlen=77,
+        use_fp16_acc=use_fp16_acc,
+        convert_conv_to_gemm=convert_conv_to_gemm,
+        depth=pipe.text_encoder.config.num_hidden_layers,
+        num_heads=pipe.text_encoder.config.num_attention_heads,
+        dim=pipe.text_encoder.config.hidden_size,
+        act_layer=pipe.text_encoder.config.hidden_act,
+    )
     # UNet
     compile_unet(
         pipe.unet,
@@ -86,18 +85,6 @@ def compile_diffusers(
         attention_head_dim=pipe.unet.config.attention_head_dim,
         use_linear_projection=pipe.unet.config.get("use_linear_projection", False),
     )
-    return
-    # compile_unet(
-    #     pipe.unet,
-    #     batch_size=batch_size * 2,
-    #     width=ww,
-    #     height=hh,
-    #     use_fp16_acc=use_fp16_acc,
-    #     convert_conv_to_gemm=convert_conv_to_gemm,
-    #     hidden_dim=pipe.unet.config.cross_attention_dim,
-    #     attention_head_dim=pipe.unet.config.attention_head_dim,
-    #     model_name="UNet2DConditionModel_Control",
-    # )
     # VAE
     compile_vae(
         pipe.vae,
@@ -107,18 +94,6 @@ def compile_diffusers(
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
     )
-    return
-
-    compile_vae(
-        pipe.vae,
-        batch_size=batch_size,
-        width=ww * 4,  # Panorama
-        height=hh,
-        use_fp16_acc=use_fp16_acc,
-        convert_conv_to_gemm=convert_conv_to_gemm,
-        name="AutoencoderKL_Panorama",
-    )
-
 
 if __name__ == "__main__":
     compile_diffusers()

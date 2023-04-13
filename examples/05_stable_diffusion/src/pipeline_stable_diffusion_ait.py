@@ -119,7 +119,6 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         return mod
 
     def unet_inference(self, latent_model_input, timesteps, encoder_hidden_states):
-        latent_model_input = latent_model_input.cuda().half().contiguous()
         exe_module = self.unet_ait_exe
         timesteps_pt = timesteps.expand(latent_model_input.shape[0])
         inputs = {
@@ -138,14 +137,14 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         noise_pred = ys[0].permute((0, 3, 1, 2)).float()
-        return noise_pred.cpu()
+        return noise_pred
 
     def clip_inference(self, input_ids, seqlen=77):
         exe_module = self.clip_ait_exe
         bs = input_ids.shape[0]
         position_ids = torch.arange(seqlen).expand((bs, -1)).cuda()
         inputs = {
-            "input0": input_ids.cuda().contiguous(),
+            "input0": input_ids,
             "input1": position_ids,
         }
         ys = []
@@ -155,10 +154,9 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             shape[0] = self.batch
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
-        return ys[0].cpu().float()
+        return ys[0].float()
 
     def vae_inference(self, vae_input):
-        vae_input = vae_input.cuda().half().contiguous()
         exe_module = self.vae_ait_exe
         inputs = [torch.permute(vae_input, (0, 2, 3, 1)).contiguous().cuda().half()]
         ys = []
@@ -169,7 +167,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         vae_out = ys[0].permute((0, 3, 1, 2)).float()
-        return vae_out.cpu()
+        return vae_out
 
     @torch.no_grad()
     def __call__(
@@ -404,7 +402,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         image = image.cpu().permute(0, 2, 3, 1).numpy()
 
         # run safety checker
-        if 0:  # self.safety_checker is not None:
+        if self.safety_checker is not None:
             safety_checker_input = self.feature_extractor(
                 self.numpy_to_pil(image), return_tensors="pt"
             ).to(self.device)

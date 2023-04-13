@@ -13,8 +13,6 @@
 #  limitations under the License.
 #
 
-import re
-
 import click
 import torch
 
@@ -36,10 +34,6 @@ from diffusers import StableDiffusionPipeline
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
 def run(local_dir, width, height, prompt, negative_prompt, benchmark):
-    #pattern = r"(?!\b4k\b)(?!\b8k\b)[\d.\(\):_<-\\\t\n]*"
-    #prompt = re.sub(pattern, "", prompt)
-    #negative_prompt = re.sub(pattern, "", negative_prompt)
-
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
         revision="fp16",

@@ -39,74 +39,6 @@ def default(val, d):
     return d() if isfunction(d) else d
 
 
-class xCrossAttention(nn.Module):
-    def __init__(
-        self,
-        query_dim,
-        context_dim=None,
-        heads=8,
-        dim_head=64,
-        dropout=0.0,
-        dtype="float16",
-    ):
-        super().__init__()
-        inner_dim = dim_head * heads
-        context_dim = default(context_dim, query_dim)
-
-        self.scale = dim_head**-0.5
-        self.heads = heads
-        self.dim_head = dim_head
-
-        self.to_q_weight = nn.Parameter(shape=[inner_dim, query_dim], dtype=dtype)
-        self.to_k_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
-        self.to_v_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
-        self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
-        )
-
-    def forward(self, x, context=None, mask=None, residual=None):
-        nheads = self.heads
-        d = self.dim_head
-
-        layout = "20314" if USE_CUDA else "m2n3"
-
-        bs, seqlen, _ = get_shape(x)
-        q = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-            ops.reshape()(x, [bs * seqlen, -1]), self.to_q_weight.tensor()
-        )
-        context = default(context, x)
-
-        seqlen = get_shape(context)[1]
-        k = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-            ops.reshape()(context, [bs * seqlen, -1]), self.to_k_weight.tensor()
-        )
-        v = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-            ops.reshape()(context, [bs * seqlen, -1]), self.to_v_weight.tensor()
-        )
-
-        if USE_CUDA:
-            attn_op = ops.mem_eff_attention(causal=False)
-            out = attn_op(
-                (ops.reshape()(q, [bs, nheads, -1, d])),
-                (ops.reshape()(k, [bs, nheads, -1, d])),
-                (ops.reshape()(v, [bs, nheads, -1, d])),
-            )
-        else:
-            OP = ops.bmm_softmax_bmm_permute(shape=(nheads,), scale=self.scale)
-            out = OP(
-                (ops.reshape()(q, [bs * nheads, -1, d])),
-                (ops.reshape()(k, [bs * nheads, -1, d])),
-                (ops.reshape()(v, [bs * nheads, -1, d])),
-            )
-        out = ops.reshape()(out, [bs, -1, nheads * d])
-        proj = self.to_out(out)
-        proj = ops.reshape()(proj, [bs, -1, nheads * d])
-        if residual is not None:
-            return proj + residual
-        else:
-            return proj
-
-
 class CrossAttention(nn.Module):
     def __init__(
         self,
@@ -125,9 +57,6 @@ class CrossAttention(nn.Module):
         self.heads = heads
         self.dim_head = dim_head
 
-        # self.to_q_weight = nn.Parameter(shape=[inner_dim, query_dim], dtype=dtype)
-        # self.to_k_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
-        # self.to_v_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
         self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
         self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
         self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
@@ -138,22 +67,6 @@ class CrossAttention(nn.Module):
     def forward(self, x, context=None, mask=None, residual=None):
         nheads = self.heads
         d = self.dim_head
-
-        # layout = "20314" if USE_CUDA else "m2n3"
-
-        # bs, seqlen, _ = get_shape(x)
-        # q = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-        #     ops.reshape()(x, [bs * seqlen, -1]), self.to_q_weight.tensor()
-        # )
-        # context = default(context, x)
-
-        # seqlen = get_shape(context)[1]
-        # k = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-        #     ops.reshape()(context, [bs * seqlen, -1]), self.to_k_weight.tensor()
-        # )
-        # v = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-        #     ops.reshape()(context, [bs * seqlen, -1]), self.to_v_weight.tensor()
-        # )
 
         q = self.to_q(x)
         context = default(context, x)
@@ -312,7 +225,7 @@ class SpatialTransformer(nn.Module):
 
     def forward(self, x, context=None):
         # note: if no context is given, cross-attention defaults to self-attention
-        b, h, w, c = x.shape()  # get_shape(x)
+        b, h, w, c = x.shape()
         x_in = x
         x = self.norm(x)
         if self.use_linear_projection:
@@ -468,19 +381,6 @@ class CLIPEncoderLayer(nn.Module):
     ):
         super().__init__()
         self.embed_dim = hidden_size
-        # self.self_attn = nn.MultiheadAttention(
-        #     dim=hidden_size,
-        #     batch_size=batch_size,
-        #     seq_len=seq_len,
-        #     num_heads=num_attention_heads,
-        #     qkv_bias=True,
-        #     attn_drop=attention_dropout,
-        #     proj_drop=0,
-        #     has_residual=True,
-        #     causal=causal,
-        #     mask_seq=mask_seq,
-        #     use_mem_eff=True,
-        # )
         self.self_attn = nn.CrossAttention(
             hidden_size,
             seq_len,
@@ -653,40 +553,26 @@ class CLIPTextEmbeddings(nn.Module):
         input_shape = ops.size()(input_ids)
 
         # [B * S]
-        # input_ids = ops.reshape()(input_ids, [-1])
-
-        # position_ids = ops.reshape()(position_ids, [-1])
-
-        print("input_ids", input_ids.shape())
-        print("position_ids", position_ids.shape())
-
         token_embedding = self.token_embedding.tensor()
         token_embedding = ops.reshape()(
             token_embedding, [1, self.vocab_size, self.embed_dim]
         )
         token_embedding = ops.expand()(token_embedding, [input_shape[0], -1, -1])
-        print("token_embedding", token_embedding.shape())
 
         if inputs_embeds is None:
             inputs_embeds = ops.batch_gather()(token_embedding, input_ids)
-
-        print("inputs_embeds", inputs_embeds.shape())
-        # print("token_embedding", self.token_embedding.tensor().shape())
 
         position_embedding = self.position_embedding.tensor()
         position_embedding = ops.reshape()(
             position_embedding, [1, self.max_position_embeddings, self.embed_dim]
         )
         position_embedding = ops.expand()(position_embedding, [input_shape[0], -1, -1])
-        print("position_embedding", position_embedding.shape())
 
         position_embeddings = ops.batch_gather()(position_embedding, position_ids)
 
         embeddings = inputs_embeds + position_embeddings
 
         embeddings = ops.reshape()(embeddings, [input_shape[0], input_shape[1], -1])
-
-        print("embeddings", embeddings.shape())
 
         return embeddings
 

@@ -118,12 +118,6 @@ class mem_eff_attention(Operator):
             return sorted(set(vector))
 
         batch_info = x._attrs["shape"][0]
-        # output_shape = [
-        #     batch_info,
-        #     shape_utils.gen_int_var(unique([d[1] for d in y_shapes])),
-        #     shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
-        #     shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
-        # ]
         output_shape = [batch_info, x._attrs["shape"][2], x._attrs["shape"][1], w._attrs["shape"][-1]]
         return output_shape
 

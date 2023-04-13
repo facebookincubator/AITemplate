@@ -84,52 +84,8 @@ def compile_unet(
         [batch_size, 77, hidden_dim], name="input2", is_input=True
     )
 
-    if "Control" in model_name:
-        mid_block_additional_residual = Tensor(
-            [batch_size, height // 8, width // 8, 1280], name="input3", is_input=True
-        )
-        down_block_additional_residuals = []
-        for i in range(4):
-            for j in range(3):
-                channels = [
-                    320,
-                    320,
-                    320,
-                    320,
-                    640,
-                    640,
-                    640,
-                    1280,
-                    1280,
-                    1280,
-                    1280,
-                    1280,
-                ]
-                down_block_additional_residuals.append(
-                    Tensor(
-                        [
-                            batch_size,
-                            height // 2**i,
-                            width // 2**i,
-                            channels[i * 3 + j],
-                        ],
-                        name=f"input{i * 3 + j + 4}",
-                        is_input=True,
-                    )
-                )
-                print(
-                    f"input{i * 3 + j + 4} ",
-                    "shape: ",
-                    [
-                        batch_size,
-                        height // 2**i,
-                        width // 2**i,
-                        channels[i * 3 + j],
-                    ],
-                )
-    else:
-        mid_block_additional_residual = None
-        down_block_additional_residuals = None
+    mid_block_additional_residual = None
+    down_block_additional_residuals = None
 
     Y = ait_mod(
         latent_model_input_ait,
