@@ -64,6 +64,46 @@ class TestSplitConverter(AITTestCase):
         ]
         self.run_test(model, inputs, expected_ops={ait_acc_ops.split})
 
+    @parameterized.expand(
+        [
+            [[2, 10], [2, 3, 5]],
+            [[2, 10], 2],
+            [[2, 10], 3],
+        ]
+    )
+    def test_tensor_split_with_dim(
+        self, input_shape: List[int], split_size_or_sections: Union[int, List[int]]
+    ) -> None:
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x.split(split_size_or_sections, dim=1)
+
+        model = TestModule().cuda()
+        inputs = [
+            torch.randn(*input_shape).half().cuda(),
+        ]
+        self.run_test(model, inputs, expected_ops={ait_acc_ops.split})
+
+    @parameterized.expand(
+        [
+            [[10], [2, 3, 5]],
+            [[10], 2],
+            [[10], 3],
+        ]
+    )
+    def test_tensor_split_without_dim(
+        self, input_shape: List[int], split_size_or_sections: Union[int, List[int]]
+    ) -> None:
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x.split(split_size_or_sections)
+
+        model = TestModule().cuda()
+        inputs = [
+            torch.randn(*input_shape).half().cuda(),
+        ]
+        self.run_test(model, inputs, expected_ops={ait_acc_ops.split})
+
     def test_with_dim_dynamic_shape(self) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:

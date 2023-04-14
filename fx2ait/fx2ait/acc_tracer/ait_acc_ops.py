@@ -18,13 +18,15 @@ from fx2ait.acc_tracer.acc_normalizer import register_acc_op
 
 from fx2ait.acc_tracer.ait_acc_ops_registry import ait_register_acc_op_mapping
 
+this_arg_is_optional: bool = True
+
 
 @ait_register_acc_op_mapping(
     op_and_target=("call_method", "split"),
     arg_replacement_tuples=[
         ("tensor", "input"),
         ("split_size_or_sections", "split_size_or_sections"),
-        ("dim", "dim"),
+        ("dim", "dim", this_arg_is_optional),
     ],
 )
 @ait_register_acc_op_mapping(
@@ -32,7 +34,7 @@ from fx2ait.acc_tracer.ait_acc_ops_registry import ait_register_acc_op_mapping
     arg_replacement_tuples=[
         ("tensor", "input"),
         ("split_size_or_sections", "split_size_or_sections"),
-        ("dim", "dim"),
+        ("dim", "dim", this_arg_is_optional),
     ],
 )
 @register_acc_op
