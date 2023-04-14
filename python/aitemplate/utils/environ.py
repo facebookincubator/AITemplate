@@ -117,3 +117,24 @@ def ait_build_cache_max_mb() -> int:
     be skipped. Defaults to 30.
     """
     return int(os.environ.get("AIT_BUILD_CACHE_MAX_MB", "30"))
+
+
+def allow_cutlass_sm90_kernels() -> bool:
+    """
+    Whether the SM90 CUTLASS kernels should to be considered
+    alongside the SM80 CUTLASS kernels on the CUDA arch 90
+    (for the CUDA back-end of the GEMM ops). Default: False.
+    """
+    return (
+        force_cutlass_sm90_kernels()
+        or os.getenv("AIT_ALLOW_CUTLASS_SM90_KERNELS", "0") == "1"
+    )
+
+
+def force_cutlass_sm90_kernels() -> bool:
+    """
+    Whether only the SM90 CUTLASS kernels (and not the SM80 ones)
+    should be considered on the CUDA arch 90 (for the CUDA
+    back-end of the GEMM ops). Default: False.
+    """
+    return os.getenv("AIT_FORCE_CUTLASS_SM90_KERNELS", "0") == "1"

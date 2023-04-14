@@ -18,7 +18,10 @@ Util functions for CUDA codegen.
 import logging
 
 from aitemplate.backend import registry
-
+from aitemplate.utils.environ import (
+    allow_cutlass_sm90_kernels,
+    force_cutlass_sm90_kernels,
+)
 from aitemplate.utils.mk_cutlass_lib.mk_cutlass_lib import mk_cutlass_lib
 
 # pylint: disable=C0103,C0415,W0707
@@ -53,16 +56,29 @@ def gen_ops(arch):
 
     args = Args(arch)
     manifest = cutlass_lib.manifest.Manifest(args)
-    try:
-        func = getattr(cutlass_lib.generator, "GenerateSM" + arch)
-        func(manifest, args.cuda_version)
-    except AttributeError as e:
-        raise NotImplementedError(
-            "Arch " + arch + " is not supported by current cutlass lib."
-        ) from e
-    try:
-        func = getattr(cutlass_lib.extra_operation, "GenerateSM" + arch)
-        func(manifest, args)
-    except AttributeError:
-        _LOGGER.warning("Arch " + arch + " is not supported by extra ops.")
+
+    if arch == "90":
+        if force_cutlass_sm90_kernels():
+            cutlass_lib.generator.GenerateSM90(manifest, cuda_version="12.0.0")
+        elif allow_cutlass_sm90_kernels():
+            cutlass_lib.generator.GenerateSM90(manifest, cuda_version="12.0.0")
+            cutlass_lib.generator.GenerateSM80(manifest, args.cuda_version)
+            cutlass_lib.extra_operation.GenerateSM80(manifest, args)
+        else:
+            cutlass_lib.generator.GenerateSM80(manifest, args.cuda_version)
+            cutlass_lib.extra_operation.GenerateSM80(manifest, args)
+    else:
+        try:
+            func = getattr(cutlass_lib.generator, "GenerateSM" + arch)
+            func(manifest, args.cuda_version)
+        except AttributeError as e:
+            raise NotImplementedError(
+                "Arch " + arch + " is not supported by current cutlass lib."
+            ) from e
+        try:
+            func = getattr(cutlass_lib.extra_operation, "GenerateSM" + arch)
+            func(manifest, args)
+        except AttributeError:
+            _LOGGER.warning("Arch " + arch + " is not supported by extra ops.")
+
     return manifest.operations
