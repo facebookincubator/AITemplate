@@ -60,7 +60,6 @@ from fx2ait.converters.utils import (
     get_positive_dim,
     identical_elem_tuple_to_int,
     nchw2nhwc,
-    unify_dynamic_shape_name,
 )
 from fx2ait.passes.lower_basic_pass_aten import (
     aten_compose_bmm_2d,
@@ -168,7 +167,6 @@ def aten_binary_ops_add(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    unify_dynamic_shape_name(args[0], args[1])
     kwargs = {
         "input": args[0],
         "other": args[1],
@@ -587,7 +585,6 @@ def aten_ops_matmul(
     if len(weight_shape) == 2:
         result = gemm_rrr()(input_val, weight)
     elif len(input_shape) == 3 and len(weight_shape) == 3:
-        unify_dynamic_shape_name(input_val, weight)
         result = bmm_rrr()(input_val, weight)
     else:
         raise NotImplementedError(

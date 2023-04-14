@@ -14,6 +14,7 @@
 //
 #pragma once
 
+#include <sstream>
 #include <string>
 
 #include "cutlass/conv/conv2d_problem_size.h"
@@ -365,7 +366,8 @@ inline DeviceError GetLastError() {
 }
 
 inline std::string GetLastErrorString() {
-  return cudaGetErrorString(cudaGetLastError());
+  auto err = cudaGetLastError();
+  return cudaGetErrorString(err);
 }
 
 inline DeviceError StreamSynchronize(StreamType stream) {

@@ -13,17 +13,4 @@
 #  limitations under the License.
 #
 
-# flake8: noqa
-
-from aitemplate.utils import (
-    alignment,
-    environ,
-    graph_utils,
-    import_path,
-    markdown_table,
-    misc,
-    shape_utils,
-    tensor_utils,
-    torch_utils,
-    visualization,
-)
+# Let's keep this file empty to resolve circular import issues

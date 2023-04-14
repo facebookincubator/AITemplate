@@ -308,18 +308,7 @@ BENCHMARK_INSTANCE_TEMPLATE = jinja2.Template(
 {{indent}}ret = {{func_name}}(
 {{indent}}    {{gemm_op}},
 {{indent}}    gemm_op_name,
-{{indent}}    {{a_ptr}},
-{{indent}}    {{b_ptr}},
-{% if has_bias %}
-{{indent}}    {{bias_ptr}},
-{% endif %}
-{% if has_d %}
-{{indent}}    {{d_ptr}},
-{% endif %}
-{% if has_d1 %}
-{{indent}}    {{d1_ptr}},
-{% endif %}
-{{indent}}    {{c_ptr}},
+{{indent}}    memory_pool.get(),
 {{indent}}    global_workspace_,
 {% if support_split_k %}
 {{indent}}    {{split_k}},
@@ -376,7 +365,11 @@ PROFILER_TEMPLATE = jinja2.Template(
 size_t GLOBAL_WORKSPACE_SIZE = 0;
 
 #include <sstream>
+
 {{op_func}}
+
+template <typename DType>
+struct ProfilerMemoryPool;
 
 template <typename GemmInstance>
 int benchmark_{{function_name}} (
@@ -407,18 +400,7 @@ int benchmark_{{function_name}} (
 
     GemmInstance &gemm_op,
     const char *gemm_op_name,
-    void* a_ptr,
-    void* b_ptr,
-{% if has_bias %}
-    void* bias_ptr,
-{% endif %}
-{% if has_d %}
-    void* d_ptr,
-{% endif %}
-{% if has_d1 %}
-    void* d1_ptr,
-{% endif %}
-    void* c_ptr,
+    ProfilerMemoryPool<{{elem_type}}>* memory_pool,
     uint8_t* global_workspace_,
 {% if support_split_k %}
     int split_k,
@@ -998,11 +980,6 @@ def gen_profiler(
             gemm_op=gemm_op,
             gemm_op_name=op_name,
             func_name=f"benchmark_{function_name}",
-            a_ptr="memory_pool->RequestTensorByIdx(0)",
-            b_ptr="memory_pool->RequestTensorByIdx(1)",
-            has_bias=has_bias,
-            bias_ptr=bias_ptr_arg,
-            c_ptr="memory_pool->RequestTensorByIdx(2)",
             support_split_k=support_split_k,
             split_k="split_k",
             adims=adims,
@@ -1037,11 +1014,11 @@ def gen_profiler(
     func_call = FUNC_CALL_TEMPLATE.render(
         is_profiler=True,
         func_name=function_name,
-        a_ptr="a_ptr",
-        b_ptr="b_ptr",
+        a_ptr="memory_pool->RequestTensorByIdx(0)",
+        b_ptr="memory_pool->RequestTensorByIdx(1)",
         has_bias=has_bias,
-        bias_ptr="bias_ptr",
-        c_ptr="c_ptr",
+        bias_ptr=bias_ptr_arg,
+        c_ptr="memory_pool->RequestTensorByIdx(2)",
         split_k="split_k",
         adims=benchmark_adims,
         bdims=benchmark_bdims,

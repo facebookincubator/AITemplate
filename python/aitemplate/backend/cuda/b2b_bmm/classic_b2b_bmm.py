@@ -23,6 +23,7 @@ from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import IntImm
+from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
 
 # pylint: disable=C0301
 
@@ -79,6 +80,9 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
   ElementCompute alpha0 = ElementCompute({{alpha0}});
   ElementCompute beta0 = ElementCompute(1);
   ElementCompute activation_alpha = ElementCompute({{alpha1}});
+  {% if alpha1_divide_by_seq_len %}
+  activation_alpha = activation_alpha / (ElementCompute)(static_cast<int32_t>(m0));
+  {% endif %}
   ElementCompute alpha1 = ElementCompute(1);
   ElementCompute beta1 = ElementCompute(0);
 
@@ -247,9 +251,14 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         elem_accum_type=elem_accum_type,
         n0=str(n0.value()),
         n1=str(n1.value()),
-        has_causal="true" if func_attrs["causal"] else "false",
+        has_causal=(
+            "true" if func_attrs["causal_type"] != CausalType.NO_CAUSAL else "false"
+        ),
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
+        alpha1_divide_by_seq_len="true"
+        if func_attrs["alpha1_divide_by_seq_len"]
+        else "false",
         epilogue_math=epilogue_math,
     )
 

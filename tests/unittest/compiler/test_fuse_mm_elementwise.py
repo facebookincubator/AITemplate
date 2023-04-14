@@ -32,6 +32,13 @@ from aitemplate.utils import shape_utils
 from parameterized import parameterized
 
 
+def custom_name_func(testcase_func, param_num, param):
+    return "%s_%s_sm80" % (
+        testcase_func.__name__[:-5],
+        param.args[-2],
+    )
+
+
 class FuseGemmRcrBiasCase(unittest.TestCase):
     def _build_gemm_rcr_bias(self, M, N, K, decomposed, dtype):
         X_shape = [M, K]
@@ -761,44 +768,96 @@ class FuseGemmRcrBiasCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_gemm_rcr_bias_add_float_sm80(self):
-        self._test_gemm_rcr_bias(
-            [8], 16, 8, True, "gemm_rcr_bias_basic_decomposed_float", dtype="float"
-        )
-        self._test_gemm_rcr_bias_add(
-            [8], 16, 8, False, "gemm_rcr_bias_add_basic_float", dtype="float"
-        )
-        self._test_gemm_rcr_bias_add_add(
-            [8, 32], 16, 8, False, "gemm_rcr_bias_add_add_dynamic_float", dtype="float"
-        )
-        self._test_gemm_rcr_bias_add_add_relu(
-            [8],
-            16,
-            3,
-            False,
-            "gemm_rcr_bias_add_add_relu_need_align_float",
-            dtype="float",
-        )
-        self._test_gemm_rcr_bias_add_relu(
-            [8],
-            16,
-            8,
-            True,
-            "gemm_rcr_bias_add_relu_basic_decomposed_float",
-            dtype="float",
-        )
-        self._test_gemm_rcr_bias_tanh(
-            [8], 16, 8, False, "gemm_rcr_bias_tanh_basic_float", dtype="float"
-        )
-        self._test_gemm_rcr_bias_mul(
-            [8, 32], 16, 8, False, "gemm_rcr_bias_mul_dynamic_float", dtype="float"
-        )
-        self._test_gemm_rcr_bias_mul_add(
-            [8], 16, 3, False, "gemm_rcr_bias_mul_add_need_align_float", dtype="float"
-        )
-        self._test_gemm_rcr_bias_mul_tanh(
-            [8], 16, 3, False, "gemm_rcr_bias_mul_tanh_need_align_float", dtype="float"
-        )
+    @parameterized.expand(
+        [
+            (
+                _test_gemm_rcr_bias,
+                [8],
+                16,
+                8,
+                True,
+                "gemm_rcr_bias_basic_decomposed_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_add_add,
+                [8],
+                16,
+                8,
+                False,
+                "gemm_rcr_bias_add_basic_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_add_add,
+                [8, 32],
+                16,
+                8,
+                False,
+                "gemm_rcr_bias_add_add_dynamic_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_add_add_relu,
+                [8],
+                16,
+                3,
+                False,
+                "gemm_rcr_bias_add_add_relu_need_align_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_add_relu,
+                [8],
+                16,
+                8,
+                True,
+                "gemm_rcr_bias_add_relu_basic_decomposed_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_tanh,
+                [8],
+                16,
+                8,
+                False,
+                "gemm_rcr_bias_tanh_basic_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_mul,
+                [8, 32],
+                16,
+                8,
+                False,
+                "gemm_rcr_bias_mul_dynamic_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_mul_add,
+                [8],
+                16,
+                3,
+                False,
+                "gemm_rcr_bias_mul_add_need_align_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_mul_tanh,
+                [8],
+                16,
+                3,
+                False,
+                "gemm_rcr_bias_mul_tanh_need_align_float",
+                "float",
+            ),
+        ],
+        name_func=custom_name_func,
+    )
+    def test_gemm_rcr_bias_add_float_sm80(
+        self, func, Ms, N, K, decomposed, testname, dtype
+    ):
+        func(self, Ms, N, K, decomposed, testname, dtype)
 
 
 filter_test_cases_by_test_env(FuseGemmRcrBiasCase)
@@ -1144,63 +1203,89 @@ class FuseGemmRcrBiasActivationCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_gemm_rcr_bias_float_sm80(self):
-        self._test_gemm_rcr_bias_activation(
-            [8],
-            16,
-            8,
-            "relu",
-            "gemm_rcr_bias_relu",
-            True,
-            "gemm_rcr_bias_relu_basic_decomposed_float",
-            dtype="float",
-        )
-        self._test_gemm_rcr_bias_activation(
-            [8],
-            16,
-            8,
-            "sigmoid",
-            "gemm_rcr_bias_sigmoid",
-            False,
-            "gemm_rcr_bias_sigmoid_basic_float",
-            dtype="float",
-        )
-        self._test_gemm_rcr_bias_sigmoid_mul(
-            [8],
-            16,
-            8,
-            False,
-            "gemm_rcr_bias_sigmoid_mul_basic_float",
-            dtype="float",
-        )
-        self._test_gemm_rcr_bias_sigmoid_mul_tanh(
-            [8],
-            16,
-            3,
-            False,
-            "gemm_rcr_bias_sigmoid_mul_tanh_need_align_float",
-            dtype="float",
-        )
-        self._test_gemm_rcr_bias_activation(
-            [8],
-            16,
-            8,
-            "tanh",
-            "gemm_rcr_bias_tanh",
-            False,
-            "gemm_rcr_bias_tanh_basic_float",
-            dtype="float",
-        )
-        self._test_gemm_rcr_bias_activation(
-            [8, 32],
-            16,
-            8,
-            "fast_gelu",
-            "gemm_rcr_bias_fast_gelu",
-            True,
-            "gemm_rcr_bias_fast_gelu_basic_decomposed_float",
-            dtype="float",
-        )
+    @parameterized.expand(
+        [
+            (
+                _test_gemm_rcr_bias_activation,
+                [8],
+                16,
+                8,
+                True,
+                "gemm_rcr_bias_relu_basic_decomposed_float",
+                "float",
+                "relu",
+                "gemm_rcr_bias_relu",
+            ),
+            (
+                _test_gemm_rcr_bias_activation,
+                [8],
+                16,
+                8,
+                False,
+                "gemm_rcr_bias_sigmoid_basic_float",
+                "float",
+                "sigmoid",
+                "gemm_rcr_bias_sigmoid",
+            ),
+            (
+                _test_gemm_rcr_bias_sigmoid_mul,
+                [8],
+                16,
+                8,
+                False,
+                "gemm_rcr_bias_sigmoid_mul_basic_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_sigmoid_mul_tanh,
+                [8],
+                16,
+                3,
+                False,
+                "gemm_rcr_bias_sigmoid_mul_tanh_need_align_float",
+                "float",
+            ),
+            (
+                _test_gemm_rcr_bias_activation,
+                [8],
+                16,
+                8,
+                False,
+                "gemm_rcr_bias_tanh_basic_float",
+                "float",
+                "tanh",
+                "gemm_rcr_bias_tanh",
+            ),
+            (
+                _test_gemm_rcr_bias_activation,
+                [8, 32],
+                16,
+                8,
+                True,
+                "gemm_rcr_bias_fast_gelu_basic_decomposed_float",
+                "float",
+                "fast_gelu",
+                "gemm_rcr_bias_fast_gelu",
+            ),
+        ],
+        name_func=custom_name_func,
+    )
+    def test_gemm_rcr_bias_float_sm80(
+        self,
+        func,
+        Ms,
+        N,
+        K,
+        decomposed,
+        testname,
+        dtype,
+        activation=None,
+        target_ait=None,
+    ):
+        if activation and target_ait:
+            func(self, Ms, N, K, activation, target_ait, decomposed, testname, dtype)
+        else:
+            func(self, Ms, N, K, decomposed, testname, dtype)
 
 
 filter_test_cases_by_test_env(FuseGemmRcrBiasActivationCase)

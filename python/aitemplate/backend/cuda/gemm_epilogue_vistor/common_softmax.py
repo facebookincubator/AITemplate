@@ -125,6 +125,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}{{instance}} gemm_op;
 {% endif %}
 
+{{indent}}using coord_t = cutlass::gemm::GemmCoord::Index;
 {{indent}}typename {{instance}}::Arguments arguments{
 {{problem_args}}
 {{indent}}};
@@ -202,12 +203,7 @@ BENCHMARK_INSTANCE_TEMPLATE = jinja2.Template(
 {{indent}}ret = {{func_name}}(
 {{indent}}    {{gemm_op}},
 {{indent}}    gemm_op_name,
-{{indent}}    {{a_ptr}},
-{{indent}}    {{b_ptr}},
-{% if has_bias %}
-{{indent}}    {{bias_ptr}},
-{% endif %}
-{{indent}}    {{soft_ptr}},
+{{indent}}    memory_pool.get(),
 {{indent}}    global_workspace_,
 {% for dim in adims %}
 {{indent}}    {{dim}},
@@ -271,18 +267,17 @@ PROFILER_TEMPLATE = jinja2.Template(
 size_t GLOBAL_WORKSPACE_SIZE = 0;
 
 #include <sstream>
+
 {{op_func}}
+
+template <typename DType>
+struct ProfilerMemoryPool;
 
 template <typename GemmInstance>
 int benchmark_{{func_name}} (
     GemmInstance &gemm_op,
     const char *gemm_op_name,
-    void* a_ptr,
-    void* b_ptr,
-{% if has_bias %}
-    void* bias_ptr,
-{% endif %}
-    void* soft_ptr,
+    ProfilerMemoryPool<{{elem_type}}>* memory_pool,
     uint8_t* global_workspace_,
 {% for idx in range(input_ndims) %}
     int64_t* a_dim{{idx}},
@@ -631,11 +626,6 @@ def gen_profiler(
             gemm_op=gemm_op,
             gemm_op_name=op_name,
             func_name=f"benchmark_{func_name}",
-            a_ptr="memory_pool->RequestTensorByIdx(0)",
-            b_ptr="memory_pool->RequestTensorByIdx(1)",
-            has_bias=has_bias,
-            bias_ptr=bias_ptr_arg,
-            soft_ptr="memory_pool->RequestTensorByIdx(2)",
             adims=adims,
             bdims=bdims,
             cdims=cdims,
@@ -663,11 +653,11 @@ def gen_profiler(
     func_call = FUNC_CALL_TEMPLATE.render(
         is_profiler=True,
         func_name=func_name,
-        a_ptr="a_ptr",
-        b_ptr="b_ptr",
+        a_ptr="memory_pool->RequestTensorByIdx(0)",
+        b_ptr="memory_pool->RequestTensorByIdx(1)",
         has_bias=has_bias,
-        bias_ptr="bias_ptr",
-        soft_ptr="soft_ptr",
+        bias_ptr=bias_ptr_arg,
+        soft_ptr="memory_pool->RequestTensorByIdx(2)",
         adims=benchmark_adims,
         bdims=benchmark_bdims,
         cdims=benchmark_cdims,

@@ -504,11 +504,6 @@ class JaggedIntVar(IntVar):
                 "total_length must be dynamic (IntVar), "
                 f"but given {type(total_length).__name__}."
             )
-        if batch_dim is None or type(batch_dim) != IntVar:
-            raise TypeError(
-                "batch_dim must be dynamic (IntVar), "
-                f"but given {type(batch_dim).__name__}."
-            )
         if not jagged_dims or not all(
             isinstance(dim, JaggedDim) for dim in jagged_dims
         ):
@@ -541,6 +536,7 @@ class JaggedIntVar(IntVar):
         super().__init__(
             values=total_length._attrs["values"],
             name=total_length._attrs["name"],
+            symbolic_value=total_length._attrs["symbolic_value"],
         )
 
         self._attrs["batch_dim"] = batch_dim
@@ -911,6 +907,9 @@ class Tensor(Node):
         if data is not None:
             args.append(f"data=({data.size()} bytes)")
 
+        if self.is_jagged():
+            args.append("jagged=True")
+
         return f"Tensor({', '.join(args)})"
 
     def _bind_data(self, data: _ConstantTensorData) -> None:
@@ -1244,4 +1243,5 @@ class Operator(Node):
         args = self._pseudo_code_helper(self._args_for_pseudo_code(), with_shape)
         inputs = self._pseudo_code_helper(self._inputs_for_pseudo_code(), with_shape)
         outputs = self._pseudo_code_helper(self._outputs_for_pseudo_code(), with_shape)
-        return f"({outputs}) \n= {self._attrs['op']}({args})(\n{inputs})\n"
+        name = self._attrs.get("name", None)
+        return f"# {name}\n({outputs}) \n= {self._attrs['op']}({args})(\n{inputs})\n"

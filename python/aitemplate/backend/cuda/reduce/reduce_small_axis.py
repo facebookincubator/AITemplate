@@ -313,7 +313,12 @@ def _get_read_vector_type(input_shape, input_type, force_min_vec_type=False) -> 
         raise NotImplementedError("Unsupported vector size: {}".format(sz_in_byte))
 
     reduction_axis = -1
-    assert isinstance(input_shape[reduction_axis], IntImm)
+
+    if not isinstance(input_shape[reduction_axis], IntImm):
+        # the last dimension is IntVar, so the best we can do in
+        # terms of the read vector type is the input_type iteself
+        return input_type
+
     rank = len(input_shape)
     reduction_dim_val = input_shape[reduction_axis]._attrs["values"][0]
     input_type_sz_in_bit = type_to_size_in_bit.get(input_type)

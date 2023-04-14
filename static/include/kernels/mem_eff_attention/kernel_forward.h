@@ -1,12 +1,12 @@
 /***************************************************************************************************
  * Copyright (c) 2017 - 2023 NVIDIA CORPORATION & AFFILIATES. All rights
- * reserved. SPDX-License-Identifier: BSD-3-Clause
+ *reserved. SPDX-License-Identifier: BSD-3-Clause
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
  * 1. Redistributions of source code must retain the above copyright notice,
- * this list of conditions and the following disclaimer.
+ *this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright notice,
  * this list of conditions and the following disclaimer in the documentation
@@ -19,21 +19,28 @@
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
+ *ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ *LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ *POSSIBILITY OF SUCH DAMAGE.
  *
  **************************************************************************************************/
 
-/*
- * This implementation is adapted from
- * http://github.com/NVIDIA/cutlass/tree/master/examples/41_fused_multi_head_attention
- */
+// This code has been adapted from
+// https://github.com/NVIDIA/cutlass/blob/77549ae6c8cf31c7ac4c8b88180a8708a8683da4/examples/41_fused_multi_head_attention/kernel_forward.h
+
+#pragma once
+
+#ifdef HAS_PYTORCH
+#include <ATen/ATen.h>
+#include <ATen/cuda/CUDAContext.h>
+#include <c10/cuda/CUDAGuard.h>
+#include <torch/library.h>
+#endif
 
 #include <cmath>
 #include <vector>
@@ -45,9 +52,6 @@
 #include "cutlass/numeric_types.h"
 
 #include "attention_scaling_coefs_updater.h"
-#include "cutlass/epilogue/thread/activation.h"
-#include "cutlass/epilogue/thread/linear_combination.h"
-#include "cutlass/epilogue/thread/scale_type.h"
 #include "cutlass/epilogue/threadblock/default_epilogue_simt.h"
 #include "cutlass/epilogue/threadblock/default_epilogue_tensor_op.h"
 #include "cutlass/epilogue/threadblock/default_epilogue_volta_tensor_op.h"
@@ -60,17 +64,17 @@
 #include "cutlass/gemm/threadblock/default_mma_core_sm80.h"
 #include "cutlass/gemm/threadblock/threadblock_swizzle.h"
 #include "cutlass/matrix_shape.h"
-#include "cutlass/numeric_conversion.h"
 #include "cutlass/platform/platform.h"
 #include "cutlass/transform/threadblock/predicated_tile_iterator.h"
 
-#include "fmha_style_b2b_bmm/debug_utils.h"
-#include "fmha_style_b2b_bmm/epilogue_pipelined.h"
-#include "fmha_style_b2b_bmm/epilogue_rescale_output.h"
-#include "fmha_style_b2b_bmm/find_default_mma.h"
-#include "fmha_style_b2b_bmm/gemm_kernel_utils.h"
-#include "fmha_style_b2b_bmm/mma_from_smem.h"
-#include "fmha_style_b2b_bmm/transform/tile_smem_loader.h"
+// From
+// fbcode/aitemplate/AITemplate/fb/3rdparty/cutlass/examples/41_fused_multi_head_attention/
+#include "debug_utils.h"
+#include "epilogue_pipelined.h"
+#include "epilogue_rescale_output.h"
+#include "find_default_mma.h"
+#include "gemm_kernel_utils.h"
+#include "mma_from_smem.h"
 
 #include <inttypes.h>
 
@@ -88,30 +92,27 @@ constexpr int getWarpsPerSm() {
 } // namespace
 
 template <
-    // The datatype of Q/K/V/output
+    // The datatype of Q/K/V
     typename scalar_t_,
-    // The datatype for accumulation
-    typename accum_t_,
     // Architecture we are targeting (eg `cutlass::arch::Sm80`)
     typename ArchTag,
     // If Q/K/V are correctly aligned in memory and we can run a fast kernel
     bool isAligned_,
     int kQueriesPerBlock,
     int kKeysPerBlock,
-    // = `value.shape[-1] <= kKeysPerBlock`
-    bool kSingleValueIteration,
-    // Activation functor
-    template <typename T>
-    class ActivationFunctor,
-    typename offset_t_ = int64_t>
+    bool kSingleValueIteration // = `value.shape[-1] <= kKeysPerBlock`
+    >
 struct AttentionKernel {
   using scalar_t = scalar_t_;
-  using accum_t = accum_t_;
+  using accum_t = float;
+  using lse_scalar_t = float;
   using output_t = scalar_t;
   // Accumulator between 2 iterations
+  // Using `accum_t` improves perf on f16 at the cost of
+  // numerical errors
   using output_accum_t = accum_t;
-  using offset_t = offset_t_;
   static constexpr bool kIsAligned = isAligned_;
+  static constexpr int32_t kAlignLSE = 32; // block size of backward
   static constexpr bool kPreloadV = ArchTag::kMinComputeCapability >= 80 &&
       cutlass::sizeof_bits<scalar_t>::value == 16;
   static constexpr bool kKeepOutputInRF = kSingleValueIteration;
@@ -134,121 +135,101 @@ struct AttentionKernel {
     scalar_t* query_ptr; // [num_queries, num_heads, head_dim]
     scalar_t* key_ptr; // [num_keys, num_heads, head_dim]
     scalar_t* value_ptr; // [num_keys, num_heads, head_dim_value]
-    scalar_t* attn_bias_ptr = nullptr; // [num_heads, num_queries, num_keys]
+    int32_t* seqlens_q_ptr = nullptr;
+    int32_t* seqlens_k_ptr = nullptr;
 
     // Output tensors
     output_t* output_ptr; // [num_queries, num_heads, head_dim_value]
     output_accum_t*
         output_accum_ptr; // [num_queries, num_heads, head_dim_value]
-
-    // Scale
-    accum_t scale;
-    accum_t activation_scale;
-    bool activation_scale_divide_by_seq_len{false};
+    lse_scalar_t* logsumexp_ptr; // [num_heads, num_queries] - can be null
 
     // Dimensions/strides
     int32_t head_dim;
     int32_t head_dim_value;
-    int32_t seq_length;
     int32_t num_queries;
     int32_t num_keys;
-    int32_t num_batches;
-    int32_t num_heads;
 
-    // When offset_ptr is not null, support variable sequence length.
-    // offset is a vector of offset of sequence length per batch.
-    // len(offset) = batch_size + 1
-    // In this case, seq_length / num_queries / num_keys are max_seq_length.
-    // offset is applied to queries, keys and values.
-    //
-    // e.g. If input tensor shape is:
-    // num_batches = 3
-    // batch0: seq_length_0=4, H, head_dim
-    // batch1: seq_length_0=2, H, head_dim
-    // batch2: seq_length_0=10, H, head_dim
-    // offset=[0, 4, 6, 16]
-    const offset_t* offset_ptr;
-
-    enum CausalType {
-      NO_CAUSAL = 0,
-      UPPER_RIGHT_EMPTY = 1,
-      LOWER_LEFT_EMPTY = 2
-    };
-    CausalType causal_type;
+    bool causal;
 
     int32_t q_strideM;
     int32_t k_strideM;
     int32_t v_strideM;
-    int32_t bias_strideM;
 
     // Everything below is only used in `advance_to_block`
     // and shouldn't use registers
     int32_t q_strideH;
     int32_t k_strideH;
     int32_t v_strideH;
-    int32_t bias_strideH;
+    int32_t o_strideH;
     int64_t q_strideB;
     int64_t k_strideB;
     int64_t v_strideB;
-    int32_t bias_strideB;
+    int64_t o_strideB;
+    int32_t num_batches;
+    int32_t num_heads;
 
     CUTLASS_HOST_DEVICE int32_t o_strideM() const {
+      // Note: Note in sync with cutlass' main branch!! Make sure to apply
+      // when updating cutlass.
       return head_dim_value * num_heads;
     }
+
     // Moves pointers to what we should process
     // Returns "false" if there is no work to do
     CUTLASS_DEVICE bool advance_to_block() {
       auto batch_id = blockIdx.z;
       auto head_id = blockIdx.y;
       auto query_start = blockIdx.x * kQueriesPerBlock;
-      int64_t q_start = 0;
-      int64_t k_start = 0;
 
-      // Advance to current batch - in case of different sequence lengths
-      if (offset_ptr) {
-        auto start = offset_ptr[batch_id];
-        auto end = offset_ptr[batch_id + 1];
-        q_start = static_cast<int64_t>(start);
-        k_start = static_cast<int64_t>(start);
-        auto actual_seq_length = static_cast<int32_t>(end - start);
-        num_queries = actual_seq_length;
-        num_keys = actual_seq_length;
+      auto lse_dim = ceil_div((int32_t)num_queries, kAlignLSE) * kAlignLSE;
+
+      // In case of variable target sequence lengths, get real sequence length
+      // for this batch
+      if (seqlens_q_ptr != nullptr) {
+        num_queries = seqlens_q_ptr[batch_id];
         if (query_start >= num_queries) {
           return false;
         }
-      } else {
-        query_ptr += batch_id * q_strideB;
-        key_ptr += batch_id * k_strideB;
-        value_ptr += batch_id * v_strideB;
-        output_ptr += int64_t(batch_id * num_queries) * o_strideM();
-        if (output_accum_ptr != nullptr) {
-          output_accum_ptr += int64_t(batch_id * num_queries) * o_strideM();
-        }
-        q_start = 0;
-        k_start = 0;
+      }
+      // In case of variable source sequence lengths, get real sequence length
+      // for this batch
+      if (seqlens_k_ptr != nullptr) {
+        num_keys = seqlens_k_ptr[batch_id];
+      }
+
+      query_ptr += batch_id * q_strideB;
+      key_ptr += batch_id * k_strideB;
+      value_ptr += batch_id * v_strideB;
+      output_ptr += batch_id * o_strideB;
+      if (output_accum_ptr != nullptr) {
+        output_accum_ptr += batch_id * o_strideB;
       }
 
       // Advance to the current batch / head / query_start
-      query_ptr += (q_start + query_start) * q_strideM + head_id * q_strideH;
-      key_ptr += k_start * k_strideM + head_id * k_strideH;
-      value_ptr += k_start * v_strideM + head_id * v_strideH;
-      output_ptr += int64_t(q_start + query_start) * o_strideM() +
-          head_id * head_dim_value;
-      if (attn_bias_ptr != nullptr) {
-        attn_bias_ptr += (batch_id * bias_strideB) + (head_id * bias_strideH);
-      }
+      query_ptr += query_start * q_strideM + head_id * q_strideH;
+      key_ptr += head_id * k_strideH;
+      value_ptr += head_id * v_strideH;
+      output_ptr += int64_t(query_start) * o_strideM() + head_id * o_strideH;
 
       if (output_accum_ptr != nullptr) {
-        output_accum_ptr += int64_t(q_start + query_start) * o_strideM() +
-            head_id * head_dim_value;
+        output_accum_ptr +=
+            int64_t(query_start) * o_strideM() + head_id * o_strideH;
       } else {
         // Accumulate directly in the destination buffer (eg for f32)
         output_accum_ptr = (accum_t*)output_ptr;
       }
-      if (causal_type == CausalType::UPPER_RIGHT_EMPTY) {
-        num_keys = cutlass::fast_min(num_queries, num_keys);
+      if (logsumexp_ptr != nullptr) {
+        // lse[batch_id, head_id, query_start]
+        logsumexp_ptr +=
+            batch_id * lse_dim * num_heads + head_id * lse_dim + query_start;
       }
+
       num_queries -= query_start;
+      if (causal) {
+        num_keys = cutlass::fast_min(
+            int32_t(query_start + kQueriesPerBlock), num_keys);
+      }
       num_batches = 0; // no longer used after
 
       // Make sure the compiler knows these variables are the same on all
@@ -256,9 +237,9 @@ struct AttentionKernel {
       query_ptr = warp_uniform(query_ptr);
       key_ptr = warp_uniform(key_ptr);
       value_ptr = warp_uniform(value_ptr);
-      attn_bias_ptr = warp_uniform(attn_bias_ptr);
       output_ptr = warp_uniform(output_ptr);
       output_accum_ptr = warp_uniform(output_accum_ptr);
+      logsumexp_ptr = warp_uniform(logsumexp_ptr);
       num_queries = warp_uniform(num_queries);
       num_keys = warp_uniform(num_keys);
       head_dim = warp_uniform(head_dim);
@@ -280,11 +261,10 @@ struct AttentionKernel {
   struct MM0 {
     /*
       In this first matmul, we compute a block of `Q @ K.T`.
-      While the calculation result is still hot in registers, we load bias
-      into shared_memory and then add it to registers, and apply scaling and
-      causal masks. We then store this value into a shared-memory
-      ("AccumulatorSharedStorage") that is used later as operand A for the
-      second matmul (see MM1)
+      While the calculation result is still hot in registers, we update
+      `mi`, `m_prime`, `s_prime` in shared-memory, and then store this value
+      into a shared-memory ("AccumulatorSharedStorage") that is used later as
+      operand A for the second matmul (see MM1)
     */
     using GemmType = DefaultGemmType<ArchTag, scalar_t>;
 
@@ -337,14 +317,6 @@ struct AttentionKernel {
             kNumWarpsPerBlock,
         "");
 
-    // used for efficient load of bias tile Bij from global to shared memory
-    using BiasLoader = TileSmemLoader<
-        scalar_t,
-        cutlass::MatrixShape<kQueriesPerBlock, kKeysPerBlock>,
-        MmaCore::kThreads,
-        // input restriction: kv_len has to be a multiple of this value
-        128 / cutlass::sizeof_bits<scalar_t>::value>;
-
     // Epilogue to store to shared-memory in a format that we can use later for
     // the second matmul
     using B2bGemm = typename cutlass::gemm::threadblock::B2bGemm<
@@ -358,8 +330,8 @@ struct AttentionKernel {
 
   struct MM1 {
     /**
-      Second matmul: perform `attn @ V` where `attn` is the result from MM0
-      and stored in shared memory
+      Second matmul: perform `attn @ V` where `attn` is the attention (not
+      normalized) and stored in shared memory
     */
     using GemmType = DefaultGemmType<ArchTag, scalar_t>;
 
@@ -370,7 +342,7 @@ struct AttentionKernel {
             ArchTag,
             scalar_t,
             scalar_t,
-            scalar_t, // ElementC
+            output_accum_t, // ElementC
             accum_t // ElementAccumulator
             >;
     static constexpr int kAlignmentA = DefaultConfig::kAlignmentA; // from smem
@@ -415,7 +387,6 @@ struct AttentionKernel {
         "");
 
     using DefaultEpilogue = typename DefaultGemm::Epilogue;
-
     using OutputTileIterator =
         typename cutlass::epilogue::threadblock::PredicatedTileIterator<
             typename DefaultEpilogue::OutputTileIterator::ThreadMap,
@@ -435,16 +406,16 @@ struct AttentionKernel {
   static constexpr int64_t kAlignmentV = 1;
 
   // Shared storage - depends on kernel params
-  struct ScalingCoefs {};
+  struct ScalingCoefs {
+    cutlass::Array<accum_t, kQueriesPerBlock> m_prime;
+    cutlass::Array<accum_t, kQueriesPerBlock> s_prime;
+    cutlass::Array<accum_t, kQueriesPerBlock> mi;
+  };
 
   struct SharedStorageEpilogueAtEnd : ScalingCoefs {
     struct SharedStorageAfterMM0 {
       // Everything here might be overwritten during MM0
-      // For some reason union doesn't work. Need more debugging.
-      // volatile union {
-      typename MM0::BiasLoader::SmemTile bias;
       typename MM0::AccumulatorSharedStorage si;
-      // };
       typename MM1::SharedStorageMM1 mm1;
     };
 
@@ -463,10 +434,7 @@ struct AttentionKernel {
   struct SharedStorageEpilogueInLoop : ScalingCoefs {
     struct SharedStorageAfterMM0 {
       // Everything here might be overwritten during MM0
-      // union {
-      typename MM0::BiasLoader::SmemTile bias;
       typename MM0::AccumulatorSharedStorage si;
-      // };
       typename MM1::SharedStorageMM1 mm1;
       typename MM1::DefaultEpilogue::SharedStorage epilogue;
     };
@@ -513,14 +481,18 @@ struct AttentionKernel {
 
     extern __shared__ char smem_buffer[];
     SharedStorage& shared_storage = *((SharedStorage*)smem_buffer);
+    auto& m_prime = shared_storage.m_prime;
+    auto& s_prime = shared_storage.s_prime;
     [[maybe_unused]] auto& si = shared_storage.after_mm0.si;
-
-    const uint32_t query_start = blockIdx.x * kQueriesPerBlock;
-    uint32_t key_start = (p.causal_type == Params::CausalType::LOWER_LEFT_EMPTY)
-        ? query_start
-        : 0;
+    auto& mi = shared_storage.mi;
 
     static_assert(kQueriesPerBlock < kNumWarpsPerBlock * kWarpSize, "");
+    if (thread_id() < kQueriesPerBlock) {
+      s_prime[thread_id()] = accum_t(0);
+      m_prime[thread_id()] =
+          -cutlass::platform::numeric_limits<accum_t>::infinity();
+      mi[thread_id()] = -cutlass::platform::numeric_limits<accum_t>::infinity();
+    }
     typename MM1::Mma::FragmentC accum_o;
     accum_o.clear();
 
@@ -548,7 +520,7 @@ struct AttentionKernel {
         };
 
     // Iterate through keys
-    for (int32_t iter_key_start = key_start; iter_key_start < p.num_keys;
+    for (int32_t iter_key_start = 0; iter_key_start < p.num_keys;
          iter_key_start += kKeysPerBlock) {
       int32_t problem_size_0_m =
           cutlass::fast_min((int32_t)kQueriesPerBlock, p.num_queries);
@@ -572,7 +544,8 @@ struct AttentionKernel {
             problem_size_1_k);
       };
 
-      __syncthreads(); // Need to have shared memory initialized
+      __syncthreads(); // Need to have shared memory initialized, and `m_prime`
+                       // updated from end of prev iter
       //
       // MATMUL: Q.K_t
       //
@@ -638,58 +611,11 @@ struct AttentionKernel {
               (tb_tile_offset.n() * MM0::Mma::WarpCount::kN) +
                   (my_warp_id / MM0::Mma::WarpCount::kM)};
 
-      // load bias tile Bij into shared memory
-      typename MM0::BiasLoader::GmemTileIterator bias_iter(
-          {cutlass::layout::RowMajor(p.bias_strideM)},
-          // attn_bias_pointer points to matrix of size (n_queries, n_keys)
-          // for the relevant batch_id and head_id
-          p.attn_bias_ptr + query_start * p.bias_strideM + iter_key_start,
-          {problem_size_0_m, problem_size_0_n},
-          thread_id());
-      cutlass::TensorRef<scalar_t, cutlass::layout::RowMajor> bias_tensor_ref(
-          shared_storage.after_mm0.bias.data(),
-          cutlass::layout::RowMajor(MM0::ThreadblockShape::kN));
-      typename MM0::BiasLoader::SmemTileIterator smem_tile_iter(
-          bias_tensor_ref, thread_id());
-      if (p.attn_bias_ptr != nullptr) {
-        MM0::BiasLoader::load(bias_iter, smem_tile_iter);
-      }
-
-      // apply scale, attention bias, activation_scale if applicable
-      // Pij += Bij, Pij is in register fragment and Bij is in shared memory
-      auto lane_offset = MM0::ScalingCoefsUpdater::get_lane_offset(
-          lane_id(), warp_id(), iteratorC_tile_offset);
-      MM0::ScalingCoefsUpdater::iterateRows(
-          lane_offset,
-          [&](int accum_m) {},
-          [&](int accum_m, int accum_n, int idx) {
-            if (accum_m < problem_size_0_m && accum_n < problem_size_0_n) {
-              // int x = accum_m + query_start;
-              // int y = accum_n + iter_key_start;
-              accum[idx] = accum[idx] * p.scale;
-              if (p.attn_bias_ptr != nullptr) {
-                accum[idx] = accum[idx] +
-                    bias_tensor_ref.at(
-                        {(p.bias_strideM == 0 ? 0 : accum_m), accum_n});
-              }
-              accum[idx] = ActivationFunctor<accum_t>()(accum[idx]) *
-                  (accum_t)(p.activation_scale);
-              if (p.activation_scale_divide_by_seq_len) {
-                // Divide by max_seq_len instead of actual_seq_len.
-                // Might beed to be configured to use either max_seq_len or
-                // actual_seq_len in the future.
-                accum[idx] = accum[idx] / (accum_t)(p.seq_length);
-              }
-            } else {
-              // Need to set out-of-bound elements to 0 as these elements
-              // will also be used in the accum@V MMA.
-              accum[idx] = (accum_t)(0);
-            }
-          },
-          [&](int accum_m) {});
-
       // Mask out last if causal
-      if (p.causal_type != Params::CausalType::NO_CAUSAL) {
+      if (p.causal && p.num_keys - iter_key_start <= kKeysPerBlock) {
+        auto query_start = blockIdx.x * kQueriesPerBlock;
+        auto lane_offset = MM0::ScalingCoefsUpdater::get_lane_offset(
+            lane_id(), warp_id(), iteratorC_tile_offset);
         int32_t last_col;
         MM0::ScalingCoefsUpdater::iterateRows(
             lane_offset,
@@ -697,27 +623,40 @@ struct AttentionKernel {
               last_col = query_start + accum_m - iter_key_start;
             },
             [&](int accum_m, int accum_n, int idx) {
-              switch (p.causal_type) {
-                case Params::CausalType::UPPER_RIGHT_EMPTY:
-                  // Need to set out-of-bound elements to 0 as these elements
-                  // will also be used in the accum@V MMA.
-                  if (accum_n > last_col) {
-                    accum[idx] = (accum_t)(0);
-                  }
-                  break;
-                case Params::CausalType::LOWER_LEFT_EMPTY:
-                  // Need to set out-of-bound elements to 0 as these elements
-                  // will also be used in the accum@V MMA.
-                  if ((accum_n < last_col && accum_m < problem_size_0_m) ||
-                      accum_m >= problem_size_0_m ||
-                      accum_n >= problem_size_0_n) {
-                    accum[idx] = (accum_t)(0);
-                  }
-                  break;
+              if (accum_n > last_col) {
+                accum[idx] =
+                    -cutlass::platform::numeric_limits<accum_t>::infinity();
               }
             },
             [&](int accum_m) {});
       }
+      DISPATCH_BOOL(iter_key_start == 0, kIsFirst, ([&] {
+                      DISPATCH_BOOL(
+                          p.num_keys - iter_key_start >= kKeysPerBlock,
+                          kFullColumns,
+                          ([&] {
+                            // Update `mi` from accum stored in registers
+                            // Also updates `accum` with accum[i] <-
+                            // exp(accum[i] * scale
+                            // - mi)
+                            MM0::ScalingCoefsUpdater::update<
+                                kQueriesPerBlock,
+                                kFullColumns,
+                                kIsFirst,
+                                kKeepOutputInRF>(
+                                accum_o,
+                                accum,
+                                mi,
+                                m_prime,
+                                s_prime,
+                                lane_id(),
+                                thread_id(),
+                                warp_id(),
+                                p.num_keys - iter_key_start,
+                                iteratorC_tile_offset,
+                                1.0f / cutlass::fast_sqrt(float(p.head_dim)));
+                          }));
+                    }));
 
       // Output results to shared-memory
       int warp_idx_mn_0 = my_warp_id %
@@ -778,7 +717,7 @@ struct AttentionKernel {
 
         if (!kKeepOutputInRF) {
           DISPATCH_BOOL(
-              iter_key_start == key_start, kIsFirst, ([&] {
+              iter_key_start == 0, kIsFirst, ([&] {
                 DISPATCH_BOOL(
                     (iter_key_start + kKeysPerBlock) >= p.num_keys,
                     kIsLast,
@@ -787,21 +726,19 @@ struct AttentionKernel {
                       using DefaultOp =
                           typename MM1::DefaultConfig::EpilogueOutputOp;
                       using ElementCompute = typename DefaultOp::ElementCompute;
-                      using EpilogueOutputOp =
-                          typename cutlass::epilogue::thread::LinearCombination<
+                      using EpilogueOutputOp = typename cutlass::epilogue::
+                          thread::MemoryEfficientAttentionNormalize<
                               typename cutlass::platform::conditional<
                                   kIsLast,
                                   output_t,
                                   output_accum_t>::type,
+                              output_accum_t,
                               DefaultOp::kCount,
                               typename DefaultOp::ElementAccumulator,
                               ElementCompute,
-                              (kIsFirst ? cutlass::epilogue::thread::ScaleType::
-                                              Nothing
-                                        : cutlass::epilogue::thread::ScaleType::
-                                              NoBetaScaling),
-                              cutlass::FloatRoundStyle::round_to_nearest,
-                              output_accum_t>;
+                              kIsFirst,
+                              kIsLast,
+                              cutlass::Array<ElementCompute, kQueriesPerBlock>>;
                       using Epilogue = typename cutlass::epilogue::threadblock::
                           EpiloguePipelined<
                               typename DefaultEpilogue::Shape,
@@ -822,6 +759,7 @@ struct AttentionKernel {
                               typename MM1::OutputTileIteratorAccum // Read
                                                                     // iterator
                               >;
+
                       int col = blockN * MM1::Mma::Shape::kN;
                       auto source_iter = createOutputAccumIter(col);
                       auto dest_iter = call_conditional<
@@ -829,13 +767,13 @@ struct AttentionKernel {
                           decltype(createOutputIter),
                           decltype(createOutputAccumIter)>::
                           apply(createOutputIter, createOutputAccumIter, col);
-                      EpilogueOutputOp epilogue_op({});
+                      EpilogueOutputOp rescale(s_prime, m_prime);
                       Epilogue epilogue(
                           shared_storage.epilogue_shared_storage(),
                           thread_id(),
                           warp_id(),
                           lane_id());
-                      epilogue(epilogue_op, dest_iter, accum_o, source_iter);
+                      epilogue(rescale, dest_iter, accum_o, source_iter);
                     }));
               }));
           if (!kSingleValueIteration) {
@@ -843,21 +781,63 @@ struct AttentionKernel {
           }
         }
       }
-      __syncthreads();
+      __syncthreads(); // we modify `m_prime` after
     }
 
     if (kKeepOutputInRF) {
+      constexpr bool kIsFirst = true;
+      constexpr bool kIsLast = true;
       using DefaultEpilogue = typename MM1::DefaultEpilogue;
       using DefaultOp = typename MM1::DefaultConfig::EpilogueOutputOp;
       using ElementCompute = typename DefaultOp::ElementCompute;
+      using EpilogueOutputOp =
+          typename cutlass::epilogue::thread::MemoryEfficientAttentionNormalize<
+              output_t, // output
+              output_accum_t, // source
+              DefaultOp::kCount,
+              typename DefaultOp::ElementAccumulator, // accum
+              output_accum_t, // compute
+              kIsFirst,
+              kIsLast,
+              cutlass::Array<ElementCompute, kQueriesPerBlock>>;
+      using Epilogue =
+          typename cutlass::epilogue::threadblock::EpiloguePipelined<
+              typename DefaultEpilogue::Shape,
+              typename MM1::Mma::Operator,
+              DefaultEpilogue::kPartitionsK,
+              typename MM1::OutputTileIterator, // destination
+              typename DefaultEpilogue::AccumulatorFragmentIterator,
+              typename DefaultEpilogue::WarpTileIterator,
+              typename DefaultEpilogue::SharedLoadIterator,
+              EpilogueOutputOp,
+              typename DefaultEpilogue::Padding,
+              DefaultEpilogue::kFragmentsPerIteration,
+              true, // IterationsUnroll
+              typename MM1::OutputTileIteratorAccum // source tile
+              >;
       auto dest_iter = createOutputIter(0);
-      DefaultOp epilogue_op({});
-      DefaultEpilogue epilogue(
+      EpilogueOutputOp rescale(s_prime, m_prime);
+      Epilogue epilogue(
           shared_storage.epilogue_shared_storage(),
           thread_id(),
           warp_id(),
           lane_id());
-      epilogue(epilogue_op, dest_iter, accum_o);
+      epilogue(rescale, dest_iter, accum_o);
+    }
+
+    // 7. Calculate logsumexp
+    // To make the backward easier, we pad logsumexp with `inf`
+    // this avoids a few bound checks, and is not more expensive during fwd
+    static_assert(kQueriesPerBlock < kNumWarpsPerBlock * kWarpSize, "");
+    if (p.logsumexp_ptr && thread_id() < kQueriesPerBlock) {
+      auto lse_dim = ceil_div((int32_t)p.num_queries, kAlignLSE) * kAlignLSE;
+      if (thread_id() < p.num_queries) {
+        p.logsumexp_ptr[thread_id()] = accum_t(mi[thread_id()]) +
+            cutlass::fast_log(accum_t(s_prime[thread_id()]));
+      } else if (thread_id() < lse_dim) {
+        p.logsumexp_ptr[thread_id()] =
+            cutlass::platform::numeric_limits<accum_t>::infinity();
+      }
     }
   }
 
@@ -880,3 +860,93 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
   }
   AK::attention_kernel(p);
 }
+
+template <typename AK>
+__global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
+    attention_kernel_batched(typename AK::Params params);
+
+#define _ATTENTION_KERNEL_FORWARD_BEGIN(...)                                  \
+  template <>                                                                 \
+  __global__ void __launch_bounds__(                                          \
+      __VA_ARGS__::kNumThreads, __VA_ARGS__::kMinBlocksPerSm)                 \
+      attention_kernel_batched<__VA_ARGS__>(typename __VA_ARGS__::Params p) { \
+    using Kernel = __VA_ARGS__;
+#define _ATTENTION_KERNEL_FORWARD_END() }
+
+#ifdef __CUDA_ARCH__
+#define __CUDA_ARCH_OR_ZERO__ __CUDA_ARCH__
+#else
+#define __CUDA_ARCH_OR_ZERO__ 0
+#endif
+
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD(              \
+    ARCH,                                                  \
+    SCALAR_T,                                              \
+    IS_ALIGNED,                                            \
+    QUERIES_PER_BLOCK,                                     \
+    KEYS_PER_BLOCK,                                        \
+    SINGLE_VALUE_ITER)                                     \
+  _ATTENTION_KERNEL_FORWARD_BEGIN(AttentionKernel<         \
+                                  SCALAR_T,                \
+                                  cutlass::arch::Sm##ARCH, \
+                                  IS_ALIGNED,              \
+                                  QUERIES_PER_BLOCK,       \
+                                  KEYS_PER_BLOCK,          \
+                                  SINGLE_VALUE_ITER>)      \
+  if (!p.advance_to_block()) {                             \
+    return;                                                \
+  }                                                        \
+  Kernel::attention_kernel(p);                             \
+  _ATTENTION_KERNEL_FORWARD_END();
+
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(              \
+    ARCH,                                                           \
+    SCALAR_T,                                                       \
+    IS_ALIGNED,                                                     \
+    QUERIES_PER_BLOCK,                                              \
+    KEYS_PER_BLOCK,                                                 \
+    SINGLE_VALUE_ITER)                                              \
+  _ATTENTION_KERNEL_FORWARD_BEGIN(AttentionKernel<                  \
+                                  SCALAR_T,                         \
+                                  cutlass::arch::Sm##ARCH,          \
+                                  IS_ALIGNED,                       \
+                                  QUERIES_PER_BLOCK,                \
+                                  KEYS_PER_BLOCK,                   \
+                                  SINGLE_VALUE_ITER>)               \
+  printf(                                                           \
+      "FATAL: this function is for sm%d, but was built for sm%d\n", \
+      int(ARCH),                                                    \
+      int(__CUDA_ARCH_OR_ZERO__));                                  \
+  _ATTENTION_KERNEL_FORWARD_END();
+
+// All kernels are disabled by default
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM50(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(50, __VA_ARGS__)
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM70(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(70, __VA_ARGS__)
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM75(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(75, __VA_ARGS__)
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM80(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(80, __VA_ARGS__)
+
+// Enable the right one based on __CUDA_ARCH__
+#ifndef __CUDA_ARCH__
+#elif __CUDA_ARCH__ < 500
+#error "Need cuda arch at least 5.0"
+#elif __CUDA_ARCH__ < 700
+#undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM50
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM50(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(50, __VA_ARGS__)
+#elif __CUDA_ARCH__ < 750
+#undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM70
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM70(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(70, __VA_ARGS__)
+#elif __CUDA_ARCH__ < 800
+#undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM75
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM75(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(75, __VA_ARGS__)
+#elif __CUDA_ARCH__ >= 800
+#undef INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM80
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD_SM80(...) \
+  INSTANTIATE_ATTENTION_KERNEL_FORWARD(80, __VA_ARGS__)
+#endif

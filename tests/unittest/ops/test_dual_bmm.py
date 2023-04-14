@@ -114,7 +114,7 @@ class DUALBMMTestCase(unittest.TestCase):
             N=64,
             K=128,
             broadcast_b1=False,
-            test_name="dual_bmm_rrr_div_fp16",
+            test_name="dual_bmm_rrr_div_fp16_1",
             dtype="float16",
         )
         self._test_dual_bmm_rrr_div(
@@ -123,7 +123,7 @@ class DUALBMMTestCase(unittest.TestCase):
             N=512,
             K=512,
             broadcast_b1=False,
-            test_name="dual_bmm_rrr_div_fp16",
+            test_name="dual_bmm_rrr_div_fp16_2",
             dtype="float16",
         )
         self._test_dual_bmm_rrr_div(
@@ -132,7 +132,7 @@ class DUALBMMTestCase(unittest.TestCase):
             N=1024,
             K=2048,
             broadcast_b1=False,
-            test_name="dual_bmm_rrr_div_fp16",
+            test_name="dual_bmm_rrr_div_fp16_3",
             dtype="float16",
         )
 
@@ -143,7 +143,7 @@ class DUALBMMTestCase(unittest.TestCase):
             N=64,
             K=128,
             broadcast_b1=True,
-            test_name="dual_bmm_rrr_div_fp16",
+            test_name="dual_bmm_rrr_div_broadcast_b1_fp16_1",
             dtype="float16",
         )
         # self._test_dual_bmm_rrr_div(
@@ -152,7 +152,7 @@ class DUALBMMTestCase(unittest.TestCase):
         #     N=512,
         #     K=512,
         #     broadcast_b1=True,
-        #     test_name="dual_bmm_rrr_div_fp16",
+        #     test_name="dual_bmm_rrr_div_broadcast_b1_fp16_2",
         #     dtype="float16",
         # )
         # self._test_dual_bmm_rrr_div(
@@ -161,7 +161,7 @@ class DUALBMMTestCase(unittest.TestCase):
         #     N=1024,
         #     K=2048,
         #     broadcast_b1=True,
-        #     test_name="dual_bmm_rrr_div_fp16",
+        #     test_name="dual_bmm_rrr_div_broadcast_b1_fp16_3",
         #     dtype="float16",
         # )
 
@@ -173,7 +173,7 @@ class DUALBMMTestCase(unittest.TestCase):
             N=64,
             K=128,
             broadcast_b1=False,
-            test_name="dual_bmm_rrr_div_fp32",
+            test_name="dual_bmm_rrr_div_fp32_1",
             dtype="float32",
         )
         # self._test_dual_bmm_rrr_div(
@@ -182,7 +182,7 @@ class DUALBMMTestCase(unittest.TestCase):
         #     N=512,
         #     K=512,
         #     broadcast_b1=False,
-        #     test_name="dual_bmm_rrr_div_fp32",
+        #     test_name="dual_bmm_rrr_div_fp32_2",
         #     dtype="float32",
         # )
         # self._test_dual_bmm_rrr_div(
@@ -191,7 +191,7 @@ class DUALBMMTestCase(unittest.TestCase):
         #     N=1024,
         #     K=2048,
         #     broadcast_b1=False,
-        #     test_name="dual_bmm_rrr_div_fp32",
+        #     test_name="dual_bmm_rrr_div_fp32_3",
         #     dtype="float32",
         # )
 
@@ -203,7 +203,7 @@ class DUALBMMTestCase(unittest.TestCase):
             N=64,
             K=128,
             broadcast_b1=True,
-            test_name="dual_bmm_rrr_div_fp32",
+            test_name="dual_bmm_rrr_div_broadcast_b1_fp32_1",
             dtype="float32",
         )
         # self._test_dual_bmm_rrr_div(
@@ -212,7 +212,7 @@ class DUALBMMTestCase(unittest.TestCase):
         #     N=512,
         #     K=512,
         #     broadcast_b1=True,
-        #     test_name="dual_bmm_rrr_div_fp32",
+        #     test_name="dual_bmm_rrr_div_broadcast_b1_fp32_2",
         #     dtype="float32",
         # )
         # self._test_dual_bmm_rrr_div(
@@ -221,7 +221,7 @@ class DUALBMMTestCase(unittest.TestCase):
         #     N=1024,
         #     K=2048,
         #     broadcast_b1=True,
-        #     test_name="dual_bmm_rrr_div_fp32",
+        #     test_name="dual_bmm_rrr_div_broadcast_b1_fp32_3",
         #     dtype="float32",
         # )
 

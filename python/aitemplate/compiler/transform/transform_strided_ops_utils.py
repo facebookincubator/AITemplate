@@ -78,8 +78,14 @@ def gemm_stride_checker(
 
     # Need to make sure that the new stride dim doesn't break
     # last dim's continuity.
-    # This is because CUTLASS gemm API assumes that gemm stride
-    # only operates on the last dim.
+    # This is because CUTLASS GEMM API assumes that GEMM stride
+    # only operates on the last dim for row-major output.
+    # For example, concatenations of GEMMs along dimensions to the right of the
+    # original shape can't be fused. A particular case of this is when GEMM
+    # output of shape (M, N) is unsqueezed to (M, N, 1) and concatenated with
+    # another (M, N, 1).
+    if not original_ta.is_rightmost_dim_contiguous(dim):
+        return False
 
     if get_stride_at_dim is None:
         # The dim before the last dim

@@ -59,7 +59,11 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
         N, S: (B, block_num, M) (RowMajor)
     */
 
-    {M, N, K},                                                                                                                             // cutlass::gemm::GemmCoord problem_size
+    {
+        static_cast<coord_t>(M),
+        static_cast<coord_t>(N),
+        static_cast<coord_t>(K)
+    },                                                                                                                                     // cutlass::gemm::GemmCoord problem_size
     B,                                                                                                                                     // int32_t batch_count_
     {reinterpret_cast<{{elem_input_type}}*>(a_ptr), LayoutA(K)},                                                                           // TensorRefA ref_A_
     {reinterpret_cast<{{elem_input_type}}*>(b_ptr), LayoutB(K)},                                                                           // TensorRefB ref_B_

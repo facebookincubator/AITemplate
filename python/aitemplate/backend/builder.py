@@ -30,7 +30,7 @@ from typing import List, Optional, Tuple, Union
 
 import jinja2
 
-from aitemplate.backend.build_cache import BUILD_CACHE
+from aitemplate.backend import build_cache
 from aitemplate.backend.build_cache_base import write_binhash_file
 
 from aitemplate.backend.target import Target
@@ -146,9 +146,10 @@ def _log_error_context(
 def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
     _LOGGER.debug(f"make {cmds=}")
     if allow_cache:
-        cached_results_available, store_cache_key = BUILD_CACHE.retrieve_build_cache(
-            cmds, build_dir
-        )
+        (
+            cached_results_available,
+            store_cache_key,
+        ) = build_cache.BUILD_CACHE.retrieve_build_cache(cmds, build_dir)
     else:
         cached_results_available, store_cache_key = False, None
     if not cached_results_available:
@@ -161,6 +162,10 @@ def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
         )
         try:
             out, err = proc.communicate(timeout)
+            if store_cache_key is not None:
+                build_cache.BUILD_CACHE.store_build_cache(
+                    cmds, build_dir, store_cache_key
+                )
         except subprocess.TimeoutExpired as e:
             proc.kill()
             out, err = proc.communicate()
@@ -178,8 +183,6 @@ def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
             else:
                 _LOGGER.debug(f"make stdout:\n\n{stdout}")
                 _LOGGER.debug(f"make stderr:\n\n{stderr}")
-        if store_cache_key is not None:
-            BUILD_CACHE.store_build_cache(cmds, build_dir, store_cache_key)
 
 
 def process_task(task: Task) -> None:
@@ -748,7 +751,7 @@ clean:
 
         commands = []
         num_compiled_sources = 0
-        num_linked_executables = 0
+        target_names = set()
         for target, srcs in dependencies.items():
             # for each "target: srcs" pair,
             # generate two lines for the Makefile
@@ -767,28 +770,35 @@ clean:
             command = f"{dep_line}\n\t{cmd_line}\n"
             commands.append(command)
 
-            # increment compilation statistics
+            # update compilation statistics
             num_compiled_sources += sum(1 for s in srcs if s.endswith(".cu"))
-            num_linked_executables += 0 if target.endswith(".obj") else 1
+            if not target.endswith(".obj"):
+                target_names.add(os.path.split(target)[-1])
 
         _LOGGER.info(f"compiling {num_compiled_sources} profiler sources")
-        _LOGGER.info(f"linking {num_linked_executables} profiler executables")
+        _LOGGER.info(f"linking {len(target_names)} profiler executables")
 
         makefile_str = makefile_template.render(
             targets=" ".join(set(targets)),
             commands="\n".join(commands),
         )
 
-        dumpfile = os.path.join(profiler_dir, "Makefile")
+        # make the Makefile name dependent on the built target names
+        target_names_str = "_".join(sorted(target_names))  # stable order
+        makefile_suffix = sha1(target_names_str.encode("utf-8")).hexdigest()
+        makefile_name = f"Makefile_{makefile_suffix}"
+        dumpfile = os.path.join(profiler_dir, makefile_name)
         with open(dumpfile, "w+") as f:
             f.write(makefile_str)
+
+        return makefile_name
 
     def make_profilers(self, generated_profilers, workdir):
         file_pairs = [f for gp in generated_profilers for f in gp]
         if not file_pairs:
             return
         build_dir = shlex.quote(os.path.join(workdir, "profiler"))
-        self._gen_makefile_for_profilers(file_pairs, build_dir)
+        makefile_name = self._gen_makefile_for_profilers(file_pairs, build_dir)
         # Write compiler version string(s) into build directory, so these can be used as part of cache key
         self._gen_compiler_version_files(build_dir)
 
@@ -799,6 +809,7 @@ clean:
         make_path = shlex.quote(Target.current().make())
         make_flags = " ".join(
             [
+                f"-f {makefile_name}",
                 "--output-sync",
                 f"-C {build_dir}",
             ]
@@ -806,7 +817,12 @@ clean:
         make_clean_cmd = f" {make_path} {make_flags} clean "
         make_all_cmd = f" {make_path} {make_flags} -j{self._n_jobs} all "
         cmds = [make_clean_cmd, make_all_cmd]
-        _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=True)
+        _run_make_cmds(
+            cmds,
+            self._timeout,
+            build_dir,
+            allow_cache=(not environ.ait_build_cache_skip_profiler()),
+        )
 
     def _gen_compiler_version_files(self, target_dir):
         # Write compiler version string(s) into build directory

@@ -25,7 +25,8 @@ from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha1
 from operator import itemgetter
-from typing import Any, Dict, List, Union
+from time import sleep
+from typing import Any, Callable, Dict, List, Union
 
 import jinja2
 
@@ -177,6 +178,22 @@ def _to_list(elem):
         return list(elem)
     else:
         return [elem]
+
+
+def _check_with_retries(
+    condition: Callable[[], bool],
+    max_attempts: int = 3,
+    delay_seconds: int = 5,
+) -> bool:
+    """Check a condition with retries."""
+    attempts = 0
+    while True:
+        if condition():
+            return True
+        attempts += 1
+        if attempts >= max_attempts:
+            return False
+        sleep(delay_seconds)
 
 
 class gemm(Operator):
@@ -532,8 +549,13 @@ class gemm(Operator):
         self, profiler_prefix, profiler_filename, exec_key, fbuild_cmd
     ):
         exe_path = os.path.join(profiler_prefix, profiler_filename)
-        if not os.access(exe_path, os.X_OK):
+        if not _check_with_retries(
+            condition=lambda: os.access(exe_path, os.X_OK),
+            max_attempts=3,
+            delay_seconds=5,
+        ):
             raise RuntimeError("Profiler %s is not executable" % exe_path)
+
         cmd_args = fbuild_cmd(exec_key)
         cmd = [exe_path]
         # mnk

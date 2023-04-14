@@ -35,12 +35,12 @@ SHAPE_FUNC_TEMPLATE = jinja2.Template(
 {{indent}}{{dtype}}CO = {{w_dim0}};
 {{indent}}{{dtype}}KH = {{w_dim1}};
 {{indent}}{{dtype}}KW = {{w_dim2}};
-{{indent}}{{dtype}}SH = {{stride}};
-{{indent}}{{dtype}}SW = {{stride}};
-{{indent}}{{dtype}}DH = {{dilate}};
-{{indent}}{{dtype}}DW = {{dilate}};
-{{indent}}{{dtype}}PH = {{pad}};
-{{indent}}{{dtype}}PW = {{pad}};
+{{indent}}{{dtype}}SH = {{strideh}};
+{{indent}}{{dtype}}SW = {{stridew}};
+{{indent}}{{dtype}}DH = {{dilateh}};
+{{indent}}{{dtype}}DW = {{dilatew}};
+{{indent}}{{dtype}}PH = {{padh}};
+{{indent}}{{dtype}}PW = {{padw}};
 {{indent}}{{dtype}}KHEff = (KH - 1) * DH + 1;
 {{indent}}{{dtype}}KWEff = (KW - 1) * DW + 1;
 {{indent}}{{dtype}}NO = NI;
@@ -125,9 +125,6 @@ class transposed_conv2d(conv2d):
             indent="",
             dtype="",
             div="//",
-            stride=self._attrs["stride"],
-            pad=self._attrs["pad"],
-            dilate=self._attrs["dilate"],
             x_dim0=x[0],
             x_dim1=x[1],
             x_dim2=x[2],
@@ -135,6 +132,7 @@ class transposed_conv2d(conv2d):
             w_dim0=w[3],  # for conv_transpose w = [c_in, kh, kw, c_out]
             w_dim1=w[1],
             w_dim2=w[2],
+            **self._get_params_factory(),
         )
         output = {}
         exec(eval_func, output)  # noqa: P204

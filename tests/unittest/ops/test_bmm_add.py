@@ -334,7 +334,7 @@ class BMMAddTestCase(unittest.TestCase):
         self._test_crc(B=32, M=256, K=256, N=512)
 
     @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_add_dtype(self, dtype):
+    def test_bmm_add_0_dtype(self, dtype):
         self._test_rrr(B=8, M=32, K=8, N=64, dtype=dtype)
         self._test_ccr(
             B=8, M=32, N=64, K=16, test_name=f"bmm_ccr_add_{dtype}", dtype=dtype
@@ -344,6 +344,8 @@ class BMMAddTestCase(unittest.TestCase):
             B=8, M=32, N=64, K=16, test_name=f"bmm_rcr_add_{dtype}", dtype=dtype
         )
 
+    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
+    def test_bmm_add_1_dtype(self, dtype):
         self._test_rrc(B=8, M=32, K=8, N=64, dtype=dtype)
         self._test_ccc(
             B=8, M=32, N=64, K=16, test_name=f"bmm_ccr_add_{dtype}", dtype=dtype
@@ -734,7 +736,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_add_broadcast_dtype(self, dtype):
+    def test_bmm_add_broadcast_0_dtype(self, dtype):
         self._test_crr(
             [1, 8, 16],
             [2, 8, 32],
@@ -764,6 +766,8 @@ class BMMBroadcastTestCase(unittest.TestCase):
             dtype=dtype,
         )
 
+    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
+    def test_bmm_add_broadcast_1_dtype(self, dtype):
         self._test_crc(
             [1, 8, 16],
             [2, 8, 32],

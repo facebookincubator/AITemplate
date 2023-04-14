@@ -283,7 +283,13 @@ def _try_merge_cat_cat(first_cat: Operator, second_cat: Operator) -> bool:
 
 
 def _try_merge_split_cat(split_op: Operator, cat: Operator) -> bool:
-    # If split_op carries strided input_accessors, we skip it
+    # If split_op carries strided input_accessors, we skip it.
+    if not all(
+        accessor.actual_shapes is None for accessor in cat._attrs["input_accessors"]
+    ):
+        return False
+    if not all(cat._attrs["input_masks"]):
+        return False
     split_op_inputs = split_op._attrs["inputs"]
     split_op_outputs = split_op._attrs["outputs"]
     cat_inputs = cat._attrs["inputs"]

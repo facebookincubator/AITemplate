@@ -13,10 +13,11 @@
 #  limitations under the License.
 #
 # encoding: utf-8
+import logging
 import operator
 
 import torch  # isort:skip
-from typing import cast, Iterable, List, Sequence
+from typing import cast, Iterable, List, Optional, Sequence
 
 import torch.nn as nn
 from torch.fx.passes.shape_prop import _extract_tensor_metadata, TensorMetadata
@@ -28,6 +29,8 @@ from .acc_normalizer import (
     register_custom_acc_mapper_fn,
 )
 from .acc_op_properties import AccOpProperty, register_acc_op_properties
+
+logger: logging.Logger = logging.getLogger(__name__)
 
 this_arg_is_optional = True
 move_to_qparams = True
@@ -459,14 +462,27 @@ def tile(*, input, dims):
         ("input", "input"),
         ("*", "sizes"),
     ],
+    skip_normalization_if_none=True,
 )
-def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
+def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> Optional[torch.fx.Node]:
     """
     Map repeat to tile.
     """
     with node.graph.inserting_before(node):
         inputs = node.kwargs["input"]
         dims = node.kwargs["sizes"]
+        # Skip repeat mapping when the list of dims is not all ints (ie. contains
+        # some calculated value). torch.tile cannot support cases where dims
+        # are Proxy nodes
+        if (
+            isinstance(dims, (list, tuple))
+            and len(dims) > 0
+            and not all(isinstance(x, int) for x in dims)
+        ):
+            logger.info(
+                "Not mapping repeat to an acc op. We can't handle variable dims."
+            )
+            return
         new_node = node.graph.create_node(
             "call_function",
             tile,
@@ -485,6 +501,7 @@ def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
         ("dim", "dim", this_arg_is_optional),
         ("output_size", "output_size", this_arg_is_optional),
     ],
+    skip_normalization_if_none=True,
 )
 @register_custom_acc_mapper_fn(
     op_and_target=("call_function", torch.repeat_interleave),
@@ -494,11 +511,17 @@ def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
         ("dim", "dim", this_arg_is_optional),
         ("output_size", "output_size", this_arg_is_optional),
     ],
+    skip_normalization_if_none=True,
 )
 def repeat_interleave_mapper(node: torch.fx.Node, _: nn.Module):
     input_node = node.kwargs["input"]
     repeats = cast(int, node.kwargs["repeats"])
     dim = node.kwargs["dim"]
+    if not (type(repeats) is int):
+        logger.info(
+            "Not mapping repeat_interleave to an acc op. We currently only support `repeat_interleave` with int repeats"
+        )
+        return
     assert (
         type(repeats) is int
     ), "We currently only support `repeat_interleave` with int repeats"

@@ -260,7 +260,7 @@ def sanitize_sorted_graph(sorted_graph: List[Tensor]) -> List[Tensor]:
     """
     Removes tensors whose src_op and dst_ops are empty.
     Inputs and outputs are always kept in the graph.
-    Names unamed tensors.
+    Names unnamed tensors.
     """
 
     if len(sorted_graph) == 1:
