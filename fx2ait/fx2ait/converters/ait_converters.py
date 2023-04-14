@@ -1081,6 +1081,9 @@ def ait_acc_ops_split(
             f"Unexpected value for split_size_or_sections in {name}: {split_size_or_sections}"
         )
 
+    if "dim" not in kwargs:
+        return split()(input_val, split_size_or_sections)
+
     dim = kwargs["dim"]
     if not isinstance(dim, int):
         raise ValueError(f"Unexpected value for dim in {name}: {dim}")
