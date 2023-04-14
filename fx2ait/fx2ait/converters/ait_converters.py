@@ -1538,7 +1538,10 @@ def acc_ops_contiguous(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    return kwargs["input"]
+    # Add a reshape. The reason is listed in acc_ops_to_dtype
+    input_val = kwargs["input"]
+    reshape_shape = size()(input_val)
+    return reshape()(input_val, reshape_shape)
 
 
 @ait_converter(acc_ops.to_dtype)
@@ -1548,7 +1551,13 @@ def acc_ops_to_dtype(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    return kwargs["input"]
+    # We suppose to bypass this op but in extreme case like
+    # a = placeholder(); return a.to()
+    # It introduces a node in AIT graph which has is_input=True and is_output=True. The node name is output_xx
+    # fx2ait throws error when doing the input name binding. So we add an extra reshape layer which brings no compuation
+    input_val = kwargs["input"]
+    reshape_shape = size()(input_val)
+    return reshape()(input_val, reshape_shape)
 
 
 @ait_converter(acc_ops.gelu)
