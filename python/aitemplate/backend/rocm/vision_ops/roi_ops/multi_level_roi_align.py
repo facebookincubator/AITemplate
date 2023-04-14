@@ -46,8 +46,8 @@ def gen_function(
     x = func_attrs["inputs"][0]
     y = func_attrs["outputs"][0]
     backend_spec = ROCMSpec()
-    input_type = backend_spec.dtype_to_lib_type(x._attrs["dtype"])
-    output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
+    input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
+    output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
     exec_paths = ""
     for key, _ in exec_path.items():
         program = multi_level_roi_align_common.EXEC_TEMPLATE.render(

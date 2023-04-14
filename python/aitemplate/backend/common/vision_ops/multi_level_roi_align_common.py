@@ -143,7 +143,7 @@ __global__ void roiAlign_kernel(
   const Trois* roi = rois + 5 * (batch * roiCount + roiIdx);
   float hw;
 
-{% if elem_input_type in ["half", "ck::half_t"] %}
+{% if elem_input_type == "half" %}
   float x1 = __half2float(roi[1]);
   float y1 = __half2float(roi[2]);
   float x2 = __half2float(roi[3]);
@@ -233,10 +233,9 @@ __global__ void roiAlign_kernel(
             interpolateBilinear(src, srcDims, ySample, xSample, featureCount);
       }
     }
-{% if elem_output_type == "ck::half_t" %}
+
+{% if elem_output_type == "half" %}
     *out = __half(result) / __float2half_rn(samplingCount);
-{% elif elem_output_type == "half" %}
-    *out = result / __float2half_rn(samplingCount);
 {% elif elem_output_type == "float" %}
     *out = result / samplingCount;
 {% endif %}
