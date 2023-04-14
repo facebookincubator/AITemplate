@@ -21,6 +21,7 @@ from aitemplate.backend.rocm.tensor import (  # noqa
     concatenate,
     concatenate_tanh,
     dynamic_slice,
+    identity,
     permute021,
     permute0213,
     permute102,
