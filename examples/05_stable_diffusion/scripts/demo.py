@@ -34,12 +34,13 @@ from src.pipeline_stable_diffusion_ait import StableDiffusionAITPipeline
 )
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
+@click.option("--batch_size", default=1, help="Batch size")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
 @click.option("--workdir", default="./tmp", help="working directory")
-def run(local_dir, width, height, prompt, benchmark, workdir):
+def run(local_dir, width, height, batch_size, prompt, benchmark, workdir):
     pipe = StableDiffusionAITPipeline.from_pretrained(
         local_dir,
         scheduler=EulerDiscreteScheduler.from_pretrained(
@@ -48,13 +49,13 @@ def run(local_dir, width, height, prompt, benchmark, workdir):
         revision="fp16",
         torch_dtype=torch.float16,
         workdir=workdir,
-    ).to("cuda")
+    ).load_ait_modules(workdir).to("cuda")
+    prompt = [prompt]*batch_size
 
-    with torch.autocast("cuda"):
-        image = pipe(prompt, height, width).images[0]
-        if benchmark:
-            t = benchmark_torch_function(10, pipe, prompt, height=height, width=width)
-            print(f"sd e2e: {t} ms")
+    image = pipe(prompt, height, width).images[0]
+    if benchmark:
+        t = benchmark_torch_function(10, pipe, prompt, height=height, width=width)
+        print(f"sd e2e: {t} ms")
 
     image.save("example_ait.png")
 

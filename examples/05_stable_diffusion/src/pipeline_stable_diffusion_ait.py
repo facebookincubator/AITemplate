@@ -98,7 +98,14 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             feature_extractor=feature_extractor,
             requires_safety_checker=requires_safety_checker,
         )
+        try:
+            self.load_ait_modules(workdir=workdir)
+        except Exception as e:
+            warnings.warn(
+                f"ait modules not loaded. Please make sure you have the ait modules in workdir={workdir}."
+            )
 
+    def load_ait_modules(self, workdir='tmp'):
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir
         )
@@ -108,22 +115,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
         self.vae_ait_exe = self.init_ait_module(
             model_name="AutoencoderKL", workdir=workdir
         )
-    @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Optional[Union[str, os.PathLike]], workdir: Optional[str] = "./tmp", **kwargs):
-        #model = super().from_pretrained(pretrained_model_name_or_path, **kwargs)
-        # this code above is incorrect, it's not calling the super class
-        model = StableDiffusionPipeline.from_pretrained(pretrained_model_name_or_path, **kwargs)
-        return cls(
-            vae=model.vae,
-            text_encoder=model.text_encoder,
-            tokenizer=model.tokenizer,
-            unet=model.unet,
-            scheduler=model.scheduler,
-            safety_checker=model.safety_checker,
-            feature_extractor=model.feature_extractor,
-            requires_safety_checker=model.requires_safety_checker,
-            workdir=workdir,
-        )
+        return self
 
     def init_ait_module(
         self,
@@ -150,7 +142,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
-        noise_pred = ys[0].permute((0, 3, 1, 2)).float()
+        noise_pred = ys[0].permute((0, 3, 1, 2))
         return noise_pred
 
     def clip_inference(self, input_ids, seqlen=64):
@@ -167,7 +159,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
-        return ys[0].float()
+        return ys[0]
 
     def vae_inference(self, vae_input):
         exe_module = self.vae_ait_exe
@@ -178,7 +170,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
             shape = exe_module.get_output_maximum_shape(i)
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
-        vae_out = ys[0].permute((0, 3, 1, 2)).float()
+        vae_out = ys[0].permute((0, 3, 1, 2))
         return vae_out
 
     @torch.no_grad()
@@ -333,6 +325,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
                 latents_shape,
                 generator=generator,
                 device=latents_device,
+                dtype=uncond_embeddings.dtype,
             )
         else:
             if latents.shape != latents_shape:
@@ -417,7 +410,7 @@ class StableDiffusionAITPipeline(StableDiffusionPipeline):
                 self.numpy_to_pil(image), return_tensors="pt"
             ).to(self.device)
             image, has_nsfw_concept = self.safety_checker(
-                images=image, clip_input=safety_checker_input.pixel_values
+                images=image, clip_input=safety_checker_input.pixel_values.to(latents.dtype)
             )
         else:
             has_nsfw_concept = None
