@@ -574,6 +574,8 @@ void AITModelImpl::setDeserializePickledModel(bool deserializePickledModel) {
 // will not take effect until swapConstants is being called
 void AITModelImpl::updateConstantsWithWeights(
     const std::unordered_map<std::string, torch::Tensor>& weights) {
+  RECORD_USER_SCOPE("AITModel::updateConstantsWithWeights");
+
   TORCH_CHECK(
       getNumConstantsFunc_,
       "getNumConstantsFunc_ not loaded, can not do in place update");
