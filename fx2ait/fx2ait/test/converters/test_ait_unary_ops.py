@@ -65,3 +65,27 @@ class TestUnaryOpsConverter(AITTestCase):
         ]
 
         self.run_test(model, inputs, expected_ops={})
+
+    def test_to(self):
+        class TestModule(torch.nn.Module):
+            def forward(self, y):
+                return y.to(dtype=torch.float16)
+
+        model = TestModule().cuda().half()
+        inputs = [
+            torch.randn(1, 2, 3).half().cuda(),
+        ]
+
+        self.run_test(model, inputs, expected_ops={acc_ops.to_dtype})
+
+    def test_contiguous(self):
+        class TestModule(torch.nn.Module):
+            def forward(self, y):
+                return y.contiguous()
+
+        model = TestModule().cuda().half()
+        inputs = [
+            torch.randn(1, 2, 3).half().cuda(),
+        ]
+
+        self.run_test(model, inputs, expected_ops={acc_ops.contiguous})
