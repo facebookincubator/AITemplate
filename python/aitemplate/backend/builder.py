@@ -162,7 +162,7 @@ def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
         )
         try:
             out, err = proc.communicate(timeout)
-            if store_cache_key is not None:
+            if proc.returncode == 0 and store_cache_key is not None:
                 build_cache.BUILD_CACHE.store_build_cache(
                     cmds, build_dir, store_cache_key
                 )
