@@ -81,7 +81,12 @@ class batch_gather(Operator):
             output_shape.append(
                 shape_utils.gen_int_var(unique([d[idx] for d in y_shapes]))
             )
-        output_shape[0] = x.shape()[0]
+        if len(indices.shape()) > 1:
+            # Generally output has the same batch dimension as input
+            output_shape[0] = x.shape()[0]
+        else:
+            # Special case: gather happens along batch dimension
+            output_shape[0] = indices.shape()[0]
         return output_shape
 
     def __call__(self, x: Tensor, indices: Tensor) -> Tensor:

@@ -22,7 +22,7 @@ import re
 from collections import OrderedDict
 from hashlib import sha1
 from operator import itemgetter
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple, Union
 
 import jinja2
 
@@ -166,12 +166,18 @@ class conv2d(Operator):
 
         Parameters
         ----------
-        stride : int
-            Stride of the convolution
-        pad : int
-            Size of padding to add to the input
-        dilate : int, optional
-            Size of spacing between kernel elements, by default 1
+        stride : int or tuple of two ints
+            Stride of the convolution. If tuple is
+            provided, the elements correspond to height and width stride
+            respectively
+        pad : int or tuple of two ints
+            Size of padding to add to the input. If tuple is
+            provided, the elements correspond to height and width padding
+            respectively
+        dilate : int or tuple of two ints, optional
+            Size of spacing between kernel elements, by default 1. If tuple is
+            provided, the elements correspond to height and width dilation
+            respectively
         group : int, optional
            Number of blocked connections from input
             channels to output channels, by default 1
@@ -195,24 +201,19 @@ class conv2d(Operator):
 
     def _get_params_factory(self):
         params_factory = {}
-        if isinstance(self._attrs["stride"], int):
-            params_factory["strideh"] = self._attrs["stride"]
-            params_factory["stridew"] = self._attrs["stride"]
-        else:
-            params_factory["strideh"] = self._attrs["stride"][0]
-            params_factory["stridew"] = self._attrs["stride"][1]
-        if isinstance(self._attrs["pad"], int):
-            params_factory["padh"] = self._attrs["pad"]
-            params_factory["padw"] = self._attrs["pad"]
-        else:
-            params_factory["padh"] = self._attrs["pad"][0]
-            params_factory["padw"] = self._attrs["pad"][1]
-        if isinstance(self._attrs["dilate"], int):
-            params_factory["dilateh"] = self._attrs["dilate"]
-            params_factory["dilatew"] = self._attrs["dilate"]
-        else:
-            params_factory["dilateh"] = self._attrs["dilate"][0]
-            params_factory["dilatew"] = self._attrs["dilate"][1]
+        # Ensure convolutional parameters are in form (val_h, val_w)
+        params_factory["strideh"], params_factory["stridew"] = _maybe_int_to_tuple(
+            self._attrs["stride"],
+            "Stride",
+        )
+        params_factory["padh"], params_factory["padw"] = _maybe_int_to_tuple(
+            self._attrs["pad"],
+            "Pad",
+        )
+        params_factory["dilateh"], params_factory["dilatew"] = _maybe_int_to_tuple(
+            self._attrs["dilate"],
+            "Dilation",
+        )
         return params_factory
 
     def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
@@ -266,10 +267,15 @@ class conv2d(Operator):
 
         in_h = x._attrs["shape"][1]._attrs["symbolic_value"]
         in_w = x._attrs["shape"][2]._attrs["symbolic_value"]
-        KHEff = (w_shape[1] - 1) * self._attrs["dilate"] + 1
-        KWEff = (w_shape[2] - 1) * self._attrs["dilate"] + 1
-        out_h = (in_h + 2 * self._attrs["pad"] - KHEff) // self._attrs["stride"] + 1
-        out_w = (in_w + 2 * self._attrs["pad"] - KWEff) // self._attrs["stride"] + 1
+
+        # Ensure convolutional parameters are in form (val_h, val_w)
+        dilate_h, dilate_w = _maybe_int_to_tuple(self._attrs["dilate"], "Dilation")
+        stride_h, stride_w = _maybe_int_to_tuple(self._attrs["stride"], "Stride")
+        pad_h, pad_w = _maybe_int_to_tuple(self._attrs["pad"], "Pad")
+        KHEff = (w_shape[1] - 1) * dilate_h + 1
+        KWEff = (w_shape[2] - 1) * dilate_w + 1
+        out_h = (in_h + 2 * pad_h - KHEff) // stride_h + 1
+        out_w = (in_w + 2 * pad_w - KWEff) // stride_w + 1
         output_shape[1]._attrs["symbolic_value"] = out_h
         output_shape[2]._attrs["symbolic_value"] = out_w
 
@@ -780,3 +786,11 @@ class conv2d(Operator):
             self.shape_eval_template,
             self.shape_save_template,
         )
+
+
+def _maybe_int_to_tuple(x: Union[int, Tuple[int, int]], name: str) -> Tuple[int, int]:
+    if isinstance(x, int):
+        return x, x
+    if isinstance(x, tuple) and len(x) == 2:
+        return x
+    raise ValueError(f"{name} should be either int or tuple of 2 ints, but got {x}")
