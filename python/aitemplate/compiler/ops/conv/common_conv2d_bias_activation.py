@@ -20,6 +20,7 @@ from typing import Tuple
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.conv.conv2d import conv2d
 
+
 # pylint: disable=C0103
 class conv2d_bias_activation(conv2d):
     """Base class of conv2d with bias + activation."""

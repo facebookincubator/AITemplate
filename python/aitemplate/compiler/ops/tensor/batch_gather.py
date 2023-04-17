@@ -55,7 +55,7 @@ class batch_gather(Operator):
 
     def _infer_shape(self, x: List[int], indices: List[int]):
         rank = len(indices)
-        for r in range(rank - 1):
+        for r in range(1, rank - 1):
             assert x[r] == indices[r]
         output = list(x)
         output[rank - 1] = indices[-1]
@@ -81,6 +81,7 @@ class batch_gather(Operator):
             output_shape.append(
                 shape_utils.gen_int_var(unique([d[idx] for d in y_shapes]))
             )
+        output_shape[0] = x.shape()[0]
         return output_shape
 
     def __call__(self, x: Tensor, indices: Tensor) -> Tensor:
