@@ -80,6 +80,7 @@ from aitemplate.compiler.ops.tensor.concatenate import concatenate
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice
 from aitemplate.compiler.ops.tensor.expand import expand
 from aitemplate.compiler.ops.tensor.full import full
+from aitemplate.compiler.ops.tensor.identity import identity
 from aitemplate.compiler.ops.tensor.permute import permute
 from aitemplate.compiler.ops.tensor.split import split
 
