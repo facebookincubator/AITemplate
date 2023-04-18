@@ -12,12 +12,18 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import itertools
 import math
-from typing import Callable
+from typing import Callable, Dict, Set
 
 import torch
+from aitemplate.testing.test_utils import filter_test_cases_by_params, TestEnv
 from fx2ait.acc_tracer import acc_ops
-from fx2ait.tools.common_fx2ait import AITTestCase
+from fx2ait.tools.common_fx2ait import (
+    AITTestCase,
+    lower_precision_to_torch_type,
+    LowerPrecision,
+)
 from parameterized import parameterized
 
 
@@ -33,21 +39,48 @@ unary_ops = [
     (torch.neg, acc_ops.neg),
 ]
 
+TestEnvToPrecision: Dict[TestEnv, Set[LowerPrecision]] = {
+    TestEnv.CUDA_LESS_THAN_SM80: [LowerPrecision.FP16, LowerPrecision.FP32],
+    TestEnv.CUDA_SM80: [LowerPrecision.BF16],
+    TestEnv.ROCM: [LowerPrecision.FP16],
+}
+
 
 class TestUnaryOpsConverter(AITTestCase):
-    @parameterized.expand([(op[0].__name__, op[0], op[1]) for op in unary_ops])
-    def test_unary_ops(self, name, orig_op: Callable, expected_op):
+    @parameterized.expand(
+        filter_test_cases_by_params(
+            {
+                env: [
+                    (
+                        f"{env}_{op[0].__name__}_{precision.value}",
+                        op[0],
+                        op[1],
+                        precision,
+                    )
+                    for op, precision in itertools.product(unary_ops, precisions)
+                ]
+                for env, precisions in TestEnvToPrecision.items()
+            }
+        )
+    )
+    def test_unary_ops(
+        self, name: str, orig_op: Callable, expected_op, precision: LowerPrecision
+    ):
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
-                return orig_op(x) * 2
+                return orig_op(x) * 2.0
 
-        model = TestModule().cuda().half()
+        torch_dtype = lower_precision_to_torch_type(precision)
+        model = TestModule().cuda().to(torch_dtype)
         inputs = [
-            torch.randn(1, 2, 3).half().cuda(),
+            torch.randn(1, 2, 3).cuda().to(torch_dtype),
         ]
 
         self.run_test(
-            model, inputs, expected_ops={expected_op} if expected_op is not None else {}
+            model,
+            inputs,
+            expected_ops={expected_op} if expected_op is not None else {},
+            precision=precision,
         )
 
     def test_sqrt(self):
