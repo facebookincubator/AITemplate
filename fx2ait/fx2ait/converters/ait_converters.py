@@ -210,7 +210,9 @@ def acc_ops_clone(
     input_val = kwargs["input"]
     # deepcopy results with an error. replace with Idnetity multiplication by 1.
     # TODO: implement __deepcopy__ / clone for AITTensor.
-    one_const = AITTensor(shape=[], dtype="float16", name="one_const", value=1.0)
+    one_const = AITTensor(
+        shape=[], dtype=input_val.dtype(), name="one_const", value=1.0
+    )
     identity_mul_result = elementwise(FuncEnum.MUL)(input_val, one_const)
     return identity_mul_result
 
@@ -1642,7 +1644,7 @@ def acc_ops_neg(
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     new_kwargs = kwargs.copy()
     dt = new_kwargs["input"]._attrs["dtype"]
-    if dt == "float16" or dt == "float32":
+    if dt == "float16" or dt == "float32" or dt == "bfloat16":
         new_kwargs["other"] = float(-1)
     elif dt == "int32" or dt == "int64":
         new_kwargs["other"] = int(-1)

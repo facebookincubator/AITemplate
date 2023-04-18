@@ -42,7 +42,23 @@ except Exception:
 class LowerPrecision(Enum):
     FP32 = "fp32"
     FP16 = "fp16"
+    BF16 = "bf16"
     INT8 = "int8"
+
+
+def lower_precision_to_torch_type(
+    precision: LowerPrecision,
+) -> torch.dtype:
+    if precision == LowerPrecision.FP16:
+        return torch.float16
+    elif precision == LowerPrecision.BF16:
+        return torch.bfloat16
+    elif precision == LowerPrecision.FP32:
+        return torch.float
+    elif precision == LowerPrecision.INT8:
+        return torch.int8
+    else:
+        raise ValueError(f"Unsupported precision: {precision}")
 
 
 def fetch_attr(mod, target):
@@ -113,8 +129,9 @@ class AITTestCase(TestCase):
         if permute_inputs:
             inputs = [inp.permute(*permute_inputs).contiguous() for inp in inputs]
 
-        mod.half()
-        inputs = [inp.half().contiguous() for inp in inputs]
+        torch_dtype = lower_precision_to_torch_type(precision)
+        mod.to(torch_dtype)
+        inputs = [inp.to(torch_dtype).contiguous() for inp in inputs]
         interp = AITInterpreter(
             mod,
             inputs,
@@ -146,7 +163,7 @@ class AITTestCase(TestCase):
                         interp_result.engine.lib_path,
                         interp_result.input_names,
                         interp_result.output_names,
-                        torch.float16,
+                        torch_dtype,
                         torch.float,
                         1,  #  num_runtimes
                     ),
@@ -158,7 +175,7 @@ class AITTestCase(TestCase):
                         interp_result.engine.lib_path,
                         interp_result.input_names,
                         interp_result.output_names,
-                        torch.float16,
+                        torch_dtype,
                         torch.float,
                         1,  #  num_runtimes
                     ),
