@@ -339,6 +339,7 @@ class ModelContainerGenerator:
         self.func_seq = []
         self._input_shape_seq = []
         self._output_shape_seq = []
+        self.func_prop_seq = []
         self.tensor_decl = []
         self.dim_decl = []
         self.jagged_decl = []
@@ -734,6 +735,10 @@ class ModelContainerGenerator:
                 input_shape, output_shape = extract_input_output_shapes(func._attrs)
                 self._input_shape_seq.append(input_shape)
                 self._output_shape_seq.append(output_shape)
+                props = {}
+                if "concat_dim" in func._attrs:
+                    props["dim"] = func._attrs["concat_dim"]
+                self.func_prop_seq.append(props)
 
             if "int_state_flag" in func._attrs:
                 if func._attrs["name"] not in self.state_record:
@@ -835,6 +840,7 @@ class ModelContainerGenerator:
             self.func_seq,
             self._input_shape_seq,
             self._output_shape_seq,
+            self.func_prop_seq,
         )
         return MODEL_TEMPLATE.render(
             model_name=self.model_name,

@@ -117,7 +117,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
       DeviceMalloc((void**) &L2CacheSlab, L2SizeInBytes);
 
       ss << "{\\n";
-      {% for func_name, func, input_sizes, output_sizes in per_op_profiler_seq %}
+      {% for func_name, func, input_sizes, output_sizes, func_properties in per_op_profiler_seq %}
       {
         std::cout << "Profiling: " << "{{ func_name }}" << " (" << iters << " iterations)" << std::endl;
         std::vector<std::pair<EventType, EventType>> call_events(iters);
@@ -146,6 +146,9 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
            << ", \\"qps\\": " << 1000 * iters / milliseconds
            << ", \\"input_sizes\\": " << "{{ input_sizes | replace("'", '\\\\"') }}"
            << ", \\"output_sizes\\": " << "{{ output_sizes | replace("'", '\\\\"') }}"
+        {% for prop_name, prop_value in func_properties.items() %}
+          << ", \\"{{ prop_name }}\\": " << "{{ prop_value }}"
+        {% endfor %}
            << " } ";
         {% if loop.last %}
           ss << "\\n";
