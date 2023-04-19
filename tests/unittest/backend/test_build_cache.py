@@ -26,7 +26,6 @@ from aitemplate.backend.build_cache_base import (
     create_dir_hash,
     FileBasedBuildCache,
     is_source,
-    makefile_normalizer,
     SkipBuildCache,
 )
 
@@ -276,18 +275,6 @@ class BuildCacheTestCase(unittest.TestCase):
             assert (
                 hash8 != hash1
             ), "Directory hash was not sensitive to a change of Makefile (standalone codegen) and possibly source code, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
-
-    def test_makefile_rewrite(self):
-        tmpdir = os.path.join(tempfile.gettempdir(), f"{os.getuid()}_aitemplate_tmp")
-        makefile = f"""
-                TMPDIR: {tmpdir}
-        """
-        assert tmpdir in makefile
-        rewritten_makefile = makefile_normalizer(makefile.encode("utf-8")).decode(
-            "utf-8"
-        )
-        assert tmpdir not in rewritten_makefile
-        assert "$USER" in rewritten_makefile
 
     def test_repeated_build_dir_usage(self):
         with tempfile.TemporaryDirectory() as tempdir:
