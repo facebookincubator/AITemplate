@@ -43,8 +43,8 @@ FUNC_TEMPLATE_KERNEL_FWD = jinja2.Template(
 #include <cuda_fp16.h>
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/device/default_gemm_configuration.h"
-#include "gemm_kernel_utils.h"
 
+#include "mem_eff_attention/gemm_kernel_utils.h"
 #include "mem_eff_attention/kernel_forward.h"
 
 
@@ -215,12 +215,12 @@ FUNC_TEMPLATE_GROUPED_FMHA = jinja2.Template(
 #include "cutlass/util/reference/host/tensor_norm.h"
 
 #include "cutlass/gemm/device/default_gemm_configuration.h"
-#include "gemm_kernel_utils.h"
 #include "cutlass/gemm/device/gemm_grouped.h"
 
 #include "cutlass/fast_math.h"
 
-#include "default_fmha_grouped.h"
+#include "mem_eff_attention/gemm_kernel_utils.h"
+#include "mem_eff_attention/default_fmha_grouped.h"
 
 using namespace gemm_kernel_utils;
 

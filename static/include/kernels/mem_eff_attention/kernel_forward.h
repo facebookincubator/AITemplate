@@ -67,8 +67,6 @@
 #include "cutlass/platform/platform.h"
 #include "cutlass/transform/threadblock/predicated_tile_iterator.h"
 
-// From
-// fbcode/aitemplate/AITemplate/fb/3rdparty/cutlass/examples/41_fused_multi_head_attention/
 #include "debug_utils.h"
 #include "epilogue_pipelined.h"
 #include "epilogue_rescale_output.h"

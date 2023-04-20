@@ -131,9 +131,9 @@ class EpiloguePermuteLayout(enum.Enum):
   NoPermute = enum_auto()
 
 EpiloguePermuteLayoutTag = {
-  EpiloguePermuteLayout.Permute5D_20314: 'cutlass::layout::Tensor5DPermute20314',
-  EpiloguePermuteLayout.Permute4D_0213: 'cutlass::layout::Tensor4DPermute0213',
-  EpiloguePermuteLayout.Permute4DBMM_0213: 'cutlass::layout::Tensor4DPermuteBMM0213',
+  EpiloguePermuteLayout.Permute5D_20314: 'cutlass::layout::Tensor5DPermute20314RowMajor',
+  EpiloguePermuteLayout.Permute4D_0213: 'cutlass::layout::Tensor4DPermute0213RowMajor',
+  EpiloguePermuteLayout.Permute4DBMM_0213: 'cutlass::layout::Tensor4DPermuteBMM0213RowMajor',
   EpiloguePermuteLayout.NoPermute: 'cutlass::layout::NoPermute',
   # EpiloguePermuteLayout.Permute3DBMM_021: 'cutlass::layout::Tensor3DPermute021BMM',
 }
