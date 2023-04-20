@@ -46,6 +46,7 @@ from aitemplate.compiler.transform.transform_memory_ops import transform_memory_
 from aitemplate.compiler.transform.transform_odd_alignment import (
     transform_odd_alignment,
 )
+from aitemplate.compiler.transform.transform_permutations import eliminate_permutations
 from aitemplate.compiler.transform.transform_permute_to_reshape import (
     transform_permute_to_reshape,
 )
@@ -117,6 +118,7 @@ def optimize_graph(
         split_large_split_ops,
         transform_permute_to_reshape,
         transform_memory_ops,
+        eliminate_permutations,
     ]
 
     if not optimize:
