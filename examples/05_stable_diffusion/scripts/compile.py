@@ -65,6 +65,7 @@ def compile_diffusers(
     compile_clip(
         pipe.text_encoder,
         batch_size=batch_size,
+        seqlen=77,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
         depth=pipe.text_encoder.config.num_hidden_layers,
