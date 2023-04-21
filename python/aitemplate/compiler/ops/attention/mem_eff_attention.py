@@ -26,7 +26,6 @@ import numpy as np
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
-from aitemplate.utils import shape_utils
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,9 +119,9 @@ class mem_eff_attention(Operator):
         batch_info = x._attrs["shape"][0]
         output_shape = [
             batch_info,
-            shape_utils.gen_int_var(unique([d[1] for d in y_shapes])),
-            shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
-            shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
+            x._attrs["shape"][2],
+            x._attrs["shape"][1],
+            w._attrs["shape"][-1],
         ]
         return output_shape
 

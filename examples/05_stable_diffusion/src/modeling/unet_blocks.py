@@ -731,7 +731,6 @@ class UNetMidBlock2D(nn.Module):
             )
         ]
         attentions = []
-
         for _ in range(num_layers):
             attentions.append(
                 AttentionBlock(

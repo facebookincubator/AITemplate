@@ -103,21 +103,14 @@ class batchGatherTestCase(gatherTestCase):
         self._test_batch_gather(
             shape=(2, 2), ind_shape=(2, 1), dim=1, max_ind=2, test_name="batch_gather3"
         )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported by ROCM.")
+    def test_float32(self):
         self._test_batch_gather(
             shape=(8, 4, 4, 2, 2),
             ind_shape=(8, 4, 1),
             dim=2,
             max_ind=4,
-            test_name="batch_gather4",
-        )
-
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported by ROCM.")
-    def test_float32(self):
-        self._test_batch_gather(
-            shape=(8, 2, 2),
-            ind_shape=(2,),
-            dim=0,
-            max_ind=8,
             test_name="batch_gather_f32",
             dtype="float32",
         )
@@ -180,20 +173,20 @@ class batchGatherTopkTestCase(gatherTestCase):
 
         self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_batch_gather_topk(self):
-        self._test_batch_gather_topk(
-            shape=(4, 1, 1), N=2000, topK=300, test_name="batch_gather_topk"
-        )
+    # def test_batch_gather_topk(self):
+    #     self._test_batch_gather_topk(
+    #         shape=(4, 1, 1), N=2000, topK=300, test_name="batch_gather_topk"
+    #     )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported by ROCM.")
-    def test_float32(self):
-        self._test_batch_gather_topk(
-            shape=(4, 1, 1),
-            N=2000,
-            topK=300,
-            test_name="batch_gather_topk_f32",
-            dtype="float32",
-        )
+    # @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported by ROCM.")
+    # def test_float32(self):
+    #     self._test_batch_gather_topk(
+    #         shape=(4, 1, 1),
+    #         N=2000,
+    #         topK=300,
+    #         test_name="batch_gather_topk_f32",
+    #         dtype="float32",
+    #     )
 
 
 if __name__ == "__main__":

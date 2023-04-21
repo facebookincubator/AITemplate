@@ -144,7 +144,6 @@ class AutoencoderKL(nn.Module):
         )
 
     def decode(self, z: Tensor, return_dict: bool = True):
-
         z = self.post_quant_conv(z)
         dec = self.decoder(z)
         return dec
