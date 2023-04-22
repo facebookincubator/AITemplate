@@ -216,6 +216,7 @@ EXEC_TEMPLATE = jinja2.Template(
 //  TODO: cast to right dtype
 {{indent}}using ElementComputeEpilogue = typename {{instance}}::ElementAccumulator;
 
+{{indent}}using coord_t = cutlass::gemm::GemmCoord::Index;
 {{indent}}typename {{instance}}::Arguments arguments{
 
 {{problem_args}}
