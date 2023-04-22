@@ -15,6 +15,7 @@
 from typing import List
 
 import numpy as np
+
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.transform import transform_utils
 

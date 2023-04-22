@@ -331,10 +331,9 @@ class reshape(_reshape_base):
                             y_shapes.append(IntImm(int(dynamic_symbol)))
                         else:
                             symbol_names = {s.name for s in dynamic_symbol.free_symbols}
-                            unknown_symbols = symbol_names - get_global_symbol_set()
                             assert (
-                                not unknown_symbols
-                            ), f"Unable to deduce dynamic symbol, because the following symbols are not in global symbol set: {unknown_symbols}"
+                                len(symbol_names - get_global_symbol_set()) == 0
+                            ), "Unable to deduce dynamic symbol"
 
                             values = simplify_intvar_values(dynamic_symbol)
                             new_var = IntVar(values, symbolic_value=dynamic_symbol)

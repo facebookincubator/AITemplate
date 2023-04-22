@@ -55,6 +55,7 @@ def benchmark_unet(
     benchmark_pt=False,
     verify=False,
 ):
+
     exe_module = Model("./tmp/UNet2DConditionModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for UNet2DConditionModel.")
@@ -64,7 +65,7 @@ def benchmark_unet(
     pt_mod = pt_mod.eval()
 
     latent_model_input_pt = torch.randn(batch_size, 4, height, width).cuda().half()
-    text_embeddings_pt = torch.randn(batch_size, 77, hidden_dim).cuda().half()
+    text_embeddings_pt = torch.randn(batch_size, 64, hidden_dim).cuda().half()
     timesteps_pt = torch.Tensor([1, 1]).cuda().half()
 
     with autocast("cuda"):
@@ -82,6 +83,8 @@ def benchmark_unet(
             with open("sd_pt_benchmark.txt", "a") as f:
                 f.write(f"unet batch_size: {batch_size}, latency: {pt_time} ms\n")
 
+    print("pt output:", pt_ys.shape)
+
     # run AIT unet model
     inputs = {
         "input0": latent_model_input_pt.permute((0, 2, 3, 1)).contiguous(),
@@ -93,8 +96,6 @@ def benchmark_unet(
     num_outputs = len(exe_module.get_output_name_to_index_map())
     for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
-        shape[1] = height
-        shape[2] = width
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)
 
@@ -123,11 +124,13 @@ def benchmark_unet(
 def benchmark_clip(
     pt_mod,
     batch_size=1,
-    seqlen=77,
+    seqlen=64,
     tokenizer=None,
     benchmark_pt=False,
     verify=False,
 ):
+    mask_seq = 0
+
     exe_module = Model("./tmp/CLIPTextModel/test.so")
     if exe_module is None:
         print("Error!! Cannot find compiled module for CLIPTextModel.")
@@ -139,7 +142,7 @@ def benchmark_clip(
     if tokenizer is None:
         tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
     text_input = tokenizer(
-        ["a photo of an astronaut riding a horse on mars"] * batch_size,
+        ["a photo of an astronaut riding a horse on mars"],
         padding="max_length",
         max_length=seqlen,
         truncation=True,
@@ -147,6 +150,8 @@ def benchmark_clip(
     )
     input_ids = text_input["input_ids"].cuda()
 
+    attention_mask = torch.ones((batch_size, seqlen))
+    attention_mask[-1, -mask_seq:] = 0
     attention_mask = None
 
     position_ids = torch.arange(seqlen).expand((batch_size, -1)).cuda()
@@ -170,7 +175,6 @@ def benchmark_clip(
     num_outputs = len(exe_module.get_output_name_to_index_map())
     for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
-        shape[0] = batch_size
         ys.append(torch.empty(shape).cuda().half())
     exe_module.run_with_tensors(inputs, ys)
 
@@ -198,6 +202,7 @@ def benchmark_clip(
 def benchmark_vae(
     pt_vae, batch_size=1, height=64, width=64, benchmark_pt=False, verify=False
 ):
+
     latent_channels = 4
 
     exe_module = Model("./tmp/AutoencoderKL/test.so")
@@ -234,8 +239,9 @@ def benchmark_vae(
         .cuda()
         .half()
     )
-
     ait_input_pt_tensor = torch.permute(pt_input, (0, 2, 3, 1)).contiguous()
+    print("input pt tensor size: ", ait_input_pt_tensor.shape)
+    print("output pt tensor size: ", y.shape)
     exe_module.run_with_tensors([ait_input_pt_tensor], [y])
 
     # verification
@@ -299,10 +305,7 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
     )
     # VAE
     benchmark_vae(
-        pipe.vae,
-        batch_size=batch_size,
-        benchmark_pt=benchmark_pt,
-        verify=verify,
+        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify
     )
 
 

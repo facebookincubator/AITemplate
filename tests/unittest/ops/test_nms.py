@@ -242,29 +242,29 @@ class nmsTestCase(unittest.TestCase):
         y = score_inds[index]
         np.testing.assert_allclose(y_np, y, atol=1e-2, rtol=1e-2)
 
-    # @unittest.skipIf(detect_target().name() == "rocm", "not supported in ROCm")
-    # def test_topk_nms_fp16(self):
-    #     self._test_topk_nms(
-    #         test_name="topk_nms_fp16",
-    #         dtype="float16",
-    #     )
-    #     self._test_topk_nms(
-    #         test_name="topk_nms_copy_op_fp16",
-    #         copy_op=True,
-    #         dtype="float16",
-    #     )
+    @unittest.skipIf(detect_target().name() == "rocm", "not supported in ROCm")
+    def test_topk_nms_fp16(self):
+        self._test_topk_nms(
+            test_name="topk_nms_fp16",
+            dtype="float16",
+        )
+        self._test_topk_nms(
+            test_name="topk_nms_copy_op_fp16",
+            copy_op=True,
+            dtype="float16",
+        )
 
-    # @unittest.skipIf(detect_target().name() == "rocm", "float23 not supported in ROCm")
-    # def test_topk_nms_fp32(self):
-    #     self._test_topk_nms(
-    #         test_name="topk_nms_fp32",
-    #         dtype="float32",
-    #     )
-    #     self._test_topk_nms(
-    #         test_name="topk_nms_copy_op_fp32",
-    #         copy_op=True,
-    #         dtype="float32",
-    #     )
+    @unittest.skipIf(detect_target().name() == "rocm", "float23 not supported in ROCm")
+    def test_topk_nms_fp32(self):
+        self._test_topk_nms(
+            test_name="topk_nms_fp32",
+            dtype="float32",
+        )
+        self._test_topk_nms(
+            test_name="topk_nms_copy_op_fp32",
+            copy_op=True,
+            dtype="float32",
+        )
 
 
 if __name__ == "__main__":
