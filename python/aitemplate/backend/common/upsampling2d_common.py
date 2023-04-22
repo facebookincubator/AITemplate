@@ -313,9 +313,7 @@ void {{function_name}} (
     {{index_type}}* out_w,
     {{prefix}}Stream_t stream
 ) {
-
   {{shape_function}}
-
   {{exec_paths}}
   throw std::runtime_error(
       "Unsupported workload for this bilinear upsampling specialization."

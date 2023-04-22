@@ -105,8 +105,7 @@ class concatenate(Operator):
             else:
                 output_dim = input_shapes[0][idx]
                 for shape in input_shapes:
-                    # if output_dim != shape[idx]:
-                    if output_dim._attrs["values"] != shape[idx]._attrs["values"]:
+                    if output_dim != shape[idx]:
                         raise RuntimeError(
                             "tensors expected to have the same dimensions "
                             "except concat_dim! dim: {}, shape1: {}, shape2: {}, inputs: {}".format(

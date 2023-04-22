@@ -327,6 +327,8 @@ class CrossAttention(Module):
         self.causal = causal
         self.has_residual = has_residual
         self.dim = dim
+        self.seqlen = seq_len
+        self.seqlen_kv = seq_len_kv
 
         self.op = ops.mem_eff_attention(causal=causal)
 
@@ -351,7 +353,8 @@ class CrossAttention(Module):
         self.proj_drop = Dropout(proj_drop)
 
     def attention(self, q, k, v):
-        batch = q.shape()[0]
+        seqlen = self.seqlen
+        seqlen_kv = self.seqlen_kv
         head_dim = self.dim // self.num_heads
 
         query = self.proj_q(q)
@@ -359,13 +362,13 @@ class CrossAttention(Module):
         value = self.proj_v(v)
 
         query = ops.permute()(
-            ops.reshape()(query, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+            ops.reshape()(query, [-1, seqlen, self.num_heads, head_dim]), [0, 2, 1, 3]
         )
         key = ops.permute()(
-            ops.reshape()(key, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+            ops.reshape()(key, [-1, seqlen_kv, self.num_heads, head_dim]), [0, 2, 1, 3]
         )
         value = ops.permute()(
-            ops.reshape()(value, [batch, -1, self.num_heads, head_dim]),
+            ops.reshape()(value, [-1, seqlen_kv, self.num_heads, head_dim]),
             [0, 2, 1, 3],
         )
         return self.op(query, key, value)
@@ -374,9 +377,9 @@ class CrossAttention(Module):
         """forward pass for calling mha module"""
         assert len(args) >= 3
         x = args[0]
-        batch = x.shape()[0]
+        seq = self.seqlen
         attn_output = self.attention(args[0], args[1], args[2])
-        attn_output = ops.reshape()(attn_output, [batch, -1, self.dim])
+        attn_output = ops.reshape()(attn_output, [-1, seq, self.dim])
 
         if self.has_residual:
             assert len(args) == 4
@@ -384,7 +387,7 @@ class CrossAttention(Module):
         else:
             x = self.proj(attn_output)
         x = self.proj_drop(x)
-        x = ops.reshape()(x, [batch, -1, self.dim])
+        x = ops.reshape()(x, [-1, seq, self.dim])
         return x
 
 

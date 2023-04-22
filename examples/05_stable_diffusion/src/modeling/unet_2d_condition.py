@@ -14,7 +14,7 @@
 #
 from typing import Optional, Tuple, Union
 
-from aitemplate.frontend import nn, Tensor
+from aitemplate.frontend import nn
 
 from .embeddings import TimestepEmbedding, Timesteps
 from .unet_blocks import get_down_block, get_up_block, UNetMidBlock2DCrossAttn
@@ -185,8 +185,6 @@ class UNet2DConditionModel(nn.Module):
         sample,
         timesteps,
         encoder_hidden_states,
-        down_block_additional_residuals: Optional[Tuple[Tensor]] = None,
-        mid_block_additional_residual: Optional[Tensor] = None,
         return_dict: bool = True,
     ):
         """r
@@ -226,26 +224,11 @@ class UNet2DConditionModel(nn.Module):
                 sample, res_samples = downsample_block(hidden_states=sample, temb=emb)
 
             down_block_res_samples += res_samples
-            # return sample
-
-        if down_block_additional_residuals is not None:
-            new_down_block_res_samples = ()
-
-            for down_block_res_sample, down_block_additional_residual in zip(
-                down_block_res_samples, down_block_additional_residuals
-            ):
-                down_block_res_sample += down_block_additional_residual
-                new_down_block_res_samples += (down_block_res_sample,)
-
-            down_block_res_samples = new_down_block_res_samples
 
         # 4. mid
         sample = self.mid_block(
             sample, emb, encoder_hidden_states=encoder_hidden_states
         )
-
-        if mid_block_additional_residual is not None:
-            sample += mid_block_additional_residual
 
         # 5. up
         for upsample_block in self.up_blocks:

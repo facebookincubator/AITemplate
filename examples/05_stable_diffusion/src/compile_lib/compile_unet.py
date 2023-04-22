@@ -15,7 +15,7 @@
 import torch
 
 from aitemplate.compiler import compile_model
-from aitemplate.frontend import IntVar, Tensor
+from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.unet_2d_condition import (
@@ -58,9 +58,9 @@ def compile_unet(
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
     attention_head_dim=[5, 10, 20, 20],  # noqa: B006
-    model_name="UNet2DConditionModel",
     use_linear_projection=False,
 ):
+
     ait_mod = ait_UNet2DConditionModel(
         sample_size=64,
         cross_attention_dim=hidden_dim,
@@ -72,31 +72,19 @@ def compile_unet(
     # set AIT parameters
     pt_mod = pt_mod.eval()
     params_ait = map_unet_params(pt_mod, dim)
-    # batch_size = IntVar(values=[1, 8], name="batch_size")
-    height_d = IntVar(values=[32, 64], name="height")
-    width_d = IntVar(values=[32, 64], name="width")
 
     latent_model_input_ait = Tensor(
-        [batch_size, height_d, width_d, 4], name="input0", is_input=True
+        [batch_size, height, width, 4], name="input0", is_input=True
     )
     timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
     text_embeddings_pt_ait = Tensor(
-        [batch_size, 77, hidden_dim], name="input2", is_input=True
+        [batch_size, 64, hidden_dim], name="input2", is_input=True
     )
 
-    mid_block_additional_residual = None
-    down_block_additional_residuals = None
-
-    Y = ait_mod(
-        latent_model_input_ait,
-        timesteps_ait,
-        text_embeddings_pt_ait,
-        down_block_additional_residuals,
-        mid_block_additional_residual,
-    )
+    Y = ait_mod(latent_model_input_ait, timesteps_ait, text_embeddings_pt_ait)
     mark_output(Y)
 
     target = detect_target(
         use_fp16_acc=use_fp16_acc, convert_conv_to_gemm=convert_conv_to_gemm
     )
-    compile_model(Y, target, "./tmp", model_name, constants=params_ait)
+    compile_model(Y, target, "./tmp", "UNet2DConditionModel", constants=params_ait)
