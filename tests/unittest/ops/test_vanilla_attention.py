@@ -236,6 +236,7 @@ class VanillaAttentionTestCase(unittest.TestCase):
         num_heads=2,
         use_fp16_acc=False,
         benchmark_ait=False,
+        name="cross_attn_dynamic",
     ):
         pt_mod = (
             torch.nn.MultiheadAttention(
@@ -289,7 +290,7 @@ class VanillaAttentionTestCase(unittest.TestCase):
         Y = Y + inputs_ait
         mark_output(Y)
         target = detect_target(use_fp16_acc=False)
-        exe_module = compile_model(Y, target, "./tmp", "cross_attn_dynamic")
+        exe_module = compile_model(Y, target, "./tmp", name)
         for name, weight in params_ait.items():
             exe_module.set_constant_with_tensor(name, weight)
 
@@ -322,12 +323,29 @@ class VanillaAttentionTestCase(unittest.TestCase):
                 _LOGGER.info("benchmark cross-attn time: {0}".format(time_per_iter_ms))
 
     def test_cross_attn(self):
-        self._test_mha(batch_sizes=[1], seqlen=2, seqlen_kv=32, dim=512, num_heads=8)
         self._test_mha(
-            batch_sizes=[128, 256, 512], seqlen=1, seqlen_kv=62, dim=512, num_heads=8
+            batch_sizes=[1],
+            seqlen=2,
+            seqlen_kv=32,
+            dim=512,
+            num_heads=8,
+            name="single_batch",
         )
         self._test_mha(
-            batch_sizes=[1, 32, 64], seqlen=128, seqlen_kv=62, dim=512, num_heads=8
+            batch_sizes=[128, 256, 512],
+            seqlen=1,
+            seqlen_kv=62,
+            dim=512,
+            num_heads=8,
+            name="batches_seq_1",
+        )
+        self._test_mha(
+            batch_sizes=[1, 32, 64],
+            seqlen=128,
+            seqlen_kv=62,
+            dim=512,
+            num_heads=8,
+            name="batches_seq_128",
         )
 
 
