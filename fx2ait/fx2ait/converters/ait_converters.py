@@ -45,6 +45,7 @@ from aitemplate.compiler.public import (
     IntVar,
     IntVarTensor,
     layernorm,
+    masked_select,
     max_pool2d,
     ndhwc3to8,
     pad_last_dim,
@@ -1732,3 +1733,15 @@ def acc_ops_zeros_like(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     return full()(input_val.shape(), 0, dtype=input_val.dtype())
+
+
+@ait_converter(acc_ops.masked_select)
+def acc_ops_masked_select(
+    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+    mask = kwargs["mask"]
+
+    return masked_select()(input_val, mask)

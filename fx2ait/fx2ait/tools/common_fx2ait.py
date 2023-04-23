@@ -131,7 +131,12 @@ class AITTestCase(TestCase):
 
         torch_dtype = lower_precision_to_torch_type(precision)
         mod.to(torch_dtype)
-        inputs = [inp.to(torch_dtype).contiguous() for inp in inputs]
+        inputs = [
+            inp.to(torch_dtype).contiguous()
+            if inp.dtype is not torch.bool
+            else inp.contiguous()
+            for inp in inputs
+        ]
         interp = AITInterpreter(
             mod,
             inputs,
@@ -228,7 +233,8 @@ class AITTestCase(TestCase):
         for use_lower_bound in [True, False]:
             inputs_list.append(
                 TensorSpec.create_inputs_from_specs(
-                    inputs_spec, use_lower_bound=use_lower_bound
+                    inputs_spec,
+                    use_lower_bound=use_lower_bound,
                 )
             )
 
