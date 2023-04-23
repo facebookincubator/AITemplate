@@ -32,6 +32,8 @@ import jinja2
 
 from aitemplate.backend import build_cache
 from aitemplate.backend.build_cache_base import write_binhash_file
+from aitemplate.backend.compile_engine import CompileEngine
+from aitemplate.backend.sources import GeneratedSourceFiles
 
 from aitemplate.backend.target import Target
 from aitemplate.backend.task_runner import BaseRunner, Task
@@ -39,6 +41,7 @@ from aitemplate.backend.task_runner import BaseRunner, Task
 from aitemplate.utils import environ
 
 from aitemplate.utils.debug_settings import AITDebugSettings
+from aitemplate.utils.environ import is_cmake_compilation
 
 from aitemplate.utils.misc import is_debug, is_windows
 
@@ -430,14 +433,17 @@ clean_constants:
         build_so_cmd = "$(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)"
         standalone_src = "standalone.cu"
         standalone_obj = "standalone.obj"
+        windll_obj = "windll.obj"
         obj_files = []
-        # standalone.cu is an AITemplate internal file that is used for generating
-        # standalone executables. We only want to compile it when the relevant
-        # debug option is enabled.
+        # * standalone.cu is an AITemplate internal file that is used for generating
+        #   standalone executables. We only want to compile it when the relevant
+        #   debug option is enabled.
+        # * windll.cu and windll.obj are used in builder_cmake.py for MSVC compiler
+        #   and are not needed to be used in builder_make.py compiler engine.
         obj_files = [
             pair[1].split("/")[-1]
             for pair in file_pairs
-            if not pair[1].endswith(standalone_obj)
+            if not pair[1].endswith(standalone_obj) and not pair[1].endswith(windll_obj)
         ]
         obj_files = " ".join(obj_files)
 
@@ -861,13 +867,26 @@ clean:
 
     def make(
         self,
-        file_pairs,
+        generated_source_files: GeneratedSourceFiles,
         dll_name,
         workdir,
         test_name,
         debug_settings=_DEBUG_SETTINGS,
         allow_cache=True,
     ):
+        def to_obj_name(name: str) -> str:
+            name, _ = os.path.splitext(name)
+            return f"{name}.obj"
+
+        # todo: refactor, maybe create a separate entity for constants.bin
+        file_pairs = [
+            (source, to_obj_name(source)) for source in generated_source_files.sources
+        ] + [
+            (other, to_obj_name(other))
+            for other in generated_source_files.others
+            if Path(other).name == "constants.bin"
+        ]
+
         self.gen_makefile(file_pairs, dll_name, workdir, test_name, debug_settings)
 
         # Write compiler version string(s) into build directory, so these can be used as part of cache key
@@ -892,3 +911,14 @@ clean:
         if not is_debug():
             cmds.append(make_clean_constants_cmd)
         _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=allow_cache)
+
+
+def get_compile_engine(target) -> CompileEngine:
+    if is_cmake_compilation():
+        from aitemplate.backend.cuda import builder_cmake
+
+        compile_engine = builder_cmake.Builder(target)
+    else:
+        compile_engine = Builder()
+
+    return compile_engine

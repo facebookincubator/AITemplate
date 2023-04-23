@@ -18,6 +18,7 @@ from typing import Dict, List, Tuple
 
 from aitemplate import backend, compiler
 
+from aitemplate.backend.sources import GeneratedSourceFiles
 from aitemplate.compiler.base import IntVarTensor, Tensor
 from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.compiler.transform.transform_utils import replace_tensor
@@ -214,7 +215,7 @@ def _constant_folding_impl(
     sorted_graph: List[Tensor],
     workdir: str,
     model_name: str,
-) -> Tuple[Dict[str, Tensor], List[Tuple[str, str]], List[Tensor]]:
+) -> Tuple[Dict[str, Tensor], GeneratedSourceFiles, List[Tensor]]:
     model_dir = os.path.join(workdir, model_name)
 
     # Collect the set of output names before we do any transformations. We'll need this
@@ -241,7 +242,9 @@ def _constant_folding_impl(
 
     blob, constant_blob, workspace = compiler.transform.memory_planning(subgraph)
     new_name_to_old = _make_op_names_unique(subgraph)
-    file_pairs = backend.codegen.gen_function_src(subgraph, workdir, model_name)
+    generated_source_files = backend.codegen.gen_function_src(
+        subgraph, workdir, model_name
+    )
     model_container_generator = backend.codegen.ModelContainerGenerator(
         blob,
         constant_blob,
@@ -274,14 +277,14 @@ def _constant_folding_impl(
                 ] = model_container_generator.output_name_to_idx[name]
             new_tensors[name] = new_tensor
 
-    return new_tensors, file_pairs, constant_folding_inputs
+    return new_tensors, generated_source_files, constant_folding_inputs
 
 
 def constant_folding(
     sorted_graph: List[Tensor],
     workdir: str,
     model_name: str,
-) -> Tuple[List[Tensor], List[Tuple[str, str]], List[Tensor]]:
+) -> Tuple[List[Tensor], GeneratedSourceFiles, List[Tensor]]:
     """
     Fold and propagate constants.
 
@@ -294,9 +297,11 @@ def constant_folding(
     aborted and the graph is returned unchanged. All generated code
     is stored in workdir/constant_folding.
     """
-    new_constants, file_pairs, constant_folding_inputs = _constant_folding_impl(
-        sorted_graph, workdir, model_name
-    )
+    (
+        new_constants,
+        generated_source_files,
+        constant_folding_inputs,
+    ) = _constant_folding_impl(sorted_graph, workdir, model_name)
 
     # Replace ops with their folded values.
     for idx, tensor in enumerate(sorted_graph):
@@ -310,6 +315,6 @@ def constant_folding(
     compiler.transform.remove_unused_ops(sorted_graph)
     return (
         compiler.transform.transform_utils.sanitize_sorted_graph(sorted_graph),
-        file_pairs,
+        generated_source_files,
         constant_folding_inputs,
     )

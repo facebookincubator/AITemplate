@@ -138,3 +138,13 @@ def force_cutlass_sm90_kernels() -> bool:
     back-end of the GEMM ops). Default: False.
     """
     return os.getenv("AIT_FORCE_CUTLASS_SM90_KERNELS", "0") == "1"
+
+
+def is_cmake_compilation() -> bool:
+    """
+    When enabled, compiles the model via invoking CMake rather than
+    invoking make directly.
+    """
+
+    # todo: replace with more builders?
+    return os.getenv("AIT_USE_CMAKE_COMPILATION", "0") == "1"

@@ -195,6 +195,10 @@ MODEL_CONTAINER_TEMPLATE = jinja2.Template(
 #include "model_container.h"
 #include "owned_constants.h"
 
+{% if is_windows %}
+#include "windll.h"
+{% endif %}
+
 namespace ait {
 namespace {
 // Contains the metadata for each constant.
@@ -241,14 +245,22 @@ ModelContainerBase::ModelContainerBase(
 {{ set_up_constant_offsets }}
 {{ set_up_constant_folding_inputs }}
 
-  auto* constants_ptr = static_cast<uint8_t*>(constants_primary_.get());
+{% if is_windows %}
+  size_t binary_constants_bin_size = 0;
+  uint8_t* binary_constants_bin_start = nullptr;
+  GetConstantsBin((void**)&binary_constants_bin_start, &binary_constants_bin_size);
+{% else %}
   const auto binary_constants_bin_size = static_cast<size_t>(_binary_constants_bin_end - _binary_constants_bin_start);
+  const uint8_t* const binary_constants_bin_start = _binary_constants_bin_start;
+{% endif %}
+
+  auto* constants_ptr = static_cast<uint8_t*>(constants_primary_.get());
   for (auto& constant_info : owned_constants) {
     auto* dst = constants_ptr + constant_info.internal_offset;
     if (constant_info.data_offset + constant_info.num_bytes > binary_constants_bin_size) {
       throw std::runtime_error(std::string("Copying constant ") + constant_info.name + " would overflow constant buffer");
     }
-    DEVICE_CHECK(CopyToDevice(dst, _binary_constants_bin_start + constant_info.data_offset, constant_info.num_bytes));
+    DEVICE_CHECK(CopyToDevice(dst, binary_constants_bin_start + constant_info.data_offset, constant_info.num_bytes));
   }
 }
 
