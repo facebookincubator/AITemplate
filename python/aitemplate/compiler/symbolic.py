@@ -92,7 +92,7 @@ def create_new_symbol(
         )
 
     _k_symbolic_value[name] = values
-    return sympy.Symbol(name)
+    return sympy.Symbol(name, integer=True, positive=True)
 
 
 def is_symbol(sym_val: Any) -> bool:

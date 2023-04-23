@@ -287,6 +287,11 @@ def compile_model(
             )
             _LOGGER.info(f"folded constants elapsed time: {elapsed_dt_sec(start_t)}")
 
+            compiler.transform.dedup_symbolic_name(graph)
+            graph_utils.dump_graph_debug_str_to_file(
+                graph, test_dir, "dedup_symbolic_name"
+            )
+
             (
                 max_blob,
                 max_constant_blob,

@@ -121,11 +121,20 @@ class upsampling2d_base(Operator):
             return sorted(set(vector))
 
         output_shape = [
-            shape_utils.gen_int_var(unique([d[0] for d in y_shapes])),
+            x.shape()[0],
             shape_utils.gen_int_var(unique([d[1] for d in y_shapes])),
             shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
             shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
         ]
+
+        in_h = x._attrs["shape"][1]._attrs["symbolic_value"]
+        in_w = x._attrs["shape"][2]._attrs["symbolic_value"]
+        out_h = in_h * int(self._attrs["scale_factor"])
+        out_w = in_w * int(self._attrs["scale_factor"])
+
+        output_shape[1]._attrs["symbolic_value"] = out_h
+        output_shape[2]._attrs["symbolic_value"] = out_w
+
         return output_shape
 
     def _invert_exec_key(self, key):
