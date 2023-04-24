@@ -3354,6 +3354,12 @@ def zeros_like(*, input, dtype=None, device=None):
     return torch.zeros_like(input=input, dtype=dtype, device=device)
 
 
+@register_acc_op_mapping(op_and_target=("call_function", torch.masked_select))
+@register_acc_op
+def masked_select(*, input, mask):
+    return torch.masked_select(input=input, mask=mask)
+
+
 ###############################################################################
 
 # Set ops as side-effectul, this prevents them from being optimized away or

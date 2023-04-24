@@ -31,7 +31,11 @@ from aitemplate.backend.cuda.gemm_universal import common, common_bias, gemm_rcr
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
     cutlass::gemm::GemmUniversalMode::kGemm,                 // GemmUniversalMode mode
-    {M, N, K},                                               // GemmCoord problem_size
+    cutlass::gemm::GemmCoord{
+        static_cast<coord_t>(M),
+        static_cast<coord_t>(N),
+        static_cast<coord_t>(K)
+    },                                                       // GemmCoord problem_size
     split_k,                                                 // int batch_count
     {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename EpilogueOutputOp::Params epilogue
     ({{elem_input_type}}*)(a_ptr) + input_a_offset,          // void const * ptr_A
@@ -54,7 +58,11 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
     cutlass::gemm::GemmUniversalMode::kGemm,                 // GemmUniversalMode mode
-    {M, N, K},                                               // GemmCoord problem_size
+    cutlass::gemm::GemmCoord{
+        static_cast<coord_t>(M),
+        static_cast<coord_t>(N),
+        static_cast<coord_t>(K)
+    },                                                       // GemmCoord problem_size
     split_k,                                                 // int batch_count
     {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename EpilogueOutputOp::Params epilogue
     ({{elem_input_type}}*)(a_ptr),                           // void const * ptr_A
