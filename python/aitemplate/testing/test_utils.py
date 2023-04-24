@@ -15,7 +15,9 @@
 """
 Utils for unit tests.
 """
+import contextlib
 import itertools
+import os
 import unittest
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
@@ -132,6 +134,26 @@ def filter_test_cases_by_test_env(cls: Type[unittest.TestCase]):
                     delattr(cls, attr)
             elif not _test_runnable_in_env(test_name, test_env):
                 delattr(cls, attr)
+
+
+@contextlib.contextmanager
+def env_variables(**kwargs):
+    """CM for temporarily setting (or removing) environment variables."""
+    old_values = {name: os.environ.get(name, None) for name in kwargs}
+
+    try:
+        for name, new_value in kwargs.items():
+            if new_value is not None:
+                os.environ[name] = str(new_value)
+            elif name in os.environ:
+                os.environ.pop(name)
+        yield
+    finally:
+        for name, old_value in old_values.items():
+            if old_value is not None:
+                os.environ[name] = old_value
+            elif name in os.environ:
+                os.environ.pop(name)
 
 
 def _get_torch_tensor(torch_fn, shape, dtype):
