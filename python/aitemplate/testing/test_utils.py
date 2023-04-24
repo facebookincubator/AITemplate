@@ -35,6 +35,7 @@ from aitemplate.utils.torch_utils import string_to_torch_dtype
 class TestEnv(Enum):
     CUDA_LESS_THAN_SM80 = 1
     CUDA_SM80 = 2
+    CUDA_SM90 = 3
     ROCM = 100
 
 
@@ -46,11 +47,20 @@ def _SM80_filter(method_name: str) -> bool:
     return method_name.endswith("bf16") or method_name.endswith("sm80")
 
 
+def _SM90_filter(method_name: str) -> bool:
+    return method_name.endswith("sm90")
+
+
 _TEST_ENV_TO_FILTER_METHOD: Dict[str, Callable[[str], bool]] = {
     TestEnv.CUDA_LESS_THAN_SM80: (
-        lambda method_name: not (_SM80_filter(method_name) or _ROCM_filter(method_name))
+        lambda method_name: not (
+            _SM80_filter(method_name)
+            or _SM90_filter(method_name)
+            or _ROCM_filter(method_name)
+        )
     ),
     TestEnv.CUDA_SM80: _SM80_filter,
+    TestEnv.CUDA_SM90: _SM90_filter,
     TestEnv.ROCM: _ROCM_filter,
 }
 
@@ -62,6 +72,11 @@ _COMPATIBLE_TEST_ENVS: Dict[TestEnv, Set[TestEnv]] = {
     TestEnv.ROCM: {TestEnv.ROCM},
     TestEnv.CUDA_LESS_THAN_SM80: {TestEnv.CUDA_LESS_THAN_SM80},
     TestEnv.CUDA_SM80: {TestEnv.CUDA_LESS_THAN_SM80, TestEnv.CUDA_SM80},
+    TestEnv.CUDA_SM90: {
+        TestEnv.CUDA_LESS_THAN_SM80,
+        TestEnv.CUDA_SM80,
+        TestEnv.CUDA_SM90,
+    },
 }
 
 
@@ -72,6 +87,8 @@ def _get_test_env(target) -> str:
             test_env = TestEnv.CUDA_LESS_THAN_SM80
         elif int(target._arch) == 80:
             test_env = TestEnv.CUDA_SM80
+        elif int(target._arch) == 90:
+            test_env = TestEnv.CUDA_SM90
         else:
             raise RuntimeError(
                 f"Unknown test env, target: {target.name}, {target._arch}"
