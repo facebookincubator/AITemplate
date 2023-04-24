@@ -36,7 +36,7 @@ namespace {
 
 {{func_signature}}
 {
-    const int64_t gather_size = *batch_size * batch_num;
+    const int64_t gather_size = (gather_dim != 0) ? (*batch_size * batch_num) : batch_num;
     batch_gather_launcher<{{dtype}}, int64_t>(stream, gather_size, indices_num, instance_size, gather_dim_size, static_cast<const {{dtype}}*>(input), indices, workspace, static_cast<{{dtype}}*>(output));
 }
     """
@@ -51,6 +51,7 @@ void {{func_name}}(void* output,
                    const {{index_type}} batch_num,
                    const {{index_type}} indices_num,
                    const {{index_type}} instance_size,
+                   const {{index_type}} gather_dim,
                    const {{index_type}} gather_dim_size,
                    uint8_t* workspace,
                    {{prefix}}Stream_t stream)
@@ -71,6 +72,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{batch_num}},
 {{indent}}    {{indices_num}},
 {{indent}}    {{instance_size}},
+{{indent}}    {{gather_dim}},
 {{indent}}    {{gather_dim_size}},
 {{indent}}    global_workspace_, stream /* default stream */
 {{indent}});
@@ -187,10 +189,11 @@ def gen_function_call(func_attrs: Dict[str, Any], indent="  ", is_cuda=False) ->
         output=output_name,
         input=input_name,
         indices=indices_name,
-        batch_size="&" + yshape[0]._attrs["name"],
+        batch_size="&" + xshape[0]._attrs["name"],
         batch_num=batch_num,
         indices_num=indices_num,
         instance_size=instance_size,
+        gather_dim=axis,
         gather_dim_size=gather_dim_size,
         indent=indent,
     )
