@@ -254,10 +254,12 @@ class FBCUDA(CUDA):
             with open(fb_include_path, "w") as fb_include:
                 for arg in pp_args:
                     fb_include.write(pipes.quote(arg) + "\n")
+
             nvcc_arch = self._arch
             if nvcc_arch == "90":
                 # required by CUTLASS SM90 TMA kernels
                 nvcc_arch = "90a"
+
             options = (
                 self.nvcc_options_json["args"]
                 + ["-I" + path for path in cutlass_path]
@@ -276,7 +278,7 @@ class FBCUDA(CUDA):
                     "-w",
                     "--expt-relaxed-constexpr",
                     "--use_fast_math",
-                    f"-gencode=arch=compute_{self._arch},code=[sm_{nvcc_arch},compute_{nvcc_arch}]",
+                    f"-gencode=arch=compute_{nvcc_arch},code=[sm_{nvcc_arch},compute_{nvcc_arch}]",
                     "-Xcompiler=-Wconversion",
                     environ.get_compiler_opt_level(),
                     "-std=c++17",

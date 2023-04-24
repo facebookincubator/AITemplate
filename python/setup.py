@@ -81,7 +81,10 @@ def gen_cutlass_list():
     ]
     f_cond = (
         lambda x: True
-        if x.endswith(".h") or x.endswith(".cuh") or x.endswith(".hpp")
+        if x.endswith(".h")
+        or x.endswith(".cuh")
+        or x.endswith(".hpp")
+        or x.endswith(".inl")
         else False
     )
     return gen_file_list(srcs, f_cond)
