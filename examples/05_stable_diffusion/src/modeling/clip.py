@@ -61,7 +61,7 @@ class CrossAttention(nn.Module):
         self.to_k_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
         self.to_v_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
+            nn.Linear(inner_dim, query_dim, dtype=dtype), nn.Dropout(dropout, dtype=dtype)
         )
 
     def forward(self, x, context=None, mask=None, residual=None):
@@ -108,30 +108,30 @@ class CrossAttention(nn.Module):
 
 
 class GEGLU(nn.Module):
-    def __init__(self, dim_in, dim_out):
+    def __init__(self, dim_in, dim_out, dtype="float16"):
         super().__init__()
-        self.proj = nn.Linear(dim_in, dim_out, specialization="mul")
-        self.gate = nn.Linear(dim_in, dim_out, specialization="fast_gelu")
+        self.proj = nn.Linear(dim_in, dim_out, specialization="mul", dtype=dtype)
+        self.gate = nn.Linear(dim_in, dim_out, specialization="fast_gelu", dtype=dtype)
 
     def forward(self, x):
         return self.proj(x, self.gate(x))
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0):
+    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0, dtype="float16"):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
         project_in = (
             nn.Sequential(
-                nn.Linear(dim, inner_dim, specialization="fast_gelu"),
+                nn.Linear(dim, inner_dim, specialization="fast_gelu", dtype=dtype),
             )
             if not glu
-            else GEGLU(dim, inner_dim)
+            else GEGLU(dim, inner_dim, dtype=dtype)
         )
 
         self.net = nn.Sequential(
-            project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim_out)
+            project_in, nn.Dropout(dropout, dtype=dtype), nn.Linear(inner_dim, dim_out, dtype=dtype)
         )
 
     def forward(self, x, residual=None):
@@ -154,22 +154,24 @@ class BasicTransformerBlock(nn.Module):
         context_dim=None,
         gated_ff=True,
         checkpoint=True,
+        dtype="float16",
     ):
         super().__init__()
         self.attn1 = CrossAttention(
-            query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout
+            query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout, dtype=dtype,
         )  # is a self-attention
-        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
+        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff, dtype=dtype)
         self.attn2 = CrossAttention(
             query_dim=dim,
             context_dim=context_dim,
             heads=n_heads,
             dim_head=d_head,
             dropout=dropout,
+            dtype=dtype,
         )
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
-        self.norm3 = nn.LayerNorm(dim)
+        self.norm1 = nn.LayerNorm(dim, dtype=dtype)
+        self.norm2 = nn.LayerNorm(dim, dtype=dtype)
+        self.norm3 = nn.LayerNorm(dim, dtype=dtype)
         self.checkpoint = checkpoint
 
         self.param = (dim, n_heads, d_head, context_dim, gated_ff, checkpoint)
@@ -181,8 +183,8 @@ class BasicTransformerBlock(nn.Module):
         return x
 
 
-def Normalize(in_channels):
-    return nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+def Normalize(in_channels, dtype):
+    return nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype)
 
 
 class SpatialTransformer(nn.Module):
@@ -203,34 +205,35 @@ class SpatialTransformer(nn.Module):
         dropout=0.0,
         context_dim=None,
         use_linear_projection=False,
+        dtype="float16",
     ):
         super().__init__()
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = Normalize(in_channels)  # Group Norm
+        self.norm = Normalize(in_channels, dtype=dtype)  # Group Norm
         self.use_linear_projection = use_linear_projection
 
         if use_linear_projection:
-            self.proj_in = nn.Linear(in_channels, inner_dim)
+            self.proj_in = nn.Linear(in_channels, inner_dim, dtype=dtype)
         else:
             self.proj_in = nn.Conv2dBias(
-                in_channels, inner_dim, kernel_size=1, stride=1, padding=0
+                in_channels, inner_dim, kernel_size=1, stride=1, padding=0, dtype=dtype,
             )
 
         self.transformer_blocks = nn.ModuleList(
             [
                 BasicTransformerBlock(
-                    inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim
+                    inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim, dtype=dtype,
                 )
                 for d in range(depth)
             ]
         )
 
         if use_linear_projection:
-            self.proj_out = nn.Linear(inner_dim, in_channels)
+            self.proj_out = nn.Linear(inner_dim, in_channels, dtype=dtype)
         else:
             self.proj_out = nn.Conv2dBias(
-                inner_dim, in_channels, kernel_size=1, stride=1, padding=0
+                inner_dim, in_channels, kernel_size=1, stride=1, padding=0, dtype=dtype,
             )
 
     def forward(self, x, context=None):
@@ -323,6 +326,7 @@ class CLIPMLP(nn.Module):
         out_features=None,
         act_layer="GELU",
         drop=0,
+        dtype="float16",
     ):
         super().__init__()
         out_features = out_features or in_features
@@ -332,8 +336,9 @@ class CLIPMLP(nn.Module):
             in_features,
             hidden_features,
             specialization="gelu",
+            dtype=dtype,
         )
-        self.fc2 = nn.Linear(hidden_features, out_features, specialization="add")
+        self.fc2 = nn.Linear(hidden_features, out_features, specialization="add", dtype=dtype)
 
     def forward(self, x, res):
         shape = get_shape(x)
@@ -388,6 +393,7 @@ class CLIPEncoderLayer(nn.Module):
         causal=False,
         mask_seq=0,
         act_layer="gelu",
+        dtype="float16",
     ):
         super().__init__()
         self.embed_dim = hidden_size
@@ -403,12 +409,13 @@ class CLIPEncoderLayer(nn.Module):
             causal=causal,
             mask_seq=mask_seq,
             use_mem_eff=True,
+            dtype=dtype,
         )
-        self.layer_norm1 = nn.LayerNorm(self.embed_dim)
+        self.layer_norm1 = nn.LayerNorm(self.embed_dim, dtype=dtype)
         self.mlp = self.ACT_LAYER_TO_CLIP_MLP_MAP[act_layer](
-            hidden_size, int(hidden_size * mlp_ratio)
+            hidden_size, int(hidden_size * mlp_ratio), dtype=dtype
         )
-        self.layer_norm2 = nn.LayerNorm(self.embed_dim)
+        self.layer_norm2 = nn.LayerNorm(self.embed_dim, dtype=dtype)
 
     def forward(
         self,
@@ -458,6 +465,7 @@ class CLIPEncoder(nn.Module):
         causal=False,
         mask_seq=0,
         act_layer="gelu",
+        dtype="float16",
     ):
         super().__init__()
         self.layers = nn.ModuleList(
@@ -470,6 +478,7 @@ class CLIPEncoder(nn.Module):
                     causal=causal,
                     mask_seq=mask_seq,
                     act_layer=act_layer,
+                    dtype=dtype,
                 )
                 for _ in range(num_hidden_layers)
             ]
@@ -550,7 +559,7 @@ class CLIPTextEmbeddings(nn.Module):
 
         self.token_embedding = nn.Embedding(shape=[vocab_size, embed_dim], dtype=dtype)
         self.position_embedding = nn.Embedding(
-            shape=[max_position_embeddings, embed_dim], dtype=dtype
+            shape=[max_position_embeddings, embed_dim], dtype=dtype,
         )
 
     def forward(
@@ -573,6 +582,7 @@ class CLIPTextEmbeddings(nn.Module):
         position_embeddings = ops.batch_gather()(
             self.position_embedding.tensor(), position_ids
         )
+        print("Show input embeddings and position embeddings", inputs_embeds, position_embeddings)
 
         embeddings = inputs_embeds + position_embeddings
 
@@ -595,9 +605,10 @@ class CLIPTextTransformer(nn.Module):
         causal=False,
         mask_seq=0,
         act_layer="gelu",
+        dtype="float16",
     ):
         super().__init__()
-        self.embeddings = CLIPTextEmbeddings(hidden_size=hidden_size)
+        self.embeddings = CLIPTextEmbeddings(hidden_size=hidden_size, dtype=dtype)
         self.encoder = CLIPEncoder(
             num_hidden_layers=num_hidden_layers,
             hidden_size=hidden_size,
@@ -607,8 +618,9 @@ class CLIPTextTransformer(nn.Module):
             causal=causal,
             mask_seq=mask_seq,
             act_layer=act_layer,
+            dtype=dtype,
         )
-        self.final_layer_norm = nn.LayerNorm(hidden_size)
+        self.final_layer_norm = nn.LayerNorm(hidden_size, dtype=dtype)
 
         self.output_attentions = output_attentions
         self.output_hidden_states = output_hidden_states

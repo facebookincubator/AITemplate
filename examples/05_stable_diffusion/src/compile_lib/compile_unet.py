@@ -18,32 +18,33 @@ from aitemplate.compiler import compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
+from ..compile_lib.util import torch_dtype_from_str
 from ..modeling.unet_2d_condition import (
     UNet2DConditionModel as ait_UNet2DConditionModel,
 )
 from .util import mark_output
 
 
-def map_unet_params(pt_mod, dim):
+def map_unet_params(pt_mod, dim, dtype=torch.float16):
     pt_params = dict(pt_mod.named_parameters())
     params_ait = {}
     for key, arr in pt_params.items():
         if len(arr.shape) == 4:
-            arr = arr.permute((0, 2, 3, 1)).contiguous()
+            arr = arr.permute((0, 2, 3, 1)).contiguous().to(dtype=dtype)
         elif key.endswith("ff.net.0.proj.weight"):
             w1, w2 = arr.chunk(2, dim=0)
-            params_ait[key.replace(".", "_")] = w1
-            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
+            params_ait[key.replace(".", "_")] = w1.to(dtype=dtype)
+            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2.to(dtype=dtype)
             continue
         elif key.endswith("ff.net.0.proj.bias"):
             w1, w2 = arr.chunk(2, dim=0)
-            params_ait[key.replace(".", "_")] = w1
-            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
+            params_ait[key.replace(".", "_")] = w1.to(dtype=dtype)
+            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2.to(dtype=dtype)
             continue
-        params_ait[key.replace(".", "_")] = arr
+        params_ait[key.replace(".", "_")] = arr.to(dtype=dtype)
 
     params_ait["arange"] = (
-        torch.arange(start=0, end=dim // 2, dtype=torch.float32).cuda().half()
+        torch.arange(start=0, end=dim // 2, dtype=torch.float32).cuda().to(dtype=dtype)
     )
     return params_ait
 
@@ -59,6 +60,7 @@ def compile_unet(
     convert_conv_to_gemm=False,
     attention_head_dim=[5, 10, 20, 20],  # noqa: B006
     use_linear_projection=False,
+    dtype="float16",
 ):
 
     ait_mod = ait_UNet2DConditionModel(
@@ -66,19 +68,20 @@ def compile_unet(
         cross_attention_dim=hidden_dim,
         attention_head_dim=attention_head_dim,
         use_linear_projection=use_linear_projection,
+        dtype=dtype,
     )
     ait_mod.name_parameter_tensor()
 
     # set AIT parameters
     pt_mod = pt_mod.eval()
-    params_ait = map_unet_params(pt_mod, dim)
+    params_ait = map_unet_params(pt_mod, dim, torch_dtype_from_str(dtype))
 
     latent_model_input_ait = Tensor(
-        [batch_size, height, width, 4], name="input0", is_input=True
+        [batch_size, height, width, 4], name="input0", is_input=True, dtype=dtype,
     )
-    timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
+    timesteps_ait = Tensor([batch_size], name="input1", is_input=True, dtype=dtype)
     text_embeddings_pt_ait = Tensor(
-        [batch_size, 64, hidden_dim], name="input2", is_input=True
+        [batch_size, 64, hidden_dim], name="input2", is_input=True, dtype=dtype,
     )
 
     Y = ait_mod(latent_model_input_ait, timesteps_ait, text_embeddings_pt_ait)

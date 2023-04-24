@@ -23,6 +23,7 @@ from aitemplate.compiler import Model
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from diffusers import StableDiffusionPipeline
+from src.compile_lib.util import torch_dtype_from_str
 
 from torch import autocast
 from transformers import CLIPTokenizer
@@ -54,6 +55,7 @@ def benchmark_unet(
     hidden_dim=1024,
     benchmark_pt=False,
     verify=False,
+    torch_dtype=torch.float16,
 ):
 
     exe_module = Model("./tmp/UNet2DConditionModel/test.so")
@@ -64,9 +66,9 @@ def benchmark_unet(
     # run PT unet model
     pt_mod = pt_mod.eval()
 
-    latent_model_input_pt = torch.randn(batch_size, 4, height, width).cuda().half()
-    text_embeddings_pt = torch.randn(batch_size, 64, hidden_dim).cuda().half()
-    timesteps_pt = torch.Tensor([1, 1]).cuda().half()
+    latent_model_input_pt = torch.randn(batch_size, 4, height, width).cuda().to(dtype=torch_dtype)
+    text_embeddings_pt = torch.randn(batch_size, 64, hidden_dim).cuda().to(dtype=torch_dtype)
+    timesteps_pt = torch.Tensor([1, 1]).cuda().to(dtype=torch_dtype)
 
     with autocast("cuda"):
         pt_ys = pt_mod(
@@ -96,7 +98,7 @@ def benchmark_unet(
     num_outputs = len(exe_module.get_output_name_to_index_map())
     for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
-        ys.append(torch.empty(shape).cuda().half())
+        ys.append(torch.empty(shape).cuda().to(dtype=torch_dtype))
     exe_module.run_with_tensors(inputs, ys)
 
     # verification
@@ -128,6 +130,7 @@ def benchmark_clip(
     tokenizer=None,
     benchmark_pt=False,
     verify=False,
+    torch_dtype=torch.float16,
 ):
     mask_seq = 0
 
@@ -175,7 +178,7 @@ def benchmark_clip(
     num_outputs = len(exe_module.get_output_name_to_index_map())
     for i in range(num_outputs):
         shape = exe_module.get_output_maximum_shape(i)
-        ys.append(torch.empty(shape).cuda().half())
+        ys.append(torch.empty(shape).cuda().to(dtype=torch_dtype))
     exe_module.run_with_tensors(inputs, ys)
 
     # verification
@@ -200,7 +203,7 @@ def benchmark_clip(
 
 
 def benchmark_vae(
-    pt_vae, batch_size=1, height=64, width=64, benchmark_pt=False, verify=False
+    pt_vae, batch_size=1, height=64, width=64, benchmark_pt=False, verify=False, torch_dtype=torch.float16,
 ):
 
     latent_channels = 4
@@ -211,14 +214,14 @@ def benchmark_vae(
         exit(-1)
 
     # run PT vae
-    pt_vae = pt_vae.cuda().half()
+    pt_vae = pt_vae.cuda().to(dtype=torch_dtype)
     pt_vae.eval()
 
-    pt_input = torch.rand([batch_size, latent_channels, height, width]).cuda().half()
+    pt_input = torch.rand([batch_size, latent_channels, height, width]).cuda().to(dtype=torch_dtype)
     print("pt_input shape", pt_input.shape)
     with autocast("cuda"):
         pt_output = pt_vae.decode(pt_input).sample
-        pt_output = pt_output.half()
+        pt_output = pt_output.to(dtype=torch_dtype)
 
         # PT benchmark
         if benchmark_pt:
@@ -237,7 +240,7 @@ def benchmark_vae(
             pt_output.size(1),
         )
         .cuda()
-        .half()
+        .to(dtype=torch_dtype)
     )
     ait_input_pt_tensor = torch.permute(pt_input, (0, 2, 3, 1)).contiguous()
     print("input pt tensor size: ", ait_input_pt_tensor.shape)
@@ -276,16 +279,25 @@ def benchmark_vae(
 @click.option("--batch-size", default=1, help="batch size")
 @click.option("--verify", type=bool, default=False, help="verify correctness")
 @click.option("--benchmark-pt", type=bool, default=False, help="run pt benchmark")
-def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
+@click.option("--dtype", type=str, default="float16", help="dtype to run the model")
+def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt, dtype):
     assert batch_size == 1, "batch size must be 1 for submodule verification"
     logging.getLogger().setLevel(logging.INFO)
     np.random.seed(0)
     torch.manual_seed(4896)
 
+    torch_dtype = torch_dtype_from_str(dtype)
+    if dtype == "float16":
+        revision = "fp16"
+    elif dtype == "float32":
+        revision = None
+    else:
+        raise ValueError("dtype not supported yet!")
+
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
-        revision="fp16",
-        torch_dtype=torch.float16,
+        revision=revision,
+        torch_dtype=torch_dtype,
     ).to("cuda")
 
     # CLIP
@@ -294,6 +306,7 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
         batch_size=batch_size,
         benchmark_pt=benchmark_pt,
         verify=verify,
+        torch_dtype=torch_dtype,
     )
     # UNet
     benchmark_unet(
@@ -302,10 +315,11 @@ def benchmark_diffusers(local_dir, batch_size, verify, benchmark_pt):
         benchmark_pt=benchmark_pt,
         verify=verify,
         hidden_dim=pipe.text_encoder.config.hidden_size,
+        torch_dtype=torch_dtype,
     )
     # VAE
     benchmark_vae(
-        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify
+        pipe.vae, batch_size=batch_size, benchmark_pt=benchmark_pt, verify=verify, torch_dtype=torch_dtype,
     )
 
 

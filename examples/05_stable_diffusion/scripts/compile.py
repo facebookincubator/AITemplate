@@ -26,6 +26,7 @@ if __name__ == "__main__":
 from src.compile_lib.compile_clip import compile_clip
 from src.compile_lib.compile_unet import compile_unet
 from src.compile_lib.compile_vae import compile_vae
+from src.compile_lib.util import torch_dtype_from_str
 
 
 @click.command()
@@ -37,10 +38,11 @@ from src.compile_lib.compile_vae import compile_vae
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
 @click.option("--batch-size", default=1, help="batch size")
+@click.option("--dtype", default="float16", help="dtype used to load the model")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile_diffusers(
-    local_dir, width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True
+    local_dir, width, height, batch_size, dtype="float16", use_fp16_acc=True, convert_conv_to_gemm=True
 ):
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
@@ -48,10 +50,18 @@ def compile_diffusers(
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
+    torch_dtype = torch_dtype_from_str(dtype)
+    if dtype == "float16":
+        revision = "fp16"
+    elif dtype == "float32":
+        revision = None
+    else:
+        raise ValueError("dtype not supported yet!")
+
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
-        revision="fp16",
-        torch_dtype=torch.float16,
+        revision=revision,
+        torch_dtype=torch_dtype,
     ).to("cuda")
 
     assert (
@@ -71,6 +81,7 @@ def compile_diffusers(
         num_heads=pipe.text_encoder.config.num_attention_heads,
         dim=pipe.text_encoder.config.hidden_size,
         act_layer=pipe.text_encoder.config.hidden_act,
+        dtype=dtype,
     )
     # UNet
     compile_unet(
@@ -83,6 +94,7 @@ def compile_diffusers(
         hidden_dim=pipe.unet.config.cross_attention_dim,
         attention_head_dim=pipe.unet.config.attention_head_dim,
         use_linear_projection=pipe.unet.config.get("use_linear_projection", False),
+        dtype=dtype,
     )
     # VAE
     compile_vae(
@@ -92,6 +104,7 @@ def compile_diffusers(
         height=hh,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
+        dtype=dtype,
     )
 
 
