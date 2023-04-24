@@ -45,6 +45,7 @@ source_extensions = {
     "c",
     "hpp",
     "hxx",
+    "inl",
     "py",
     "cxx",
     "cc",
