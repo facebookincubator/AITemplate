@@ -354,7 +354,9 @@ class MakeJaggedTestCase(unittest.TestCase):
         embedding_dim = IntImm(name="embedding", value=D)
         weights_dim = IntImm(name="weight", value=W)
 
-        total_length_dim = IntVar(name="total_length", values=[0, B * N])
+        fake_upper_bound = 1234
+        total_length_dim = IntVar(name="total_length", values=[0, fake_upper_bound])
+        total_length_dim._attrs["correct_upper_bound"] = True
         offsets_dim = IntVar(name="offsets_size", values=[2, B + 1])
         jagged_dims = [JaggedDim(min_value=0, max_value=max_seq_dim)]
         num_sources = 4
@@ -460,6 +462,11 @@ class MakeJaggedTestCase(unittest.TestCase):
             assert Z.is_jagged()
         assert not DENSE.is_jagged()
         assert RESULT.is_jagged()
+
+        for tensor in model.debug_sorted_graph:
+            for dim in tensor.shape():
+                # all occurences of the fake upper bound must be corrected
+                assert dim.upper_bound() != fake_upper_bound
 
         offsets = [0, 1, 4, 6, 7]
         torch_offsets_type = string_to_torch_dtype(offsets_dtype)

@@ -264,6 +264,7 @@ class TensorSpec:
         jagged_tensor_batch_dims: Set[int],
         jagged_offsets_batch_dims: Set[int],
         additional_inputs: List[torch.Tensor] = None,
+        correct_jagged_batch_dims: bool = False,
     ) -> List["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
@@ -281,10 +282,12 @@ class TensorSpec:
             batch_dim_lower_bound: int = 0
             batch_dim_upper_bound: int = 0
             batch_dim_name: str = ""
+            is_jagged_tensor = False
             if batch_dim in jagged_tensor_batch_dims:
                 batch_dim_lower_bound = 0  # when all sequences are empty
                 batch_dim_upper_bound = max_batch_size * max_sequence_length
                 batch_dim_name = f"batch_size_jagged_tensor_{batch_dim}"
+                is_jagged_tensor = True
             elif batch_dim in jagged_offsets_batch_dims:
                 batch_dim_lower_bound = 2  # prefix 0 + at least one offset
                 batch_dim_upper_bound = max_batch_size + 1
@@ -294,15 +297,16 @@ class TensorSpec:
                 shape: List[IntVar] = []
                 for i, d in enumerate(t.shape):
                     if i == 0:
-                        shape.append(
-                            IntVar(
-                                values=[
-                                    batch_dim_lower_bound,
-                                    batch_dim_upper_bound,
-                                ],
-                                name=batch_dim_name,
-                            )
+                        int_var = IntVar(
+                            values=[
+                                batch_dim_lower_bound,
+                                batch_dim_upper_bound,
+                            ],
+                            name=batch_dim_name,
                         )
+                        if is_jagged_tensor and correct_jagged_batch_dims:
+                            int_var._attrs["correct_upper_bound"] = True
+                        shape.append(int_var)
                     else:
                         shape.append(IntImm(d))
                 result_unsorted.append((ind, TensorSpec(shape, t.dtype)))

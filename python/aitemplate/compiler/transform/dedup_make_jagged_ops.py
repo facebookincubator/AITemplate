@@ -92,12 +92,10 @@ def _remove_make_jagged_ops(
     The make_jagged ops in the group are not removed (and the respective
     total_length key is popped from the make_jagged_metadata) if:
 
-        1. There is only one make_jagged op in the group.
-
-        2. There is a make_jagged op in the group connecting a
+        1. There is a make_jagged op in the group connecting a
            graph input to a graph output: can't be eliminated.
 
-        3. The total_length dimension representing the group is
+        2. The total_length dimension representing the group is
            not present in any of the graph inputs' shape.
 
     In other cases, all make_jagged ops in the grpup are removed from the graph
@@ -109,14 +107,6 @@ def _remove_make_jagged_ops(
             "All make_jagged ops applied to the sources with the "
             "same total_length must produce the same jagged_int_var."
         )  # this includes offsets identity check internally
-
-        if len(make_jagged_group) == 1:
-            _LOGGER.debug(
-                "There is only one make_jagged op in the group "
-                f"with {total_length=}: skipping the group."
-            )
-            make_jagged_metadata.pop(total_length)
-            continue
 
         has_input_to_output_op = False
         for data in make_jagged_group:
@@ -195,6 +185,12 @@ def _apply_make_jagged_to_inputs(
             shape = inp._attrs["shape"]
             if shape and shape[0] == total_length:
                 sources_list.append(inp)
+                if shape[0]._attrs.get("correct_upper_bound", False):
+                    # it may happen that the total_length dimension derived form
+                    # the make_jagged_group has lost its correct_upper_bound flag
+                    # set in the original inputs (e.g., if the IntVar is not carried
+                    # over, but recreated). here we restore the flag in such case.
+                    total_length._attrs["correct_upper_bound"] = True
 
         _LOGGER.debug(
             "Adding a single make_jagged op for the source inputs "
@@ -213,8 +209,8 @@ def _apply_make_jagged_to_inputs(
             source=sources_list,
             offsets_list=data.offsets_list,
         )
-        jagged_int_var = jagged_tensors[0]._attrs["shape"][0]
-        new_jagged_int_vars[total_length] = jagged_int_var
+        new_jagged_int_var = jagged_tensors[0]._attrs["shape"][0]
+        new_jagged_int_vars[total_length] = new_jagged_int_var
 
         for source, jagged in zip(sources_list, jagged_tensors):
             for op in source._attrs["dst_ops"]:
@@ -248,6 +244,58 @@ def _replace_total_length_with_jagged_int_var(
                 shape = tensor._attrs["shape"]
                 if shape and shape[0] == total_length:
                     shape[0] = new_jagged_int_var
+
+
+def _correct_total_length_upper_bounds(
+    new_jagged_int_vars: Dict[IntVar, JaggedIntVar],
+    sorted_graph: List[Tensor],
+):
+    """Correct total_length's upper bound based on the batch dim and jagged dims.
+
+    If the "correct_upper_bound" flag is set to True in the _attrs of the
+    total_length, the upper bound in the _attrs["values"] is set to the
+    product of the upper bound of the batch_dim and all jagged_dims'
+    max_values. This is done both in all total_length occurences as well
+    as in the new_jagged_int_var occurences in the resulting graph.
+    """
+    for total_length, new_jagged_int_var in new_jagged_int_vars.items():
+        if total_length._attrs.get("correct_upper_bound", False):
+            # here we correct the upper bound of the total_length dimension
+            # based on the batch_dim and the jagged_dims in the JaggedIntVar
+            batch_dim = new_jagged_int_var.batch_dim()
+            jagged_dims = new_jagged_int_var.jagged_dims()
+            lower_bound = total_length.lower_bound()
+            old_upper_bound = total_length.upper_bound()
+            new_upper_bound = batch_dim.upper_bound()
+            for jagged_dim in jagged_dims:
+                new_upper_bound *= jagged_dim.max_value().upper_bound()
+            new_values = [lower_bound, new_upper_bound]
+
+            _LOGGER.debug(
+                f"Correcting the upper bound of the {total_length=} "
+                f"from {old_upper_bound} to {new_upper_bound} based on "
+                f"the {batch_dim=} and {jagged_dims=}."
+            )
+
+            # we collect all dims to update in a list, and not in a set,
+            # to capture all separate IntVar instances that need updating
+            # the values, even if they compare equal to other instances already
+            # captured. the latter would lead to some instances possibly being
+            # omitted in case of a set used as a container.
+            dims_to_update = []
+            for tensor in sorted_graph:
+                shape = tensor._attrs["shape"]
+                if shape:
+                    if shape[0] == total_length:
+                        dims_to_update.append(shape[0])
+                    elif shape[0] == new_jagged_int_var:
+                        dims_to_update.append(shape[0])
+                        dims_to_update.append(shape[0].total_length())
+            for dim in dims_to_update:
+                # repetitively updating the "values" of the same instance
+                # possibly contained in the dims_to_update multiple times
+                # is harmless, as idempotent.
+                dim._attrs["values"] = new_values
 
 
 def dedup_make_jagged_ops(
@@ -305,6 +353,10 @@ def dedup_make_jagged_ops(
         new_jagged_int_vars,
         sorted_graph,
         graph_inputs,
+    )
+    _correct_total_length_upper_bounds(
+        new_jagged_int_vars,
+        sorted_graph,
     )
 
     # sort the new make_jagged outputs
