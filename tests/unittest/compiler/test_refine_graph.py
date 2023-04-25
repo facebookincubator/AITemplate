@@ -38,7 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class RefineGraphTestCase(unittest.TestCase):
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32")],
@@ -207,7 +207,7 @@ class RefineGraphTestCase(unittest.TestCase):
         return mul_tensor
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32")],
@@ -243,7 +243,7 @@ class RefineGraphTestCase(unittest.TestCase):
         assert sorted_ops[0]._attrs["name"] == sorted_ops[1]._attrs["name"]
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32")],
@@ -300,7 +300,7 @@ class RefineGraphTestCase(unittest.TestCase):
         assert sorted_ops[0]._attrs["name"] != sorted_ops[1]._attrs["name"]
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32")],

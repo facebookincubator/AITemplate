@@ -353,7 +353,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -379,7 +379,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self._test_leaky_relu([63, 63], test_name="leaky_relu_3", dtype=dtype)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -402,7 +402,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -428,7 +428,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -449,7 +449,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -470,7 +470,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -494,7 +494,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -515,7 +515,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -536,7 +536,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -557,7 +557,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -578,7 +578,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -599,7 +599,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -620,7 +620,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -641,7 +641,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -662,7 +662,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -694,7 +694,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -717,7 +717,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],

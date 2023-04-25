@@ -121,7 +121,7 @@ def filter_test_cases_by_params(params: Dict[TestEnv, List[Tuple[Any]]]):
     """
     target = detect_target()
     test_env = _get_test_env(target)
-    return (
+    input_ = (
         params.get(test_env, [])
         if target.in_ci_env()
         else list(
@@ -132,6 +132,10 @@ def filter_test_cases_by_params(params: Dict[TestEnv, List[Tuple[Any]]]):
             )
         )
     )
+    return {
+        "input": input_,
+        "skip_on_empty": True,
+    }
 
 
 def filter_test_cases_by_test_env(cls: Type[unittest.TestCase]):

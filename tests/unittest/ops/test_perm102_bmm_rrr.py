@@ -39,7 +39,7 @@ from parameterized import parameterized
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMMTestCase(unittest.TestCase):
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
@@ -75,7 +75,7 @@ class Perm102BMMTestCase(unittest.TestCase):
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class Perm102BMMBiasTestCase(unittest.TestCase):
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],

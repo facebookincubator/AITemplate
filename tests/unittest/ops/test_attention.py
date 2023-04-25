@@ -333,13 +333,12 @@ class AttentionTestCase(unittest.TestCase):
                 )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 # Flash attention requires A100
                 TestEnv.CUDA_SM80: [("float16")],
             }
         ),
-        skip_on_empty=True,
     )
     def test_flash_attention(self, dtype):
         self._test_flash_attention(
@@ -444,12 +443,11 @@ class AttentionTestCase(unittest.TestCase):
             _LOGGER.info(f"benchmark compiler model time: {time_per_iter_ms}")
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.ROCM: [("float16")],
             }
         ),
-        skip_on_empty=True,
     )
     def test_attention_rocm(self, dtype):
         self._test_attention(
@@ -699,11 +697,12 @@ class AttentionTestCase(unittest.TestCase):
                     TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                     TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
                 }
-            ),
+            )["input"],
             [False, True],  # variable_seq_length_kv
             [False, True],  # variable_seq_length_q
             [False, True],  # causal
         ),
+        skip_on_empty=True,
     )
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_mem_eff_attention(
@@ -825,7 +824,7 @@ class AttentionTestCase(unittest.TestCase):
                     # with 'misaligned address' error.
                     TestEnv.CUDA_SM80: [("float16")],
                 }
-            ),
+            )["input"],
             [False, True],  # variable_seq_length_kv
             [False, True],  # variable_seq_length_q
         ),
@@ -980,12 +979,11 @@ class AttentionTestCase(unittest.TestCase):
             torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_SM80: [("float16"), ("float32"), ("bfloat16")],
             }
         ),
-        skip_on_empty=True,
     )
     def test_cross_attention(self, dtype):
         if dtype == "bfloat16":
