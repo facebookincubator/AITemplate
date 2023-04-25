@@ -305,7 +305,7 @@ class BMMTestCase(unittest.TestCase):
         if detect_target().name() == "cuda":
             self._test_ccc([1, 9, 101], M=256, N=64, K=128, test_name="dynamic_b")
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
+    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_bmm_0_dtype(self, dtype):
         self._test_rcr([128], [64], N=8, K=64, test_name=f"static_{dtype}", dtype=dtype)
@@ -332,7 +332,7 @@ class BMMTestCase(unittest.TestCase):
             [1, 9, 11], M=64, N=32, K=16, test_name=f"dynamic_b_{dtype}", dtype=dtype
         )
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
+    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_bmm_1_dtype(self, dtype):
         self._test_rcc([128], [64], N=8, K=64, test_name=f"static_{dtype}", dtype=dtype)
@@ -727,7 +727,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         self._test_ccr([8, 16], [8, 32, 8], "2d_broadcastable_a")
         self._test_ccr([8, 8, 16], [32, 8], "2d_broadcastable_b")
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
+    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
     def test_bmm_broadcast_0_dtype(self, dtype):
         self._test_rcr([2, 16, 8], [1, 32, 8], f"broadcastable_b_{dtype}", dtype=dtype)
         self._test_rcr([16, 8], [8, 32, 8], f"2d_broadcastable_a_{dtype}", dtype=dtype)
@@ -738,7 +738,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         self._test_ccr([1, 8, 16], [2, 32, 8], f"broadcastable_a_{dtype}", dtype=dtype)
         self._test_ccr([8, 8, 16], [32, 8], f"2d_broadcastable_b_{dtype}", dtype=dtype)
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
+    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
     def test_bmm_broadcast_1_dtype(self, dtype):
         self._test_rcc([2, 16, 8], [1, 32, 8], f"broadcastable_b_{dtype}", dtype=dtype)
         self._test_rcc([16, 8], [8, 32, 8], f"2d_broadcastable_a_{dtype}", dtype=dtype)

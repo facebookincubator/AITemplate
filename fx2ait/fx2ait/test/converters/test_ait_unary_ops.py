@@ -48,7 +48,7 @@ TestEnvToPrecision: Dict[TestEnv, Set[LowerPrecision]] = {
 
 class TestUnaryOpsConverter(AITTestCase):
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 env: [
                     (

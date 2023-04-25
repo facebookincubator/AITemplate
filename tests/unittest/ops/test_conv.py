@@ -76,7 +76,7 @@ class ConvTestCase(unittest.TestCase):
             torch.testing.assert_close(Y_pt, y_transpose, atol=1.25e-1, rtol=1e-1)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
@@ -96,7 +96,7 @@ class ConvTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
@@ -108,7 +108,7 @@ class ConvTestCase(unittest.TestCase):
         self._test_conv1d(dtype=dtype, bias=False)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],

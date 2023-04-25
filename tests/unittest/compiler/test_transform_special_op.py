@@ -123,7 +123,7 @@ class GemmRrrSmallNkTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
@@ -237,7 +237,7 @@ class BmmRcrN1TestCase(unittest.TestCase):
         self._test_n1_k8(10, [8, 16], 1, 8, dtype="float32")
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],

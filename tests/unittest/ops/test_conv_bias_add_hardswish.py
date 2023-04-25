@@ -98,7 +98,7 @@ class ConvBiasAddHardswishTestCase(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y_transpose, atol=1e-2, rtol=1e-2))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32")],

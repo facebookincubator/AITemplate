@@ -75,7 +75,7 @@ class GEMMBiasTanhTestCase(unittest.TestCase):
             torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
