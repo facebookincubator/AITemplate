@@ -14,6 +14,7 @@
 #
 import re
 import unittest
+from typing import List
 
 import torch
 
@@ -55,37 +56,53 @@ class TransformPermuteToReshapeTestCase(unittest.TestCase):
     @parameterized.expand(
         [
             # no singleton
-            ([32, 51, 12], [1, 2, 0], False, "float16"),
-            ([32, 51, 12], [1, 2, 0], False, "float32"),
+            ([32, 51, 12], [1, 2, 0], False, False, "float16"),
+            ([32, 51, 12], [1, 2, 0], False, False, "float32"),
             # one singleton dimension
-            ([32, 51, 1], [0, 2, 1], True, "float16"),
-            ([32, 51, 1], [0, 2, 1], True, "float32"),
-            ([32, 51, 1], [1, 2, 0], False, "float16"),
-            ([32, 51, 1], [1, 2, 0], False, "float32"),
+            ([32, 51, 1], [0, 2, 1], True, False, "float16"),
+            ([32, 51, 1], [0, 2, 1], True, False, "float32"),
+            ([32, 51, 1], [1, 2, 0], False, False, "float16"),
+            ([32, 51, 1], [0, 2, 1], True, True, "float16"),
+            ([32, 51, 1], [1, 2, 0], False, True, "float16"),
             # two same sized dimensions
-            ([32, 32, 1], [2, 0, 1], True, "float16"),
-            ([32, 32, 1], [2, 0, 1], True, "float32"),
-            ([32, 32, 1], [1, 0, 2], False, "float16"),
-            ([32, 32, 1], [1, 0, 2], False, "float32"),
+            ([32, 32, 1], [2, 0, 1], True, False, "float16"),
+            ([32, 32, 1], [1, 0, 2], False, False, "float16"),
             # double singleton dimension
-            ([32, 1, 51, 1], [3, 0, 2, 1], True, "float16"),
-            ([32, 1, 51, 1], [3, 0, 2, 1], True, "float32"),
-            ([32, 1, 51, 1], [2, 3, 1, 0], False, "float16"),
-            ([32, 1, 51, 1], [2, 3, 1, 0], False, "float32"),
+            ([32, 1, 51, 1], [3, 0, 2, 1], True, False, "float16"),
+            ([32, 1, 51, 1], [2, 3, 1, 0], False, False, "float16"),
             # IntVar dimension
-            ([IntVar([1, 10]), 32, 1, 51], [0, 2, 1, 3], True, "float16"),
-            ([IntVar([1, 10]), 32, 1, 51], [0, 2, 1, 3], True, "float32"),
-            ([IntVar([1, 10]), 32, 1, 51], [2, 3, 0, 1], False, "float16"),
-            ([IntVar([1, 10]), 32, 1, 51], [2, 3, 0, 1], False, "float32"),
+            ([IntVar([1, 10]), 32, 1, 51], [0, 2, 1, 3], True, False, "float16"),
+            ([IntVar([1, 10]), 32, 51, 1], [0, 1, 3, 2], True, True, "float16"),
+            ([IntVar([1, 10]), 32, 1, 51], [0, 2, 1, 3], True, False, "float32"),
+            ([IntVar([1, 10]), 32, 1, 51], [2, 3, 0, 1], False, False, "float16"),
             # other
-            ([3, 1, 113, 15, 64], [0, 1, 2, 4, 3], False, "float16"),
-            ([3, 1, 113, 15, 64], [0, 1, 2, 4, 3], False, "float32"),
+            ([3, 1, 113, 15, 64], [0, 1, 2, 4, 3], False, False, "float16"),
+            ([3, 1, 113, 15, 64], [0, 1, 2, 4, 3], False, False, "float32"),
         ]
     )
-    def test_permute_to_reshape(self, shape, permutation, is_reshape, dtype):
+    def test_permute_to_reshape(
+        self,
+        shape: List[int],
+        permutation: List[int],
+        is_reshape: bool,
+        squeeze_trailing_dim: bool,
+        dtype: str,
+    ):
         target = detect_target()
 
-        X = Tensor(shape, dtype=dtype, is_input=True, name="x")
+        if squeeze_trailing_dim:
+            # Simulate situation when the rank of the input tensor doesn't
+            # match the permutation length, and transform_permute_to_reshape
+            # needs to take into account the original shape of the
+            # corresponsing tensor accessor. This could happen after fusion of
+            # permute and view op by transform_strided_ops pass.
+            # We test it by providing an input tensor with last dimension 1 and
+            # unsqueezing it before passing to permute
+            assert shape[-1] == 1
+            X0 = Tensor(shape[:-1], dtype=dtype, is_input=True, name="x")
+            X = ops.unsqueeze(len(shape) - 1)(X0)
+        else:
+            X = Tensor(shape, dtype=dtype, is_input=True, name="x")
         Z = ops.softmax()(ops.permute()(X, dims=permutation), -1)
         Z._attrs["is_output"] = True
         Z._attrs["name"] = "z"
@@ -112,6 +129,9 @@ class TransformPermuteToReshapeTestCase(unittest.TestCase):
         x_pt = get_random_torch_tensor(shape, dtype)
         z_pt = torch.softmax(torch.permute(x_pt, tuple(permutation)), dim=-1)
         z_ait = torch.empty_like(z_pt)
+        if squeeze_trailing_dim:
+            # Same as what we did with AIT input tensor X above
+            x_pt = x_pt.squeeze(-1)
         module.run_with_tensors({"x": x_pt}, {"z": z_ait})
 
         torch.testing.assert_close(z_ait, z_pt, atol=1e-1, rtol=1e-1)
