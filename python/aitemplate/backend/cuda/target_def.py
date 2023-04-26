@@ -120,11 +120,12 @@ class CUDA(Target):
             environ.get_compiler_opt_level(),
             "-std=c++17",
             "--expt-relaxed-constexpr",
-            "--use_fast_math",
             f"-I{ait_static_path}",
         ] + ["-I" + path for path in cutlass_path]
         if self._ndebug == 1:
             options.append("-DNDEBUG")
+        if environ.use_fast_math():
+            options.append("--use_fast_math")
         return " ".join(options)
 
     def src_extension(self):
@@ -277,7 +278,6 @@ class FBCUDA(CUDA):
                     "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
                     "-w",
                     "--expt-relaxed-constexpr",
-                    "--use_fast_math",
                     f"-gencode=arch=compute_{nvcc_arch},code=[sm_{nvcc_arch},compute_{nvcc_arch}]",
                     "-Xcompiler=-Wconversion",
                     environ.get_compiler_opt_level(),
@@ -286,6 +286,8 @@ class FBCUDA(CUDA):
             )
             if self._ndebug == 1:
                 options.append("-DNDEBUG")
+            if environ.use_fast_math():
+                options.append("--use_fast_math")
             FBCUDA.compile_options_ = " ".join(options)
         compile_options = FBCUDA.compile_options_
         _LOGGER.info(f"The compile options are: {compile_options}")
