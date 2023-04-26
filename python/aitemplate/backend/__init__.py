@@ -19,19 +19,23 @@ from aitemplate.backend import (  # noqa
     backend_spec,
     builder,
     codegen,
+    compile_engine,
     cuda,
     profiler_runner,
     registry,
     rocm,
+    sources,
     target,
 )
 
 __all__ = [
     "builder",
     "codegen",
+    "compile_engine",
     "cuda",
     "profiler_runner",
     "registry",
     "rocm",
+    "sources",
     "target",
 ]

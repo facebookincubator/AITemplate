@@ -29,11 +29,11 @@ from aitemplate.compiler.base import Tensor
 _LOGGER = logging.getLogger(__name__)
 
 
-def profile_dynamic_dim(sorted_graph: List[Tensor], workdir="./tmp"):
+def profile_dynamic_dim(target, sorted_graph: List[Tensor], workdir="./tmp"):
     _LOGGER.info("Current dynamic profiler supports ONLY ONE dynamic dim.")
     generated_profilers = list(codegen.gen_profiler(sorted_graph, workdir))
     generated_profilers = [p for p in generated_profilers if p is not None]
-    compile_engine = builder.Builder()
+    compile_engine = builder.get_compile_engine(target)
     compile_engine.make_profilers(generated_profilers, workdir)
     funcs_to_profile = OrderedDict(
         (func._attrs["name"], func)

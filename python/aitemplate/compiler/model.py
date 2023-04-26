@@ -24,6 +24,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, TypeVar, U
 import numpy as np
 
 from aitemplate.compiler.dtype import dtype_str_to_enum
+from aitemplate.utils.misc import is_linux, is_windows
 from aitemplate.utils.torch_utils import torch_dtype_to_string
 
 # Controls how many runtimes will be used in ModelContainer by default.
@@ -77,13 +78,27 @@ class _CFormatAITData(ctypes.Structure):
 
 
 def _dlclose(dll: ctypes.CDLL):
-    syms = ctypes.CDLL(None)
-    if hasattr(syms, "dlclose"):
-        f_dlclose = syms.dlclose
+    # todo: borrow more use-cases from https://stackoverflow.com/questions/359498/
+    f_dlclose = None
+
+    if is_windows():
+        f_dlclose = ctypes.windll.kernel32.FreeLibrary
+    elif is_linux():
+        syms = ctypes.CDLL(None)
+        if not hasattr(syms, "dlclose"):
+            # Apline Linux
+            syms = ctypes.CDLL("libc.so")
+
+        if hasattr(syms, "dlclose"):
+            f_dlclose = syms.dlclose
+
+    if f_dlclose is not None:
         f_dlclose.argtypes = [ctypes.c_void_p]
         f_dlclose(dll._handle)
     else:
-        logging.warning("dlclose() not found, library may not be unloaded properly!")
+        logging.warning(
+            "dll unloading function was not found, library may not be unloaded properly!"
+        )
 
 
 def _check_tensors(

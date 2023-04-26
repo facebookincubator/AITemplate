@@ -25,13 +25,14 @@ from __future__ import annotations
 import io
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import jinja2
 
 from aitemplate.backend import registry
 
 from aitemplate.backend.main_templates import MODEL_CONTAINER_TEMPLATE, MODEL_TEMPLATE
+from aitemplate.backend.sources import GeneratedSourceFiles
 from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
@@ -40,6 +41,7 @@ from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.utils.debug_settings import AITDebugSettings
+from aitemplate.utils.misc import is_windows
 
 # pylint: disable=C0103,W0613,C0301
 
@@ -84,7 +86,7 @@ def gen_profiler(sorted_graph: List[Tensor], workdir: str, dynamic_profiling_str
 
 def gen_function_src(
     sorted_graph: List[Tensor], workdir: str, model_name: str = ""
-) -> List[Tuple[str, str]]:
+) -> GeneratedSourceFiles:
     """Generate functions source code files for the given graph
 
     Parameters
@@ -98,11 +100,11 @@ def gen_function_src(
 
     Returns
     -------
-    List[Tuple[str, str]]
-        List of tuple (source file path, object file path)
+    GeneratedSourceFiles object
     """
+    generated = GeneratedSourceFiles()
+
     target = Target.current()
-    file_pairs = []
     exist_func = set()
     prefix = os.path.join(workdir, model_name)
     for node in sorted_graph:
@@ -110,13 +112,15 @@ def gen_function_src(
             fname = func._attrs["name"]
             if fname not in exist_func:
                 src_path = os.path.join(prefix, fname + target.src_extension())
-                obj_path = os.path.join(prefix, fname + ".obj")
-                file_pairs.append((src_path, obj_path))
+                generated.add(src_path)
                 with open(src_path, "w") as fo:
                     fo.write(func.gen_function())
                 exist_func.add(fname)
-    _LOGGER.info(f"generated {len(file_pairs)} function srcs")
-    return file_pairs
+
+    _LOGGER.info(
+        f"generated {len(generated.sources)} function srcs and {len(generated.headers)} headers"
+    )
+    return generated
 
 
 def map_set(
@@ -941,6 +945,7 @@ class ModelContainerGenerator:
             set_up_constant_folding_inputs="\n".join(
                 self.set_up_constant_folding_inputs
             ),
+            is_windows=is_windows(),
         )
         result[model_container_src_fname] = model_container_base_src
         return result
@@ -1006,7 +1011,7 @@ def gen_library_src(  # noqa: C901
     model_name: str = "",
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
     additional_unbound_constants: Optional[List[Tensor]] = None,
-) -> List[Tuple[str, str]]:
+) -> GeneratedSourceFiles:
     """Generate model driver source code files for the given graph
 
     Parameters
@@ -1027,44 +1032,41 @@ def gen_library_src(  # noqa: C901
 
     Returns
     -------
-    List[Tuple[str, str]]
-        List of tuple (source file path, object file path)
+    GeneratedSourceFiles object
     """
 
-    def to_obj_name(name: str):
-        name, _ = os.path.splitext(name)
-        return f"{name}.obj"
+    generated = GeneratedSourceFiles()
 
     prefix = os.path.join(workdir, model_name)
     constants_fname = os.path.join(prefix, "constants.bin")
-    constants_data_file = open(constants_fname, "wb")
-
-    model_container_generator = ModelContainerGenerator(
-        max_blob_size,
-        max_constant_blob_size,
-        workspace,
-        constants_data_file,
-        sorted_graph,
-        output_tensors,
-        additional_unbound_constants=additional_unbound_constants,
-        debug_settings=debug_settings,
-    )
-    model_container_generator.append_all_tensors()
-    constants_data_file.close()
+    with open(constants_fname, "wb") as constants_data_file:
+        model_container_generator = ModelContainerGenerator(
+            max_blob_size,
+            max_constant_blob_size,
+            workspace,
+            constants_data_file,
+            sorted_graph,
+            output_tensors,
+            additional_unbound_constants=additional_unbound_constants,
+            debug_settings=debug_settings,
+        )
+        model_container_generator.append_all_tensors()
+    generated.add(constants_fname)
 
     files = model_container_generator.generate_source()
-    to_build = [(constants_fname, to_obj_name(constants_fname))]
     for fname, contents in files.items():
         fname_full = os.path.join(prefix, fname)
         with open(fname_full, "w") as fo:
             fo.write(contents)
-        if not fname_full.endswith(".h"):
-            to_build.append((fname_full, to_obj_name(fname_full)))
+        generated.add(fname_full)
 
     # Copy over static csrc/headers
-    sources = model_container_generator.target.copy_headers_and_csrc_to_workdir(prefix)
-    for fname in sources:
-        to_build.append((fname, to_obj_name(fname)))
+    copied_sources = model_container_generator.target.copy_headers_and_csrc_to_workdir(
+        prefix
+    )
+    generated.add(copied_sources)
 
-    _LOGGER.info(f"generated {len(to_build)} library srcs")
-    return to_build
+    _LOGGER.info(
+        f"generated {len(generated.sources)} library srcs and {len(generated.headers)} headers"
+    )
+    return generated

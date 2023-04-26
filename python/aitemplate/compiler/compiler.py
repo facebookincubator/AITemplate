@@ -270,7 +270,7 @@ def compile_model(
                 else:
                     profile_devs = device_env.split(",")
             compiler.transform.profile(
-                graph, profile_dir, profile_devs, dynamic_profiling_strategy
+                target, graph, profile_dir, profile_devs, dynamic_profiling_strategy
             )
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "profile")
 
@@ -279,7 +279,7 @@ def compile_model(
             os.makedirs(constant_folding_workdir, exist_ok=True)
             (
                 graph,
-                constant_folding_file_pairs,
+                constant_folding_generated_sources,
                 constant_folding_inputs,
             ) = compiler.transform.constant_folding(graph, workdir, test_name)
             graph_utils.dump_graph_debug_str_to_file(
@@ -301,8 +301,10 @@ def compile_model(
             _mark_isolated_int_vars(graph)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "memory_planning")
 
-            file_pairs = backend.codegen.gen_function_src(graph, workdir, test_name)
-            file_pairs.extend(constant_folding_file_pairs)
+            generated_sources = backend.codegen.gen_function_src(
+                graph, workdir, test_name
+            )
+            generated_sources.add(constant_folding_generated_sources)
 
             # It's possible that the original output tensor has been replaced with a new tensor.
             # Preserve original output tensors' orders but use the new tensors.
@@ -317,7 +319,7 @@ def compile_model(
                 for tensor in output_tensors
             ]
 
-            main_pairs = backend.codegen.gen_library_src(
+            main_generated_sources = backend.codegen.gen_library_src(
                 graph,
                 max_blob,
                 max_constant_blob,
@@ -328,12 +330,13 @@ def compile_model(
                 additional_unbound_constants=constant_folding_inputs,
                 debug_settings=debug_settings,
             )
-            file_pairs.extend(main_pairs)
+            generated_sources.add(main_generated_sources)
 
             start_t = datetime.now()
-            compile_engine = backend.builder.Builder()
+
+            compile_engine = backend.builder.get_compile_engine(target)
             compile_engine.make(
-                file_pairs, dll_name, workdir, test_name, debug_settings
+                generated_sources, dll_name, workdir, test_name, debug_settings
             )
             _LOGGER.info(
                 f"compiled the final .so file elapsed time: {elapsed_dt_sec(start_t)}",

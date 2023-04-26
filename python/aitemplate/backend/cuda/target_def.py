@@ -39,7 +39,8 @@ from aitemplate.backend.target import (
 )
 
 from aitemplate.utils import environ
-from aitemplate.utils.misc import is_debug, is_linux
+from aitemplate.utils.io import copytree_with_hash
+from aitemplate.utils.misc import is_debug, is_linux, is_windows
 
 # pylint: disable=C0415,W0707,W0611,W0702,W1401
 
@@ -74,7 +75,7 @@ class CUDA(Target):
         self._kwargs = kwargs
         self._compile_options = self._build_compile_options()
 
-    def _build_compile_options(self):
+    def _build_include_directories(self) -> List[str]:
         flash_attention_path = ""
         if os.path.exists(
             os.path.join(
@@ -108,23 +109,60 @@ class CUDA(Target):
             ),
         ]
         ait_static_path = os.path.join(self._ait_include_path, "include/kernels")
+
+        output = [ait_static_path]
+        output.extend(cutlass_path)
+        return output
+
+    def get_include_directories(self) -> List[Path]:
+        return [Path(p) for p in self._build_include_directories()]
+
+    def _build_gnu_host_compiler_options(self) -> List[str]:
+        return [
+            "-Xcompiler=-fPIC",
+            "-Xcompiler=-Wconversion",
+            "-Xcompiler=-fno-strict-aliasing",
+            "-Xcompiler -fvisibility=hidden",
+        ]
+
+    def _build_msvc_host_compiler_options(self) -> List[str]:
+        return [
+            "-Xcompiler=/Zc:__cplusplus",
+            # NVCC crashes with the following option, disable it.
+            # "-Xcompiler=/std:c++latest",
+        ]
+
+    def _build_raw_compile_options(self) -> List[str]:
+        # generate nvcc compiler options
         options = [
             "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
             "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
             "-w",
             f"-gencode=arch=compute_{self._arch},code=[sm_{self._arch},compute_{self._arch}]",
-            "-Xcompiler=-fPIC",
-            "-Xcompiler=-Wconversion",
-            "-Xcompiler=-fno-strict-aliasing",
-            "-Xcompiler -fvisibility=hidden",
             environ.get_compiler_opt_level(),
             "-std=c++17",
             "--expt-relaxed-constexpr",
             "--use_fast_math",
-            f"-I{ait_static_path}",
-        ] + ["-I" + path for path in cutlass_path]
+        ]
         if self._ndebug == 1:
             options.append("-DNDEBUG")
+
+        # add host compiler options
+        if is_windows():
+            options.extend(self._build_msvc_host_compiler_options())
+        else:
+            options.extend(self._build_gnu_host_compiler_options())
+
+        # done
+        return options
+
+    def get_raw_compile_options(self) -> List[str]:
+        return self._build_raw_compile_options()
+
+    def _build_compile_options(self) -> str:
+        include_paths = self._build_include_directories()
+        raw_compile_options = self._build_raw_compile_options()
+        options = raw_compile_options + ["-I" + path for path in include_paths]
         return " ".join(options)
 
     def src_extension(self):

@@ -25,6 +25,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from aitemplate.backend import registry
 from aitemplate.backend.profiler_cache import ProfileCacheDB
+
+from aitemplate.backend.sources import GeneratedSourceFiles
 from aitemplate.utils.misc import is_linux
 
 
@@ -151,6 +153,10 @@ class Target:
     def make(self):
         make_path = shutil.which("make")
         return make_path if make_path is not None else "make"
+
+    def cmake(self):
+        cmake_path = shutil.which("cmake")
+        return cmake_path if cmake_path is not None else "cmake"
 
     def compile_cmd(self, executable: bool = False):
         """Compile command string template for this target.
@@ -417,7 +423,7 @@ class Target:
         else:
             raise NotImplementedError
 
-    def copy_headers_and_csrc_to_workdir(self, workdir: str) -> List[str]:
+    def copy_headers_and_csrc_to_workdir(self, workdir: str) -> GeneratedSourceFiles:
         """
         Copy over all the files in include/ and csrc/ to some working directory.
         Skips files that are not marked with .cpp/.h
@@ -429,6 +435,8 @@ class Target:
         workdir : str
             The path to copy to
         """
+        generated = GeneratedSourceFiles()
+
         sources = []
         csrc = os.path.join(self.static_files_path, "csrc")
         for fname in os.listdir(csrc):
@@ -443,6 +451,7 @@ class Target:
             fname_dst_cpp = os.path.join(workdir, f"{fname_dst}{self.src_extension()}")
             shutil.copyfile(fname_src, fname_dst_cpp)
             sources.append(fname_dst_cpp)
+        generated.add(sources)
 
         headers = []
         include = os.path.join(self.static_files_path, "include")
@@ -454,7 +463,9 @@ class Target:
             fname_dst = os.path.join(workdir, fname)
             shutil.copyfile(fname_src, fname_dst)
             headers.append(fname_dst)
-        return sources
+        generated.add(headers)
+
+        return generated
 
     @classmethod
     def remote_logger(cls, record: Dict[str, Any]) -> None:
