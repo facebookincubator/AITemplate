@@ -21,8 +21,6 @@ from aitemplate.testing import detect_target
 
 # pylint: disable=W0102
 
-USE_CUDA = detect_target().name() == "cuda"
-
 
 def get_shape(x):
     shape = [it.value() for it in x._attrs["shape"]]
@@ -56,6 +54,7 @@ class CrossAttention(nn.Module):
         self.scale = dim_head**-0.5
         self.heads = heads
         self.dim_head = dim_head
+        self.use_cuda = detect_target().name() == "cuda"
 
         self.to_q_weight = nn.Parameter(shape=[inner_dim, query_dim], dtype=dtype)
         self.to_k_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
@@ -68,7 +67,7 @@ class CrossAttention(nn.Module):
         nheads = self.heads
         d = self.dim_head
 
-        layout = "20314" if USE_CUDA else "m2n3"
+        layout = "20314" if self.use_cuda else "m2n3"
 
         bs, seqlen, _ = get_shape(x)
         q = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
@@ -84,7 +83,7 @@ class CrossAttention(nn.Module):
             ops.reshape()(context, [bs * seqlen, -1]), self.to_v_weight.tensor()
         )
 
-        if USE_CUDA:
+        if self.use_cuda:
             attn_op = ops.mem_eff_attention(causal=False)
             out = attn_op(
                 (ops.reshape()(q, [bs, nheads, -1, d])),
