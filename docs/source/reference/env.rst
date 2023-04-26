@@ -48,3 +48,5 @@ Miscellaneous
 **LOGLEVEL**: It is used to control the logging level in Python. The default value is "INFO". "DEBUG" is useful for debugging.
 
 **AIT_PLOT_SHORTEN_TENSOR_NAMES**: If set to "1", shorten too long tensor names for a plot of a model graph, thus making a plot much easier to analyze visually. "0" by default.
+
+**AIT_USE_FAST_MATH**: If set to "0", no fast math option will be used for the device code generation. Default value is "1".

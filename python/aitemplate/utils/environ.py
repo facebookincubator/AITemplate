@@ -36,6 +36,16 @@ def get_compiler_opt_level() -> str:
     return compiler_opt
 
 
+def use_fast_math() -> str:
+    """
+    Whether the fast math option should be used for the device code generation.
+    Fast math implies the use of approximate math operations (say,
+    a division operation), allowing to gain speed at the cost of accuracy.
+    Default value is "1".
+    """
+    return os.getenv("AIT_USE_FAST_MATH", "1") == "1"
+
+
 def force_profiler_cache() -> bool:
     """
     Force the profiler to use the cached results. The profiler will throw
