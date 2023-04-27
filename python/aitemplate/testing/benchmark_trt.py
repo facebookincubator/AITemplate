@@ -26,6 +26,7 @@ def make_trt_module(
     max_batch_size=256,
     max_workspace_size=2 << 31,
     dtype="float16",
+    dynamic_batch=False,
 ):
     if dtype == "float16":
         lower_precision = LowerPrecision.FP16
@@ -45,7 +46,7 @@ def make_trt_module(
         timing_cache_prefix=True,
         save_timing_cache=True,
         explicit_batch_dimension=True,
-        dynamic_batch=False,
+        dynamic_batch=dynamic_batch,
     )
 
 
