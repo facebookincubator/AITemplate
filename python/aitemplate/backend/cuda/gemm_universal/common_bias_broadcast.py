@@ -350,6 +350,7 @@ def gemm_bias_broadcast_instance(
     binary_op2,
     unary_op2,
     elem_type,
+    cutlass_3x=False,
 ):
     """
     adjust gemm instance with respect to input_accessors, layout and epilogue ops
