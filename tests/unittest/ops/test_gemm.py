@@ -411,6 +411,57 @@ class GEMMTestCase(unittest.TestCase):
                 dtype="bfloat16",
             )
 
+    def test_rrr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rrr(
+                    ms=[1, 99, 1024, 2048],
+                    k=252,
+                    n=16,
+                    test_name="dynamic_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rrr(
+                ms=[1, 99, 1024, 2048],
+                k=256,
+                n=16,
+                test_name="dynamic_force_sm90",
+                dtype="float16",
+            )
+
+            self._test_3d_2d_rrr(
+                m0s=[2, 34, 48],
+                m1s=[1, 3, 5],
+                k=256,
+                n=16,
+                test_name="dynamic3_force_sm90",
+                dtype="float16",
+            )
+
+            self._test_rrr(
+                ms=[256],
+                k=128,
+                n=32,
+                test_name="static_float_force_sm90",
+                dtype="float32",
+            )
+            self._test_rrr(
+                ms=[256],
+                k=128,
+                n=32,
+                test_name="static_bfloat16_force_sm90",
+                dtype="bfloat16",
+            )
+
 
 filter_test_cases_by_test_env(GEMMTestCase)
 
