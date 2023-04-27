@@ -21,6 +21,7 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    env_variables,
     filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
@@ -105,6 +106,47 @@ class GEMMBiasTestCase(unittest.TestCase):
             test_name=f"dynamic_m_{dtype}",
             dtype=dtype,
         )
+
+    def test_rcr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rcr(
+                    Ms=[128],
+                    N=32,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rcr(
+                Ms=[128],
+                N=32,
+                K=32,
+                test_name="static_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rcr(
+                Ms=[128],
+                N=32,
+                K=32,
+                test_name="static_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rcr(
+                Ms=[128],
+                N=32,
+                K=32,
+                test_name="static_bf16_force_sm90",
+                dtype="bfloat16",
+            )
 
 
 filter_test_cases_by_test_env(GEMMBiasTestCase)
