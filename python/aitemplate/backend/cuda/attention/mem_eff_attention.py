@@ -182,7 +182,7 @@ using namespace gemm_kernel_utils;
            " at " + __FILE__ + ": " + std::to_string(__LINE__);
       throw std::runtime_error(error_msg);
     }
-    kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes>>>(p);
+    kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);
 
     cudaError_t err = cudaDeviceSynchronize();
 
@@ -686,7 +686,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{fixed_seq_length_q}},
 {{indent}}    {{lengths_q}},
 {{indent}}    global_workspace_,
-{{indent}}    stream /* default stream */
+{{indent}}    {{stream}}
 {{indent}});
     """
 )
@@ -766,7 +766,10 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
 
     head_size_v = v._attrs["shape"][3]._attrs["values"][0]
 
+    backend_spec = CUDASpec()
+
     return FUNC_CALL_TEMPLATE.render(
+        stream=backend_spec.stream,
         func_name=func_attrs["name"],
         output=output_name,
         query=q_name,
