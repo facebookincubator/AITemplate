@@ -13,6 +13,7 @@
 #  limitations under the License.
 #
 import copy
+import logging
 import time
 import unittest
 
@@ -29,13 +30,15 @@ from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter
 from fx2ait.tensor_spec import TensorSpec
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 OSS_AITModel = False
 try:
     torch.ops.load_library("//deeplearning/ait:AITModel")
-    print("===Load non-OSS AITModel===")
+    logging.info("===Load non-OSS AITModel===")
 except Exception:
     torch.ops.load_library("build/libait_model.so")
-    print("===Load OSS AITModel===")
+    logging.info("===Load OSS AITModel===")
     OSS_AITModel = True
 
 
