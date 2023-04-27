@@ -205,7 +205,7 @@ class nmsTestCase(unittest.TestCase):
                 name="scores",
                 is_input=True,
             )
-            score_inds = ops.topk(k=topK)(X_scores)
+            _, score_inds = ops.topk(k=topK)(X_scores)
             bboxes = ops.batch_gather()(X_boxes, score_inds)
             OP = ops.batched_nms(iou_threshold=iou, keep_n=N)
             if copy_op:

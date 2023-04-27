@@ -743,17 +743,8 @@ def acc_ops_topk(
     if sorted is not None:
         logger.warning("Ignoring the value of 'sorted': %s", sorted)
 
-    result_indices = topk(k=k)(input_val)
-    # current AIT implementation only returns indices. to match the torch topk return types, create dummy values
-    #
-    # TODO remove the hard coded dtype below, once we know whether AIT will support fp32 (thus providing an option of
-    # fp16 or fp32 for values)
-    return (
-        AITTensor(
-            shape=result_indices.shape(), dtype="float16", name=f"{name}_result_values"
-        ),
-        result_indices,
-    )
+    result = topk(k=k)(input_val)
+    return result
 
 
 @ait_converter(acc_ops.tuple_construct)
