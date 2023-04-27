@@ -17,6 +17,7 @@ import hashlib
 import logging
 import os
 import random
+import re
 import secrets
 import shlex
 import shutil
@@ -342,7 +343,9 @@ class BuildCache(ABC):
         """
         pass
 
-    def makefile_normalizer(self, path, memoize_replacements=True) -> Optional[bytes]:
+    def makefile_normalizer(
+        self, path, memoize_replacements=True, debug=False
+    ) -> Optional[bytes]:
         """
         Normalizes the content of the makefile for hashing purposes (nothing else!),
         so that it can be compared to other Makefiles
@@ -389,7 +392,13 @@ class BuildCache(ABC):
 
         for search, replace in replacements.items():
             makefile_content = makefile_content.replace(search, replace)
-        return makefile_content.encode("utf-8")
+        makefile_content = re.sub(
+            r"[^/\\]+[/\\]fb_include", "fb_include", makefile_content
+        )
+        makefile_bytes = makefile_content.encode("utf-8")
+        if debug:
+            (p.parent / (p.name + ".normalized")).write_bytes(makefile_bytes)
+        return makefile_bytes
 
 
 class NoBuildCache(BuildCache):
