@@ -23,6 +23,7 @@ from aitemplate.backend import registry
 
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.gemm_universal import common, common_bias, gemm_rcr
+from aitemplate.backend.cuda.gemm_universal.layout import RCR
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 
@@ -54,6 +55,30 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 )
 
 
+PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
+    """
+    cutlass::gemm::GemmUniversalMode::kGemm,                     // GemmUniversalMode mode
+    {
+        static_cast<coord_t>(M),
+        static_cast<coord_t>(N),
+        static_cast<coord_t>(K),
+        static_cast<coord_t>(1)
+    },                                                           // ProblemShape problem_shape
+    ({{elem_input_type}}*)(a_ptr) + input_a_offset,              // ElementA const* ptr_A
+    {input_a_stride, cute::Int<1>{}, cute::Int<0>{}},            // StrideA dA
+    ({{elem_input_type}}*)(b_ptr) + input_b_offset,              // ElementB const* ptr_B
+    {input_b_stride, cute::Int<1>{}, cute::Int<0>{}},            // StrideB dB
+    {
+        {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename ThreadEpilogueOp::Params thread
+        ({{elem_input_type}}*)(bias_ptr),                        // ElementC const* ptr_C
+        {cute::Int<0>{}, cute::Int<1>{}, cute::Int<0>{}},        // StrideC dC
+        ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementD const* ptr_D
+        {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideD dD
+    },                                                           // EpilogueArguments epilogue
+"""
+)
+
+
 # for profiler, no need to include TensorAccessor
 PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
@@ -81,20 +106,45 @@ PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 )
 
 
+PROFILER_PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
+    """
+    cutlass::gemm::GemmUniversalMode::kGemm,                     // GemmUniversalMode mode
+    {
+        static_cast<coord_t>(M),
+        static_cast<coord_t>(N),
+        static_cast<coord_t>(K),
+        static_cast<coord_t>(1)
+    },                                                           // ProblemShape problem_shape
+    ({{elem_input_type}}*)(a_ptr),                               // ElementA const* ptr_A
+    {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideA dA
+    ({{elem_input_type}}*)(b_ptr),                               // ElementB const* ptr_B
+    {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideB dB
+    {
+        {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename ThreadEpilogueOp::Params thread
+        ({{elem_input_type}}*)(bias_ptr),                        // ElementC const* ptr_C
+        {cute::Int<0>{}, cute::Int<1>{}, cute::Int<0>{}},        // StrideC dC
+        ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementD const* ptr_D
+        {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideD dD
+    },                                                           // EpilogueArguments epilogue
+"""
+)
+
+
 @registry.reg("cuda.gemm_rcr_bias.config")
 def gemm_rcr_config(func_attrs, dtype="float16"):
-    return gemm_rcr.gemm_rcr_config(func_attrs, dtype)
+    common.make_fproc(func_attrs, RCR, include_cutlass_3x_ops=True)
 
 
 @registry.reg("cuda.gemm_rcr_bias.gen_profiler")
 def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     return gemm_rcr.common_gen_profiler(
-        func_attrs,
-        workdir,
-        profiler_filename,
-        dim_info_dict,
-        common_bias.SRC_TEMPLATE,
-        PROFILER_PROBLEM_ARGS_TEMPLATE,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=common_bias.SRC_TEMPLATE,
+        problem_args_template=PROFILER_PROBLEM_ARGS_TEMPLATE,
+        problem_args_template_cutlass_3x=PROFILER_PROBLEM_ARGS_TEMPLATE_CUTLASS_3X,
         bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
     )
 
@@ -120,15 +170,20 @@ def gen_function(
         elem_input_type=elem_input_type,
         elem_output_type=elem_output_type,
     )
+    problem_args_cutlass_3x = PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+    )
     return common.gen_function(
-        func_attrs,
-        common_bias.SRC_TEMPLATE,
-        exec_cond_template,
-        problem_args,
-        input_ndims,
-        weight_ndims,
-        output_ndims,
-        dim_info_dict,
+        func_attrs=func_attrs,
+        src_template=common_bias.SRC_TEMPLATE,
+        exec_cond_template=exec_cond_template,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
+        input_ndims=input_ndims,
+        weight_ndims=weight_ndims,
+        output_ndims=output_ndims,
+        dim_info_dict=dim_info_dict,
         support_split_k=True,
         input_addr_calculator=input_addr_calculator,
         output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(

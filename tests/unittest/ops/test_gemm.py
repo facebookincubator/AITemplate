@@ -364,7 +364,7 @@ class GEMMTestCase(unittest.TestCase):
                     ms=[1, 1024],
                     k=252,
                     n=512,
-                    test_name="dynamic_force_sm90",
+                    test_name="wrong_alignment_force_sm90",
                     dtype="float16",
                 )
 
@@ -426,7 +426,7 @@ class GEMMTestCase(unittest.TestCase):
                     ms=[1, 99, 1024, 2048],
                     k=252,
                     n=16,
-                    test_name="dynamic_force_sm90",
+                    test_name="wrong_alignment_force_sm90",
                     dtype="float16",
                 )
 
