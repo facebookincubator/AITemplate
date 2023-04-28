@@ -20,18 +20,10 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
-    filter_test_cases_by_params,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
-    TestEnv,
 )
-
-from parameterized import parameterized
-
-_TEST_PARAMS = {
-    TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-    TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
-}
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -333,8 +325,7 @@ class BMMAddTestCase(unittest.TestCase):
     def test_crc(self):
         self._test_crc(B=32, M=256, K=256, N=512)
 
-    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_add_0_dtype(self, dtype):
+    def test_bmm_add_0_fp32_sm80(self, dtype="float32"):
         self._test_rrr(B=8, M=32, K=8, N=64, dtype=dtype)
         self._test_ccr(
             B=8, M=32, N=64, K=16, test_name=f"bmm_ccr_add_{dtype}", dtype=dtype
@@ -344,8 +335,27 @@ class BMMAddTestCase(unittest.TestCase):
             B=8, M=32, N=64, K=16, test_name=f"bmm_rcr_add_{dtype}", dtype=dtype
         )
 
-    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_add_1_dtype(self, dtype):
+    def test_bmm_add_0_bf16(self, dtype="bfloat16"):
+        self._test_rrr(B=8, M=32, K=8, N=64, dtype=dtype)
+        self._test_ccr(
+            B=8, M=32, N=64, K=16, test_name=f"bmm_ccr_add_{dtype}", dtype=dtype
+        )
+        self._test_crr(B=8, M=32, K=16, N=64, dtype=dtype)
+        self._test_rcr(
+            B=8, M=32, N=64, K=16, test_name=f"bmm_rcr_add_{dtype}", dtype=dtype
+        )
+
+    def test_bmm_add_1_fp32_sm80(self, dtype="float32"):
+        self._test_rrc(B=8, M=32, K=8, N=64, dtype=dtype)
+        self._test_ccc(
+            B=8, M=32, N=64, K=16, test_name=f"bmm_ccr_add_{dtype}", dtype=dtype
+        )
+        self._test_crc(B=8, M=32, K=16, N=64, dtype=dtype)
+        self._test_rcc(
+            B=8, M=32, N=64, K=16, test_name=f"bmm_rcc_add_{dtype}", dtype=dtype
+        )
+
+    def test_bmm_add_1_bf16(self, dtype="bfloat16"):
         self._test_rrc(B=8, M=32, K=8, N=64, dtype=dtype)
         self._test_ccc(
             B=8, M=32, N=64, K=16, test_name=f"bmm_ccr_add_{dtype}", dtype=dtype
@@ -735,8 +745,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
             test_name="broadcastable_bias3d",
         )
 
-    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_add_broadcast_0_dtype(self, dtype):
+    def test_bmm_add_broadcast_0_fp32_sm80(self, dtype="float32"):
         self._test_crr(
             [1, 8, 16],
             [2, 8, 32],
@@ -766,8 +775,37 @@ class BMMBroadcastTestCase(unittest.TestCase):
             dtype=dtype,
         )
 
-    @parameterized.expand(**filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_add_broadcast_1_dtype(self, dtype):
+    def test_bmm_add_broadcast_0_bf16(self, dtype="bfloat16"):
+        self._test_crr(
+            [1, 8, 16],
+            [2, 8, 32],
+            bias_shape=[16, 32],
+            test_name=f"broadcastable_bias2d_{dtype}",
+            dtype=dtype,
+        )
+        self._test_rcr(
+            [1, 16, 8],
+            [2, 32, 8],
+            bias_shape=[1, 16, 32],
+            test_name=f"broadcastable_bias3d_{dtype}",
+            dtype=dtype,
+        )
+        self._test_rrr(
+            [1, 16, 8],
+            [2, 8, 32],
+            bias_shape=[1, 32],
+            test_name=f"broadcastable_bias1d_2_{dtype}",
+            dtype=dtype,
+        )
+        self._test_ccr(
+            [1, 8, 16],
+            [2, 32, 8],
+            bias_shape=[1, 16, 32],
+            test_name=f"broadcastable_bias3d_{dtype}",
+            dtype=dtype,
+        )
+
+    def test_bmm_add_broadcast_1_fp32_sm80(self, dtype="float32"):
         self._test_crc(
             [1, 8, 16],
             [2, 8, 32],
@@ -796,6 +834,40 @@ class BMMBroadcastTestCase(unittest.TestCase):
             test_name=f"broadcastable_bias3d_{dtype}",
             dtype=dtype,
         )
+
+    def test_bmm_add_broadcast_1_bf16(self, dtype="bfloat16"):
+        self._test_crc(
+            [1, 8, 16],
+            [2, 8, 32],
+            bias_shape=[32, 16],
+            test_name=f"broadcastable_bias2d_{dtype}",
+            dtype=dtype,
+        )
+        self._test_rcc(
+            [1, 16, 8],
+            [2, 32, 8],
+            bias_shape=[1, 32, 16],
+            test_name=f"broadcastable_bias3d_{dtype}",
+            dtype=dtype,
+        )
+        self._test_rrc(
+            [1, 16, 8],
+            [2, 8, 32],
+            bias_shape=[1, 16],
+            test_name=f"broadcastable_bias1d_2_{dtype}",
+            dtype=dtype,
+        )
+        self._test_ccc(
+            [1, 8, 16],
+            [2, 32, 8],
+            bias_shape=[1, 32, 16],
+            test_name=f"broadcastable_bias3d_{dtype}",
+            dtype=dtype,
+        )
+
+
+filter_test_cases_by_test_env(BMMAddTestCase)
+filter_test_cases_by_test_env(BMMBroadcastTestCase)
 
 
 if __name__ == "__main__":
