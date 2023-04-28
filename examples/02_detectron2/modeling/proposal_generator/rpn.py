@@ -123,7 +123,7 @@ class RPN(nn.Module):
         for rois, logit in zip(pred_rois, pred_logits):
             rois = ops.reshape()(rois, [N, -1, 4])
             if self.topk > 0 and rois.shape()[1].value() > self.topk:
-                score_inds = ops.topk(k=self.topk)(ops.reshape()(logit, [N, -1]))
+                _, score_inds = ops.topk(k=self.topk)(ops.reshape()(logit, [N, -1]))
                 boxes_topk = ops.batch_gather()(rois, score_inds)
                 scores_topk = ops.batch_gather()(
                     ops.reshape()(logit, [N, -1, 1]), score_inds
