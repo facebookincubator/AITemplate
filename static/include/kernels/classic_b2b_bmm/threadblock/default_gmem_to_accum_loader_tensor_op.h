@@ -86,6 +86,7 @@
 #include "classic_b2b_bmm/threadblock/gmem_to_accum_loader.h"
 #include "classic_b2b_bmm/threadblock/gmem_to_accum_loader_shared_load_iterator.h"
 #include "classic_b2b_bmm/warp/gmem_to_accum_loader_fragment_iterator_tensor_op.h"
+#include "classic_b2b_bmm/threadblock/custom_epilogue_tensor_op.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,9 +155,9 @@ struct DefaultGmemToAccumLoaderTensorOp {
                                         LayoutC> >::type;
 
   /// Support several implementations depending on structure of epilogue
-  using DefaultIterators = detail::DefaultIteratorsTensorOp<
+  using DefaultIterators = classic_b2b_bmm::detail::DefaultIteratorsTensorOp<
     ElementOutput,
-    ElementAccumulator,
+    ElementOutput,
     kElementsPerAccess,
     Shape,
     typename WarpMmaTensorOp::Shape,
@@ -167,7 +168,7 @@ struct DefaultGmemToAccumLoaderTensorOp {
   using WarpTileIterator = typename DefaultIterators::WarpTileIterator;
   using SharedLoadIterator = typename cutlass::epilogue::threadblock::GmemToAccumLoaderSharedLoadIterator<
     typename OutputTileThreadMap::CompactedThreadMap,
-    ElementAccumulator
+    ElementOutput
   >;
 
   /// Hard-coded padding elements added

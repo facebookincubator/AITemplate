@@ -82,6 +82,8 @@ template <
     int kAlignmentB,
     /// Layout type for B1 matrix operand
     typename LayoutB1_,
+    /// Element type for C matrix
+    typename ElementC_,
     /// Element type for internal accumulation
     typename ElementAccumulator_,
     /// Layout type for C and D matrix operands
@@ -132,6 +134,8 @@ template <
     int kAlignmentB,
     /// Layout type for B1 matrix operand
     typename LayoutB1,
+    /// Element type forAC matrix operand
+    typename ElementC,
     /// Element type for internal accumulation
     typename ElementAccumulator,
     /// Tag indicating architecture to tune for
@@ -153,7 +157,7 @@ template <
     /// Epilogue output operator
     typename EpilogueOutputOp>
 struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
-                  kAlignmentB, LayoutB1, ElementAccumulator, layout::RowMajor,
+                  kAlignmentB, LayoutB1, ElementC, ElementAccumulator, layout::RowMajor,
                   arch::OpClassTensorOp, ArchTag,
                   ThreadblockShape0, ThreadblockShape1,
                   WarpShape0, WarpShape1,
@@ -218,7 +222,7 @@ struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
       typename MmaCore1::Shape, FragmentIteratorA1,
       IteratorAccumulatorScaleBias, FragmentIteratorA1ScaleBias,
       IteratorB1, typename MmaCore1::SmemIteratorB,
-      ElementAccumulator, layout::RowMajor,
+      ElementC, ElementAccumulator, layout::RowMajor,
       EpilogueOutputOp,
       typename MmaCore0::MmaPolicy, typename MmaCore1::MmaPolicy>;
 
@@ -241,6 +245,8 @@ template <
     int kAlignmentB,
     /// Layout type for B1 matrix operand
     typename LayoutB1,
+    /// Element type for output
+    typename ElementC,
     /// Element type for internal accumulation
     typename ElementAccumulator,
     /// Tag indicating architecture to tune for
@@ -264,7 +270,7 @@ template <
     /// Epilogue output operator
     typename EpilogueOutputOp>
 struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
-                  kAlignmentB, LayoutB1, ElementAccumulator, layout::RowMajor,
+                  kAlignmentB, LayoutB1, ElementC, ElementAccumulator, layout::RowMajor,
                   arch::OpClassTensorOp, ArchTag,
                   ThreadblockShape0, ThreadblockShape1,
                   WarpShape0, WarpShape1,
@@ -311,11 +317,12 @@ struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
   // FragmentIteratorA1 should just load A1 fragments from the intermediate
   // accumulator tile without modification, so LinearCombination is used to
   // apply a no-op to the accumulator tile.
-  using LinearCombinationOutputOp = epilogue::thread::LinearCombination<
-    typename EpilogueOutputOp::ElementOutput,
+  using LinearCombinationOutputOp = cutlass::epilogue::thread::LinearCombination<
+    ElementC,
     EpilogueOutputOp::kCount,
-    typename EpilogueOutputOp::ElementOutput,
-    typename EpilogueOutputOp::ElementCompute
+    ElementAccumulator,
+    ElementC,
+    cutlass::epilogue::thread::ScaleType::Nothing
   >;
   using FragmentIteratorA1 =
       cutlass::gemm::warp::MmaTensorOpFragmentIterator<
@@ -358,7 +365,7 @@ struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
       typename MmaCore1::Shape, FragmentIteratorA1,
       IteratorAccumulatorScaleBias, FragmentIteratorA1ScaleBias,
       IteratorB1, typename MmaCore1::SmemIteratorB, MmaCore1::kCacheOpB,
-      ElementAccumulator, layout::RowMajor,
+      ElementC, ElementAccumulator, layout::RowMajor,
       EpilogueOutputOp,
       typename MmaCore0::MmaPolicy, typename MmaCore1::MmaPolicy, Stages,
       CausalMaskAfterGemm0, typename MmaCore0::WarpShape>;
