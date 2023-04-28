@@ -60,6 +60,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
         copy_op=True,
         atol=1e-2,
         rtol=1e-2,
+        use_fp16_acc=True,
     ):
         # Initialize AIT classic_b2b_bmm operator.
         if isinstance(batch_sizes, int):
@@ -107,7 +108,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
 
-        target = detect_target(use_fp16_acc=True)
+        target = detect_target(use_fp16_acc=use_fp16_acc)
         module = compile_model(Y, target, "./tmp", test_name)
 
         # Run tests.
@@ -139,6 +140,22 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
             )
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_classic_b2b_bmm_fp16_fp32acc(self):
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_fp16_basic_fp32acc",
+            dtype="float16",
+            batch_sizes=1,
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_fp16_sigmoid_fp32acc",
+            dtype="float16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="Sigmoid",
+            use_fp16_acc=False,
+        )
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_b2b_bmm_fp16(self):

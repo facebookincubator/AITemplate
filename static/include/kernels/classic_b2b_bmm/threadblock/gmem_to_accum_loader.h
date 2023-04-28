@@ -175,7 +175,7 @@ public:
     typename OutputTileIterator::Element, OutputTileIterator::kElementsPerAccess>;
 
   /// Vector type used by the shared output iterator
-  using AccumulatorAccessType = Array<typename WarpTileIterator::Element, OutputTileIterator::kElementsPerAccess>;
+  using AccumulatorAccessType = Array<ElementAccumulator, OutputTileIterator::kElementsPerAccess>;
 
   static int constexpr kSmemTiles = Base::kFragmentsPerIteration > 1 ? Base::kFragmentsPerIteration : kPartitionsK;
 
@@ -290,7 +290,7 @@ public:
       {
 
         typename AccumulatorFragmentIterator::Fragment accum_fragment;
-        typename AccumulatorFragmentIterator::Fragment source_accum_fragment;
+        typename OutputTileIterator::Fragment source_accum_fragment;
         typename AccumulatorFragmentIterator::Fragment output_accum_fragment;
 
         // Load from shared memory to "unaligned" accumulator fragment.
@@ -327,11 +327,11 @@ private:
     typename AccumulatorFragmentIterator::Fragment &output_fragment,
     OutputOp const &output_op,                    ///< Output operator
     typename AccumulatorFragmentIterator::Fragment const &accum_fragment,
-    typename AccumulatorFragmentIterator::Fragment const &source_fragment)
+    typename OutputTileIterator::Fragment const &source_fragment)
   {
 
-    OutputAccessType *output_frag_ptr =
-      reinterpret_cast<OutputAccessType *>(&output_fragment);
+    AccumulatorAccessType *output_frag_ptr =
+      reinterpret_cast<AccumulatorAccessType *>(&output_fragment);
 
     AccumulatorAccessType const *compute_frag_ptr =
       reinterpret_cast<AccumulatorAccessType const *>(&accum_fragment);
@@ -341,12 +341,12 @@ private:
 
     int const kOutputOpIterations =
       AccumulatorFragmentIterator::Fragment::kElements / OutputTileIterator::kElementsPerAccess;
-
+    NumericArrayConverter<typename AccumulatorAccessType::Element, typename OutputAccessType::Element, OutputOp::kCount, OutputOp::kRound> converter;
     CUTLASS_PRAGMA_UNROLL
     for (int i = 0; i < kOutputOpIterations; ++i)
     {
       // Call the output operator
-      output_frag_ptr[i] = output_op(compute_frag_ptr[i], source_frag_ptr[i]);
+      output_frag_ptr[i] = converter(output_op(compute_frag_ptr[i], source_frag_ptr[i]));
     }
   }
 
