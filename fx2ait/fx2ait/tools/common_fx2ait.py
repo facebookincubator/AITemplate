@@ -133,7 +133,7 @@ class AITTestCase(TestCase):
         mod.to(torch_dtype)
         inputs = [
             inp.to(torch_dtype).contiguous()
-            if inp.dtype is not torch.bool
+            if inp.dtype not in (torch.bool, torch.int64)
             else inp.contiguous()
             for inp in inputs
         ]
