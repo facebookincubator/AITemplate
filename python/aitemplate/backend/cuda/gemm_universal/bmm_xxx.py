@@ -38,6 +38,9 @@ def _get_problem_args(a_layout, b_layout, c_layout):
         "ldb": "K" if b_layout == "c" else "N",
         "ldbias": "M" if c_layout == "c" else "N",
         "ldc": "M" if c_layout == "c" else "N",
+        "a_row_major": a_layout == "r",
+        "b_row_major": b_layout == "r",
+        "c_row_major": c_layout == "r",
     }
 
 
@@ -64,7 +67,10 @@ def get_config(a_layout, b_layout, c_layout):
                 epilogue_name=func_attrs["epilogue"],
             )
 
-        func_attrs["op_instance"] = common.extract_config(fproc)
+        func_attrs["op_instance"] = common.extract_config(
+            f_proc_op=fproc,
+            include_cutlass_3x_ops=True,
+        )
 
     return config
 
@@ -105,17 +111,22 @@ def get_gen_function(a_layout, b_layout, c_layout):
         )
         (
             problem_args,
+            problem_args_cutlass_3x,
             input_addr_calculator,
             output_addr_calculator,
         ) = bmm_common.make_function_strided_args(
-            func_attrs, dim_info_dict, default_mm_info, is_permute=False
+            func_attrs=func_attrs,
+            dim_info_dict=dim_info_dict,
+            default_mm_info=default_mm_info,
+            is_permute=False,
         )
 
         return bmm_common.gen_function(
-            func_attrs,
-            exec_cond_template,
-            problem_args,
-            dim_info_dict,
+            func_attrs=func_attrs,
+            exec_cond_template=exec_cond_template,
+            problem_args=problem_args,
+            problem_args_cutlass_3x=problem_args_cutlass_3x,
+            dim_info_dict=dim_info_dict,
             input_addr_calculator=input_addr_calculator,
             output_addr_calculator=output_addr_calculator,
         )

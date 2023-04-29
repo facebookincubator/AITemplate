@@ -24,7 +24,9 @@ from aitemplate.backend.cuda.gemm_universal import bmm_common, common
 
 def _get_problem_info(**kwargs):
     problem_args = {
-        "problem_size": "{N, M, K}",
+        "problem_dim_0": "N",
+        "problem_dim_1": "M",
+        "problem_dim_2": "K",
         "bias_ptr": "c_ptr",
         "a_batch_stride": "0",
         "b_batch_stride": "K * M",
