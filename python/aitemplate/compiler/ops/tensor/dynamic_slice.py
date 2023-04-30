@@ -15,12 +15,13 @@
 """
 Dynamic_slice.
 """
-import itertools
 from typing import List, Optional, Union
+
+import sympy
 
 from aitemplate import backend
 from aitemplate.backend import registry
-from aitemplate.compiler.base import IntVar, IntVarTensor, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221
@@ -69,15 +70,28 @@ class dynamic_slice(Operator):
         start = end if start > end else start
         return [start, end]
 
-    def _infer_shape(
-        self, x_shape: List[int], start_indices: List[int], end_indices: List[int]
-    ) -> List[int]:
-        y_shape = []
-        for dim_val, start, end in zip(x_shape, start_indices, end_indices):
-            # handle negative indices
-            start, end = dynamic_slice.normalize_start_end_indices(dim_val, start, end)
-            y_shape.append(end - start)
-        return y_shape
+    def _infer_dynamic_dim(self, dim: IntVar, start_index: int, end_index: int):
+        values = dim._attrs["values"]
+        new_values = []
+
+        for value in values:
+            start, end = dynamic_slice.normalize_start_end_indices(
+                value, start_index, end_index
+            )
+            new_values.append(end - start)
+        new_values = sorted(set(new_values))
+
+        start_sym = (
+            start_index if start_index >= 0 else dim.symbolic_value() + start_index
+        )
+        end_sym = end_index if end_index >= 0 else dim.symbolic_value() + end_index
+
+        start_sym = sympy.Min(dim.symbolic_value(), sympy.Max(0, start_sym))
+        end_sym = sympy.Min(dim.symbolic_value(), sympy.Max(0, end_sym))
+
+        symbolic_value = sympy.Max(0, end_sym - start_sym)
+
+        return shape_utils.gen_int_var(new_values, symbolic_value=symbolic_value)
 
     def _infer_shapes(
         self,
@@ -86,25 +100,26 @@ class dynamic_slice(Operator):
         end_indices: List[Union[IntVar, IntVarTensor, Optional[int]]],
     ) -> List[IntVar]:
         """Infers shape for dynamic_slice."""
+        # TODO: Handle start_indices/end_indices that are not int.
 
         x_shape = x._attrs["shape"]
-        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
-        x_shapes = itertools.product(*x_shape_values)
-        y_shapes = []
-        for x_shape in x_shapes:
-            y_shape = self._infer_shape(x_shape, start_indices, end_indices)
-            y_shapes.append(y_shape)
-
-        def unique(vector):
-            return sorted(set(vector))
-
         output_shape = []
-        for idx in range(len(y_shapes[0])):
-            output_shape.append(
-                x._attrs["shape"][idx]
-                if (start_indices[idx] == 0 and end_indices[idx] == MAX_INT32)
-                else shape_utils.gen_int_var(unique(d[idx] for d in y_shapes))
-            )
+        for dim_val, start, end in zip(x_shape, start_indices, end_indices):
+            if start == 0 and end == MAX_INT32:
+                # Slicing along the whole dim.
+                output_shape.append(dim_val)
+            elif isinstance(dim_val, IntImm):
+                # Slicing a static dimension.
+                start, end = dynamic_slice.normalize_start_end_indices(
+                    dim_val.value(), start, end
+                )
+                output_shape.append(IntImm(end - start))
+            elif start >= 0 and end >= 0:
+                # Fixed size from start and end.
+                output_shape.append(IntImm(end - start))
+            else:
+                output_shape.append(self._infer_dynamic_dim(dim_val, start, end))
+
         return output_shape
 
     def __call__(
