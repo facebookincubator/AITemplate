@@ -21,6 +21,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    env_variables,
     filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
@@ -407,6 +408,366 @@ class BMMTestCase(unittest.TestCase):
         self._test_ccc(
             [1, 9, 11], M=64, N=32, K=16, test_name=f"dynamic_b_{dtype}", dtype=dtype
         )
+
+    def test_rrr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rrr(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    K=60,
+                    N=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rrr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rrr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=60,
+                N=28,
+                test_name="dynamic_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rrr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_rcr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rcr(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    N=60,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rcr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rcr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=60,
+                K=28,
+                test_name="dynamic_bm_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rcr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_ccr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_ccr(
+                    bs=[1, 5, 11],
+                    M=60,
+                    N=7,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_ccr(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_ccr(
+                bs=[1, 5, 11],
+                M=60,
+                N=7,
+                K=28,
+                test_name="dynamic_b_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_ccr(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_crr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_crr(
+                    bs=[1, 2, 5],
+                    ks=[3, 6, 8],
+                    M=28,
+                    N=60,
+                    test_name="dynamic_bk_fp16_forse_sm90",
+                    dtype="float16",
+                )
+
+            self._test_crr(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_crr(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=28,
+                N=60,
+                test_name="dynamic_bk_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_crr(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_rrc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rrc(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    K=60,
+                    N=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rrc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rrc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=60,
+                N=28,
+                test_name="dynamic_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rrc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_rcc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rcc(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    N=60,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rcc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rcc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=60,
+                K=28,
+                test_name="dynamic_bm_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rcc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_ccc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_ccc(
+                    bs=[1, 5, 11],
+                    M=60,
+                    N=7,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_ccc(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_ccc(
+                bs=[1, 5, 11],
+                M=60,
+                N=7,
+                K=28,
+                test_name="dynamic_b_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_ccc(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_crc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_crc(
+                    bs=[1, 2, 5],
+                    ks=[3, 6, 8],
+                    M=28,
+                    N=60,
+                    test_name="dynamic_bk_fp16_forse_sm90",
+                    dtype="float16",
+                )
+
+            self._test_crc(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_crc(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=28,
+                N=60,
+                test_name="dynamic_bk_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_crc(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
