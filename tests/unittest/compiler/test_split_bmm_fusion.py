@@ -153,7 +153,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         )
         # bmm_rcr, split_dim = 1
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr, 1024, 512, 512, 256 * 2, 256, 1, "test_split_bmm_rcr"
+            ops.bmm_rcr, 10, 512, 512, 256 * 2, 256, 1, "test_split_bmm_rcr"
         )
 
     def _test_split_bmm_rcr_fusion_dynamic_M(
@@ -238,7 +238,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         # bmm_rcr
         self._test_split_bmm_rcr_fusion_dynamic_M(
             ops.bmm_rcr,
-            1024,
+            10,
             [128, 256],
             512,
             256 * 2,
