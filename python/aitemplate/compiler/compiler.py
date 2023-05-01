@@ -21,7 +21,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
-
 from aitemplate.compiler.base import (
     DynamicProfileStrategy,
     IntImm,
@@ -39,6 +38,7 @@ from aitemplate.compiler.transform.name_graph import reset_name_counters
 from aitemplate.compiler.transform.profile import elapsed_dt_sec
 from aitemplate.utils import graph_utils
 from aitemplate.utils.debug_settings import AITDebugSettings
+from aitemplate.utils.misc import callstack_stats
 from aitemplate.utils.serialization.serdes_code import dump_program
 
 # pylint: disable=W0102
@@ -145,6 +145,7 @@ def _mark_isolated_int_vars(sorted_graph: List[Tensor]):
 _DEBUG_SETTINGS = AITDebugSettings()
 
 
+@callstack_stats()
 def compile_model(
     tensor: Union[Tensor, List[Tensor]],
     target: backend.target.Target,
