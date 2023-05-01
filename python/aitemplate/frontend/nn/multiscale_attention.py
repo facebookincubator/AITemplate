@@ -428,17 +428,17 @@ class MultiScaleAttention(Module):
         self._attention_pool_q = _AttentionPool(
             self.pool_q,
             has_cls_embed=self.has_cls_embed,
-            norm=self.norm_q if hasattr(self, "norm_q") else None,
+            norm=getattr(self, "norm_q", None),
         )
         self._attention_pool_k = _AttentionPool(
             self.pool_k,
             has_cls_embed=self.has_cls_embed,
-            norm=self.norm_k if hasattr(self, "norm_k") else None,
+            norm=getattr(self, "norm_k", None),
         )
         self._attention_pool_v = _AttentionPool(
             self.pool_v,
             has_cls_embed=self.has_cls_embed,
-            norm=self.norm_v if hasattr(self, "norm_v") else None,
+            norm=getattr(self, "norm_v", None),
         )
 
     def _qkv_proj(
