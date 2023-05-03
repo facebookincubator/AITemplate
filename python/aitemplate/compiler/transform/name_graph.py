@@ -15,11 +15,14 @@
 """
 Graph pass to assign names to a sorted graph.
 """
+import logging
 import re
 from typing import List
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, JaggedIntVar, Tensor
 from aitemplate.utils import graph_utils
+
+_LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=C0103
 
@@ -71,6 +74,10 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
     global tensor_cnt
     global func_name_to_tensor_cnt
     global user_provided_dim
+
+    _LOGGER.debug(
+        f"before name_graph: {func_cnt=}, {tensor_cnt=}, {len(func_name_to_tensor_cnt)=}, {len(user_provided_dim)=}"
+    )
     for node in sorted_graph:
         funcs = node.src_ops()
         if len(funcs) == 0:
@@ -136,6 +143,10 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
                 # the batch_dim wasn't named above, so we name it here
                 jagged_int_var_name = jagged_int_var._attrs["name"]
                 batch_dim._attrs["name"] = f"{jagged_int_var_name}_jagged_batch_dim"
+
+    _LOGGER.debug(
+        f"after name_graph: {func_cnt=}, {tensor_cnt=}, {len(func_name_to_tensor_cnt)=}, {len(user_provided_dim)=}"
+    )
 
 
 def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
