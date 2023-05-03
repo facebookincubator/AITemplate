@@ -35,10 +35,12 @@ class _BatchNorm(Module):
         self.dtype = dtype
         self.num_features = num_features
         self.eps = eps
-        self.weight = Parameter(shape=self.dim, name="weight", dtype=dtype)
-        self.bias = Parameter(shape=self.dim, name="bias", dtype=dtype)
-        self.running_mean = Parameter(shape=self.dim, name="running_mean", dtype=dtype)
-        self.running_var = Parameter(shape=self.dim, name="running_var", dtype=dtype)
+        self.weight = Parameter(shape=self.dim, dtype=dtype)
+        self.bias = Parameter(shape=self.dim, dtype=dtype)
+        self.running_mean = Parameter(shape=self.dim, dtype=dtype)
+        self.running_var = Parameter(shape=self.dim, dtype=dtype)
+        # Placeholder for setting constants, won't be used
+        self.num_batches_tracked = Parameter(shape=[], value=0, dtype=dtype)
 
     def forward(self, *args):
         assert len(args) == 1

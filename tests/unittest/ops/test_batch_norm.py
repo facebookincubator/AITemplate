@@ -44,6 +44,7 @@ class BatchnormTestCase(unittest.TestCase):
     ):
         pt_op = getattr(torch.nn, bn_op)(num_features).cuda().half().eval()
         ait_op = getattr(batch_norm, bn_op)(num_features, eps=pt_op.eps)
+        ait_op.name_parameter_tensor()
 
         pt_params = dict(pt_op.named_parameters())
         pt_buffers = dict(pt_op.named_buffers())
@@ -53,8 +54,7 @@ class BatchnormTestCase(unittest.TestCase):
             params_ait[key] = arr
         for key, arr in pt_buffers.items():
             print(key, arr.shape)
-            if key in ["running_mean", "running_var"]:
-                params_ait[key] = arr
+            params_ait[key] = arr
 
         X_pt = get_random_torch_tensor(input_shape, input_type)
         Y_pt = pt_op(X_pt)
@@ -70,9 +70,9 @@ class BatchnormTestCase(unittest.TestCase):
         Y_ait._attrs["name"] = "output"
 
         target = detect_target()
-        module = compile_model(Y_ait, target, "./tmp", f"batch_norm_{self.test_id}")
-        for name, weight in params_ait.items():
-            module.set_constant_with_tensor(name, weight)
+        module = compile_model(
+            Y_ait, target, "./tmp", f"batch_norm_{self.test_id}", constants=params_ait
+        )
 
         y = get_torch_empty_tensor(Ys_ait, dtype=input_type)
         inputs = {"input0": X_pt}

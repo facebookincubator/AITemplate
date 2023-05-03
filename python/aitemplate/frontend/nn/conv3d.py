@@ -104,7 +104,7 @@ class Conv3d(Module):
             dtype=dtype,
         )
         if self.has_bias:
-            self.bias = Parameter(shape=[out_channels], dtype=dtype, name="bias")
+            self.bias = Parameter(shape=[out_channels], dtype=dtype)
 
         if groups == 1:
             if self.has_bias:
