@@ -113,9 +113,9 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
     >;
 
   using B2bGemmBatched = cutlass::gemm::device::B2bGemmBatched<
-    cutlass::half_t,
+    ElementCompute,
     cutlass::layout::RowMajor,
-    cutlass::half_t,
+    ElementCompute,
     cutlass::layout::ColumnMajor,
     cutlass::layout::RowMajor,
     ElementOutput,
@@ -137,24 +137,51 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
 
   cutlass::gemm::GemmCoord problem_size_0(m0, {{n0}}, k0);
   cutlass::gemm::GemmCoord problem_size_1(m0, {{n1}}, {{n0}});
+
+  // Assuming BMHD dim ordering for inputs and outputs, like in FHMA style op
+  // B = batch size
+  // M = sequence len
+  // H = num heads
+  // D = embedding dims per head
+  // --- Tensor shapes:
+  // GEMM PROBLEM 0:
+  // A=query : [ batch_size, M0, num_heads, K0 ]
+  // B=key : [ batch_size, N0, num_heads, K0 ]
+  // C0=bias : [ batch_size, num_heads, M0, N0 ] # Where the batch size, head and M0 dimension may be broadcasted over
+  // GEMM PROBLEM 1:
+  // B1=value : [ batch_size, K1==N0, num_heads, N1 ]
+  // C1=unused:  [ N1 ]
+  // D1=output : [ batch_size, M1==M0, num_heads, N1 ]
+
+  // Required equalities for B2B gemm:
+  // M1 = M0;
+  // K1 = N0;
+
   typename B2bGemmBatched::Arguments arguments{
-    problem_size_0,
-    problem_size_1,
-    {static_cast<ElementCompute*>(query), typename B2bGemmBatched::LayoutA::Stride(problem_size_0.k())},
-    problem_size_0.m() * problem_size_0.k(),
-    {static_cast<ElementCompute*>(key), typename B2bGemmBatched::LayoutB::Stride(problem_size_0.k())},
-    problem_size_0.n() * problem_size_0.k(),
-    {static_cast<ElementCompute*>(bias), typename B2bGemmBatched::LayoutC::Stride(problem_size_0.n())},
-    problem_size_0.m() * problem_size_0.n(),
-    {static_cast<ElementCompute*>(value), typename B2bGemmBatched::LayoutB1::Stride(problem_size_1.n())},
-    problem_size_1.n() * problem_size_1.k(),
-    {static_cast<ElementCompute*>(nullptr), typename B2bGemmBatched::LayoutScaleBias::Stride(0)},
-    0,
-    {static_cast<ElementOutput*>(output), typename B2bGemmBatched::LayoutC::Stride(problem_size_1.n())},
-    problem_size_1.m() * problem_size_1.n(),
-    batch_size,
-    {alpha0, beta0, activation_alpha},
-    {alpha1, beta1},
+    problem_size_0, // = GemmCoord problem_size_0;
+    problem_size_1, // = GemmCoord problem_size_1;
+    {static_cast<ElementCompute*>(query), typename B2bGemmBatched::LayoutA::Stride(num_heads * problem_size_0.k())},    // TensorRef<ElementA const, LayoutA> ref_A0;
+    problem_size_0.k(),                                                                                                 // int64_t head_stride_A0;
+    num_heads * problem_size_0.m() * problem_size_0.k(),                                                                // int64_t batch_stride_A0;
+    {static_cast<ElementCompute*>(key), typename B2bGemmBatched::LayoutB::Stride(num_heads * problem_size_0.k())},      // TensorRef<ElementB const, LayoutB> ref_B0;
+    problem_size_0.k(),                                                                                                 // int64_t head_stride_B0;
+    num_heads * problem_size_0.n() * problem_size_0.k(),                                                                // int64_t batch_stride_B0;
+    {static_cast<ElementCompute*>(bias), typename B2bGemmBatched::LayoutC::Stride({{bias_stride_n}})},                  // TensorRef<ElementC const, LayoutC> ref_C0;
+    {{bias_stride_mn}},                                                                                                 // int64_t head_stride_C0;
+    {{bias_stride_hmn}},                                                                                                // int64_t batch_stride_C0;
+    {static_cast<ElementCompute*>(value), typename B2bGemmBatched::LayoutB1::Stride(num_heads * problem_size_1.n())},   // TensorRef<ElementC const, LayoutC> ref_B1;
+    problem_size_1.n(),                                                                                                 // int64_t head_stride_B1;                                                                    //
+    num_heads * problem_size_1.n() * problem_size_1.k(),                                                                // int64_t batch_stride_B1;
+    {static_cast<ElementCompute*>(nullptr), typename B2bGemmBatched::LayoutScaleBias::Stride(0)},                       // Not used due to ScaleType::Nothing for output op 1
+    0,                                                                                                                  // not used: int64_t head_stride_C1;
+    0,                                                                                                                  // not used: int64_t batch_stride_C1;
+    {static_cast<ElementOutput*>(output), typename B2bGemmBatched::LayoutC::Stride(num_heads * problem_size_1.n())},    // TensorRef<ElementC, LayoutC> ref_D1;
+    problem_size_1.n(),                                                                                                 // int64_t head_stride_output;
+    num_heads * problem_size_1.m() * problem_size_1.n(),                                                                // int64_t batch_stride_output;
+    batch_size,                                                                                                         // int batch_count;
+    num_heads,                                                                                                          // int num_heads
+    {alpha0, beta0, activation_alpha},                                                                                  // typename EpilogueOutputOp0::Params epilogue0;
+    {alpha1, beta1},                                                                                                    // typename EpilogueOutputOp1::Params epilogue1;
   };
 
   B2bGemmBatched b2b_gemm_op;
@@ -186,6 +213,7 @@ void {{func_name}}(void* output,
                    void* value,
                    void* bias,
                    int64_t batch_size,
+                   int64_t num_heads,
                    int64_t m0,
                    int64_t k0,
                    cudaStream_t stream)
@@ -204,6 +232,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{output}},
 {{indent}}    {{query}}, {{key}}, {{value}}, {{bias}},
 {{indent}}    {{batch_size}},
+{{indent}}    {{num_heads}},
 {{indent}}    {{m0}},
 {{indent}}    {{k0}},
 {{indent}}    stream /* default stream */
@@ -216,13 +245,18 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
     """the function for generating attention kernel"""
     q, k, v, bias = func_attrs["inputs"]
-    n0 = k._attrs["shape"][1]
-    n1 = v._attrs["shape"][2]
+    seq_len_dim = 1
+    n0 = k._attrs["shape"][seq_len_dim]
+    n1 = v._attrs["shape"][-1]
     if not isinstance(n0, IntImm) or not isinstance(n1, IntImm):
         raise RuntimeError(
             f"n0 and n1 must be static dims. {func_attrs['name']=}, {n0=}, {n1=}"
         )
     backend_spec = CUDASpec()
+    if func_attrs["inputs"][0]._attrs["dtype"] != "float16":
+        raise NotImplementedError(
+            "only float16 dtype supported for now in classic_b2b_bmm op"
+        )
     elem_input_type = backend_spec.dtype_to_lib_type(
         func_attrs["inputs"][0]._attrs["dtype"]
     )
@@ -243,6 +277,37 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         cutlass_lib.library.EpilogueMathName[func_attrs["epilogue_math_name"]]
     ]
 
+    bias_shape = bias._attrs["shape"]
+    bias_broadcast = [s == IntImm(1) for s in bias_shape]
+    if len(bias_broadcast) == 3:
+        # single head case: Add num heads dimension of size 1
+        bias_broadcast = [bias_broadcast[0], True, bias_broadcast[1], bias_broadcast[2]]
+    assert (
+        len(bias_broadcast) == 4
+    ), f"Bias shape should be of length 4, got {len(bias_broadcast)=}"
+
+    # Calculate stride expressions for bias tensor
+    # Last dimension of bias has implicit stride of 1,
+    # so cannot be broadcasted over
+    bias_stride_n = "problem_size_0.n()"
+    bias_shape_expr = [bias_stride_n]
+
+    # build stride expressions
+    if not bias_broadcast[-2]:
+        bias_shape_expr.append("problem_size_0.m()")
+    bias_stride_mn = "*".join(bias_shape_expr)
+    if not bias_broadcast[-3]:
+        bias_shape_expr.append("num_heads")
+    bias_stride_hmn = "*".join(bias_shape_expr)  # batch stride
+
+    # Strides for broadcasted dimensions are zero
+    if bias_broadcast[0]:  # query sequence len stride
+        bias_stride_hmn = "0"
+    if bias_broadcast[1]:  # head stride
+        bias_stride_mn = "0"
+    if bias_broadcast[2]:  # query sequence length stride
+        bias_stride_n = "0"
+
     return FUNC_TEMPLATE.render(
         func_name=func_attrs["name"],
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
@@ -260,6 +325,9 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         if func_attrs["alpha1_divide_by_seq_len"]
         else "false",
         epilogue_math=epilogue_math,
+        bias_stride_n=bias_stride_n,
+        bias_stride_mn=bias_stride_mn,
+        bias_stride_hmn=bias_stride_hmn,
     )
 
 
@@ -283,10 +351,19 @@ def classic_b2b_bmm_gen_function_call(func_attrs, indent="  "):
     bias_name = func_attrs["inputs"][3]._attrs["name"]
 
     q_shape = func_attrs["inputs"][0]._attrs["shape"]
-    batch_size = q_shape[0]._attrs["name"]
-    m0 = q_shape[1]._attrs["name"]
-    k0 = q_shape[2]._attrs["name"]
 
+    batch_size = q_shape[0]._attrs["name"]
+    seq_len_dim = 1
+    head_dim = -2
+    m0 = q_shape[seq_len_dim]._attrs["name"]
+
+    if len(q_shape) == 3:
+        # single head case
+        k0 = q_shape[2]._attrs["name"]
+        num_heads = "1"
+    elif len(q_shape) == 4:
+        k0 = q_shape[3]._attrs["name"]
+        num_heads = q_shape[head_dim]._attrs["name"]
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         output=output_name,
@@ -295,6 +372,7 @@ def classic_b2b_bmm_gen_function_call(func_attrs, indent="  "):
         value=v_name,
         bias=bias_name,
         batch_size=batch_size,
+        num_heads=num_heads,
         m0=m0,
         k0=k0,
         indent=indent,
