@@ -13,9 +13,9 @@
 #  limitations under the License.
 #
 import copy
+import logging
 import time
 import unittest
-
 import uuid
 from enum import Enum
 from typing import Callable, List, Optional, Set
@@ -29,13 +29,15 @@ from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter
 from fx2ait.tensor_spec import TensorSpec
 
+logger: logging.Logger = logging.getLogger(__name__)
+
 OSS_AITModel = False
 try:
     torch.ops.load_library("//deeplearning/ait:AITModel")
-    print("===Load non-OSS AITModel===")
+    logger.info("===Load non-OSS AITModel===")
 except Exception:
     torch.ops.load_library("build/libait_model.so")
-    print("===Load OSS AITModel===")
+    logger.info("===Load OSS AITModel===")
     OSS_AITModel = True
 
 
@@ -123,7 +125,7 @@ class AITTestCase(TestCase):
         for p in passes:
             mod = p(mod, inputs)
 
-        print(mod.graph)
+        logger.info(mod.graph)
 
         original_inputs = copy.deepcopy(inputs)
         if permute_inputs:
@@ -161,7 +163,7 @@ class AITTestCase(TestCase):
             start = time.perf_counter()
             interp_result = interp.run()
             sec = time.perf_counter() - start
-            print("Interpreter run time(s):", sec)
+            logger.info("Interpreter run time(s):", sec)
             if OSS_AITModel:
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
@@ -194,7 +196,9 @@ class AITTestCase(TestCase):
             outputs = ait_mod(*cuda_inputs)
             end_event.record()
             torch.cuda.synchronize()
-            print("AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3))
+            logger.info(
+                "AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3)
+            )
             # PyTorch Transformer model would yield 2 output tensors, of which the second one is
             # not useful. AIT model only output 1 output tensor, alter ref_output to match this.
             if leaf_module == torch.nn.MultiheadAttention:
@@ -227,21 +231,41 @@ class AITTestCase(TestCase):
         rtol: float = 1e-02,
         atol: float = 1e-02,
         precision: LowerPrecision = LowerPrecision.FP16,
+        passes: List[Callable] = [],  # noqa: B006
+        leaf_module: Callable = None,  # one leaf module
+        inputs_override: List[
+            List[torch.Tensor]
+        ] = None,  # For cases we can not generate inputs with existing tensor spec interface
     ):
         mod.eval()
-        inputs_list = []
-        for use_lower_bound in [True, False]:
-            inputs_list.append(
-                TensorSpec.create_inputs_from_specs(
-                    inputs_spec,
-                    use_lower_bound=use_lower_bound,
-                )
-            )
+        leaf_module_list = []
+        if leaf_module:
+            leaf_module_list.append(leaf_module)
 
-        inputs_min = inputs_list[0]
-        inputs_max = inputs_list[1]
+        if inputs_override:
+            inputs_min = inputs_override[0]
+            inputs_max = inputs_override[1]
+        else:
+            inputs_list = []
+            for use_lower_bound in [True, False]:
+                inputs_list.append(
+                    TensorSpec.create_inputs_from_specs(
+                        inputs_spec, use_lower_bound=use_lower_bound
+                    )
+                )
+
+            inputs_min = inputs_list[0]
+            inputs_max = inputs_list[1]
         mod.eval()
-        mod = acc_tracer.trace(mod, inputs_min)
+        mod = acc_tracer.trace(
+            mod,
+            inputs_min,
+            leaf_module_list=leaf_module_list,
+        )
+        for p in passes:
+            mod = p(mod, inputs_min)
+        logger.info(mod.graph)
+
         original_inputs = inputs_min
         # Trace and test with inputs_min
         interp = AITInterpreter(
@@ -263,7 +287,7 @@ class AITTestCase(TestCase):
             start = time.perf_counter()
             interp_result = interp.run()
             sec = time.perf_counter() - start
-            print("Interpreter run time(s):", sec)
+            logger.info("Interpreter run time(s):", sec)
             if OSS_AITModel:
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
@@ -298,7 +322,9 @@ class AITTestCase(TestCase):
             outputs = ait_mod(*cuda_inputs)
             end_event.record()
             torch.cuda.synchronize()
-            print("AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3))
+            logger.info(
+                "AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3)
+            )
 
             if isinstance(outputs, torch.Tensor):
                 ref_outputs = [ref_outputs]
@@ -379,14 +405,14 @@ def benchmark_function(
         torch.cuda.synchronize()
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
-        print("== Start benchmark iterations")
+        logger.info("== Start benchmark iterations")
         with torch.inference_mode():
             start_event.record()
             for _ in range(iters):
                 f(*args)
             end_event.record()
         torch.cuda.synchronize()
-        print("== End benchmark iterations")
+        logger.info("== End benchmark iterations")
         time_per_iter_ms = (start_event.elapsed_time(end_event) * 1.0e-3) / iters
         return time_per_iter_ms
 
