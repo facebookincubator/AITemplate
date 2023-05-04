@@ -119,6 +119,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         self.vae_ait_exe = self.init_ait_module(
             model_name="AutoencoderKL", workdir=workdir
         )
+        self.batch = 1
 
     def init_ait_module(
         self,
@@ -143,6 +144,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
+            shape[0] = self.batch * 2
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         noise_pred = ys[0].permute((0, 3, 1, 2)).float()
@@ -160,6 +162,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
+            shape[0] = self.batch
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         return ys[0].float()
@@ -171,6 +174,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
+            shape[0] = self.batch
             ys.append(torch.empty(shape).cuda().half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         vae_out = ys[0].permute((0, 3, 1, 2)).float()
@@ -241,6 +245,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             raise ValueError(
                 f"`prompt` has to be of type `str` or `list` but is {type(prompt)}"
             )
+        self.batch = batch_size
 
         if strength < 0 or strength > 1:
             raise ValueError(
