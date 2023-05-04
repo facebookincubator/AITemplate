@@ -18,6 +18,7 @@ import operator
 from typing import Dict, List, Sequence, Tuple, Union
 
 import numpy as np
+import torch
 
 from aitemplate.compiler.public import (
     avg_pool2d,
@@ -887,16 +888,22 @@ def acc_ops_nan_to_num(
 
     def _get_dtype(dtype: str):
         if dtype in ("float", "float32"):
-            return np.float32
+            return torch.float32
         elif dtype == "float16":
-            return np.float16
+            return torch.float16
+        elif dtype == "bfloat16":
+            return torch.bfloat16
         else:
             raise NotImplementedError(f"Unsupported dtype {dtype} for nan_to_num")
 
     input_dtype = input_val.dtype()
-    np_dtype = _get_dtype(input_dtype)
-    posinf = np.finfo(np_dtype).max if kwargs["posinf"] is None else kwargs["posinf"]
-    neginf = np.finfo(np_dtype).min if kwargs["neginf"] is None else kwargs["neginf"]
+    torch_dtype = _get_dtype(input_dtype)
+    posinf = (
+        torch.finfo(torch_dtype).max if kwargs["posinf"] is None else kwargs["posinf"]
+    )
+    neginf = (
+        torch.finfo(torch_dtype).min if kwargs["neginf"] is None else kwargs["neginf"]
+    )
     return elementwise(FuncEnum.NAN_TO_NUM)(
         input_val,
         AITTensor(value=nan, shape=[], name="nan", dtype=input_dtype),
