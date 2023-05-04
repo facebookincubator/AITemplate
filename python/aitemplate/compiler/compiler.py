@@ -216,9 +216,6 @@ def compile_model(
     if profile_dir is None:
         profile_dir = workdir
 
-    if debug_settings.dump_ait_to_py:
-        dump_program(tensor, debug_settings.dump_ait_to_py)
-
     if int(recompile) == 1:
         os.makedirs(test_dir, exist_ok=True)
         with target:
@@ -242,6 +239,9 @@ def compile_model(
 
             compiler.transform.name_graph(graph)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
+
+            if debug_settings.dump_ait_to_py:
+                dump_program(tensor, debug_settings.dump_ait_to_py)
 
             compiler.transform.dedup_symbolic_name(graph)
             graph_utils.dump_graph_debug_str_to_file(
