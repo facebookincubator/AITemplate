@@ -331,6 +331,7 @@ class MultiScaleAttention(Module):
         self.pool_first = pool_first
         self.dropout_rate = dropout_rate
         self.num_heads = num_heads
+        self.dim = dim
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
         self.has_cls_embed = has_cls_embed
@@ -565,13 +566,12 @@ class MultiScaleAttention(Module):
         # attention
         q_shape = get_shape(q)
         B, num_heads, seqlen, head_dim = get_shape(q)
-        score = ops.mem_eff_attention(causal=False)(q, k, v)
-        score = ops.reshape()(score, [B, seqlen, head_dim])
+        score = ops.transpose()(ops.mem_eff_attention(causal=False)(q, k, v), 1, 2)
 
         if self.residual_pool:
             score = ops.elementwise(FuncEnum.ADD)(score, q)
 
-        score = ops.reshape()(ops.permute()(score, [0, 2, 1, 3]), [B, q_shape[-2], -1])
+        score = ops.reshape()(ops.transpose()(score, 1, 2), [B, -1, self.dim])
 
         score = self.proj(score)
         assert self.dropout_rate == 0.0
