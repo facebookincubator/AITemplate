@@ -23,8 +23,11 @@ and model driver source code files.
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
+from collections import defaultdict
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
@@ -40,6 +43,13 @@ from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.utils.debug_settings import AITDebugSettings
+from aitemplate.utils.environ import (
+    multistream_additional_streams,
+    multistream_max_mem_parallel_ops,
+    multistream_mode,
+)
+from aitemplate.utils.graph_utils import split_simple_multistream_parallel_ops
+from aitemplate.utils.misc import is_debug
 
 # pylint: disable=C0103,W0613,C0301
 
@@ -323,6 +333,7 @@ class ModelContainerGenerator:
         model_name: str = MODEL_NAME,
         additional_unbound_constants: Optional[List[Tensor]] = None,
         debug_settings: Optional[AITDebugSettings] = None,
+        model_dir: Optional[str] = None,
     ):
         self.target = Target.current()
         self.f_var_decl = registry.get(self.target.name() + ".lib.var_decl")
@@ -390,6 +401,9 @@ class ModelContainerGenerator:
 
         self.model_name = model_name
 
+        # This is needed for logging activities only.
+        self.model_dir = model_dir
+
         # additional_unbound_constants stores tensors that are used in constant folding
         # but are not used in the main graph. We need this info so we can codegen SetConstant
         # correctly; when we call SetConstant for one of these special names, we want to forward
@@ -401,6 +415,11 @@ class ModelContainerGenerator:
         # for constant folding, we need to allocate space for it in our constant buffer, but its
         # size won't be found during memory planning.
         self.extra_owned_constant_size = 0
+
+        # This is a temporary dictionary that holds the rendered C++ code for operators.
+        self._rendered_func_code: Dict[Operator, str] = {}
+        # This is a temporary list that holds rendered C++ code for checks.
+        self._rendered_checks_func_code: List[str] = []
 
     def _tensor_slice_func(
         self,
@@ -740,6 +759,9 @@ class ModelContainerGenerator:
                     props["dim"] = func._attrs["concat_dim"]
                 self.func_prop_seq.append(props)
 
+                # save the rendered code for the future
+                self._rendered_func_code[func] = seq
+
             if "int_state_flag" in func._attrs:
                 if func._attrs["name"] not in self.state_record:
                     self.function_state.append(
@@ -762,18 +784,20 @@ class ModelContainerGenerator:
         tensor_name = node._attrs["name"]
         elem_cnt = "*".join([shape.pseudo_code() for shape in node.shape()])
         self.func_name_seq.append("nan_and_inf_check")
-        self.func_seq.append(
-            f'    InvokeInfAndNanChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
-        )
+
+        code_text = f'    InvokeInfAndNanChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
+        self.func_seq.append(code_text)
+        self._rendered_checks_func_code.append(code_text)
 
     def _append_check_outputs(self, node: Tensor):
         self.debug_header = True
         tensor_name = node._attrs["name"]
         elem_cnt = "*".join([shape.pseudo_code() for shape in node.shape()])
         self.func_name_seq.append("output_check")
-        self.func_seq.append(
-            f'    InvokeOutputsChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
-        )
+
+        code_text = f'    InvokeOutputsChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
+        self.func_seq.append(code_text)
+        self._rendered_checks_func_code.append(code_text)
 
     def append_tensor(self, node: Tensor) -> None:
         if node._attrs["nop"]:
@@ -830,10 +854,94 @@ class ModelContainerGenerator:
         if node.is_jagged():
             self._process_jagged_dims(node)
 
+    def _generate_simple_multistream_ops(
+        self,
+    ) -> List[List[Operator]]:
+        from aitemplate.utils.graph_utils import track_graph_timings
+
+        # track the sequence
+        time_stats = track_graph_timings(self.graph, {})
+
+        # sort all operators by parallel execution order
+        ops_by_order = defaultdict(list)
+        for (op, tracking) in time_stats.op_parallel_trackers.items():
+            ops_by_order[tracking.execution_order].append(op)
+
+        # convert Dict[int, List[Operator]] into List[List[Operator]]
+        max_parallel_ops = multistream_max_mem_parallel_ops()
+        ops = split_simple_multistream_parallel_ops(ops_by_order, max_parallel_ops)
+
+        # done
+        return ops
+
+    def _write_simple_multistream_debug_info(
+        self, par_ops_seq: List[List[Operator]]
+    ) -> None:
+        # store simple multistream information to log
+
+        # render ops into names
+        ops_names = [
+            [op._attrs["original_name"] for op in par_ops] for par_ops in par_ops_seq
+        ]
+
+        # write text
+        log_filename_txt = (
+            Path(self.model_dir) / f"simple_multistream_{self.model_name}.txt"
+        )
+        with open(log_filename_txt, "w") as log_f:
+            for idx, ops_list in enumerate(ops_names):
+                ops_string = " ".join(ops_list)
+                log_f.write(f"{idx}: {ops_string}\n")
+        _LOGGER.info(f"Wrote text simple multistream info into {log_filename_txt}")
+
+        # write json
+        log_filename_json = (
+            Path(self.model_dir) / f"simple_multistream_{self.model_name}.json"
+        )
+        with open(log_filename_json, "w") as log_f:
+            log_f.write(f"{json.dumps(ops_names)}\n")
+        _LOGGER.info(f"Wrote json simple multistream info into {log_filename_json}")
+
     def generate_model(self) -> str:
         # Disable graph mode on ROCM because the updating operations
         # are not supported
         target_has_graph_mode = "true" if self.target.name() == "cuda" else "false"
+
+        run_impl_mode = multistream_mode()
+        if run_impl_mode == 0:
+            # no multistream mode is used
+            n_additional_streams = 0
+            n_additional_events = 0
+            par_function_seq = None
+            par_check_function_seq = []
+        elif run_impl_mode == 1:
+            # spawn additional streams. Total number of streams will be
+            #   n_additional_streams + 1.
+            n_additional_streams = multistream_additional_streams()
+            n_additional_events = n_additional_streams
+
+            # generate List[List[Operator]]
+            par_ops_seq = self._generate_simple_multistream_ops()
+
+            for par_ops in par_ops_seq:
+                _LOGGER.info(
+                    f"Executing in parallel: {' '.join([op._attrs['original_name'] for op in par_ops])}"
+                )
+
+            # convert List[List[Operator]] into List[List[str]]
+            par_function_seq = [
+                [self._rendered_func_code[op] for op in par_ops]
+                for par_ops in par_ops_seq
+            ]
+
+            # prepare after-ops checks
+            par_check_function_seq = self._rendered_checks_func_code
+
+            # dump info to files for further debugging, if needed
+            if is_debug() and self.model_dir is not None:
+                self._write_simple_multistream_debug_info(par_ops_seq)
+        else:
+            raise Exception(f"Unsupported multistream mode ({run_impl_mode})")
 
         per_op_profiler_seq = zip(
             self.func_name_seq,
@@ -868,6 +976,11 @@ class ModelContainerGenerator:
             num_unbound_constants=self.unbound_constant_idx,
             reset_constants="\n".join(self.reset_constants),
             profiler_annotation=self.debug_settings.gen_profiler_annotation,
+            n_additional_streams=n_additional_streams,
+            n_additional_events=n_additional_events,
+            par_function_seq=par_function_seq,
+            par_check_function_seq=par_check_function_seq,
+            run_impl_mode=run_impl_mode,
         )
 
     def _create_set_up_constant_offsets(self) -> str:
@@ -1048,6 +1161,7 @@ def gen_library_src(  # noqa: C901
         output_tensors,
         additional_unbound_constants=additional_unbound_constants,
         debug_settings=debug_settings,
+        model_dir=prefix,
     )
     model_container_generator.append_all_tensors()
     constants_data_file.close()

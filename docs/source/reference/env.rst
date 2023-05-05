@@ -16,6 +16,14 @@ Codegen
 
 **AIT_TIME_COMPILATION**: If set to "1", time each make command at the compilation time. This helps us to do compilation time analysis. Requires to install `time <https://man7.org/linux/man-pages/man1/time.1.html>`_ package.
 
+**AIT_MULTISTREAM_MODE**: Controls multi-stream mode. Default mode is "0".
+* If set to "0", then no multistreaming is used.
+* If set to "1", then a simple multistreaming is used (iteratively track a wavefront of independent operators and execute ones).
+
+**AIT_MULTISTREAM_EXTRA_STREAMS**: Specifies the number of additional streams used. Default value is "4".
+
+**AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS**: Maximum number of parallel operators used in memory planning for simple multi-stream mode. Default value is "99999999" (basically, unlimited).
+
 Profiling
 ---------
 
