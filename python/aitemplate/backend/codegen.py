@@ -941,6 +941,8 @@ class ModelContainerGenerator:
             set_up_constant_folding_inputs="\n".join(
                 self.set_up_constant_folding_inputs
             ),
+            # # todo: enable once this feature is fully available
+            # is_windows=is_windows(),
         )
         result[model_container_src_fname] = model_container_base_src
         return result
