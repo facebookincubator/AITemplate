@@ -430,14 +430,17 @@ clean_constants:
         build_so_cmd = "$(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)"
         standalone_src = "standalone.cu"
         standalone_obj = "standalone.obj"
+        windll_obj = "windll.obj"
         obj_files = []
-        # standalone.cu is an AITemplate internal file that is used for generating
-        # standalone executables. We only want to compile it when the relevant
-        # debug option is enabled.
+        # * standalone.cu is an AITemplate internal file that is used for generating
+        #   standalone executables. We only want to compile it when the relevant
+        #   debug option is enabled.
+        # * windll.cu and windll.obj are used in builder_cmake.py for MSVC compiler
+        #   and are not needed to be used in builder_make.py compiler engine.
         obj_files = [
             pair[1].split("/")[-1]
             for pair in file_pairs
-            if not pair[1].endswith(standalone_obj)
+            if not pair[1].endswith(standalone_obj) and not pair[1].endswith(windll_obj)
         ]
         obj_files = " ".join(obj_files)
 
