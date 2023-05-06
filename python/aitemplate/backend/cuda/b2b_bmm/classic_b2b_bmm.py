@@ -73,9 +73,10 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
 }  // end namespace
 
 {{func_signature}} {
+  using ElementInput = {{elem_input_type}};
   using ElementOutput = {{elem_output_type}};
   using ElementAccumulator = {{elem_accum_type}};
-  using ElementCompute = {{elem_input_type}};
+  using ElementCompute = {{elem_accum_type}};
 
   ElementCompute alpha0 = ElementCompute({{alpha0}});
   ElementCompute beta0 = ElementCompute(1);
@@ -113,9 +114,9 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
     >;
 
   using B2bGemmBatched = cutlass::gemm::device::B2bGemmBatched<
-    ElementCompute,
+    ElementInput,
     cutlass::layout::RowMajor,
-    ElementCompute,
+    ElementInput,
     cutlass::layout::ColumnMajor,
     cutlass::layout::RowMajor,
     ElementOutput,
@@ -160,19 +161,19 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
   typename B2bGemmBatched::Arguments arguments{
     problem_size_0, // = GemmCoord problem_size_0;
     problem_size_1, // = GemmCoord problem_size_1;
-    {static_cast<ElementCompute*>(query), typename B2bGemmBatched::LayoutA::Stride(num_heads * problem_size_0.k())},    // TensorRef<ElementA const, LayoutA> ref_A0;
+    {static_cast<ElementInput*>(query), typename B2bGemmBatched::LayoutA::Stride(num_heads * problem_size_0.k())},      // TensorRef<ElementA const, LayoutA> ref_A0;
     problem_size_0.k(),                                                                                                 // int64_t head_stride_A0;
     num_heads * problem_size_0.m() * problem_size_0.k(),                                                                // int64_t batch_stride_A0;
-    {static_cast<ElementCompute*>(key), typename B2bGemmBatched::LayoutB::Stride(num_heads * problem_size_0.k())},      // TensorRef<ElementB const, LayoutB> ref_B0;
+    {static_cast<ElementInput*>(key), typename B2bGemmBatched::LayoutB::Stride(num_heads * problem_size_0.k())},        // TensorRef<ElementB const, LayoutB> ref_B0;
     problem_size_0.k(),                                                                                                 // int64_t head_stride_B0;
     num_heads * problem_size_0.n() * problem_size_0.k(),                                                                // int64_t batch_stride_B0;
-    {static_cast<ElementCompute*>(bias), typename B2bGemmBatched::LayoutC::Stride({{bias_stride_n}})},                  // TensorRef<ElementC const, LayoutC> ref_C0;
+    {static_cast<ElementInput*>(bias), typename B2bGemmBatched::LayoutC::Stride({{bias_stride_n}})},                    // TensorRef<ElementC const, LayoutC> ref_C0;
     {{bias_stride_mn}},                                                                                                 // int64_t head_stride_C0;
     {{bias_stride_hmn}},                                                                                                // int64_t batch_stride_C0;
-    {static_cast<ElementCompute*>(value), typename B2bGemmBatched::LayoutB1::Stride(num_heads * problem_size_1.n())},   // TensorRef<ElementC const, LayoutC> ref_B1;
+    {static_cast<ElementInput*>(value), typename B2bGemmBatched::LayoutB1::Stride(num_heads * problem_size_1.n())},     // TensorRef<ElementC const, LayoutC> ref_B1;
     problem_size_1.n(),                                                                                                 // int64_t head_stride_B1;                                                                    //
     num_heads * problem_size_1.n() * problem_size_1.k(),                                                                // int64_t batch_stride_B1;
-    {static_cast<ElementCompute*>(nullptr), typename B2bGemmBatched::LayoutScaleBias::Stride(0)},                       // Not used due to ScaleType::Nothing for output op 1
+    {static_cast<ElementInput*>(nullptr), typename B2bGemmBatched::LayoutScaleBias::Stride(0)},                         // Not used due to ScaleType::Nothing for output op 1
     0,                                                                                                                  // not used: int64_t head_stride_C1;
     0,                                                                                                                  // not used: int64_t batch_stride_C1;
     {static_cast<ElementOutput*>(output), typename B2bGemmBatched::LayoutC::Stride(num_heads * problem_size_1.n())},    // TensorRef<ElementC, LayoutC> ref_D1;
@@ -252,20 +253,24 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         raise RuntimeError(
             f"n0 and n1 must be static dims. {func_attrs['name']=}, {n0=}, {n1=}"
         )
-    backend_spec = CUDASpec()
-    if func_attrs["inputs"][0]._attrs["dtype"] != "float16":
+
+    supported_types = ("float16", "bfloat16")
+    input_type = func_attrs["inputs"][0]._attrs["dtype"]
+    output_type = func_attrs["outputs"][0]._attrs["dtype"]
+    if input_type not in supported_types or output_type not in supported_types:
         raise NotImplementedError(
-            "only float16 dtype supported for now in classic_b2b_bmm op"
+            f"{supported_types=} for inputs and output "
+            f"but got {input_type=} and {output_type=}."
         )
-    elem_input_type = backend_spec.dtype_to_lib_type(
-        func_attrs["inputs"][0]._attrs["dtype"]
-    )
-    elem_output_type = backend_spec.dtype_to_lib_type(
-        func_attrs["outputs"][0]._attrs["dtype"]
-    )
+
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(input_type)
+    elem_output_type = backend_spec.dtype_to_lib_type(output_type)
+
     if (
         "use_fp16_acc" in Target.current()._kwargs
         and Target.current()._kwargs["use_fp16_acc"]
+        and input_type == "float16"
     ):
         elem_accum_type = "cutlass::half_t"
     else:
