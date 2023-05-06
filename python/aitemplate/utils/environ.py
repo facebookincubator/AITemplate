@@ -148,3 +148,62 @@ def force_cutlass_sm90_kernels() -> bool:
     back-end of the GEMM ops). Default: False.
     """
     return os.getenv("AIT_FORCE_CUTLASS_SM90_KERNELS", "0") == "1"
+
+
+def multistream_mode() -> int:
+    """
+    Multi-stream mode. 0 - no multistream. 1 - simple multistream.
+    Default: 0.
+    """
+
+    # temporarily override it in order to test
+    return int(os.getenv("AIT_MULTISTREAM_MODE", "0"))
+
+
+def multistream_additional_streams() -> int:
+    """
+    Number of extra streams in multi-stream mode.
+
+    This option is independent from AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS.
+
+    For example, say, there are 100 ops that can be run in parallel.
+
+    Example 1: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=100.
+    In this case 5 streams will be used (1 base and 4 extra),
+    every stream gets 20 operators and no inter-stream barriers are used.
+    Memory planning is done for 100 parallel ops.
+
+    Example 2: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=5.
+    In this case 5 streams will be used (1 base and 4 extra),
+    there will be 20 waves separated by inter-stream barriers,
+    every stream gets 1 operator for every wave.
+    Memory planning is done for 20 waves of 5 parallel ops each.
+
+    """
+    return int(os.getenv("AIT_MULTISTREAM_EXTRA_STREAMS", "4"))
+
+
+def multistream_max_mem_parallel_ops() -> int:
+    """
+    Maximum number of parallel operators used in memory planning
+    for simple multi-stream mode.
+    Larger value imply higher level of possible parallelism, but
+    higher memory allocations.
+
+    This option is independent from AIT_MULTISTREAM_EXTRA_STREAMS.
+
+    For example, say, there are 100 ops that can be run in parallel.
+
+    Example 1: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=100.
+    In this case 5 streams will be used (1 base and 4 extra),
+    every stream gets 20 operators and no inter-stream barriers are used.
+    Memory planning is done for 100 parallel ops.
+
+    Example 2: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=5.
+    In this case 5 streams will be used (1 base and 4 extra),
+    there will be 20 waves separated by inter-stream barriers,
+    every stream gets 1 operator for every wave.
+    Memory planning is done for 20 waves of 5 parallel ops each.
+    """
+    # unlimited by default
+    return int(os.getenv("AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS", "99999999"))
