@@ -1310,23 +1310,55 @@ def default_fproc(
         and not filter_extra_tile_configs
     ):
         op = copy.deepcopy(op)
+
         # set output major
         op.C.layout = c_layout
         op.D.layout = c_layout
+
         # set epilogue
         op.epilogue_functor = cutlass_lib.library.EpilogueFunctorName[epilogue_name]
         op.element_epilogue = acc_type
+        if (
+            op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x
+            and op.epilogue_functor
+            != cutlass_lib.library.EpilogueFunctor.LinearCombination
+        ):
+            # need to substitute the epilogue schedule with
+            # the one parameterized by the epilogue functor
+            if op.epilogue_schedule in (
+                cutlass_lib.library.EpilogueScheduleType.TmaWarpSpecialized,
+                cutlass_lib.library.EpilogueScheduleType.TmaWarpSpecializedCooperative,
+            ):
+                op.epilogue_schedule = cutlass_lib.library.EpilogueScheduleMapping[
+                    op.epilogue_schedule
+                ][op.epilogue_functor]
+            else:
+                # epilogue functor parameterization unavailable
+                # for the rest of epilogue schedule types
+                return ret
+
+        # set permute layout
         if permute_layout is not None:
             op.permute_layout = cutlass_lib.library.EpiloguePermuteLayoutName[
                 permute_layout
             ]
+
+        has_tma_epilogue = False
+        if op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x:
+            epilogue_schedule_str = str(op.epilogue_schedule).split(".")[-1]
+            has_tma_epilogue = epilogue_schedule_str.lower().startswith("tma")
+
         # set C and D alignment
         alignments = alignment.get_alignments(dtype)
         for i in alignments:
+            if has_tma_epilogue and i != max(alignments):
+                # TMA epilogues only support max. output alignment
+                continue
             op = copy.deepcopy(op)
             op.C.alignment = i
             op.D.alignment = i
             ret.append(op)
+
     return ret
 
 
