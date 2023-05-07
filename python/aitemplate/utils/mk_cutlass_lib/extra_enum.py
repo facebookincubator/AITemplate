@@ -146,6 +146,44 @@ EpiloguePermuteLayoutName = {
   # "Permute3DBMM_021": EpiloguePermuteLayout.Permute3DBMM_021,
 }
 
+class EpilogueScheduleType(enum.Enum):
+  ScheduleAuto = enum_auto()
+  EpilogueTransposed = enum_auto()
+  NoSmemWarpSpecialized = enum_auto()
+  TmaWarpSpecialized = enum_auto()
+  TmaWarpSpecializedCooperative = enum_auto()
+  TmaWarpSpecializedElementwiseRelu = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseRelu = enum_auto()
+
+EpilogueScheduleTag = {
+  EpilogueScheduleType.ScheduleAuto: 'cutlass::epilogue::collective::EpilogueScheduleAuto',
+  EpilogueScheduleType.EpilogueTransposed: 'cutlass::gemm::EpilogueTransposed',
+  EpilogueScheduleType.NoSmemWarpSpecialized: 'cutlass::epilogue::NoSmemWarpSpecialized',
+  EpilogueScheduleType.TmaWarpSpecialized: 'cutlass::epilogue::TmaWarpSpecialized',
+  EpilogueScheduleType.TmaWarpSpecializedCooperative: 'cutlass::epilogue::TmaWarpSpecializedCooperative',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseRelu: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::ReLu>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::ReLu>',
+}
+
+EpilogueScheduleSuffixes = {
+  EpilogueScheduleType.ScheduleAuto: '',
+  EpilogueScheduleType.EpilogueTransposed: '',
+  EpilogueScheduleType.NoSmemWarpSpecialized: '_epi_nosmem',
+  EpilogueScheduleType.TmaWarpSpecialized: '_epi_tma',
+  EpilogueScheduleType.TmaWarpSpecializedCooperative: '_epi_tma',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseRelu: '_epi_tma_relu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu: '_epi_tma_relu',
+}
+
+EpilogueScheduleMapping = {
+  EpilogueScheduleType.TmaWarpSpecialized: {
+    EpilogueFunctor.LinearCombinationRelu: EpilogueScheduleType.TmaWarpSpecializedElementwiseRelu,
+  },
+  EpilogueScheduleType.TmaWarpSpecializedCooperative: {
+    EpilogueFunctor.LinearCombinationRelu: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu,
+  },
+}
+
 """
 )
 
