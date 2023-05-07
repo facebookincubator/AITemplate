@@ -55,6 +55,7 @@ class CUDA(Target):
         template_path=CUTLASS_PATH,
         ait_static_files_path=AIT_STATIC_FILES_PATH,
         arch="80",
+        cuda_version=None,
         **kwargs,
     ):
         """CUDA target init.
@@ -73,6 +74,13 @@ class CUDA(Target):
         self._arch = arch
         self._kwargs = kwargs
         self._compile_options = self._build_compile_options()
+        if cuda_version is None:
+            # try to set default CUDA version based on the arch
+            if arch == "80":
+                cuda_version = "11.4.2"
+            elif arch == "90":
+                cuda_version = "12.0.0"
+        self._cuda_version = cuda_version
 
     def _build_compile_options(self):
         flash_attention_path = ""
@@ -150,7 +158,7 @@ class CUDA(Target):
         super().__enter__()
         self._gen_cutlass_lib_pkg()
         f_gen_ops = registry.get("cuda.gen_cutlass_ops")
-        self._operators = f_gen_ops(self._arch)
+        self._operators = f_gen_ops(self._arch, self._cuda_version)
 
     def __exit__(self, ptype, value, trace):
         super().__exit__(ptype, value, trace)
@@ -232,9 +240,16 @@ class FBCUDA(CUDA):
             with open(convert_nvcc_json, "r") as nvcc_option_json:
                 FBCUDA.nvcc_option_json = json.load(nvcc_option_json)
         self.nvcc_options_json = FBCUDA.nvcc_option_json
+        cuda_version = self.nvcc_option_json.get("cuda_version", None)
 
         self.remote_cache_bytes = remote_cache_bytes
-        super().__init__(self.cutlass_path_, static_files_path, arch, **kwargs)
+        super().__init__(
+            template_path=self.cutlass_path_,
+            ait_static_files_path=static_files_path,
+            arch=arch,
+            cuda_version=cuda_version,
+            **kwargs,
+        )
 
     def _build_compile_options(self):
         if not FBCUDA.compile_options_:
