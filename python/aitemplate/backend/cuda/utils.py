@@ -51,17 +51,19 @@ registry.reg("cuda.make_cutlass_lib")(mk_cutlass_lib)
 
 
 @registry.reg("cuda.gen_cutlass_ops")
-def gen_ops(arch):
+def gen_ops(arch, cuda_version):
     import cutlass_lib
 
     args = Args(arch)
+    if cuda_version is not None:
+        args.cuda_version = cuda_version
     manifest = cutlass_lib.manifest.Manifest(args)
 
     if arch == "90":
         if force_cutlass_sm90_kernels():
-            cutlass_lib.generator.GenerateSM90(manifest, cuda_version="12.0.0")
+            cutlass_lib.generator.GenerateSM90(manifest, args.cuda_version)
         elif allow_cutlass_sm90_kernels():
-            cutlass_lib.generator.GenerateSM90(manifest, cuda_version="12.0.0")
+            cutlass_lib.generator.GenerateSM90(manifest, args.cuda_version)
             cutlass_lib.generator.GenerateSM80(manifest, args.cuda_version)
             cutlass_lib.extra_operation.GenerateSM80(manifest, args)
         else:
