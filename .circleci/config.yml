@@ -65,6 +65,7 @@ setup_fx2ait_env: &setup_fx2ait_env
 basic_tests: &basic_tests
   - run:
       name: Run tests
+      no_output_timeout: 20m
       command: |
         set -e
         TEST_FILES=$(circleci tests glob "tests/unittest/**/test_*.py" | grep -v benchmark | circleci tests split --split-by=timings)
