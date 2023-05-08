@@ -163,7 +163,7 @@ class AITTestCase(TestCase):
             start = time.perf_counter()
             interp_result = interp.run()
             sec = time.perf_counter() - start
-            logger.info("Interpreter run time(s):", sec)
+            logger.info(f"Interpreter run time(s): {sec}")
             if OSS_AITModel:
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
@@ -197,7 +197,7 @@ class AITTestCase(TestCase):
             end_event.record()
             torch.cuda.synchronize()
             logger.info(
-                "AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3)
+                f"AIT run time(s)= {start_event.elapsed_time(end_event) * 1.0e-3}"
             )
             # PyTorch Transformer model would yield 2 output tensors, of which the second one is
             # not useful. AIT model only output 1 output tensor, alter ref_output to match this.
@@ -287,7 +287,7 @@ class AITTestCase(TestCase):
             start = time.perf_counter()
             interp_result = interp.run()
             sec = time.perf_counter() - start
-            logger.info("Interpreter run time(s):", sec)
+            logger.info(f"Interpreter run time(s): {sec}")
             if OSS_AITModel:
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
@@ -323,7 +323,7 @@ class AITTestCase(TestCase):
             end_event.record()
             torch.cuda.synchronize()
             logger.info(
-                "AIT run time(s)=", (start_event.elapsed_time(end_event) * 1.0e-3)
+                f"AIT run time(s)= {start_event.elapsed_time(end_event) * 1.0e-3}"
             )
 
             if isinstance(outputs, torch.Tensor):
