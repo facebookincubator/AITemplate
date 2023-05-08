@@ -895,3 +895,8 @@ clean:
         if not is_debug():
             cmds.append(make_clean_constants_cmd)
         _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=allow_cache)
+
+
+def get_compile_engine():
+    compile_engine = Builder()
+    return compile_engine
