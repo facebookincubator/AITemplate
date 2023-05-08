@@ -64,7 +64,11 @@ GEMM_UNIVERSAL_WITH_BROADCAST_TEMPLATE = jinja2.Template(
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
     cutlass::gemm::GemmUniversalMode::kGemm,                 // GemmUniversalMode mode
-    { {{layout.m}}, {{layout.n}}, {{layout.k}} },            // GemmCoord problem_size
+    {
+        static_cast<coord_t>({{layout.m}}),
+        static_cast<coord_t>({{layout.n}}),
+        static_cast<coord_t>({{layout.k}})
+    },                                                       // GemmCoord problem_size
 {% if support_split_k %}
     split_k,                                                 // int batch_count
 {% else %}
@@ -105,7 +109,11 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
     cutlass::gemm::GemmUniversalMode::kGemm,                 // GemmUniversalMode mode
-    { {{layout.m}}, {{layout.n}}, {{layout.k}} },            // GemmCoord problem_size
+    {
+        static_cast<coord_t>({{layout.m}}),
+        static_cast<coord_t>({{layout.n}}),
+        static_cast<coord_t>({{layout.k}})
+    },                                                       // GemmCoord problem_size
 {% if support_split_k %}
     split_k,                                                 // int batch_count
 {% else %}
