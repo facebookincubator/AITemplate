@@ -744,6 +744,47 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             seq_lens_kv=512,
         )
 
+    def test_fmha_style_b2b_bmm_bf16(self):
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_basic",
+            dtype="bfloat16",
+            batch_sizes=1,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_rectangular",
+            dtype="bfloat16",
+            batch_sizes=[2],
+            seq_lens=512,
+            seq_lens_kv=128,
+            n1=128,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_complex",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="SiLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            has_bias=True,
+            bias_broadcast=[False, True, False, False],
+            num_heads=4,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_complex_fp32_acc",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            has_bias=True,
+            bias_broadcast=[False, False, True, False],
+            num_heads=2,
+            seq_lens=512,
+            seq_lens_kv=512,
+            use_fp16_acc=False,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
