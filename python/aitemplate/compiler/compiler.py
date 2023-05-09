@@ -332,7 +332,7 @@ def compile_model(
             file_pairs.extend(main_pairs)
 
             start_t = datetime.now()
-            compile_engine = backend.builder.Builder()
+            compile_engine = backend.builder.get_compile_engine()
             compile_engine.make(
                 file_pairs, dll_name, workdir, test_name, debug_settings
             )
