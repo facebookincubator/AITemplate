@@ -15,7 +15,6 @@
 #pragma once
 
 #include "model_interface.h" // @manual=//aitemplate/AITemplate/static/include:aitemplate
-#include "utility.h"
 
 #include <dlfcn.h>
 #include <torch/torch.h> // @manual=//caffe2:torch-cpp
