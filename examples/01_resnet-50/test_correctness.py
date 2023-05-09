@@ -21,8 +21,8 @@ from aitemplate.compiler import compile_model
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target
 
-from .modeling.resnet import build_resnet_backbone
-from .weight_utils import timm_export
+from modeling.resnet import build_resnet_backbone
+from weight_utils import timm_export
 
 
 def mark_output(y):

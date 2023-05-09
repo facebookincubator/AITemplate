@@ -239,8 +239,8 @@ class SpatialTransformer(nn.Module):
         x_in = x
         x = self.norm(x)
         if self.use_linear_projection:
-            x = ops.reshape()(x, [b, -1, c])
             x = self.proj_in(x)
+            x = ops.reshape()(x, [b, -1, c])
         else:
             x = self.proj_in(x)
             x = ops.reshape()(x, [b, -1, c])
