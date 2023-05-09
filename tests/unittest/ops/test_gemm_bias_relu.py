@@ -15,6 +15,7 @@
 import unittest
 
 import torch
+
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -46,7 +47,6 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         dtype="float16",
         test_suffix=None,
     ):
-        tolerance_limits = _TOLERANCE_LIMITS[dtype]
         X = Tensor(shape=[M, K], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(shape=[N, K], dtype=dtype, name="input_1", is_input=True)
         B = Tensor(shape=[N], dtype=dtype, name="input_2", is_input=True)
@@ -68,7 +68,7 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         inputs = {"input_0": X_pt, "input_1": W_pt, "input_2": B_pt}
         y = get_torch_empty_tensor([M, N], dtype)
         module.run_with_tensors(inputs, [y])
-        torch.testing.assert_close(Y_pt, y, **tolerance_limits)
+        torch.testing.assert_close(Y_pt, y, **_TOLERANCE_LIMITS[dtype])
 
     def test_gemm_rcr_bias_relu_fp16(self):
         self._test_gemm_rcr_bias_relu(dtype="float16")

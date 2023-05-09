@@ -60,10 +60,10 @@ PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
         static_cast<coord_t>(K),
         static_cast<coord_t>(1)
     },                                                           // ProblemShape problem_shape
-    ({{elem_input_type}}*)(a_ptr),              // ElementA const* ptr_A
-    {K, cute::Int<1>{}, cute::Int<0>{}},            // StrideA dA
-    ({{elem_input_type}}*)(b_ptr),              // ElementB const* ptr_B
-    {K, cute::Int<1>{}, cute::Int<0>{}},            // StrideB dB
+    ({{elem_input_type}}*)(a_ptr),                               // ElementA const* ptr_A
+    {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideA dA
+    ({{elem_input_type}}*)(b_ptr),                               // ElementB const* ptr_B
+    {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideB dB
     {
         {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename ThreadEpilogueOp::Params thread
         ({{elem_input_type}}*)(bias_ptr),                        // ElementC const* ptr_C

@@ -92,19 +92,48 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 )
 
 
+PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
+    """
+    cutlass::gemm::GemmUniversalMode::kGemm,                     // GemmUniversalMode mode
+    {
+        static_cast<coord_t>(M),
+        static_cast<coord_t>(N),
+        static_cast<coord_t>(K),
+        static_cast<coord_t>(1)
+    },                                                           // ProblemShape problem_shape
+    ({{elem_input_type}}*) a_ptr,                                // ElementA const* ptr_A
+    {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideA dA
+    ({{elem_input_type}}*) b_ptr,                                // ElementB const* ptr_B
+    {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideB dB
+    {
+        {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},  // typename ThreadEpilogueOp::Params thread
+        ({{elem_output_type}}*) (c_ptr) + output_offset,         // ElementC const* ptr_C
+        {cute::Int<0>{}, cute::Int<1>{}, cute::Int<0>{}},        // StrideC dC
+        ({{elem_output_type}}*) (c_ptr) + output_offset,         // ElementD const* ptr_D
+        {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideD dD
+    },                                                           // EpilogueArguments epilogue
+"""
+)
+
+
 @registry.reg("cuda.gemm_rcr_fast_gelu.config")
 def gemm_rcr_config(func_attrs, dtype="float16"):
-    return common_bias_activation.gemm_rcr_config(func_attrs, dtype)
+    return common_bias_activation.gemm_rcr_config(
+        func_attrs=func_attrs,
+        dtype=dtype,
+        include_cutlass_3x_ops=True,
+    )
 
 
 @registry.reg("cuda.gemm_rcr_fast_gelu.gen_profiler")
 def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     return common_bias_activation.gen_profiler(
-        func_attrs,
-        workdir,
-        profiler_filename,
-        dim_info_dict,
-        PROBLEM_ARGS_TEMPLATE,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        problem_args_template=PROBLEM_ARGS_TEMPLATE,
+        problem_args_template_cutlass_3x=PROBLEM_ARGS_TEMPLATE_CUTLASS_3X,
         extra_code=EXTRA_CODE.render(),
     )
 
@@ -129,15 +158,20 @@ def gen_function(
         elem_input_type=elem_input_type,
         elem_output_type=elem_output_type,
     )
+    problem_args_cutlass_3x = PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+    )
     return common.gen_function(
-        func_attrs,
-        common_no_bias.SRC_TEMPLATE,
-        exec_cond_template,
-        problem_args,
-        input_ndims,
-        weight_ndims,
-        output_ndims,
-        dim_info_dict,
+        func_attrs=func_attrs,
+        src_template=common_no_bias.SRC_TEMPLATE,
+        exec_cond_template=exec_cond_template,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
+        input_ndims=input_ndims,
+        weight_ndims=weight_ndims,
+        output_ndims=output_ndims,
+        dim_info_dict=dim_info_dict,
         support_split_k=True,
         output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
             stride_dim="N",
