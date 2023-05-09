@@ -55,23 +55,37 @@ class topkTestCase(unittest.TestCase):
             name="X",
             is_input=True,
         )
+        X5 = Tensor(
+            shape=shape,
+            dtype=dtype,
+            name="Y",
+            is_input=True,
+        )
         OP = ops.topk(k=topK)
         if copy_op:
             OP = ops.topk(**OP._get_op_attributes())
-        X4 = OP(X1)
+        X4, X5 = OP(X1)
+        X4._attrs["is_output"] = True
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
+        X5._attrs["is_output"] = True
+        X5._attrs["is_output"] = True
+        X5._attrs["name"] = "output2"
 
         target = detect_target()
-        module = compile_model(X4, target, "./tmp", f"{test_name}_{self.test_count}")
+        module = compile_model(
+            (X4, X5), target, "./tmp", f"{test_name}_{self.test_count}"
+        )
 
         scores = self._create_tensors(shape, dtype)
         (values, y_pt) = torch.topk(scores, k=topK, dim=dim)
-
+        torch_dtype = string_to_torch_dtype(dtype)
         x = scores.reshape(shape).contiguous()
-        y = torch.empty(o_shape).cuda().to(torch.int64)
-        module.run_with_tensors([x], [y])
-        torch.testing.assert_close(y_pt, y, atol=0, rtol=0)
+        y2 = torch.empty(o_shape).cuda().to(torch.int64)
+        y = torch.empty(o_shape).cuda().to(torch_dtype)
+        module.run_with_tensors([x], [y, y2])
+        torch.testing.assert_close(values, y, atol=0, rtol=0)
+        torch.testing.assert_close(y_pt, y2, atol=0, rtol=0)
         self.test_count += 1
 
     def test_topk_heap(self):

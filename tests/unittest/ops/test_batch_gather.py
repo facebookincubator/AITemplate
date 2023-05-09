@@ -147,7 +147,7 @@ class batchGatherTopkTestCase(gatherTestCase):
             name="scores",
             is_input=True,
         )
-        X3 = ops.topk(k=topK)(X2)
+        _, X3 = ops.topk(k=topK)(X2)
         X4 = ops.batch_gather()(X1, X3)
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"

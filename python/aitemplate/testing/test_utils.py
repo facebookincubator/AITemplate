@@ -15,10 +15,12 @@
 """
 Utils for unit tests.
 """
+import contextlib
 import itertools
+import os
 import unittest
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
 
 import torch
 
@@ -33,6 +35,7 @@ from aitemplate.utils.torch_utils import string_to_torch_dtype
 class TestEnv(Enum):
     CUDA_LESS_THAN_SM80 = 1
     CUDA_SM80 = 2
+    CUDA_SM90 = 3
     ROCM = 100
 
 
@@ -44,12 +47,36 @@ def _SM80_filter(method_name: str) -> bool:
     return method_name.endswith("bf16") or method_name.endswith("sm80")
 
 
+def _SM90_filter(method_name: str) -> bool:
+    return method_name.endswith("sm90")
+
+
 _TEST_ENV_TO_FILTER_METHOD: Dict[str, Callable[[str], bool]] = {
     TestEnv.CUDA_LESS_THAN_SM80: (
-        lambda method_name: not (_SM80_filter(method_name) or _ROCM_filter(method_name))
+        lambda method_name: not (
+            _SM80_filter(method_name)
+            or _SM90_filter(method_name)
+            or _ROCM_filter(method_name)
+        )
     ),
     TestEnv.CUDA_SM80: _SM80_filter,
+    TestEnv.CUDA_SM90: _SM90_filter,
     TestEnv.ROCM: _ROCM_filter,
+}
+
+
+# maps each test env (key) to the set of all test envs compatible with
+# it (value). "compatible" means that a tests that can run in *any*
+# env in the value Set[TestEnv] can also run in the key TestEnv.
+_COMPATIBLE_TEST_ENVS: Dict[TestEnv, Set[TestEnv]] = {
+    TestEnv.ROCM: {TestEnv.ROCM},
+    TestEnv.CUDA_LESS_THAN_SM80: {TestEnv.CUDA_LESS_THAN_SM80},
+    TestEnv.CUDA_SM80: {TestEnv.CUDA_LESS_THAN_SM80, TestEnv.CUDA_SM80},
+    TestEnv.CUDA_SM90: {
+        TestEnv.CUDA_LESS_THAN_SM80,
+        TestEnv.CUDA_SM80,
+        TestEnv.CUDA_SM90,
+    },
 }
 
 
@@ -60,6 +87,8 @@ def _get_test_env(target) -> str:
             test_env = TestEnv.CUDA_LESS_THAN_SM80
         elif int(target._arch) == 80:
             test_env = TestEnv.CUDA_SM80
+        elif int(target._arch) == 90:
+            test_env = TestEnv.CUDA_SM90
         else:
             raise RuntimeError(
                 f"Unknown test env, target: {target.name}, {target._arch}"
@@ -70,31 +99,82 @@ def _get_test_env(target) -> str:
         raise RuntimeError(f"Unknown test env, target: {target.name}, {target._arch}")
     if test_env not in _TEST_ENV_TO_FILTER_METHOD:
         raise RuntimeError(f"{test_env=} not defined in _TEST_ENV_TO_FILTER_METHOD")
+    if test_env not in _COMPATIBLE_TEST_ENVS:
+        raise RuntimeError(f"{test_env=} not defined in _COMPATIBLE_TEST_ENVS")
     return test_env
 
 
+def _test_runnable_in_env(test_name: str, env: TestEnv) -> bool:
+    """Whether the test with the given name can run in the given test env."""
+    for test_env in _COMPATIBLE_TEST_ENVS[env]:
+        if _TEST_ENV_TO_FILTER_METHOD[test_env](test_name):
+            return True
+    return False
+
+
 def filter_test_cases_by_params(params: Dict[TestEnv, List[Tuple[Any]]]):
-    """Filters test cases to run by given params. Only takes effect in CI env."""
+    """Filters test cases to run by given params.
+
+    In CI, only the params corresponding to the CI's test env are kept.
+    Outside CI, the params corresponding to any test env compatible with
+    the local test env are kept.
+    """
     target = detect_target()
     test_env = _get_test_env(target)
-    return (
+    input_ = (
         params.get(test_env, [])
         if target.in_ci_env()
-        else list(itertools.chain.from_iterable(params.values()))
+        else list(
+            itertools.chain.from_iterable(
+                values
+                for env, values in params.items()
+                if env in _COMPATIBLE_TEST_ENVS[test_env]
+            )
+        )
     )
+    return {
+        "input": input_,
+        "skip_on_empty": True,
+    }
 
 
 def filter_test_cases_by_test_env(cls: Type[unittest.TestCase]):
-    """Filters test cases to run by test case names implicitly. Only takes effect in CI env."""
+    """Filters test cases to run by test case names implicitly.
+
+    In CI, only the test cases filtered by the CI's test env are kept.
+    Outside CI, the test cases filtered by any test env compatible with
+    the local test env are kept.
+    """
     target = detect_target()
     test_env = _get_test_env(target)
     for attr in list(cls.__dict__.keys()):
-        if (
-            attr.startswith("test_")
-            and target.in_ci_env()
-            and (not _TEST_ENV_TO_FILTER_METHOD.get(test_env)(attr))
-        ):
-            delattr(cls, attr)
+        if attr.startswith("test_"):
+            test_name = attr
+            if target.in_ci_env():
+                if not _TEST_ENV_TO_FILTER_METHOD[test_env](test_name):
+                    delattr(cls, attr)
+            elif not _test_runnable_in_env(test_name, test_env):
+                delattr(cls, attr)
+
+
+@contextlib.contextmanager
+def env_variables(**kwargs):
+    """CM for temporarily setting (or removing) environment variables."""
+    old_values = {name: os.environ.get(name, None) for name in kwargs}
+
+    try:
+        for name, new_value in kwargs.items():
+            if new_value is not None:
+                os.environ[name] = str(new_value)
+            elif name in os.environ:
+                os.environ.pop(name)
+        yield
+    finally:
+        for name, old_value in old_values.items():
+            if old_value is not None:
+                os.environ[name] = old_value
+            elif name in os.environ:
+                os.environ.pop(name)
 
 
 def _get_torch_tensor(torch_fn, shape, dtype):

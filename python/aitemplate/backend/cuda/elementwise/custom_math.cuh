@@ -15,12 +15,12 @@
 #ifndef CUSTOM_MATH
 #define CUSTOM_MATH
 
-#ifndef __HALF2_TO_UI
-#define __HALF2_TO_UI(var) *(reinterpret_cast<unsigned int*>(&(var)))
+#ifndef __TO_UI
+#define __TO_UI(var) *(reinterpret_cast<unsigned int*>(&(var)))
 #endif
 
-#ifndef __HALF_TO_US
-#define __HALF_TO_US(var) *(reinterpret_cast<unsigned short*>(&(var)))
+#ifndef __TO_US
+#define __TO_US(var) *(reinterpret_cast<unsigned short*>(&(var)))
 #endif
 
 #define NOT_IMPLEMENTED() assert(0 && __PRETTY_FUNCTION__)
@@ -92,8 +92,8 @@ __device__ half2 fast_tanh(half2 x) {
     (__CUDA_ARCH__ >= 750)
 
   asm volatile("tanh.approx.f16x2 %0, %1;"
-               : "=r"(__HALF2_TO_UI(x))
-               : "r"(__HALF2_TO_UI(x)));
+               : "=r"(__TO_UI(x))
+               : "r"(__TO_UI(x)));
   return x;
 
 #else
@@ -106,9 +106,7 @@ __device__ half fast_tanh(half x) {
 #if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
     (__CUDA_ARCH__ >= 750)
 
-  asm volatile("tanh.approx.f16 %0, %1;"
-               : "=h"(__HALF_TO_US(x))
-               : "h"(__HALF_TO_US(x)));
+  asm volatile("tanh.approx.f16 %0, %1;" : "=h"(__TO_US(x)) : "h"(__TO_US(x)));
   return x;
 
 #else
@@ -121,8 +119,8 @@ __device__ bfloat16_2 fast_tanh(bfloat16_2 x) {
     (__CUDA_ARCH__ >= 900)
 
   asm volatile("tanh.approx.bf16x2 %0, %1;"
-               : "=r"(__HALF_TO_UI(x))
-               : "r"(__HALF_TO_UI(x)));
+               : "=r"(__TO_UI(x))
+               : "r"(__TO_UI(x)));
   return x;
 
 #elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
@@ -136,9 +134,7 @@ __device__ bfloat16_2 fast_tanh(bfloat16_2 x) {
 __device__ bfloat16 fast_tanh(bfloat16 x) {
 #if defined(__CUDA_ARCH__) && (__CUDACC_VER_MAJOR__ >= 11) && \
     (__CUDA_ARCH__ >= 900)
-  asm volatile("tanh.approx.bf16 %0, %1;"
-               : "=h"(__HALF_TO_US(x))
-               : "h"(__HALF_TO_US(x)));
+  asm volatile("tanh.approx.bf16 %0, %1;" : "=h"(__TO_US(x)) : "h"(__TO_US(x)));
   return x;
 
 #elif defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)

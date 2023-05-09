@@ -509,6 +509,11 @@ class gemm(Operator):
             output_shape = self._attrs["output_accessors"][0].original_shapes
             self._extract_epilogue_alignment(output_shape, dynamic_profiling_strategy)
 
+        if not self._attrs["op_instance"]:
+            raise RuntimeError(
+                f"No GEMM op instances were generated for {self._attrs['op']}."
+            )
+
         filter_func = registry.get(func_key)
         # run compile-time filter
         new_op_instance = OrderedDict(
@@ -522,6 +527,12 @@ class gemm(Operator):
             f"to {len(new_op_instance)}",
         )
         self._attrs["op_instance"] = new_op_instance
+
+        if not self._attrs["op_instance"]:
+            raise RuntimeError(
+                f"No GEMM op instances are left after filtering for {self._attrs['op']}. "
+                "This is probably due to incompatible alignment requirements."
+            )
 
         build_profiler = self._should_build_profiler(workloads, new_op_instance)
         if build_profiler:

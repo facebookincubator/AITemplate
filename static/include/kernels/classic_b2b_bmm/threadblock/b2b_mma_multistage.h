@@ -103,6 +103,8 @@ template <
     typename SmemIteratorB1_,
     /// Cache operation for operand B
     cutlass::arch::CacheOperation::Kind CacheOpB1,
+    /// Data type of output matrix
+    typename ElementOutput_,
     /// Data type of accumulator matrix
     typename ElementC_,
     /// Data type of accumulator matrix
@@ -151,7 +153,9 @@ public:
 
   using SmemIteratorB1 = SmemIteratorB1_;
 
-  ///< Data type of accumulator matrix
+  ///< Data type of output matrix
+  using ElementOutput = ElementOutput_;
+ ///< Data type of accumulator matrix
   using ElementC = ElementC_;
   ///< Layout of accumulator matrix
   using LayoutC = LayoutC_;
@@ -670,7 +674,7 @@ public:
 
     /// Iterator to load a warp-scoped tile of A1 operand from intermediate accumulator tile
     FragmentIteratorA1 warp_tile_iterator_A1_(accum0);
-    typename FragmentIteratorA1::OutputOp noop_output_op_0({}); // Is noop LinearCombination (see default_b2b_mma.h)
+    typename FragmentIteratorA1::OutputOp noop_output_op_0({});
     TriuMmaTensorOpFragmentIterator<FragmentIteratorA1, Shape0::kM> triu_warp_tile_iterator_A1_;
 
     //

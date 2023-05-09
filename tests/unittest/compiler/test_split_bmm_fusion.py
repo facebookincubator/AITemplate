@@ -112,48 +112,48 @@ class SplitBmmFusionTestCase(unittest.TestCase):
             5,
             [2, 3],
             2,
-            "test_split_bmm_rcr",
+            "test_split_bmm_rcr_with_padding",
             with_padding=True,
         )
         # bmm_rcr_n1
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr_n1, 1, 160, 1, 32, 8, 2, "test_split_bmm_rcr"
+            ops.bmm_rcr_n1, 1, 160, 1, 32, 8, 2, "test_split_bmm_rcr_n1"
         )
         # bmm_rcr_n1, split_dim = 2
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr_n1, 1, 10000, 1, 5, [2, 3], 2, "test_split_bmm_rcr"
+            ops.bmm_rcr_n1, 1, 10000, 1, 5, [2, 3], 2, "test_split_bmm_rcr_n1_0"
         )
         # bmm_rcr_n1, split_dim = 2
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr_n1, 1, 10000, 1, 5, [3, 2], 2, "test_split_bmm_rcr"
+            ops.bmm_rcr_n1, 1, 10000, 1, 5, [3, 2], 2, "test_split_bmm_rcr_n1_1"
         )
         # bmm_rcr_n1
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr_n1, 1, 10, 1, 32, [16, 8, 8], 2, "test_split_bmm_rcr"
+            ops.bmm_rcr_n1, 1, 10, 1, 32, [16, 8, 8], 2, "test_split_bmm_rcr_n1_2"
         )
         # bmm_rcr_n1, split_dim = 0
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr, 4, 10000, 1, 32, [2, 2], 0, "test_split_bmm_rcr"
+            ops.bmm_rcr, 4, 10000, 1, 32, [2, 2], 0, "test_split_bmm_rcr_n1_split_d_0"
         )
         # bmm_rcr_n1, split_dim = 1
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr, 64, 2, 2, 32, 1, 1, "test_split_bmm_rcr"
+            ops.bmm_rcr, 64, 2, 2, 32, 1, 1, "test_split_bmm_rcr_n1_split_d_1"
         )
         # bmm_rcr
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr, 1024, 128, 512, 256 * 2, 256, 2, "test_split_bmm_rcr"
+            ops.bmm_rcr, 1024, 128, 512, 256 * 2, 256, 2, "test_split_bmm_rcr_0"
         )
         # bmm_rcr
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr, 1, 10000, 3, 96, [32, 32, 32], 2, "test_split_bmm_rcr"
+            ops.bmm_rcr, 1, 10000, 3, 96, [32, 32, 32], 2, "test_split_bmm_rcr_1"
         )
         # bmm_rcr, split_dim = 0, can only be static
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr, 1024, 128, 512, 256 * 2, 512, 0, "test_split_bmm_rcr"
+            ops.bmm_rcr, 1024, 128, 512, 256 * 2, 512, 0, "test_split_bmm_rcr_split_d_0"
         )
         # bmm_rcr, split_dim = 1
         self._test_split_bmm_rcr_fusion(
-            ops.bmm_rcr, 1024, 512, 512, 256 * 2, 256, 1, "test_split_bmm_rcr"
+            ops.bmm_rcr, 10, 512, 512, 256 * 2, 256, 1, "test_split_bmm_rcr_split_d_1"
         )
 
     def _test_split_bmm_rcr_fusion_dynamic_M(
@@ -238,7 +238,7 @@ class SplitBmmFusionTestCase(unittest.TestCase):
         # bmm_rcr
         self._test_split_bmm_rcr_fusion_dynamic_M(
             ops.bmm_rcr,
-            1024,
+            10,
             [128, 256],
             512,
             256 * 2,

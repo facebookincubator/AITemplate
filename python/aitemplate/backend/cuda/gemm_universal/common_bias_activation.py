@@ -24,8 +24,16 @@ from aitemplate.backend.cuda.gemm_universal.layout import RCR
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 
 
-def gemm_rcr_config(func_attrs, dtype="float16"):
-    common.make_fproc(func_attrs, RCR)
+def gemm_rcr_config(
+    func_attrs,
+    dtype="float16",
+    include_cutlass_3x_ops=False,
+):
+    common.make_fproc(
+        func_attrs=func_attrs,
+        layout=RCR,
+        include_cutlass_3x_ops=include_cutlass_3x_ops,
+    )
 
 
 def gen_profiler(
@@ -34,15 +42,17 @@ def gen_profiler(
     profiler_filename,
     dim_info_dict,
     problem_args_template,
+    problem_args_template_cutlass_3x=None,
     extra_code="",
 ):
     return gemm_rcr.common_gen_profiler(
-        func_attrs,
-        workdir,
-        profiler_filename,
-        dim_info_dict,
-        common_bias.SRC_TEMPLATE,
-        problem_args_template,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=common_bias.SRC_TEMPLATE,
+        problem_args_template=problem_args_template,
+        problem_args_template_cutlass_3x=problem_args_template_cutlass_3x,
         bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
         extra_code=extra_code,
     )
@@ -53,6 +63,7 @@ def gen_function(
     problem_args_template,
     exec_cond_template,
     dim_info_dict,
+    problem_args_template_cutlass_3x=None,
     extra_code="",
 ):
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
@@ -69,15 +80,22 @@ def gen_function(
         elem_input_type=elem_input_type,
         elem_output_type=elem_output_type,
     )
+    problem_args_cutlass_3x = ""
+    if problem_args_template_cutlass_3x is not None:
+        problem_args_cutlass_3x = problem_args_template_cutlass_3x.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
+        )
     return common.gen_function(
-        func_attrs,
-        common_bias.SRC_TEMPLATE,
-        exec_cond_template,
-        problem_args,
-        input_ndims,
-        weight_ndims,
-        output_ndims,
-        dim_info_dict,
+        func_attrs=func_attrs,
+        src_template=common_bias.SRC_TEMPLATE,
+        exec_cond_template=exec_cond_template,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
+        input_ndims=input_ndims,
+        weight_ndims=weight_ndims,
+        output_ndims=output_ndims,
+        dim_info_dict=dim_info_dict,
         support_split_k=True,
         output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
             stride_dim="N",
@@ -102,5 +120,7 @@ def gen_function_decl(func_attrs):
 def gen_function_call(func_attrs, indent="  "):
     bias = func_attrs["inputs"][2]
     return common.gen_function_call(
-        func_attrs, indent, bias_ptr_arg=bias._attrs["name"]
+        func_attrs=func_attrs,
+        indent=indent,
+        bias_ptr_arg=bias._attrs["name"],
     )

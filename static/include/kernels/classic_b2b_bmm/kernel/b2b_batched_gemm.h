@@ -79,23 +79,30 @@ struct B2bGemmBatched {
     int swizzle_log_tile;
     typename B2bMma::IteratorA0::Params params_A0;
     typename B2bMma::IteratorA0::TensorRef ref_A0;
-    int64_t stride_A0;
+    int64_t head_stride_A0;
+    int64_t batch_stride_A0;
     typename B2bMma::IteratorB0::Params params_B0;
     typename B2bMma::IteratorB0::TensorRef ref_B0;
-    int64_t stride_B0;
+    int64_t head_stride_B0;
+    int64_t batch_stride_B0;
     typename GmemToAccumLoader::OutputTileIterator::Params params_C0;
     typename GmemToAccumLoader::OutputTileIterator::TensorRef ref_C0;
-    int64_t stride_C0;
+    int64_t head_stride_C0;
+    int64_t batch_stride_C0;
     typename B2bMma::IteratorB1::Params params_B1;
     typename B2bMma::IteratorB1::TensorRef ref_B1;
-    int64_t stride_B1;
+    int64_t head_stride_B1;
+    int64_t batch_stride_B1;
     typename Epilogue::OutputTileIterator::Params params_C1;
     typename Epilogue::OutputTileIterator::TensorRef ref_C1;
-    int64_t stride_C1;
+    int64_t head_stride_C1;
+    int64_t batch_stride_C1;
     typename Epilogue::OutputTileIterator::Params params_D1;
     typename Epilogue::OutputTileIterator::TensorRef ref_D1;
-    int64_t stride_D1;
+    int64_t head_stride_D1;
+    int64_t batch_stride_D1;
     int batch_count;
+    int num_heads;
     typename OutputOp0::Params output_op_0;
     typename OutputOp1::Params output_op_1;
     int gemm_k_iterations_0;
@@ -114,18 +121,25 @@ struct B2bGemmBatched {
       cutlass::gemm::GemmCoord const & problem_size_1,
       cutlass::gemm::GemmCoord const & grid_tiled_shape,
       typename B2bMma::IteratorA0::TensorRef ref_A0,
-      int64_t stride_A0,
+      int64_t head_stride_A0,
+      int64_t batch_stride_A0,
       typename B2bMma::IteratorB0::TensorRef ref_B0,
-      int64_t stride_B0,
+      int64_t head_stride_B0,
+      int64_t batch_stride_B0,
       typename GmemToAccumLoader::OutputTileIterator::TensorRef ref_C0,
-      int64_t stride_C0,
+      int64_t head_stride_C0,
+      int64_t batch_stride_C0,
       typename B2bMma::IteratorB1::TensorRef ref_B1,
-      int64_t stride_B1,
+      int64_t head_stride_B1,
+      int64_t batch_stride_B1,
       typename Epilogue::OutputTileIterator::TensorRef ref_C1,
-      int64_t stride_C1,
+      int64_t head_stride_C1,
+      int64_t batch_stride_C1,
       typename Epilogue::OutputTileIterator::TensorRef ref_D1,
-      int64_t stride_D1,
+      int64_t head_stride_D1,
+      int64_t batch_stride_D1,
       int batch_count,
+      int num_heads,
       typename OutputOp0::Params output_op_0 = typename OutputOp0::Params(),
       typename OutputOp1::Params output_op_1 = typename OutputOp1::Params()
     ):
@@ -135,25 +149,32 @@ struct B2bGemmBatched {
       swizzle_log_tile(ThreadblockSwizzle().get_log_tile(grid_tiled_shape)),
       params_A0(ref_A0.layout()),
       ref_A0(ref_A0),
-      stride_A0(stride_A0),
+      head_stride_A0(head_stride_A0),
+      batch_stride_A0(batch_stride_A0),
       params_B0(ref_B0.layout()),
       ref_B0(ref_B0),
-      stride_B0(stride_B0),
+      head_stride_B0(head_stride_B0),
+      batch_stride_B0(batch_stride_B0),
       params_C0(ref_C0.layout()),
       ref_C0(ref_C0),
-      stride_C0(stride_C0),
+      head_stride_C0(head_stride_C0),
+      batch_stride_C0(batch_stride_C0),
       params_B1(ref_B1.layout()),
       ref_B1(ref_B1),
-      stride_B1(stride_B1),
+      head_stride_B1(head_stride_B1),
+      batch_stride_B1(batch_stride_B1),
       params_C1(ref_C1.layout()),
       ref_C1(ref_C1),
-      stride_C1(stride_C1),
+      head_stride_C1(head_stride_C1),
+      batch_stride_C1(batch_stride_C1),
       params_D1(ref_D1.layout()),
       ref_D1(ref_D1),
-      stride_D1(stride_D1),
+      head_stride_D1(head_stride_D1),
+      batch_stride_D1(batch_stride_D1),
       output_op_0(output_op_0),
       output_op_1(output_op_1),
       batch_count(batch_count),
+      num_heads(num_heads),
       gemm_k_iterations_0((problem_size_0.k() + B2bMma::Shape0::kK - 1) / B2bMma::Shape0::kK),
       gemm_k_iterations_1((problem_size_1.k() + B2bMma::Shape1::kK - 1) / B2bMma::Shape1::kK) {}
   };
@@ -255,7 +276,7 @@ struct B2bGemmBatched {
     }
 
     // Each CTA handles multiple batch indices to accommodate limited range of CUDA grid's Z dimension
-    for (int batch_idx = threadblock_swizzle.get_batch_idx(); batch_idx < params.batch_count; batch_idx += gridDim.z) {
+    for (int batch_head_idx = threadblock_swizzle.get_batch_idx(); batch_head_idx < params.batch_count * params.num_heads; batch_head_idx += gridDim.z) {
 
       // Compute initial location in logical coordinates
       cutlass::MatrixCoord tb_offset_A0{
@@ -276,6 +297,10 @@ struct B2bGemmBatched {
       // Compute position within threadblock
       int thread_idx = threadIdx.x;
 
+      // Convert blockIdx.z into (batch_idx, head_idx).
+      int batch_idx = batch_head_idx / params.num_heads;
+      int head_idx = batch_head_idx % params.num_heads;
+
       // Construct iterators to A and B operands
       typename B2bMma::IteratorA0 iterator_A0(
         params.params_A0,
@@ -284,7 +309,7 @@ struct B2bGemmBatched {
         thread_idx,
         tb_offset_A0);
 
-      iterator_A0.add_pointer_offset(params.stride_A0 * batch_idx);
+      iterator_A0.add_pointer_offset(params.batch_stride_A0 * batch_idx + params.head_stride_A0 * head_idx);
 
       typename B2bMma::IteratorB0 iterator_B0(
         params.params_B0,
@@ -293,7 +318,7 @@ struct B2bGemmBatched {
         thread_idx,
         tb_offset_B0);
 
-      iterator_B0.add_pointer_offset(params.stride_B0 * batch_idx);
+      iterator_B0.add_pointer_offset(params.batch_stride_B0 * batch_idx + params.head_stride_B0 * head_idx);
 
       typename B2bMma::IteratorB1 iterator_B1(
         params.params_B1,
@@ -302,7 +327,7 @@ struct B2bGemmBatched {
         thread_idx,
         tb_offset_B1);
 
-      iterator_B1.add_pointer_offset(params.stride_B1 * batch_idx);
+      iterator_B1.add_pointer_offset(params.batch_stride_B1 * batch_idx + params.head_stride_B1 * head_idx);
 
 
       // Broadcast the warp_id computed by lane 0 to ensure dependent code
@@ -325,8 +350,7 @@ struct B2bGemmBatched {
         tb_offset_C0
       );
 
-      iterator_C0.add_pointer_offset(params.stride_C0 * batch_idx);
-
+      iterator_C0.add_pointer_offset(params.batch_stride_C0 * batch_idx + params.head_stride_C0 * head_idx);
 
       //
       // Main loop
@@ -375,7 +399,7 @@ struct B2bGemmBatched {
         threadblock_offset
       );
 
-      iterator_C1.add_pointer_offset(params.stride_C1 * batch_idx);
+      iterator_C1.add_pointer_offset(params.batch_stride_C1 * batch_idx + params.head_stride_C1 * head_idx);
 
       // Tile iterator writing to destination tensor.
       typename Epilogue::OutputTileIterator iterator_D1(
@@ -386,7 +410,7 @@ struct B2bGemmBatched {
         threadblock_offset
       );
 
-      iterator_D1.add_pointer_offset(params.stride_D1 * batch_idx);
+      iterator_D1.add_pointer_offset(params.batch_stride_D1 * batch_idx + params.head_stride_D1 * head_idx);
 
       Epilogue epilogue(
         shared_storage.epilogue,

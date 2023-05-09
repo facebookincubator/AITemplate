@@ -24,7 +24,6 @@ import jinja2
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
-from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,W0223
 
@@ -53,35 +52,24 @@ class batch_gather(Operator):
         self._attrs["has_profiler"] = False
         self.exec_key_template = EXEC_KEY_TEMPLATE
 
-    def _infer_shape(self, x: List[int], indices: List[int]):
-        rank = len(indices)
-        for r in range(rank - 1):
-            assert x[r] == indices[r]
-        output = list(x)
-        output[rank - 1] = indices[-1]
-        return output
-
     def _infer_shapes(self, x: Tensor, indices: Tensor) -> List[IntVar]:
         """Infers shapes for batch_gather."""
 
-        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
-        x_shapes = itertools.product(*x_shape_values)
+        rank = len(indices._attrs["shape"])
+
+        # TODO: remove this when we're sure we support non-static batch_gather
+        x_shape_values = [var._attrs["values"][0] for var in x._attrs["shape"]]
         indices_shape = [var._attrs["values"][0] for var in indices._attrs["shape"]]
-        # run infershape for each
-        y_shapes = []
-        for x_shape in x_shapes:
-            y_shape = self._infer_shape(x_shape, indices_shape)
-            y_shapes.append(y_shape)
+        for r in range(1, rank - 1):
+            assert x_shape_values[r] == indices_shape[r]
 
-        def unique(vector):
-            return sorted(set(vector))
+        out_shapes = x._attrs["shape"][:]
+        if rank <= 1:
+            # Special case: gather happens along batch dimension
+            out_shapes[0] = indices.shape()[0]
+        out_shapes[rank - 1] = indices._attrs["shape"][-1]
 
-        output_shape = []
-        for idx in range(len(y_shapes[0])):
-            output_shape.append(
-                shape_utils.gen_int_var(unique([d[idx] for d in y_shapes]))
-            )
-        return output_shape
+        return out_shapes
 
     def __call__(self, x: Tensor, indices: Tensor) -> Tensor:
         dtype = indices._attrs["dtype"]

@@ -47,6 +47,7 @@ class PaddedDenseToJaggedTestCase(unittest.TestCase):
         dtype: str = "float16",
         offsets_dtype: str = "int32",
         use_jagged_space_indexing: bool = False,
+        pass_jagged_int_var_as_total_length: bool = False,
         test_suffix: str = "",
     ):
         batch_size = jagged_max_shape[0]
@@ -95,12 +96,21 @@ class PaddedDenseToJaggedTestCase(unittest.TestCase):
             is_input=True,
         )
 
-        JAGGED = ops.padded_dense_to_jagged(total_length=total_length_dim)(
-            x=DENSE,
-            offsets_list=OFFSETS_LIST,
-        )
         ANOTHER = ops.make_jagged(batch_dim=batch_dim, jagged_dims=jagged_dims)(
             source=SOURCE,
+            offsets_list=OFFSETS_LIST,
+        )
+
+        total_length_to_pass = total_length_dim
+        if pass_jagged_int_var_as_total_length:
+            # we pass JaggedIntVar as the total_length to the
+            # padded_dense_to_jagged op, as this may happen in
+            # some cases where the total_length is fetched from
+            # the shape of a jagged tensor
+            total_length_to_pass = ANOTHER._attrs["shape"][0]
+
+        JAGGED = ops.padded_dense_to_jagged(total_length=total_length_to_pass)(
+            x=DENSE,
             offsets_list=OFFSETS_LIST,
         )
 
@@ -142,13 +152,13 @@ class PaddedDenseToJaggedTestCase(unittest.TestCase):
 
     @parameterized.expand(
         [
-            param(1, "int32", [4, 3, 8], "float16"),
-            param(2, "int32", [4, 3, 4], "float16"),
-            param(3, "int32", [4, 3, 2], "float16"),
-            param(4, "int32", [4, 3, 1], "float16"),
-            param(5, "int64", [4, 3, 4], "float32"),
-            param(6, "int64", [4, 3, 2], "float32"),
-            param(7, "int64", [4, 3, 1], "float32"),
+            param(1, "int32", [4, 3, 8], "float16", False),
+            param(2, "int32", [4, 3, 4], "float16", False),
+            param(3, "int32", [4, 3, 2], "float16", False),
+            param(4, "int32", [4, 3, 1], "float16", True),
+            param(5, "int64", [4, 3, 4], "float32", False),
+            param(6, "int64", [4, 3, 2], "float32", False),
+            param(7, "int64", [4, 3, 1], "float32", True),
         ]
     )
     def test_padded_dense_to_jagged_single_offsets(
@@ -157,6 +167,7 @@ class PaddedDenseToJaggedTestCase(unittest.TestCase):
         offsets_dtype,
         jagged_max_shape,
         dtype,
+        pass_jagged_int_var_as_total_length,
     ):
         for use_jagged_space_indexing in [False, True]:
             self._test_padded_dense_to_jagged(
@@ -165,6 +176,7 @@ class PaddedDenseToJaggedTestCase(unittest.TestCase):
                 dtype=dtype,
                 offsets_dtype=offsets_dtype,
                 use_jagged_space_indexing=use_jagged_space_indexing,
+                pass_jagged_int_var_as_total_length=pass_jagged_int_var_as_total_length,
                 test_suffix=f"single_offsets_{dtype}_{i}",
             )
 

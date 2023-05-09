@@ -58,8 +58,8 @@ class topk(Operator):
         .. code-block:: python
 
             X = Tensor(shape=[2, 800], name="X", is_input=True)
-            Y = ops.topk(k=300)(X)
-            y_shape = [d._attrs["values"][0] for d in Y.shape()]
+            value, indice = ops.topk(k=300)(X)
+            y_shape = [d._attrs["values"][0] for d in indice.shape()]
             print(y_shape)
 
             Outs:
@@ -86,8 +86,10 @@ class topk(Operator):
         self._set_depth()
         output_shape = self._infer_shapes(x)
         self._extract_exec_path(x)
-        output = Tensor(output_shape, src_ops={self}, dtype="int64")
-        self._attrs["outputs"] = [output]
+        output_index = Tensor(output_shape, src_ops={self}, dtype="int64")
+        output_value = Tensor(output_shape, src_ops={self}, dtype=x._attrs["dtype"])
+        output = (output_value, output_index)
+        self._attrs["outputs"] = [output_value, output_index]
         return output
 
     def _get_op_attributes(self):

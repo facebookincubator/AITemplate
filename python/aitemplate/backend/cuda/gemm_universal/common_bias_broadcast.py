@@ -322,7 +322,7 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
 {% if has_d1 %}
   one_copy_sz += c_ptr_sz;
 {%endif%}
-  int64_t mem_pool_sz = memory_pool->ComputeMemPoolSize(one_copy_sz, ptr_max_sz);
+  int64_t mem_pool_sz = memory_pool->ComputeMemPoolSize(one_copy_sz, ptr_max_sz, device_properties.l2CacheSize);
 
   memory_pool->AllocateTensor(a_ptr_sz, mem_pool_sz);  // a_ptr: index 0
   memory_pool->AllocateTensor(b_ptr_sz, mem_pool_sz);  // b_ptr: index 1
@@ -350,6 +350,7 @@ def gemm_bias_broadcast_instance(
     binary_op2,
     unary_op2,
     elem_type,
+    cutlass_3x=False,
 ):
     """
     adjust gemm instance with respect to input_accessors, layout and epilogue ops

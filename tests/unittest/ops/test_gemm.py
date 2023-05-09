@@ -21,6 +21,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    env_variables,
     filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
@@ -347,6 +348,119 @@ class GEMMTestCase(unittest.TestCase):
         self._test_3d_2d_rrr(
             [2, 34, 48], [1, 3, 5], 256, 16, "dynamic3_bfloat16", dtype="bfloat16"
         )
+
+    def test_rcr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rcr(
+                    ms=[1, 1024],
+                    k=252,
+                    n=512,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rcr(
+                ms=[1, 1024],
+                k=256,
+                n=512,
+                test_name="dynamic_force_sm90",
+                dtype="float16",
+            )
+
+            self._test_rcr_dynamic_n(
+                ms=[16, 1 * 29, 64],
+                k=256,
+                ns=[100000, 300000],
+                test_name="einsum_dynamic_n_force_sm90",
+                dtype="float16",
+            )
+            self._test_3d_2d_rcr(
+                m0s=[1, 99, 1024],
+                m1s=[1, 2],
+                k=128,
+                n=8,
+                test_name="dynamic3_force_sm90",
+                dtype="float16",
+            )
+            self._test_h_rcr(
+                ait_dtype="float16",
+                test_name="float16_force_sm90",
+            )
+
+            self._test_rcr(
+                ms=[1024],
+                k=256,
+                n=512,
+                test_name="static_float_forse_sm90",
+                dtype="float32",
+            )
+            self._test_rcr(
+                ms=[1024],
+                k=256,
+                n=512,
+                test_name="static_bfloat16_forse_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_rrr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rrr(
+                    ms=[1, 99, 1024, 2048],
+                    k=252,
+                    n=16,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rrr(
+                ms=[1, 99, 1024, 2048],
+                k=256,
+                n=16,
+                test_name="dynamic_force_sm90",
+                dtype="float16",
+            )
+
+            self._test_3d_2d_rrr(
+                m0s=[2, 34, 48],
+                m1s=[1, 3, 5],
+                k=256,
+                n=16,
+                test_name="dynamic3_force_sm90",
+                dtype="float16",
+            )
+
+            self._test_rrr(
+                ms=[256],
+                k=128,
+                n=32,
+                test_name="static_float_force_sm90",
+                dtype="float32",
+            )
+            self._test_rrr(
+                ms=[256],
+                k=128,
+                n=32,
+                test_name="static_bfloat16_force_sm90",
+                dtype="bfloat16",
+            )
 
 
 filter_test_cases_by_test_env(GEMMTestCase)

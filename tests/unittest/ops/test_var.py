@@ -105,7 +105,14 @@ class VarTestCase(unittest.TestCase):
         )
 
     def _run_batched_var(
-        self, *, dim, unbiased, keepdim=False, input_type="float16", output_type=None
+        self,
+        *,
+        dim,
+        unbiased,
+        keepdim=False,
+        input_type="float16",
+        output_type=None,
+        test_name="batched_var",
     ):
         torch.manual_seed(0)
         logging.info("Test batched_var with reduction_axes={dim}".format(dim=dim))
@@ -128,7 +135,6 @@ class VarTestCase(unittest.TestCase):
 
         logging.info("AITemplate output_type: {}".format(y_dtype))
 
-        test_name = "batched_var"
         module = compile_model(Y, target, "./tmp", test_name)
 
         for B in [5, 128, 1024, 1237, 2002]:
@@ -146,10 +152,18 @@ class VarTestCase(unittest.TestCase):
         self.test_count += 1
 
     def test_batched_var(self):
-        self._run_batched_var(dim=0, unbiased=False, keepdim=True)
-        self._run_batched_var(dim=1, unbiased=True, keepdim=False)
-        self._run_batched_var(dim=1, unbiased=False, keepdim=True)
-        self._run_batched_var(dim=2, unbiased=True, keepdim=False)
+        self._run_batched_var(
+            dim=0, unbiased=False, keepdim=True, test_name="batched_var_0"
+        )
+        self._run_batched_var(
+            dim=1, unbiased=True, keepdim=False, test_name="batched_var_1"
+        )
+        self._run_batched_var(
+            dim=1, unbiased=False, keepdim=True, test_name="batched_var_2"
+        )
+        self._run_batched_var(
+            dim=2, unbiased=True, keepdim=False, test_name="batched_var_3"
+        )
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
     def test_var_float32(self):

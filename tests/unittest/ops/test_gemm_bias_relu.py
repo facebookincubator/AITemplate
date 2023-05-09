@@ -15,16 +15,16 @@
 import unittest
 
 import torch
+
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
-    filter_test_cases_by_params,
+    env_variables,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
-    TestEnv,
 )
-from parameterized import parameterized
 
 
 _TOLERANCE_LIMITS = {
@@ -39,11 +39,14 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         super(GEMMBiasReluTestCase, self).__init__(*args, **kwargs)
         self._test_id = 0
 
-    def _test_gemm_rcr_bias_relu(self, dtype="float16", target=None):
-        M = 128
-        K = 1024
-        N = 64
-        tolerance_limits = _TOLERANCE_LIMITS[dtype]
+    def _test_gemm_rcr_bias_relu(
+        self,
+        M=128,
+        K=1024,
+        N=64,
+        dtype="float16",
+        test_suffix=None,
+    ):
         X = Tensor(shape=[M, K], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(shape=[N, K], dtype=dtype, name="input_1", is_input=True)
         B = Tensor(shape=[N], dtype=dtype, name="input_2", is_input=True)
@@ -51,9 +54,11 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        test_name = f"gemm_rcr_bias_relu_{dtype}_{self._test_id}"
+        if test_suffix is None:
+            test_suffix = dtype
+        test_name = f"gemm_rcr_bias_relu_{test_suffix}_{self._test_id}"
         self._test_id += 1
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = compile_model(Y, detect_target(), "./tmp", test_name)
         X_pt = get_random_torch_tensor([M, K], dtype)
         W_pt = get_random_torch_tensor([N, K], dtype)
         B_pt = get_random_torch_tensor([N], dtype)
@@ -63,22 +68,58 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         inputs = {"input_0": X_pt, "input_1": W_pt, "input_2": B_pt}
         y = get_torch_empty_tensor([M, N], dtype)
         module.run_with_tensors(inputs, [y])
-        torch.testing.assert_close(Y_pt, y, **tolerance_limits)
+        torch.testing.assert_close(Y_pt, y, **_TOLERANCE_LIMITS[dtype])
 
-    @parameterized.expand(
-        filter_test_cases_by_params(
-            {
-                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
-                TestEnv.ROCM: [("float16")],
-            }
-        )
-    )
-    def test_gemm_rcr_bias_relu(self, ait_dtype):
-        target = detect_target()
-        self._test_gemm_rcr_bias_relu(ait_dtype, target)
+    def test_gemm_rcr_bias_relu_fp16(self):
+        self._test_gemm_rcr_bias_relu(dtype="float16")
 
-    def _test_gemm_rcr_bias_add_relu(self, dtype="float16", target=None):
+    def test_gemm_rcr_bias_relu_fp16_rocm(self):
+        self._test_gemm_rcr_bias_relu(dtype="float16")
+
+    def test_gemm_rcr_bias_relu_fp32_sm80(self):
+        self._test_gemm_rcr_bias_relu(dtype="float32")
+
+    def test_gemm_rcr_bias_relu_bf16(self):
+        self._test_gemm_rcr_bias_relu(dtype="bfloat16")
+
+    def test_gemm_rcr_bias_relu_sm90(self):
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # input alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_gemm_rcr_bias_relu(
+                    K=1020,
+                    dtype="float16",
+                    test_suffix="wrong_input_alignment_sm90",
+                )
+
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # output alignment < 8 not supported by SM90 TMA epilogues
+                self._test_gemm_rcr_bias_relu(
+                    N=63,
+                    dtype="float16",
+                    test_suffix="wrong_output_alignment_sm90",
+                )
+
+            self._test_gemm_rcr_bias_relu(
+                dtype="float16",
+                test_suffix="float16_force_sm90",
+            )
+            self._test_gemm_rcr_bias_relu(
+                dtype="bfloat16",
+                test_suffix="bfloat16_force_sm90",
+            )
+
+    def _test_gemm_rcr_bias_add_relu(self, dtype="float16"):
         M = 128
         K = 1024
         N = 64
@@ -93,7 +134,7 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         test_name = f"gemm_rcr_bias_add_relu_{dtype}_{self._test_id}"
         self._test_id += 1
-        module = compile_model(Y, target, "./tmp", test_name)
+        module = compile_model(Y, detect_target(), "./tmp", test_name)
         X_pt = get_random_torch_tensor([M, K], dtype)
         W_pt = get_random_torch_tensor([N, K], dtype)
         B_pt = get_random_torch_tensor([N], dtype)
@@ -106,18 +147,20 @@ class GEMMBiasReluTestCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         torch.testing.assert_close(Y_pt, y, **tolerance_limits)
 
-    @parameterized.expand(
-        filter_test_cases_by_params(
-            {
-                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
-                TestEnv.ROCM: [("float16")],
-            }
-        )
-    )
-    def test_gemm_rcr_bias_add_relu(self, ait_dtype):
-        target = detect_target()
-        self._test_gemm_rcr_bias_add_relu(ait_dtype, target)
+    def test_gemm_rcr_bias_add_relu_fp16(self):
+        self._test_gemm_rcr_bias_add_relu(dtype="float16")
+
+    def test_gemm_rcr_bias_add_relu_fp16_rocm(self):
+        self._test_gemm_rcr_bias_add_relu(dtype="float16")
+
+    def test_gemm_rcr_bias_add_relu_fp32_sm80(self):
+        self._test_gemm_rcr_bias_add_relu(dtype="float32")
+
+    def test_gemm_rcr_bias_add_relu_bf16(self):
+        self._test_gemm_rcr_bias_add_relu(dtype="bfloat16")
+
+
+filter_test_cases_by_test_env(GEMMBiasReluTestCase)
 
 
 if __name__ == "__main__":

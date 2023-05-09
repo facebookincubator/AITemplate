@@ -239,7 +239,7 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
   one_copy_sz += c_dim1;
 {%endif%}
 
-  int64_t mem_pool_sz = memory_pool->ComputeMemPoolSize(one_copy_sz, ptr_max_sz);
+  int64_t mem_pool_sz = memory_pool->ComputeMemPoolSize(one_copy_sz, ptr_max_sz, device_properties.l2CacheSize);
 
   memory_pool->AllocateTensor(a_ptr_sz, mem_pool_sz);                      // a_ptr: index 0
   memory_pool->AllocateTensor(b_ptr_sz, mem_pool_sz);                      // b_ptr: index 1
@@ -335,10 +335,9 @@ struct ProfilerMemoryPool {
   }
   ~ProfilerMemoryPool() {}
 
-  int64_t ComputeMemPoolSize(size_t one_copy_sz, size_t ptr_max_sz) {
-    // TODO: special pool size for A100 L2 cache 40M
-    // need to tune it for other devices
-    int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 25) / ptr_max_sz)));
+  int64_t ComputeMemPoolSize(size_t one_copy_sz, size_t ptr_max_sz, size_t l2_cache_bytes) {
+    int times_covers_l2_cache = (int)std::ceil(l2_cache_bytes / sizeof(DType) / ptr_max_sz);
+    int64_t mem_pool_sz = std::max(2, std::min(512, times_covers_l2_cache));
     size_t free_global_mem = 0;
     size_t total_global_mem = 0;
     cudaError_t cuda_error = cudaMemGetInfo(&free_global_mem, &total_global_mem);

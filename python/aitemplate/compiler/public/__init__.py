@@ -71,6 +71,7 @@ from aitemplate.compiler.ops.padding import ndhwc3to8, nhwc3to8, pad_last_dim
 from aitemplate.compiler.ops.pool.avg_pool2d import avg_pool2d
 from aitemplate.compiler.ops.pool.max_pool2d import max_pool2d
 from aitemplate.compiler.ops.softmax.softmax import softmax
+from aitemplate.compiler.ops.tensor.masked_select import masked_select
 from aitemplate.compiler.ops.tensor.size import size
 from aitemplate.compiler.ops.tensor.topk import topk
 
@@ -80,6 +81,7 @@ from aitemplate.compiler.ops.tensor.concatenate import concatenate
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice
 from aitemplate.compiler.ops.tensor.expand import expand
 from aitemplate.compiler.ops.tensor.full import full
+from aitemplate.compiler.ops.tensor.identity import identity
 from aitemplate.compiler.ops.tensor.permute import permute
 from aitemplate.compiler.ops.tensor.split import split
 

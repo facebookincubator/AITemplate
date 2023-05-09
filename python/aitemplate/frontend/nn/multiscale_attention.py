@@ -19,18 +19,23 @@ https://github.com/facebookresearch/pytorchvideo/blob/main/pytorchvideo/models/v
 """
 
 import logging
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import numpy
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
+from aitemplate.compiler.public import permute
 from aitemplate.frontend import Tensor
+from aitemplate.frontend.nn.activation import GELU
+from aitemplate.frontend.nn.batch_norm import BatchNorm1d, BatchNorm3d
 from aitemplate.frontend.nn.conv3d import Conv3d
 from aitemplate.frontend.nn.dropout import Dropout, DropPath
 from aitemplate.frontend.nn.identity import Identity
+from aitemplate.frontend.nn.layer_norm import LayerNorm
 from aitemplate.frontend.nn.linear import Linear
 from aitemplate.frontend.nn.module import Module
+from aitemplate.frontend.nn.pool3d import MaxPool3d
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,6 +43,31 @@ _LOGGER = logging.getLogger(__name__)
 def get_shape(x):
     shape = [it.value() for it in x._attrs["shape"]]
     return shape
+
+
+def ait_ncl2nlc(x):
+    return permute()(x, [0, 2, 1])
+
+
+def _unsqueeze_dims(x):
+    tensor_dim = len(get_shape(x))
+    if tensor_dim == 4:
+        pass
+    elif tensor_dim == 3:
+        x = ops.unsqueeze(dim=1)(x)
+    else:
+        raise NotImplementedError(f"Unsupported input dimension {get_shape(x)}")
+    return x, tensor_dim
+
+
+def _squeeze_dims(x, tensor_dim):
+    if tensor_dim == 4:
+        pass
+    elif tensor_dim == 3:
+        x = ops.squeeze(dim=1)(x)
+    else:
+        raise NotImplementedError(f"Unsupported input dimension {get_shape(x)}")
+    return x
 
 
 class Mlp(Module):
@@ -63,7 +93,7 @@ class Mlp(Module):
         in_features: int,
         hidden_features: Optional[int] = None,
         out_features: Optional[int] = None,
-        act_layer: str = "gelu",
+        act_layer: Module = GELU,
         dropout_rate: float = 0.0,
         bias_on: bool = True,
     ) -> None:
@@ -90,6 +120,7 @@ class Mlp(Module):
             hidden_features,
             bias=bias_on,
         )
+        self.act = act_layer()
         self.fc2 = Linear(hidden_features, out_features, bias=bias_on)
 
         if self.dropout_rate > 0.0:
@@ -103,13 +134,12 @@ class Mlp(Module):
             x (tensor): Input tensor.
         """
         x = self.fc1(x)
+        x = self.act(x)
 
         assert self.dropout_rate == 0.0
 
         if self.dropout_rate > 0.0:
             x = self.dropout(x)
-
-        x = ops.elementwise(FuncEnum.GELU)(x)
 
         x = self.fc2(x)
 
@@ -124,7 +154,7 @@ class _AttentionPool(Module):
         self,
         pool: Optional[Module],
         has_cls_embed: bool,
-        norm: Optional[str],
+        norm: Optional[Module],
     ) -> None:
         """Apply pool to a flattened input (given pool operation and the unflattened shape).
 
@@ -154,13 +184,13 @@ class _AttentionPool(Module):
 
         self.has_cls_embed = has_cls_embed
         if norm is not None:
-            self.norm_before_pool = norm == "BatchNorm3d" or norm == "Identity"
+            self.norm_before_pool = isinstance(norm, (BatchNorm3d, Identity))
             self.has_norm = True
             self.norm = norm
         else:
             self.norm_before_pool = False
             self.has_norm = False
-            self.norm = "Identity"
+            self.norm = Identity
 
     def forward(self, tensor: Tensor, thw_shape: List[int]) -> Tuple[Tensor, List[int]]:
         """
@@ -174,6 +204,8 @@ class _AttentionPool(Module):
         """
         if not self.has_pool:
             return tensor, thw_shape
+
+        tensor, tensor_dim = _unsqueeze_dims(tensor)
 
         assert not self.has_cls_embed
 
@@ -193,12 +225,10 @@ class _AttentionPool(Module):
         )
 
         if self.norm_before_pool:
-            # TODO: add batchnorm3d
-            # # If use BN, we apply norm before pooling instead of after pooling.
-            # tensor = self.norm(tensor)
-            # # We also empirically find that adding a GELU here is beneficial.
+            # If use BN, we apply norm before pooling instead of after pooling.
+            tensor = self.norm(tensor)
+            # We also empirically find that adding a GELU here is beneficial.
             tensor = ops.elementwise(FuncEnum.GELU)(tensor)
-            _LOGGER.warning(f"Unsupport batchnorm3d when {self.norm_before_pool}")
 
         tensor = self.pool(ops.permute()(tensor, [0, 2, 3, 4, 1]))
 
@@ -208,9 +238,9 @@ class _AttentionPool(Module):
         tensor = ops.reshape()(tensor, [B, N, L_pooled, C])
 
         if self.has_norm and not self.norm_before_pool:
-            # TODO: add support for norm before pool
-            # tensor = self.norm(tensor)
-            _LOGGER.warning("Unsupport norm before pool")
+            tensor = self.norm(tensor)
+
+        tensor = _squeeze_dims(tensor, tensor_dim)
 
         return tensor, thw_shape
 
@@ -255,7 +285,7 @@ class MultiScaleAttention(Module):
         kernel_kv=(1, 1, 1),
         stride_q=(1, 1, 1),
         stride_kv=(1, 1, 1),
-        norm_layer: str = "LayerNorm",
+        norm_layer: Callable = LayerNorm,
         has_cls_embed: bool = True,
         pool_mode: str = "conv",
         pool_first: bool = False,
@@ -301,6 +331,7 @@ class MultiScaleAttention(Module):
         self.pool_first = pool_first
         self.dropout_rate = dropout_rate
         self.num_heads = num_heads
+        self.dim = dim
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
         self.has_cls_embed = has_cls_embed
@@ -360,7 +391,7 @@ class MultiScaleAttention(Module):
                 else None
             )
 
-            self.norm_q = norm_layer if kernel_q is not None else None
+            self.norm_q = norm_layer(head_dim) if kernel_q is not None else None
             self.pool_k = (
                 Conv3d(
                     head_dim,
@@ -374,7 +405,7 @@ class MultiScaleAttention(Module):
                 if kernel_kv is not None
                 else None
             )
-            self.norm_k = norm_layer if kernel_kv is not None else None
+            self.norm_k = norm_layer(head_dim) if kernel_kv is not None else None
             self.pool_v = (
                 Conv3d(
                     head_dim,
@@ -389,7 +420,7 @@ class MultiScaleAttention(Module):
                 else None
             )
 
-            self.norm_v = norm_layer if kernel_kv is not None else None
+            self.norm_v = norm_layer(head_dim) if kernel_kv is not None else None
         else:
             raise NotImplementedError(f"Unsupported model {pool_mode}")
 
@@ -397,17 +428,17 @@ class MultiScaleAttention(Module):
         self._attention_pool_q = _AttentionPool(
             self.pool_q,
             has_cls_embed=self.has_cls_embed,
-            norm=self.norm_q if hasattr(self, "norm_q") else None,
+            norm=getattr(self, "norm_q", None),
         )
         self._attention_pool_k = _AttentionPool(
             self.pool_k,
             has_cls_embed=self.has_cls_embed,
-            norm=self.norm_k if hasattr(self, "norm_k") else None,
+            norm=getattr(self, "norm_k", None),
         )
         self._attention_pool_v = _AttentionPool(
             self.pool_v,
             has_cls_embed=self.has_cls_embed,
-            norm=self.norm_v if hasattr(self, "norm_v") else None,
+            norm=getattr(self, "norm_v", None),
         )
 
     def _qkv_proj(
@@ -532,12 +563,14 @@ class MultiScaleAttention(Module):
             )
 
         # attention
+        q_shape = get_shape(q)
         B, num_heads, seqlen, head_dim = get_shape(q)
-        score = ops.mem_eff_attention(causal=False)(q, k, v)
-        score = ops.reshape()(score, [B, seqlen, -1])
+        score = ops.transpose()(ops.mem_eff_attention(causal=False)(q, k, v), 1, 2)
 
         if self.residual_pool:
             score = ops.elementwise(FuncEnum.ADD)(score, q)
+
+        score = ops.reshape()(ops.transpose()(score, 1, 2), [B, -1, self.dim])
 
         score = self.proj(score)
         assert self.dropout_rate == 0.0
@@ -587,9 +620,9 @@ class MultiScaleBlock(Module):
         qkv_bias: bool = False,
         dropout_rate: float = 0.0,
         droppath_rate: float = 0.0,
-        act_layer: str = "gelu",
-        norm_layer: str = "LayerNorm",
-        attn_norm_layer: str = "LayerNorm",
+        act_layer: Module = GELU,
+        norm_layer: Module = LayerNorm,
+        attn_norm_layer: Module = LayerNorm,
         kernel_q=(1, 1, 1),
         kernel_kv=(1, 1, 1),
         stride_q=(1, 1, 1),
@@ -639,8 +672,11 @@ class MultiScaleBlock(Module):
         super().__init__()
         self.dim = dim
         self.dim_out = dim_out
-        self.norm1 = norm_layer
+        self.norm1 = norm_layer(dim)
+        self.norm1_is_batchnorm_1d = isinstance(self.norm1, BatchNorm1d)
+        kernel_skip = [s + 1 if s > 1 else s for s in stride_q]
         stride_skip = stride_q
+        padding_skip = [int(skip // 2) for skip in kernel_skip]
         self.attn = MultiScaleAttention(
             dim,
             num_heads=num_heads,
@@ -660,9 +696,9 @@ class MultiScaleBlock(Module):
             separate_qkv=separate_qkv,
             max_seq_len=seq_len,
         )
-        assert droppath_rate == 0.0
         self.drop_path = DropPath(droppath_rate) if droppath_rate > 0.0 else Identity()
-
+        self.norm2 = norm_layer(dim)
+        self.norm2_is_batchnorm_1d = isinstance(self.norm2, BatchNorm1d)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.has_cls_embed = has_cls_embed
         self.mlp = Mlp(
@@ -673,10 +709,16 @@ class MultiScaleBlock(Module):
             dropout_rate=dropout_rate,
             bias_on=bias_on,
         )
+        if dim != dim_out:
+            self.proj = Linear(dim, dim_out, bias=bias_on)
+        else:
+            self.proj = Identity()
 
-        # TODO: Add maxpool3d
-        assert numpy.prod(stride_skip) == 1
-        self.pool_skip = None
+        self.pool_skip = (
+            MaxPool3d(tuple(kernel_skip), tuple(stride_skip), tuple(padding_skip))
+            if len(stride_skip) > 0 and numpy.prod(stride_skip) > 1
+            else None
+        )
         self._attention_pool = _AttentionPool(
             self.pool_skip, has_cls_embed=self.has_cls_embed, norm=None
         )
@@ -690,14 +732,19 @@ class MultiScaleBlock(Module):
             thw_shape (List): The shape of the input tensor (before flattening).
         """
         thw_shape = [t_shape, h_shape, w_shape]
-        x_block, thw_shape_new = self.attn(x, thw_shape)
-
+        x_norm = (
+            ait_ncl2nlc(self.norm1(ait_ncl2nlc(x)))
+            if self.norm1_is_batchnorm_1d
+            else self.norm1(x)
+        )
+        x_block, thw_shape_new = self.attn(x_norm, thw_shape)
         x_res, _ = self._attention_pool(x, thw_shape)
         x = x_res + self.drop_path(x_block)
-
-        # TODO: batchnorm 1d
-
-        x_norm = x
+        x_norm = (
+            ait_ncl2nlc(self.norm2(ait_ncl2nlc(x)))
+            if self.norm2_is_batchnorm_1d
+            else self.norm2(x)
+        )
         x_mlp = self.mlp(x_norm)
         if self.dim != self.dim_out:
             x = self.proj(x_norm)

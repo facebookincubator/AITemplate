@@ -30,6 +30,10 @@ from aitemplate.utils import graph_utils, shape_utils
 class MoveViewOpsTestCase(unittest.TestCase):
     BATCH_SIZE = 1024
 
+    @classmethod
+    def setUpClass(cls) -> None:
+        torch.manual_seed(0)
+
     def __init__(self, *args, **kwargs):
         super(MoveViewOpsTestCase, self).__init__(*args, **kwargs)
         self.test_count = 0
@@ -1835,4 +1839,5 @@ class MoveViewOpsTestCase(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    torch.manual_seed(0)
     unittest.main()

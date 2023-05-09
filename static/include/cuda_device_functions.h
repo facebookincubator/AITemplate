@@ -277,6 +277,10 @@ inline DeviceError StreamDestroy(StreamType stream) {
   return cudaStreamDestroy(stream);
 }
 
+inline DeviceError StreamWaitEvent(StreamType stream, EventType event) {
+  return cudaStreamWaitEvent(stream, event);
+}
+
 inline DeviceError GraphInstantiate(
     GraphExecType* graph_exec,
     GraphType graph) {
@@ -374,8 +378,9 @@ inline DeviceError StreamSynchronize(StreamType stream) {
   return cudaStreamSynchronize(stream);
 }
 
-inline DeviceError CreateEvent(EventType* event) {
-  return cudaEventCreate(event);
+inline DeviceError CreateEvent(EventType* event, bool measure_time = true) {
+  return cudaEventCreateWithFlags(
+      event, measure_time ? cudaEventDefault : cudaEventDisableTiming);
 }
 
 inline DeviceError DestroyEvent(EventType event) {

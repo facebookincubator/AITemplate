@@ -112,22 +112,22 @@ class grouped_fmha_style_b2b_bmm(fmha_style_b2b_bmm):
                 max_seq_length,
                 max_seq_length,
             ]
-            bias_max_shape = shape_utils.get_broadcast_max_shape(
+            broadcastable, _ = shape_utils.get_broadcast_max_shape(
                 bias_shape, bias_expected_shape
             )
             if len(bias_shape) != 4:
                 raise RuntimeError(
                     f"Expected bias rank 4. Current bias rank: {len(bias)}."
                 )
-            if not bias_max_shape[0]:
+            if not broadcastable:
                 raise RuntimeError(
                     f"bias shape is not compatible with Q K! "
                     f"QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}, "
                     f"bias shapes: {bias_shape=}, {bias_expected_shape=}."
                 )
-            if bias_shape[-1] != max_seq_length:
+            if bias_shape[-1] != bias_expected_shape[-1]:
                 raise RuntimeError(
-                    f"Bias last dim is not broadcastable! Expected shape: {max_seq_length}, current bias shape: {bias_shape}"
+                    f"Bias last dim is not broadcastable! Expected shape: {bias_expected_shape[-1]}, current bias shape: {bias_shape}"
                 )
             # See comments below.
             if not isinstance(q_shape[0].jagged_dims()[0].min_value(), IntImm):

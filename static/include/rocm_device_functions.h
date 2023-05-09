@@ -186,6 +186,10 @@ inline DeviceError StreamDestroy(StreamType stream) {
   return hipStreamDestroy(stream);
 }
 
+inline DeviceError StreamWaitEvent(StreamType stream, EventType event) {
+  return hipStreamWaitEvent(stream, event);
+}
+
 inline DeviceError GraphInstantiate(
     GraphExecType* graph_exec,
     GraphType graph) {
@@ -286,7 +290,7 @@ inline DeviceError StreamSynchronize(StreamType stream) {
   return hipStreamSynchronize(stream);
 }
 
-inline DeviceError CreateEvent(EventType* event) {
+inline DeviceError CreateEvent(EventType* event, bool measure_time = true) {
   return hipEventCreate(event);
 }
 

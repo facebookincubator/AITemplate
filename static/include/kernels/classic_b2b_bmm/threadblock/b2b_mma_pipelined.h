@@ -92,6 +92,8 @@ template <
   /// Iterates over tiles of B operand in shared memory
   /// (concept: WriteableTileIterator | RandomAccessTileIterator)
   typename SmemIteratorB1_,
+  /// Data type of output matrix
+  typename ElementOutput_,
   /// Data type of accumulator matrix
   typename ElementC_,
   /// Data type of accumulator matrix
@@ -148,6 +150,7 @@ public:
   using SmemIteratorB1 = SmemIteratorB1_;
 
 
+  using ElementOutput = ElementOutput_;       ///< Data type of output matrix
   using ElementC = ElementC_;       ///< Data type of accumulator matrix
   using LayoutC = LayoutC_;         ///< Layout of accumulator matrix
 

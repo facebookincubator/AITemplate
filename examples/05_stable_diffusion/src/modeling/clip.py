@@ -57,9 +57,9 @@ class CrossAttention(nn.Module):
         self.heads = heads
         self.dim_head = dim_head
 
-        self.to_q_weight = nn.Parameter(shape=[inner_dim, query_dim], dtype=dtype)
-        self.to_k_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
-        self.to_v_weight = nn.Parameter(shape=[inner_dim, context_dim], dtype=dtype)
+        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
+        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
         )
@@ -68,36 +68,26 @@ class CrossAttention(nn.Module):
         nheads = self.heads
         d = self.dim_head
 
-        layout = "20314" if USE_CUDA else "m2n3"
-
-        bs, seqlen, _ = get_shape(x)
-        q = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-            ops.reshape()(x, [bs * seqlen, -1]), self.to_q_weight.tensor()
-        )
+        q = self.to_q(x)
         context = default(context, x)
+        k = self.to_k(context)
+        v = self.to_v(context)
 
-        seqlen = get_shape(context)[1]
-        k = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-            ops.reshape()(context, [bs * seqlen, -1]), self.to_k_weight.tensor()
-        )
-        v = ops.gemm_rcr_permute(shape=(seqlen, 1, nheads), layout=layout)(
-            ops.reshape()(context, [bs * seqlen, -1]), self.to_v_weight.tensor()
-        )
+        bs = q.shape()[0]
 
-        if USE_CUDA:
-            attn_op = ops.mem_eff_attention(causal=False)
-            out = attn_op(
-                (ops.reshape()(q, [bs, nheads, -1, d])),
-                (ops.reshape()(k, [bs, nheads, -1, d])),
-                (ops.reshape()(v, [bs, nheads, -1, d])),
-            )
-        else:
-            OP = ops.bmm_softmax_bmm_permute(shape=(nheads,), scale=self.scale)
-            out = OP(
-                (ops.reshape()(q, [bs * nheads, -1, d])),
-                (ops.reshape()(k, [bs * nheads, -1, d])),
-                (ops.reshape()(v, [bs * nheads, -1, d])),
-            )
+        q = ops.reshape()(q, [bs, -1, self.heads, self.dim_head])
+        k = ops.reshape()(k, [bs, -1, self.heads, self.dim_head])
+        v = ops.reshape()(v, [bs, -1, self.heads, self.dim_head])
+        q = ops.permute()(q, [0, 2, 1, 3])
+        k = ops.permute()(k, [0, 2, 1, 3])
+        v = ops.permute()(v, [0, 2, 1, 3])
+
+        attn_op = ops.mem_eff_attention(causal=False)
+        out = attn_op(
+            (ops.reshape()(q, [bs, nheads, -1, d])),
+            (ops.reshape()(k, [bs, nheads, -1, d])),
+            (ops.reshape()(v, [bs, nheads, -1, d])),
+        )
         out = ops.reshape()(out, [bs, -1, nheads * d])
         proj = self.to_out(out)
         proj = ops.reshape()(proj, [bs, -1, nheads * d])
@@ -235,7 +225,7 @@ class SpatialTransformer(nn.Module):
 
     def forward(self, x, context=None):
         # note: if no context is given, cross-attention defaults to self-attention
-        b, h, w, c = get_shape(x)
+        b, h, w, c = x.shape()
         x_in = x
         x = self.norm(x)
         if self.use_linear_projection:
@@ -336,7 +326,7 @@ class CLIPMLP(nn.Module):
         self.fc2 = nn.Linear(hidden_features, out_features, specialization="add")
 
     def forward(self, x, res):
-        shape = get_shape(x)
+        shape = x.shape()
         x = self.fc1(x)
         x = self.fc2(x, res)
         return ops.reshape()(x, shape)
@@ -364,11 +354,11 @@ class CLIPMLPQuickGelu(nn.Module):
         self.fc2 = nn.Linear(hidden_features, out_features, specialization="add")
 
     def forward(self, x, res):
-        shape = get_shape(x)
+        # shape = get_shape(x)
         x = self.fc1(x)
         x = self.activation_fn(x)
         x = self.fc2(x, res)
-        return ops.reshape()(x, shape)
+        return ops.reshape()(x, x.shape())
 
 
 class CLIPEncoderLayer(nn.Module):
@@ -391,19 +381,15 @@ class CLIPEncoderLayer(nn.Module):
     ):
         super().__init__()
         self.embed_dim = hidden_size
-        self.self_attn = nn.MultiheadAttention(
-            dim=hidden_size,
-            batch_size=batch_size,
-            seq_len=seq_len,
-            num_heads=num_attention_heads,
+        self.self_attn = nn.CrossAttention(
+            hidden_size,
+            seq_len,
+            seq_len,
+            num_attention_heads,
             qkv_bias=True,
-            attn_drop=attention_dropout,
-            proj_drop=0,
-            has_residual=True,
             causal=causal,
-            mask_seq=mask_seq,
-            use_mem_eff=True,
         )
+
         self.layer_norm1 = nn.LayerNorm(self.embed_dim)
         self.mlp = self.ACT_LAYER_TO_CLIP_MLP_MAP[act_layer](
             hidden_size, int(hidden_size * mlp_ratio)
@@ -428,7 +414,9 @@ class CLIPEncoderLayer(nn.Module):
         residual = hidden_states
 
         hidden_states = self.layer_norm1(hidden_states)
-        hidden_states = self.self_attn(hidden_states, residual)
+        hidden_states = self.self_attn(
+            hidden_states, hidden_states, hidden_states, residual
+        )
 
         residual = hidden_states
         hidden_states = self.layer_norm2(hidden_states)
@@ -547,6 +535,9 @@ class CLIPTextEmbeddings(nn.Module):
     ):
         super().__init__()
         embed_dim = hidden_size
+        self.max_position_embeddings = max_position_embeddings
+        self.embed_dim = hidden_size
+        self.vocab_size = vocab_size
 
         self.token_embedding = nn.Embedding(shape=[vocab_size, embed_dim], dtype=dtype)
         self.position_embedding = nn.Embedding(
@@ -559,20 +550,25 @@ class CLIPTextEmbeddings(nn.Module):
         position_ids: Tensor,
         inputs_embeds: Optional[Tensor] = None,
     ) -> Tensor:
-
         input_shape = ops.size()(input_ids)
 
         # [B * S]
-        input_ids = ops.reshape()(input_ids, [-1])
-
-        position_ids = ops.reshape()(position_ids, [-1])
+        token_embedding = self.token_embedding.tensor()
+        token_embedding = ops.reshape()(
+            token_embedding, [1, self.vocab_size, self.embed_dim]
+        )
+        token_embedding = ops.expand()(token_embedding, [input_shape[0], -1, -1])
 
         if inputs_embeds is None:
-            inputs_embeds = ops.batch_gather()(self.token_embedding.tensor(), input_ids)
+            inputs_embeds = ops.batch_gather()(token_embedding, input_ids)
 
-        position_embeddings = ops.batch_gather()(
-            self.position_embedding.tensor(), position_ids
+        position_embedding = self.position_embedding.tensor()
+        position_embedding = ops.reshape()(
+            position_embedding, [1, self.max_position_embeddings, self.embed_dim]
         )
+        position_embedding = ops.expand()(position_embedding, [input_shape[0], -1, -1])
+
+        position_embeddings = ops.batch_gather()(position_embedding, position_ids)
 
         embeddings = inputs_embeds + position_embeddings
 

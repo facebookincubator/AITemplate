@@ -20,7 +20,7 @@ from typing import List
 
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
-from aitemplate.compiler.base import IntVar, JaggedDim, Operator, Tensor
+from aitemplate.compiler.base import IntVar, JaggedDim, JaggedIntVar, Operator, Tensor
 from aitemplate.compiler.ops import make_jagged
 
 
@@ -43,6 +43,12 @@ class padded_dense_to_jagged(Operator):
         self,
         total_length: IntVar,
     ):
+        if isinstance(total_length, JaggedIntVar):
+            # the total_length dimension may be fetched from the
+            # jagged tensor's shape[0]. in such cases, the total_length
+            # would already be a JaggedIntVar and we fetch the real
+            # total_length from inside it.
+            total_length = total_length.total_length()
         if type(total_length) != IntVar:
             raise TypeError(
                 f"total_length must be IntVar, but got {type(total_length).__name__}."

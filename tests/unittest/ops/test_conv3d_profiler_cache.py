@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 import logging
-import os
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -24,6 +23,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import DynamicProfileStrategy
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import env_variables
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class Conv3DProfilerCacheTestCase(unittest.TestCase):
                 Y,
                 target,
                 "./tmp",
-                "conv3d",
+                test_name,
                 dynamic_profiling_strategy=DynamicProfileStrategy.HINTS,
             )
 
@@ -87,25 +87,15 @@ class Conv3DProfilerCacheTestCase(unittest.TestCase):
         logger,
         cache_dir,
     ):
-        old_trick = os.environ.get("TRICK_CI_ENV", None)
-        old_cache = os.environ.get("CACHE_DIR", None)
-        try:
-            os.environ["TRICK_CI_ENV"] = "1"
-            os.environ["CACHE_DIR"] = f"{cache_dir}/{test_name}"
+        with env_variables(
+            TRICK_CI_ENV="1",
+            CACHE_DIR=f"{cache_dir}/{test_name}",
+        ):
             return self._test(
                 first_dim=first_dim,
                 logger=logger,
                 test_name=test_name,
             )
-        finally:
-            if old_trick is not None:
-                os.environ["TRICK_CI_ENV"] = old_trick
-            else:
-                os.environ.pop("TRICK_CI_ENV")
-            if old_cache is not None:
-                os.environ["CACHE_DIR"] = old_cache
-            else:
-                os.environ.pop("CACHE_DIR")
 
     def test_conv3d_profiler_cache(self):
         first_dim = IntImm(4)
@@ -199,7 +189,6 @@ class Conv3DProfilerCacheTestCase(unittest.TestCase):
         test_name = "conv3d_profiler_force_cache"
         cache_version_property = "conv3d_cache_version"
 
-        old_force_cache = os.environ.get("AIT_FORCE_PROFILER_CACHE", None)
         logger = "aitemplate.backend.profiler_cache"
         _LOGGER.info(f"running {test_name=}")
         with tempfile.TemporaryDirectory() as tmp_dirname:
@@ -210,10 +199,19 @@ class Conv3DProfilerCacheTestCase(unittest.TestCase):
                 new=1,  # version
             ):
                 _LOGGER.info("force cache with no cache 1")
-                os.environ["AIT_FORCE_PROFILER_CACHE"] = "1"
-                with self.assertRaisesRegex(
-                    RuntimeError, "force_cache is enabled but we could not find"
-                ):
+                with env_variables(AIT_FORCE_PROFILER_CACHE="1"):
+                    with self.assertRaisesRegex(
+                        RuntimeError, "force_cache is enabled but we could not find"
+                    ):
+                        self._run_test(
+                            first_dim=first_dim,
+                            test_name=test_name,
+                            logger=logger,
+                            cache_dir=tmp_dirname,
+                        )
+
+                _LOGGER.info("make cache 1")
+                with env_variables(AIT_FORCE_PROFILER_CACHE=None):
                     self._run_test(
                         first_dim=first_dim,
                         test_name=test_name,
@@ -221,28 +219,14 @@ class Conv3DProfilerCacheTestCase(unittest.TestCase):
                         cache_dir=tmp_dirname,
                     )
 
-                del os.environ["AIT_FORCE_PROFILER_CACHE"]
-                _LOGGER.info("make cache 1")
-                self._run_test(
-                    first_dim=first_dim,
-                    test_name=test_name,
-                    logger=logger,
-                    cache_dir=tmp_dirname,
-                )
-
-                os.environ["AIT_FORCE_PROFILER_CACHE"] = "1"
                 _LOGGER.info("force cache with no cache 1")
-                self._run_test(
-                    first_dim=first_dim,
-                    test_name=test_name,
-                    logger=logger,
-                    cache_dir=tmp_dirname,
-                )
-
-        if old_force_cache is not None:
-            os.environ["AIT_FORCE_PROFILER_CACHE"] = old_force_cache
-        else:
-            del os.environ["AIT_FORCE_PROFILER_CACHE"]
+                with env_variables(AIT_FORCE_PROFILER_CACHE="1"):
+                    self._run_test(
+                        first_dim=first_dim,
+                        test_name=test_name,
+                        logger=logger,
+                        cache_dir=tmp_dirname,
+                    )
 
     def test_conv3d_profiler_cache_dynamic(self):
         first_dim = IntVar([2, 8])

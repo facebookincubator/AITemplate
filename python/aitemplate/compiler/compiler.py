@@ -21,7 +21,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
-
 from aitemplate.compiler.base import (
     DynamicProfileStrategy,
     IntImm,
@@ -39,6 +38,7 @@ from aitemplate.compiler.transform.name_graph import reset_name_counters
 from aitemplate.compiler.transform.profile import elapsed_dt_sec
 from aitemplate.utils import graph_utils
 from aitemplate.utils.debug_settings import AITDebugSettings
+from aitemplate.utils.misc import callstack_stats
 from aitemplate.utils.serialization.serdes_code import dump_program
 
 # pylint: disable=W0102
@@ -145,6 +145,7 @@ def _mark_isolated_int_vars(sorted_graph: List[Tensor]):
 _DEBUG_SETTINGS = AITDebugSettings()
 
 
+@callstack_stats()
 def compile_model(
     tensor: Union[Tensor, List[Tensor]],
     target: backend.target.Target,
@@ -215,9 +216,6 @@ def compile_model(
     if profile_dir is None:
         profile_dir = workdir
 
-    if debug_settings.dump_ait_to_py:
-        dump_program(tensor, debug_settings.dump_ait_to_py)
-
     if int(recompile) == 1:
         os.makedirs(test_dir, exist_ok=True)
         with target:
@@ -241,6 +239,9 @@ def compile_model(
 
             compiler.transform.name_graph(graph)
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "name_graph")
+
+            if debug_settings.dump_ait_to_py:
+                dump_program(tensor, debug_settings.dump_ait_to_py)
 
             compiler.transform.dedup_symbolic_name(graph)
             graph_utils.dump_graph_debug_str_to_file(
@@ -286,6 +287,11 @@ def compile_model(
                 graph, test_dir, "constant_folding"
             )
             _LOGGER.info(f"folded constants elapsed time: {elapsed_dt_sec(start_t)}")
+
+            compiler.transform.dedup_symbolic_name(graph)
+            graph_utils.dump_graph_debug_str_to_file(
+                graph, test_dir, "dedup_symbolic_name"
+            )
 
             (
                 max_blob,

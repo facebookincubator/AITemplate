@@ -114,6 +114,7 @@ def gen_function(
     )
     (
         problem_args,
+        _,  # problem_args_cutlass_3x
         input_addr_calculator,
         output_addr_calculator,
     ) = bmm_common.make_function_strided_args(
