@@ -39,9 +39,8 @@ class identity(Operator):
         self._set_depth()
 
         output_shapes = self._infer_shapes(x)
-        output = Tensor(output_shapes, src_ops={self})
+        output = Tensor(output_shapes, src_ops={self}, is_view_of=x)
         self._attrs["outputs"] = [output]
-        output._attrs["dtype"] = x.dtype()
 
         return output
 
