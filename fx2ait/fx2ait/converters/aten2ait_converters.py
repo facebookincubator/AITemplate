@@ -55,6 +55,8 @@ from aitemplate.compiler.public import (
     transposed_conv2d_bias,
     unsqueeze,
 )
+from torch.fx.node import Argument, Target
+
 from fx2ait.converters.utils import (
     create_binary_op,
     get_positive_dim,
@@ -69,7 +71,6 @@ from fx2ait.passes.lower_basic_pass_aten import (
     aten_compose_mm_2d,
     aten_operator_getitem,
 )
-from torch.fx.node import Argument, Target
 
 from .converter_registry import ait_converter
 

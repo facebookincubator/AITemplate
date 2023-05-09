@@ -20,8 +20,8 @@ import numpy as np
 import torch
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import _TorchConstantTensorData
-from aitemplate.testing import detect_target
 from aitemplate.frontend import nn
+from aitemplate.testing import detect_target
 from torch.fx.node import Argument
 
 from .ait_converters import ConverterOutput
@@ -70,7 +70,7 @@ def multi_head_attention_module(
             num_heads=submod.num_heads,
             qkv_bias=True,
             has_residual=False,
-            use_mem_eff=True
+            use_mem_eff=True,
         )
 
     # Bind constant tensor for MHA module

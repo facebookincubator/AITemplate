@@ -20,12 +20,12 @@ import warnings
 from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence
 
-import fx2ait.cache as cache
-
 import torch
 
 # @manual=//aitemplate/AITemplate/python/aitemplate:aitemplate
 from aitemplate.testing import detect_target
+
+import fx2ait.cache as cache
 from .converters.ait_converters import *  # isort:skip # noqa: F401 F403
 from .converters.aten2ait_converters import *  # isort:skip # noqa: F401 F403
 from aitemplate.compiler import compile_model
