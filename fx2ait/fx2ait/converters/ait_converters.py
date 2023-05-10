@@ -660,7 +660,8 @@ def acc_ops_slice(
             num_none_indices += 1
             continue
         if isinstance(i, int):
-            i = get_positive_dim(i, input_val.shape()[index].value())
+            if isinstance(input_val.shape()[index], IntImm):
+                i = get_positive_dim(i, input_val.shape()[index].value())
             # If we pass an int, we need to squeeze this dim.
             # Note that because we skip None-indices before, so we adjust
             # the index by subtracting the number of None-indices.
