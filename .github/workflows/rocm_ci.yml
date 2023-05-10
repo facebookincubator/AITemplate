@@ -2,8 +2,6 @@ name: ROCM_CI
 
 on:
   pull_request:
-     tags:
-       - rocm_ci*
      types: [labeled]
 
 jobs:
