@@ -115,7 +115,9 @@ def gen_function(func_attrs: Dict[str, Any]) -> str:
     read_type = backend_spec.get_elementwise_read_backend_type(num_elements, dtype)
 
     return FUNC_TEMPLATE.render(
-        header_files=CUDA_HEADER_FILES,
+        header_files=backend_spec.header_src_template.render(
+            extra_header=CUDA_HEADER_FILES
+        ),
         constant=CONSTANT_TEMPLATE.render(
             read_t=read_type,
             data_t=data_type,
