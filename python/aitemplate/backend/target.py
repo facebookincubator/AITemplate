@@ -152,6 +152,10 @@ class Target:
         make_path = shutil.which("make")
         return make_path if make_path is not None else "make"
 
+    def cmake(self):
+        cmake_path = shutil.which("cmake")
+        return cmake_path if cmake_path is not None else "cmake"
+
     def compile_cmd(self, executable: bool = False):
         """Compile command string template for this target.
 
