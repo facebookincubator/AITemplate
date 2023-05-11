@@ -16,6 +16,7 @@
 conv3d Module.
 """
 from aitemplate.compiler.ops import conv3d, conv3d_bias, depthwise_conv3d
+from aitemplate.compiler.ops.padding.ndhwc3to8 import ndhwc3to8
 from aitemplate.frontend.nn.module import Module
 from aitemplate.frontend.nn.parameter import Parameter
 
@@ -94,21 +95,26 @@ class Conv3d(Module):
         bias=False,
     ):
         super().__init__()
+        self.has_bias = bias
 
         if isinstance(kernel_size, int):
             kernel_size = (kernel_size, kernel_size, kernel_size)
         self.weight = Parameter(
-            shape=[out_channels, *kernel_size, in_channels // groups], dtype=dtype
+            shape=[out_channels, *kernel_size, in_channels // groups],
+            dtype=dtype,
         )
-        if groups != 1 and bias:
+        if self.has_bias:
             self.bias = Parameter(shape=[out_channels], dtype=dtype)
 
         if groups == 1:
-            if bias:
+            if self.has_bias:
                 self.op = conv3d_bias(
                     stride=stride, pad=padding, dilate=dilation, group=groups
                 )
-            self.op = conv3d(stride=stride, pad=padding, dilate=dilation, group=groups)
+            else:
+                self.op = conv3d(
+                    stride=stride, pad=padding, dilate=dilation, group=groups
+                )
         else:
             self.op = depthwise_conv3d(
                 stride=stride, pad=padding, dilate=dilation, group=groups, bias=bias
@@ -118,4 +124,10 @@ class Conv3d(Module):
         """Applies Conv3d on the input tensor."""
         assert len(args) == 1
         x = args[0]
-        return self.op(x, self.weight.tensor())
+
+        if self.has_bias:
+            x = ndhwc3to8()(x)
+            weight = ndhwc3to8()(self.weight.tensor())
+            return self.op(x, weight, self.bias.tensor())
+        else:
+            return self.op(x, self.weight.tensor())

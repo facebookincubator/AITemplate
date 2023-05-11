@@ -15,10 +15,14 @@
 """
 Graph pass to assign names to a sorted graph.
 """
+import logging
 import re
 from typing import List
 
-from aitemplate.compiler.base import IntImm, IntVarTensor, JaggedIntVar, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, JaggedIntVar, Tensor
+from aitemplate.utils import graph_utils
+
+_LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=C0103
 
@@ -70,6 +74,10 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
     global tensor_cnt
     global func_name_to_tensor_cnt
     global user_provided_dim
+
+    _LOGGER.debug(
+        f"before name_graph: {func_cnt=}, {tensor_cnt=}, {len(func_name_to_tensor_cnt)=}, {len(user_provided_dim)=}"
+    )
     for node in sorted_graph:
         funcs = node.src_ops()
         if len(funcs) == 0:
@@ -136,10 +144,13 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
                 jagged_int_var_name = jagged_int_var._attrs["name"]
                 batch_dim._attrs["name"] = f"{jagged_int_var_name}_jagged_batch_dim"
 
+    _LOGGER.debug(
+        f"after name_graph: {func_cnt=}, {tensor_cnt=}, {len(func_name_to_tensor_cnt)=}, {len(user_provided_dim)=}"
+    )
+
 
 def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
     """Rename all shape variable that are identical to the same name.
-
     Parameters
     ----------
     sorted_graph : List[Tensor]
@@ -147,19 +158,49 @@ def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
     """
     symbolic_to_name = {}
     global user_provided_dim
-    for node in sorted_graph:
-        for dim in node._attrs["shape"]:
-            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
-                dim_sym = dim.symbolic_value()
-                if (
-                    dim_sym not in symbolic_to_name
-                    or dim_sym in symbolic_to_name
-                    and dim._attrs["name"] in user_provided_dim
-                ):
-                    symbolic_to_name[dim_sym] = dim._attrs["name"]
+    # First pass - build symbolic_to_name map
+    for i, dim in _all_dims_in_graph(sorted_graph):
+        if not _dim_qualified_for_sym_dedup(dim):
+            continue
+        dim_sym = dim.symbolic_value()
+        if (
+            dim_sym not in symbolic_to_name
+            or dim_sym in symbolic_to_name
+            and dim._attrs["name"] in user_provided_dim
+        ):
+            symbolic_to_name[dim_sym] = dim._attrs["name"] or f"dim_{i}"
 
+    # Second pass - use symbolic_to_name map
+    for _, dim in _all_dims_in_graph(sorted_graph):
+        if not _dim_qualified_for_sym_dedup(dim):
+            continue
+        dim_sym = dim.symbolic_value()
+        dim._attrs["name"] = symbolic_to_name[dim_sym]
+
+
+def _all_dims_in_graph(sorted_graph: List[Tensor]):
+    dim_idx = 0
     for node in sorted_graph:
         for dim in node._attrs["shape"]:
-            if not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar):
-                dim_sym = dim.symbolic_value()
-                dim._attrs["name"] = symbolic_to_name[dim_sym]
+            yield dim_idx, dim
+            dim_idx += 1
+
+    # In case some dimensions are not encountered in any nodes in the graph,
+    # only in input/output accessors - iterate over all ops and dimensions
+    # in tensor accessors, if any.
+    sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+    for op in sorted_ops:
+        input_accessors = op._attrs.get("input_accessors", None)
+        output_accessors = op._attrs.get("output_accessors", None)
+        for accessors in (input_accessors, output_accessors):
+            if accessors is None:
+                continue
+            for ta in accessors:
+                if ta.original_shapes:
+                    for dim in ta.original_shapes:
+                        yield dim_idx, dim
+                        dim_idx += 1
+
+
+def _dim_qualified_for_sym_dedup(dim: IntVar) -> bool:
+    return not isinstance(dim, IntImm) and not isinstance(dim, JaggedIntVar)

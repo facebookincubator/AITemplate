@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, List, Set
+from typing import Any, Dict, List, Set
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
@@ -255,6 +255,52 @@ class TensorSpec:
 
         return result
 
+    @staticmethod
+    def _get_max_seq_lens_from_offsets(
+        inputs: List[torch.Tensor],
+        jagged_offsets_batch_dims: Set[int],
+    ) -> Dict[int, int]:
+        """
+        Get the maximum sequence length encoded in each offsets tensor.
+
+        Offsets tensors encode the length of each sequence in the corresponding
+        jagged tensor. Here we extract the maximum sequence length in each offsets
+        tensor in the inputs and associate it with the total_length (== offsets[-1])
+        of the corresponding jagged tensor in the inputs.
+        """
+        offsets_inputs = [
+            inp
+            for inp in inputs
+            # offsets tensors are rakn-1 and have a specific first dimension
+            if len(inp.shape) == 1 and inp.shape[0] in jagged_offsets_batch_dims
+        ]
+
+        max_seq_lens = {}
+        for offsets in offsets_inputs:
+            offsets = offsets.cpu()
+            # the last value in the offsets tensor is the total_length
+            # dimension of the corresponding jagged tensor
+            total_length = offsets[-1].item()
+            # max. sequence length == max. consecutive offset difference
+            max_seq_len = torch.max(offsets[1:] - offsets[:-1]).item()
+            if total_length in max_seq_lens:
+                # if multiple jagged tensors have the same total length,
+                # set the max_seq_len to the maximum of all sequences
+                # in all corresponding offsets tensors
+                max_seq_lens[total_length] = max(
+                    max_seq_lens[total_length], max_seq_len
+                )
+            else:
+                max_seq_lens[total_length] = max_seq_len
+
+            logger.info(
+                f"Maximum sequence length {max_seq_lens[total_length]} "
+                f"for the input jagged tensor with {total_length=} "
+                "inferred from the offsets tensor."
+            )
+
+        return max_seq_lens
+
     @classmethod
     def from_input_list_with_batch_size_jagged_tensor(
         cls,
@@ -264,6 +310,7 @@ class TensorSpec:
         jagged_tensor_batch_dims: Set[int],
         jagged_offsets_batch_dims: Set[int],
         additional_inputs: List[torch.Tensor] = None,
+        infer_max_seq_lens_from_offsets: bool = False,
     ) -> List["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
@@ -271,6 +318,13 @@ class TensorSpec:
         We make an assumption that inferred lowerable subgraph inputs will have
         a single batch dimension with the same max batch size.
         """
+        max_seq_lens_from_offsets = {}
+        if infer_max_seq_lens_from_offsets:
+            max_seq_lens_from_offsets = cls._get_max_seq_lens_from_offsets(
+                inputs=inputs,
+                jagged_offsets_batch_dims=jagged_offsets_batch_dims,
+            )
+
         result: List = []
         result_unsorted: List = []
         left_inputs: List = []
@@ -283,7 +337,13 @@ class TensorSpec:
             batch_dim_name: str = ""
             if batch_dim in jagged_tensor_batch_dims:
                 batch_dim_lower_bound = 0  # when all sequences are empty
-                batch_dim_upper_bound = max_batch_size * max_sequence_length
+                # if the maximum sequence length for this jagged tensor was not
+                # inferred from the offsets, we use the globally configured
+                # max_sequence_length (passed as argument to this function)
+                max_seq_len = max_seq_lens_from_offsets.get(
+                    batch_dim, max_sequence_length
+                )
+                batch_dim_upper_bound = max_batch_size * max_seq_len
                 batch_dim_name = f"batch_size_jagged_tensor_{batch_dim}"
             elif batch_dim in jagged_offsets_batch_dims:
                 batch_dim_lower_bound = 2  # prefix 0 + at least one offset

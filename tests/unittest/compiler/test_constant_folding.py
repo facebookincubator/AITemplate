@@ -84,7 +84,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=3)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],
@@ -138,7 +138,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],
@@ -188,7 +188,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=1)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],
@@ -227,7 +227,7 @@ class ConstantFoldingTestCase(unittest.TestCase):
         self._verify_graph(mod, expected_num_constants=1, expected_num_nodes=1)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],

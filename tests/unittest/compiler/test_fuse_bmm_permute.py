@@ -149,8 +149,9 @@ class FuseBmmPermuteCase(unittest.TestCase):
                 {
                     TestEnv.CUDA_LESS_THAN_SM80: ["float16"],
                 }
-            ),
-        )
+            )["input"],
+        ),
+        skip_on_empty=True,
     )
     def test_xxr_to_xxс(self, B, layout_a, layout_b, layout_c, dtype):
         """

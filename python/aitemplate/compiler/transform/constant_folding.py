@@ -250,6 +250,7 @@ def _constant_folding_impl(
         graph=subgraph,
         output_tensors=output_tensors,
         model_name=backend.codegen.CONSTANT_FOLDER_MODEL_NAME,
+        model_dir=model_dir,
     )
     model_container_generator.append_all_tensors()
     constant_folding_model_def = model_container_generator.generate_model()

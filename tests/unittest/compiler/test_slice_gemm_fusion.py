@@ -155,7 +155,7 @@ class SliceGemmFusionTestCase(unittest.TestCase):
     # This is a test for testing cases where we correctly update a/b_alignment
     # based on input_accessors
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],

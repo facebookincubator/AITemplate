@@ -352,8 +352,60 @@ class FusedElementwiseTestCase(unittest.TestCase):
         module.run_with_tensors([x1_pt], [x2])
         torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2)
 
+    def _test_gelu(self, input_size, test_name="gelu", copy_op=False, dtype="float16"):
+        assert len(input_size) == 2
+        X1 = Tensor(
+            shape=[IntImm(input_size[0]), IntImm(input_size[1])],
+            dtype=dtype,
+            name="input0",
+            is_input=True,
+        )
+        X2_op = ops.elementwise(FuncEnum.GELU)
+        if copy_op:
+            X2_op = ops.elementwise(**X2_op._get_op_attributes())
+        X2 = X2_op(X1)
+        X2._attrs["is_output"] = True
+        X2._attrs["name"] = "output0"
+
+        target = detect_target()
+        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        x1_pt = get_random_torch_tensor(input_size, dtype)
+        OP_pt = torch.nn.GELU()
+        x2_pt = OP_pt(x1_pt)
+
+        x2 = torch.empty_like(x2_pt)
+        module.run_with_tensors([x1_pt], [x2])
+        torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2)
+
+    def _test_fast_gelu(
+        self, input_size, test_name="fast_gelu", copy_op=False, dtype="float16"
+    ):
+        assert len(input_size) == 2
+        X1 = Tensor(
+            shape=[IntImm(input_size[0]), IntImm(input_size[1])],
+            dtype=dtype,
+            name="input0",
+            is_input=True,
+        )
+        X2_op = ops.elementwise(FuncEnum.FASTGELU)
+        if copy_op:
+            X2_op = ops.elementwise(**X2_op._get_op_attributes())
+        X2 = X2_op(X1)
+        X2._attrs["is_output"] = True
+        X2._attrs["name"] = "output0"
+
+        target = detect_target()
+        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+        x1_pt = get_random_torch_tensor(input_size, dtype)
+        OP_pt = torch.nn.GELU(approximate="tanh")
+        x2_pt = OP_pt(x1_pt)
+
+        x2 = torch.empty_like(x2_pt)
+        module.run_with_tensors([x1_pt], [x2])
+        torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2)
+
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -379,7 +431,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self._test_leaky_relu([63, 63], test_name="leaky_relu_3", dtype=dtype)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -402,7 +454,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -428,7 +480,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -449,7 +501,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -470,7 +522,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -494,7 +546,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -515,7 +567,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -536,7 +588,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -557,7 +609,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -578,7 +630,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -599,7 +651,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -620,7 +672,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -641,7 +693,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -662,7 +714,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -694,7 +746,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -717,7 +769,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
                 TestEnv.CUDA_SM80: [("bfloat16")],
@@ -731,6 +783,40 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self._test_celu([128, 256], alpha=0.4, test_name="celu_3", dtype=dtype)
         self._test_celu(
             [256, 128], alpha=1.0, test_name="celu_3_copy_op", copy_op=True, dtype=dtype
+        )
+
+    @parameterized.expand(
+        **filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_gelu(self, dtype):
+        self._test_gelu([63, 63], test_name="gelu_1", dtype=dtype)
+        self._test_gelu([128, 128], test_name="gelu_2", dtype=dtype)
+        self._test_gelu([128, 256], test_name="gelu_3", dtype=dtype)
+        self._test_gelu(
+            [256, 128], test_name="gelu_4_copy_op", copy_op=True, dtype=dtype
+        )
+
+    @parameterized.expand(
+        **filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_fast_gelu(self, dtype):
+        self._test_fast_gelu([63, 63], test_name="fast_gelu_1", dtype=dtype)
+        self._test_fast_gelu([128, 128], test_name="fast_gelu_2", dtype=dtype)
+        self._test_fast_gelu([128, 256], test_name="fast_gelu_3", dtype=dtype)
+        self._test_fast_gelu(
+            [256, 128], test_name="fast_gelu_4_copy_op", copy_op=True, dtype=dtype
         )
 
 

@@ -39,7 +39,7 @@ def get_timestep_embedding(
     :param embedding_dim: the dimension of the output. :param max_period: controls the minimum frequency of the
     embeddings. :return: an [N x dim] Tensor of positional embeddings.
     """
-    assert len(get_shape(timesteps)) == 1, "Timesteps should be a 1d-array"
+    assert timesteps._rank() == 1, "Timesteps should be a 1d-array"
 
     half_dim = embedding_dim // 2
 

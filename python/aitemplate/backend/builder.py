@@ -162,7 +162,7 @@ def _run_make_cmds(cmds, timeout, build_dir, allow_cache=True):
         )
         try:
             out, err = proc.communicate(timeout)
-            if store_cache_key is not None:
+            if proc.returncode == 0 and store_cache_key is not None:
                 build_cache.BUILD_CACHE.store_build_cache(
                     cmds, build_dir, store_cache_key
                 )
@@ -430,14 +430,17 @@ clean_constants:
         build_so_cmd = "$(CC) -shared $(fPIC_flag) $(CFLAGS) -o $@ $(obj_files)"
         standalone_src = "standalone.cu"
         standalone_obj = "standalone.obj"
+        windll_obj = "windll.obj"
         obj_files = []
-        # standalone.cu is an AITemplate internal file that is used for generating
-        # standalone executables. We only want to compile it when the relevant
-        # debug option is enabled.
+        # * standalone.cu is an AITemplate internal file that is used for generating
+        #   standalone executables. We only want to compile it when the relevant
+        #   debug option is enabled.
+        # * windll.cu and windll.obj are used in builder_cmake.py for MSVC compiler
+        #   and are not needed to be used in builder_make.py compiler engine.
         obj_files = [
             pair[1].split("/")[-1]
             for pair in file_pairs
-            if not pair[1].endswith(standalone_obj)
+            if not pair[1].endswith(standalone_obj) and not pair[1].endswith(windll_obj)
         ]
         obj_files = " ".join(obj_files)
 
@@ -892,3 +895,8 @@ clean:
         if not is_debug():
             cmds.append(make_clean_constants_cmd)
         _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=allow_cache)
+
+
+def get_compile_engine():
+    compile_engine = Builder()
+    return compile_engine

@@ -289,7 +289,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(r4, r4_pt, atol=1e-2, rtol=1e-2))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],
@@ -375,7 +375,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(r3, r3_pt, atol=1e-2, rtol=1e-2))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],
@@ -477,7 +477,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(r4, r4_pt, atol=1e-2, rtol=1e-2))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],
@@ -591,7 +591,7 @@ class FusedElementwiseComplexDependencyTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(r7, r7_pt, atol=1e-2, rtol=1e-2))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("float")],

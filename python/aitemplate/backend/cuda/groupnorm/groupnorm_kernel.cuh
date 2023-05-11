@@ -477,8 +477,6 @@ struct TInputHelper<bfloat16> {
 template <
     typename TInput,
     bool FuseSwish,
-    int H,
-    int W,
     int C,
     int C_G,
     int ILP = 8,
@@ -490,6 +488,8 @@ __global__ __launch_bounds__(NUM_THREADS) void group_norm_smem(
     TInput* gamma,
     TInput* beta,
     int N,
+    int H,
+    int W,
     float epsilon) {
   constexpr int C_G_2 = C_G / 2;
   constexpr int C_G_stride = C_G_2 + BANK_CONFLICT;
@@ -983,13 +983,15 @@ void DispatchGroupNormForwardGpu(
   }
 }
 
-template <typename TInput, bool FuseSwish, int H, int W, int C, int G>
+template <typename TInput, bool FuseSwish, int C, int G>
 cudaError_t invokeGroupNorm(
     TInput* output,
     TInput* input,
     TInput* gamma,
     TInput* beta,
     int N,
+    const int64_t* height,
+    const int64_t* width,
     const float eps,
     const int max_smem_size,
     void* workspace,
@@ -997,6 +999,9 @@ cudaError_t invokeGroupNorm(
   constexpr auto C_G = C / G;
   constexpr auto C_G_2 = C_G / 2;
   constexpr int ILP = 8;
+
+  int64_t H = *height;
+  int64_t W = *width;
 
   const int64_t num_instances = N * G;
   const int64_t norm_size = H * W * C / G;
@@ -1011,46 +1016,25 @@ cudaError_t invokeGroupNorm(
   // Bank conflict doesn't seem to matter to perf
   constexpr int BANK_CONFLICT = 0;
 
-  constexpr auto smem =
-      H * W * (C_G_2 + MEM_BANK_CONFLICT) * 2 * sizeof(TInput);
+  const auto smem = H * W * (C_G_2 + MEM_BANK_CONFLICT) * 2 * sizeof(TInput);
 
   // C_G must be even, or we can have misaligned address for cp.async
   // reserve some shared_mem for block reduction
-  if (H % 8 == 0 && C_G % 2 == 0 && smem <= max_smem_size - 1000) {
-    constexpr int num_threads = std::min(1024, H / ILP * W * C_G_2);
-
-    if constexpr (num_threads > 0) {
-      auto kernel_func = group_norm_smem<
-          TInput,
-          FuseSwish,
-          H,
-          W,
-          C,
-          C_G,
-          ILP,
-          BANK_CONFLICT,
-          num_threads>;
-      GROUP_NORM_CUDA_CHECK(cudaFuncSetAttribute(
-          kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, smem));
-      dim3 block(num_threads);
-      kernel_func<<<dim3(G, N), block, smem, stream>>>(
-          input, output, gamma, beta, N, eps);
-    } else {
-      DispatchGroupNormForwardGpu<TInput, float, FuseSwish>(
-          stream,
-          num_instances,
-          norm_size,
-          channel_size,
-          spatial_size,
-          epsilon,
-          input,
-          gamma,
-          beta,
-          output,
-          static_cast<float*>(workspace),
-          static_cast<float*>(workspace) + num_instances,
-          channels_first);
-    }
+  if (H > 0 && H % 8 == 0 && C_G % 2 == 0 && smem <= max_smem_size - 1000) {
+    constexpr int num_threads = 1024;
+    auto kernel_func = group_norm_smem<
+        TInput,
+        FuseSwish,
+        C,
+        C_G,
+        ILP,
+        BANK_CONFLICT,
+        num_threads>;
+    GROUP_NORM_CUDA_CHECK(cudaFuncSetAttribute(
+        kernel_func, cudaFuncAttributeMaxDynamicSharedMemorySize, smem));
+    dim3 block(num_threads);
+    kernel_func<<<dim3(G, N), block, smem, stream>>>(
+        input, output, gamma, beta, N, H, W, eps);
   } else {
     DispatchGroupNormForwardGpu<TInput, float, FuseSwish>(
         stream,

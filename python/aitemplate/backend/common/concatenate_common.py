@@ -445,9 +445,11 @@ void {{func_name}}(
     throw std::runtime_error("the number of inputs must >= 1!");
   }
 
+
   for ({{index_type}} i = 0; i < rank; i++) {
     if (i == concat_dim) continue;
     {{index_type}} dim = real_input_shapes[0][i];
+
     for ({{index_type}} j = 1; j < num_real_inputs; j++) {
       if (real_input_shapes[j][i] != dim) {
         throw std::runtime_error(

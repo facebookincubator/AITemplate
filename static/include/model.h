@@ -62,6 +62,8 @@ class ModelBase {
       : blob_(RAII_DeviceMalloc(blob_size, allocator)),
         workspace_(RAII_DeviceMalloc(workspace_size, allocator)),
         params_(num_inputs + num_outputs + num_unbound_constants),
+        workspace_size_{workspace_size},
+        unique_workspace_size_{unique_workspace_size},
         num_inputs_(num_inputs),
         num_outputs_(num_outputs),
         constants_(constants) {
@@ -79,7 +81,7 @@ class ModelBase {
   }
 
  public:
-  ~ModelBase() {
+  virtual ~ModelBase() {
     if (run_finished_ != nullptr) {
       DestroyEvent(run_finished_);
     }
@@ -267,6 +269,9 @@ class ModelBase {
   size_t num_inputs_;
   size_t num_outputs_;
 
+  // These values are preserved for multi-stream needs.
+  size_t workspace_size_;
+  size_t unique_workspace_size_;
   // The workspace blob is used as scratch memory. See
   // _generate_workspace in memory planning for more information.
   GPUPtr workspace_;

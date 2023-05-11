@@ -31,6 +31,10 @@ def _extract_shape(batch, shape):
 
 
 class TransformOddAlignmentCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        torch.manual_seed(0)
+
     def _create_permute_bmm_graph(
         self, A_shape, B_shape, bmm_type, const_A=None, const_B=None
     ):
@@ -72,6 +76,7 @@ class TransformOddAlignmentCase(unittest.TestCase):
         is_const,
         is_elementwise=False,
         strided_output=True,
+        test_prefix="",
     ):
         M = shape_A[-2] if origin_bmm[-3] == "r" else shape_A[-1]
         N = shape_B[-1] if origin_bmm[-2] == "r" else shape_B[-2]
@@ -107,7 +112,7 @@ class TransformOddAlignmentCase(unittest.TestCase):
                 output,
                 target,
                 "./tmp",
-                f"alignment_permute_bmm_A_{b}_{origin_bmm}_to_{target_bmm}_{is_const}",
+                f"{test_prefix}alignment_permute_bmm_A_{b}_{origin_bmm}_to_{target_bmm}_{is_const}",
             )
 
             exist_new_bmm = False
@@ -184,6 +189,7 @@ class TransformOddAlignmentCase(unittest.TestCase):
             "bmm_rrr",
             "bmm_crr",
             is_const=True,
+            test_prefix="2d_broadcast_",
         )
         # non-const input misaligned on K, permute.
         self._test_permute_bmm_A(

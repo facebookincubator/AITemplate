@@ -18,5 +18,5 @@ def mark_output(y):
     for i in range(len(y)):
         y[i]._attrs["is_output"] = True
         y[i]._attrs["name"] = "output_%d" % (i)
-        y_shape = [d._attrs["values"][0] for d in y[i]._attrs["shape"]]
+        y_shape = [d._attrs["values"] for d in y[i]._attrs["shape"]]
         print("AIT output_{} shape: {}".format(i, y_shape))

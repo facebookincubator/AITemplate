@@ -26,6 +26,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <random>
 #include <vector>
 #include <iostream>
+
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/device/gemm_universal.h"
 #include "cutlass/util/host_tensor.h"
@@ -33,6 +34,13 @@ SRC_TEMPLATE = jinja2.Template(
 #include "cutlass/epilogue/thread/linear_combination_silu.h"
 #include "cutlass/util/reference/device/tensor_fill.h"
 #include "cutlass/util/device_memory.h"
+
+#include "cutlass/gemm/gemm.h"
+#include "cutlass/numeric_types.h"
+#include "cutlass/gemm/kernel/gemm_universal.hpp"
+#include "cutlass/gemm/collective/collective_builder.hpp"
+#include "cutlass/gemm/device/gemm_universal_adapter.h"
+#include "cutlass/epilogue/collective/collective_builder.hpp"
 
 {{extra_code}}
 

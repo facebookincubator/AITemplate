@@ -49,16 +49,22 @@ def get_gen_function(a_layout, b_layout, c_layout):
         )
         (
             problem_args,
+            problem_args_cutlass_3x,
             input_addr_calculator,
             output_addr_calculator,
         ) = bmm_common.make_function_strided_args(
-            func_attrs, dim_info_dict, default_mm_info, is_permute=False
+            func_attrs=func_attrs,
+            dim_info_dict=dim_info_dict,
+            default_mm_info=default_mm_info,
+            is_permute=False,
         )
+
         return bmm_common.gen_function(
-            func_attrs,
-            exec_cond_template,
-            problem_args,
-            dim_info_dict,
+            func_attrs=func_attrs,
+            exec_cond_template=exec_cond_template,
+            problem_args=problem_args,
+            problem_args_cutlass_3x=problem_args_cutlass_3x,
+            dim_info_dict=dim_info_dict,
             input_addr_calculator=input_addr_calculator,
             output_addr_calculator=output_addr_calculator,
         )

@@ -32,8 +32,7 @@ class TestTopkConverter(AITTestCase):
     def test_simple(self, input: List[int], k: int) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
-                values, indices = torch.topk(x, k)
-                return indices
+                return torch.topk(x, k)
 
         model = TestModule().cuda()
         inputs = [

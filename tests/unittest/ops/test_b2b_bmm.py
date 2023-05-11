@@ -23,6 +23,7 @@ from typing import List, Tuple
 import torch
 
 from aitemplate.compiler import compile_model, ops
+from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
@@ -41,6 +42,7 @@ _LOGGER = logging.getLogger(__name__)
     detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
     "Not supported by CUDA < SM80.",
 )
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class ClassicB2bBmmTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -60,6 +62,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
         copy_op=True,
         atol=1e-2,
         rtol=1e-2,
+        use_fp16_acc=True,
     ):
         # Initialize AIT classic_b2b_bmm operator.
         if isinstance(batch_sizes, int):
@@ -107,7 +110,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
 
-        target = detect_target(use_fp16_acc=True)
+        target = detect_target(use_fp16_acc=use_fp16_acc)
         module = compile_model(Y, target, "./tmp", test_name)
 
         # Run tests.
@@ -140,7 +143,53 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_classic_b2b_bmm_fp16_fp32acc(self):
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_fp16_basic_fp32acc",
+            dtype="float16",
+            batch_sizes=1,
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_fp16_sigmoid_fp32acc",
+            dtype="float16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="Sigmoid",
+            use_fp16_acc=False,
+        )
+
+    def test_classic_b2b_bmm_bf16_fp32acc(self):
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_basic_fp32acc",
+            dtype="bfloat16",
+            batch_sizes=1,
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_sigmoid_fp32acc",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="Sigmoid",
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_complex",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_rectangular",
+            dtype="bfloat16",
+            batch_sizes=[2],
+            m=512,
+            n0=128,
+            n1=128,
+            use_fp16_acc=False,
+        )
+
     def test_classic_b2b_bmm_fp16(self):
         self._test_classic_b2b_bmm(
             test_name="classic_b2b_bmm_fp16_basic",
@@ -185,6 +234,264 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
     detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
     "Not supported by CUDA < SM80.",
 )
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        torch.manual_seed(0)
+
+    def _test_classic_multihead_b2b_bmm(
+        self,
+        batch_sizes: Tuple[int, List[int]] = 1024,
+        m=256,
+        k0=128,
+        n0=256,
+        n1=256,
+        num_heads=2,
+        epilogue_math_name="Identity",
+        causal_type=CausalType.NO_CAUSAL,
+        dtype="float16",
+        test_name="classic_b2b_bmm",
+        copy_op=True,
+        atol=1e-2,
+        rtol=1e-2,
+        bias_broadcast=(False, False, False, False),
+        use_fp16_acc=True,
+    ):
+        # Initialize AIT classic_b2b_bmm operator.
+        assert len(bias_broadcast) == 4
+        assert (
+            bias_broadcast[3] is False
+        ), "Classic b2b bmm cannot broadcast bias on last dimension."
+        if isinstance(batch_sizes, int):
+            batch_sizes = [batch_sizes]
+        alpha0 = 1.0 / (k0**0.5)
+        alpha1 = 1.0
+        batch_size_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_size")
+
+        Q = Tensor(
+            shape=[batch_size_dim, m, num_heads, k0],
+            dtype=dtype,
+            name="q",
+            is_input=True,
+        )
+        K = Tensor(
+            shape=[batch_size_dim, n0, num_heads, k0],
+            dtype=dtype,
+            name="k",
+            is_input=True,
+        )
+        V = Tensor(
+            shape=[batch_size_dim, n0, num_heads, n1],
+            dtype=dtype,
+            name="v",
+            is_input=True,
+        )
+        bias_shape_full = [batch_size_dim, num_heads, m, n0]
+        bias_shape = [
+            IntImm(1) if bias_broadcast[i] else bias_shape_full[i] for i in range(4)
+        ]
+        Bias = Tensor(
+            shape=bias_shape,
+            dtype=dtype,
+            name="bias",
+            is_input=True,
+        )
+        classic_b2b_bmm_op = ops.classic_b2b_bmm(
+            causal_type=causal_type,
+            alpha0=alpha0,
+            alpha1=alpha1,
+            alpha1_divide_by_seq_len=True,
+            epilogue_math_name=epilogue_math_name,
+        )
+        if copy_op:
+            classic_b2b_bmm_op = ops.classic_b2b_bmm(
+                **classic_b2b_bmm_op._get_op_attributes()
+            )
+        Y = classic_b2b_bmm_op(Q, K, V, Bias)
+        Y._attrs["is_output"] = True
+        Y._attrs["name"] = "output"
+
+        target = detect_target(use_fp16_acc=use_fp16_acc)
+        module = compile_model(Y, target, "./tmp", test_name)
+
+        # Run tests.
+        torch_dtype = string_to_torch_dtype(dtype)
+        for batch_size in batch_sizes:
+            # Initialize inputs
+            # Initialized in BMHD dim order
+            q_pt = torch.rand(batch_size, m, num_heads, k0, dtype=torch_dtype).cuda()
+            k_pt = torch.rand(batch_size, n0, num_heads, k0, dtype=torch_dtype).cuda()
+            v_pt = torch.rand(batch_size, n0, num_heads, n1, dtype=torch_dtype).cuda()
+            bias_shape_full_pt = (batch_size, num_heads, m, n0)
+            bias_shape_pt = (
+                1 if bias_broadcast[i] else bias_shape_full_pt[i] for i in range(4)
+            )
+            bias_pt = torch.rand(*bias_shape_pt, dtype=torch_dtype).cuda()
+
+            # Permute to BHMD dim order
+            q_pt_hf = torch.permute(q_pt, [0, 2, 1, 3])
+            k_pt_hf = torch.permute(k_pt, [0, 2, 1, 3])
+            v_pt_hf = torch.permute(v_pt, [0, 2, 1, 3])
+
+            # Run PT reference.
+            attn = alpha0 * (q_pt_hf @ k_pt_hf.transpose(-2, -1)) + bias_pt
+            attn = epilogue_math_name_to_torch_fn(epilogue_math_name)(attn)
+            attn = alpha1 / m * attn
+            invalid_attn_mask = get_attn_mask_per_causal_type(
+                m, n0, causal_type, torch_dtype
+            )
+            attn = attn * invalid_attn_mask
+            second_mm = attn @ v_pt_hf
+            output = torch.permute(
+                second_mm, [0, 2, 1, 3]
+            )  # permute back to original dim order
+            y_pt = output.detach()
+
+            # Run AIT.
+            inputs = {"q": q_pt, "k": k_pt, "v": v_pt, "bias": bias_pt}
+            y = torch.empty(
+                [batch_size, m, num_heads, n1],
+                dtype=torch_dtype,
+                device="cuda",
+            )
+            module.run_with_tensors(inputs, [y])
+            torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
+
+    def test_classic_multihead1_b2b_bmm(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead1_b2b_bmm_fp16_basic",
+            dtype="float16",
+            batch_sizes=1,
+            num_heads=1,
+        )
+
+    def test_classic_multihead2_b2b_bmm(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead2_b2b_bmm_fp16_basic",
+            dtype="float16",
+            batch_sizes=1,
+            num_heads=2,
+        )
+
+    def test_classic_multihead1_b2b_bmm_bias_broadcast1(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead1_b2b_bmm_broadcast1_fp16_basic",
+            dtype="float16",
+            batch_sizes=1,
+            num_heads=1,
+            bias_broadcast=[True, True, False, False],
+        )
+
+    def test_classic_multihead2_b2b_bmm_bias_broadcast1(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead2_b2b_bmm_broadcast1_fp16_basic",
+            dtype="float16",
+            batch_sizes=1,
+            num_heads=2,
+            bias_broadcast=[True, True, False, False],
+        )
+
+    def test_classic_multihead2_b2b_bmm_bias_broadcast2(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead2_b2b_bmm_broadcast2_fp16_basic",
+            dtype="float16",
+            batch_sizes=1,
+            num_heads=2,
+            bias_broadcast=[True, True, True, False],
+        )
+
+    def test_classic_multihead2_b2b_bmm_bias_broadcast3(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead2_b2b_bmm_broadcast3_fp16_basic",
+            dtype="float16",
+            batch_sizes=1,
+            num_heads=2,
+            bias_broadcast=[True, False, False, False],
+        )
+
+    def test_classic_multihead4_b2b_bmm(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead4_b2b_bmm_fp16_dynamic_batch",
+            dtype="float16",
+            batch_sizes=[3, 8, 10],
+            num_heads=4,
+        )
+
+    def test_classic_multihead16_b2b_bmm(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead16_b2b_bmm_fp16_rectangular",
+            dtype="float16",
+            batch_sizes=[2],
+            m=512,
+            n0=128,
+            n1=128,
+            num_heads=16,
+        )
+
+    def test_classic_multihead3_b2b_bmm(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead3_b2b_bmm_fp16_causal",
+            dtype="float16",
+            batch_sizes=5,
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            num_heads=3,
+        )
+
+    def test_classic_multihead8_b2b_bmm(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead8_b2b_bmm_fp16_sigmoid",
+            dtype="float16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="Sigmoid",
+            num_heads=8,
+        )
+
+    def test_classic_multihead1_relu_b2b_bmm(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead1_b2b_bmm_fp16_complex",
+            dtype="float16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            num_heads=1,
+        )
+
+    def test_classic_multihead_b2b_bmm_bf16(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead8_b2b_bmm_bf16_sigmoid",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="Sigmoid",
+            num_heads=8,
+            use_fp16_acc=False,
+        )
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead1_b2b_bmm_bf16_complex",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            num_heads=1,
+            use_fp16_acc=False,
+        )
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead16_b2b_bmm_bf16_rectangular",
+            dtype="bfloat16",
+            batch_sizes=[2],
+            m=512,
+            n0=128,
+            n1=128,
+            num_heads=16,
+            use_fp16_acc=False,
+        )
+
+
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class FMHAStyleB2bBmmTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -243,6 +550,7 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             name="v",
             is_input=True,
         )
+
         Bias = None
         if has_bias:
             shape = [batch_size_dim, num_heads_dim, seq_lens_dim, seq_lens_kv_dim]
@@ -263,6 +571,7 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             alpha1_divide_by_seq_len=True,
             epilogue_math_name=epilogue_math_name,
         )
+
         if copy_op:
             fmha_style_b2b_bmm_op = ops.fmha_style_b2b_bmm(
                 **fmha_style_b2b_bmm_op._get_op_attributes()
@@ -291,12 +600,12 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
                 batch_size, seq_len_kv, num_head, n1, dtype=torch_dtype
             ).cuda()
             shape = [batch_size, num_head, seq_len, seq_len_kv]
-            if bias_broadcast:
-                for i, broadcast in enumerate(bias_broadcast):
-                    if broadcast:
-                        shape[i] = 1
-            bias_pt = torch.rand(shape, dtype=torch_dtype).cuda()
-
+            if has_bias:
+                if bias_broadcast:
+                    for i, broadcast in enumerate(bias_broadcast):
+                        if broadcast:
+                            shape[i] = 1
+                bias_pt = torch.rand(shape, dtype=torch_dtype).cuda()
             # Run PT reference.
             attn = alpha0 * (
                 q_pt.transpose(1, 2) @ k_pt.transpose(1, 2).transpose(-2, -1)
@@ -328,7 +637,6 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_fmha_style_b2b_bmm_fp16(self):
         self._test_fmha_style_b2b_bmm(
             test_name="fmha_style_b2b_bmm_fp16_basic",
@@ -344,11 +652,13 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             test_name="fmha_style_b2b_bmm_fp16_dynamic_seq_len",
             dtype="float16",
             seq_lens=[128, 256],
+            # dynamic sequence length not supported by classic op
         )
         self._test_fmha_style_b2b_bmm(
             test_name="fmha_style_b2b_bmm_fp16_dynamic_seq_len_kv",
             dtype="float16",
             seq_lens_kv=[128, 256],
+            # dynamic sequence length not supported by classic op
         )
         self._test_fmha_style_b2b_bmm(
             test_name="fmha_style_b2b_bmm_fp16_dynamic_num_heads",
@@ -368,6 +678,7 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             dtype="float16",
             batch_sizes=2,
             causal_type=CausalType.UPPER_RIGHT_EMPTY,
+            # CausalType.UPPER_RIGHT_EMPTY not supported by classic op
         )
         self._test_fmha_style_b2b_bmm(
             test_name="fmha_style_b2b_bmm_fp16_causal_lower_left_empty",
@@ -387,6 +698,13 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             batch_sizes=3,
             has_bias=True,
             bias_broadcast=[False, True, False, False],
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_fp16_bias_broadcast_relative_pos",
+            dtype="float16",
+            batch_sizes=[1, 11],
+            has_bias=True,
+            bias_broadcast=[True, True, False, False],
         )
         self._test_fmha_style_b2b_bmm(
             test_name="fmha_style_b2b_bmm_fp16_sigmoid",
@@ -424,6 +742,47 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             use_fp16_acc=False,
             seq_lens=512,
             seq_lens_kv=512,
+        )
+
+    def test_fmha_style_b2b_bmm_bf16(self):
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_basic",
+            dtype="bfloat16",
+            batch_sizes=1,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_rectangular",
+            dtype="bfloat16",
+            batch_sizes=[2],
+            seq_lens=512,
+            seq_lens_kv=128,
+            n1=128,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_complex",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="SiLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            has_bias=True,
+            bias_broadcast=[False, True, False, False],
+            num_heads=4,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_complex_fp32_acc",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            has_bias=True,
+            bias_broadcast=[False, False, True, False],
+            num_heads=2,
+            seq_lens=512,
+            seq_lens_kv=512,
+            use_fp16_acc=False,
         )
 
 

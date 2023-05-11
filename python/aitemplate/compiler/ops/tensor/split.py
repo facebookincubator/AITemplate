@@ -15,13 +15,11 @@
 """
 Split.
 """
-import itertools
 from typing import List, Sequence, Union
 
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
-from aitemplate.utils import shape_utils
 from aitemplate.utils.tensor_utils import wrap_dim
 
 # pylint: disable=C0103,W0221
@@ -77,37 +75,11 @@ class split(Operator):
                 f"sum of split_sizes ({split_sizes}) does not match split_dim_size ({split_dim_size})"
             )
 
-        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
-        x_shapes = itertools.product(*x_shape_values)
-        y_shapes = []
-        for x_shape_vals in x_shapes:
-            y_shape = [list(x_shape_vals) for _ in range(num_splits)]
-            for split_size, shape in zip(split_sizes, y_shape):
-                shape[dim] = split_size
-            y_shapes.append(y_shape)
-
-        def unique(vector):
-            return sorted(set(vector))
-
         output_shapes = []
-        for idx, shapes in enumerate(zip(*y_shapes)):
-            assert all(split_sizes[idx] == dims[dim] for dims in shapes)
-            output_shape = []
-            for i in range(len(shapes[0])):
-                dim_vals = unique(dims[i] for dims in shapes)
-                # propagate the name of each non-split-dim dynamic axis, which
-                # may be used later by some shape checks.
-                if i != dim:
-                    new_dim_val = shape_utils.gen_int_var(
-                        dim_vals, x_shape[i]._attrs["name"]
-                    )
-                else:
-                    # FIXME: we might want to create a new unique name for this
-                    # new_dim_val. We would do this once we have a mechanism
-                    # to create a unique dim name
-                    new_dim_val = shape_utils.gen_int_var(dim_vals)
-                output_shape.append(new_dim_val)
+        for split_size in split_sizes:
+            output_shape = x_shape[:dim] + [IntImm(split_size)] + x_shape[dim + 1 :]
             output_shapes.append(output_shape)
+
         return output_shapes
 
     def __call__(self, x: Tensor, split_size_or_sections, dim=0) -> List[Tensor]:

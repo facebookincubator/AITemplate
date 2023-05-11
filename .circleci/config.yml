@@ -41,6 +41,7 @@ setup_env: &setup_env
           echo 'export PYTHONPATH=$PWD/python:$PYTHONPATH' >> $BASH_ENV &&
           echo 'export CI_FLAG=CIRCLECI' >> $BASH_ENV &&
           echo 'export CACHE_DIR=$PWD/tests/ci_profile_cache' >> $BASH_ENV &&
+          echo 'export LOGLEVEL=DEBUG' >> $BASH_ENV &&
           break || sleep 5;
         done
 
@@ -64,6 +65,7 @@ setup_fx2ait_env: &setup_fx2ait_env
 basic_tests: &basic_tests
   - run:
       name: Run tests
+      no_output_timeout: 20m
       command: |
         set -e
         TEST_FILES=$(circleci tests glob "tests/unittest/**/test_*.py" | grep -v benchmark | circleci tests split --split-by=timings)
