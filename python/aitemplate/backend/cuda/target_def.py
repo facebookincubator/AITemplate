@@ -124,26 +124,50 @@ class CUDA(Target):
     def get_include_directories(self) -> List[str]:
         return self._build_include_directories()
 
-    def _build_compile_options(self):
-        include_paths = self._build_include_directories()
+    def _build_gnu_host_compiler_options(self) -> List[str]:
+        return [
+            "-fPIC",
+            "-Wconversion",
+            "-fno-strict-aliasing",
+            "-fvisibility=hidden",
+        ]
 
+    def get_host_compiler_options(self) -> List[str]:
+        return self._build_gnu_host_compiler_options()
+
+    def _build_nvcc_compiler_options(self) -> List[str]:
         options = [
             "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
             "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
             "-w",
             f"-gencode=arch=compute_{self._arch},code=[sm_{self._arch},compute_{self._arch}]",
-            "-Xcompiler=-fPIC",
-            "-Xcompiler=-Wconversion",
-            "-Xcompiler=-fno-strict-aliasing",
-            "-Xcompiler -fvisibility=hidden",
             environ.get_compiler_opt_level(),
             "-std=c++17",
             "--expt-relaxed-constexpr",
-        ] + ["-I" + path for path in include_paths]
+        ]
         if self._ndebug == 1:
             options.append("-DNDEBUG")
         if environ.use_fast_math():
             options.append("--use_fast_math")
+        return options
+
+    def get_device_compiler_options(self) -> List[str]:
+        return self._build_nvcc_compiler_options()
+
+    def _build_compile_options(self):
+        include_paths = self._build_include_directories()
+        host_compiler_options = self._build_gnu_host_compiler_options()
+        nvcc_compiler_options = self._build_nvcc_compiler_options()
+
+        options = (
+            nvcc_compiler_options
+            + [
+                f"-Xcompiler {opt}" if "=" in opt else f"-Xcompiler={opt}"
+                for opt in host_compiler_options
+            ]
+            + ["-I" + path for path in include_paths]
+        )
+
         return " ".join(options)
 
     def src_extension(self):
@@ -279,6 +303,14 @@ class FBCUDA(CUDA):
 
     def get_include_directories(self) -> List[str]:
         return self._build_include_directories()
+
+    def get_host_compiler_options(self) -> List[str]:
+        # a placeholder
+        raise NotImplementedError
+
+    def get_device_compiler_options(self) -> List[str]:
+        # a placeholder
+        raise NotImplementedError
 
     def _build_compile_options(self):
         if not FBCUDA.compile_options_:
