@@ -17,7 +17,7 @@ from typing import List
 
 from aitemplate import backend
 from aitemplate.backend import registry
-from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.dtype import get_dtype_size
 
 
@@ -52,6 +52,7 @@ class full(Operator):
         if not isinstance(shape, (list, tuple)):
             raise TypeError(f"shape must be List[IntVar], but got {shape}.")
         shape = list(shape)
+        static_shape = all([isinstance(s, (int, IntImm)) for s in shape])
 
         if not isinstance(fill_value, (int, float)):
             raise TypeError(f"fill_value must be a scalar, but got {fill_value}.")
@@ -64,7 +65,9 @@ class full(Operator):
         self._attrs["fill_value"] = fill_value
 
         self._set_depth()
-        output = Tensor(shape, src_ops={self}, dtype=dtype)
+        output = Tensor(
+            shape, src_ops={self}, dtype=dtype, skip_constant_folding=not static_shape
+        )
         self._attrs["outputs"] = [output]
         return output
 
