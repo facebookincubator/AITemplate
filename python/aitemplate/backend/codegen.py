@@ -602,7 +602,7 @@ class ModelContainerGenerator:
             self.set_inputs.append(set_value(name, view._attrs["name"]))
             return
         is_view = view is not None
-        if is_view and len(self.param_name_to_ptr_idx) > 0:
+        if is_view and (view._attrs["name"] in self.param_name_to_ptr_idx):
             ptr_idx = self.param_name_to_ptr_idx[view._attrs["name"]]
             self.set_inputs.append(set_value(name, view._attrs["name"]))
         else:
