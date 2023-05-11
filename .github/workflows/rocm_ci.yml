@@ -1,10 +1,12 @@
 name: ROCM_CI
 
 on:
-  push:
+  pull_request:
+     types: [labeled]
 
 jobs:
   build:
+    if: contains(github.event.label.name, 'rocm')
     runs-on: rocm
 
     steps:
