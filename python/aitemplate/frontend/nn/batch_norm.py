@@ -28,12 +28,14 @@ class _BatchNorm(Module):
         num_features,
         eps=1e-5,
         dtype="float16",
+        permute_input_output=False,
         **kwargs,
     ):
         super().__init__()
         self.dim = (num_features,)
         self.dtype = dtype
         self.num_features = num_features
+        self.permute_input_output = permute_input_output
         self.eps = eps
         self.weight = Parameter(shape=self.dim, dtype=dtype)
         self.bias = Parameter(shape=self.dim, dtype=dtype)
@@ -46,7 +48,7 @@ class _BatchNorm(Module):
         assert len(args) == 1
         x = args[0]
         self._check_input_dim(x)
-        x = self._convert_input(x)
+        x = self._convert_input(x) if self.permute_input_output else x
 
         x_normalized = elementwise(FuncEnum.DIV)(
             elementwise(FuncEnum.SUB)(x, self.running_mean.tensor()),
@@ -60,7 +62,7 @@ class _BatchNorm(Module):
             self.bias.tensor(),
         )
 
-        y = self._convert_output(y)
+        y = self._convert_output(y) if self.permute_input_output else y
         return y
 
     def _check_input_dim(self):
@@ -79,9 +81,10 @@ class BatchNorm1d(_BatchNorm):
         num_features,
         eps=1e-5,
         dtype="float16",
+        permute_input_output=False,
         **kwargs,
     ):
-        super().__init__(num_features, eps, dtype, **kwargs)
+        super().__init__(num_features, eps, dtype, permute_input_output, **kwargs)
 
     def _check_input_dim(self, x):
         if len(x.shape()) != 2 and len(x.shape()) != 3:
@@ -108,9 +111,10 @@ class BatchNorm2d(_BatchNorm):
         num_features,
         eps=1e-5,
         dtype="float16",
+        permute_input_output=False,
         **kwargs,
     ):
-        super().__init__(num_features, eps, dtype, **kwargs)
+        super().__init__(num_features, eps, dtype, permute_input_output, **kwargs)
 
     def _check_input_dim(self, x):
         if len(x.shape()) != 4:
@@ -129,9 +133,10 @@ class BatchNorm3d(_BatchNorm):
         num_features,
         eps=1e-5,
         dtype="float16",
+        permute_input_output=False,
         **kwargs,
     ):
-        super().__init__(num_features, eps, dtype, **kwargs)
+        super().__init__(num_features, eps, dtype, permute_input_output, **kwargs)
 
     def _check_input_dim(self, x):
         if len(x.shape()) != 5:
