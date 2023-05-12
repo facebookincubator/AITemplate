@@ -744,6 +744,7 @@ class Tensor(Node):
         value: Any = None,
         is_view_of: Any = None,
         is_internal_constant: bool = False,
+        skip_constant_folding: bool = False,
         check_nan_and_inf: bool = False,
         check_outputs: bool = False,
     ) -> None:
@@ -776,6 +777,8 @@ class Tensor(Node):
             Whether this Tensor is a view of another Tensor.
         is_internal_constant: bool, optional
             Whether this constant tensor could be modified.
+        skip_constant_folding: bool, optional
+            Whether this tensor participates in constant folding.
         check_nan_and_inf : bool, optional
             Whether or not to check this tensor is nan or inf during runtime.
         check_outputs : bool, optional
@@ -791,6 +794,7 @@ class Tensor(Node):
         self._attrs["is_input"] = is_input
         self._attrs["is_param"] = False
         self._attrs["is_internal_constant"] = is_internal_constant
+        self._attrs["skip_constant_folding"] = skip_constant_folding
 
         # True if this is an internal tensor that aliases an output through
         # a view. Set up in mark_param_tensor

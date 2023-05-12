@@ -143,7 +143,7 @@ def _extract_foldable_subgraph(
     subgraph = []
 
     for tensor in sorted_graph:
-        if tensor._attrs["is_input"]:
+        if tensor._attrs["is_input"] or tensor._attrs["skip_constant_folding"]:
             continue
 
         name = tensor._attrs["name"]
