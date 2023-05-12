@@ -43,7 +43,9 @@ class BatchnormTestCase(unittest.TestCase):
         input_type="float16",
     ):
         pt_op = getattr(torch.nn, bn_op)(num_features).cuda().half().eval()
-        ait_op = getattr(batch_norm, bn_op)(num_features, eps=pt_op.eps)
+        ait_op = getattr(batch_norm, bn_op)(
+            num_features, eps=pt_op.eps, permute_input_output=True
+        )
         ait_op.name_parameter_tensor()
 
         pt_params = dict(pt_op.named_parameters())

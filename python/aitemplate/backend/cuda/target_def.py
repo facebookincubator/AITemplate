@@ -82,7 +82,7 @@ class CUDA(Target):
                 cuda_version = "12.0.0"
         self._cuda_version = cuda_version
 
-    def _build_compile_options(self):
+    def _build_include_directories(self) -> List[str]:
         flash_attention_path = ""
         if os.path.exists(
             os.path.join(
@@ -116,24 +116,58 @@ class CUDA(Target):
             ),
         ]
         ait_static_path = os.path.join(self._ait_include_path, "include/kernels")
+
+        output = [ait_static_path]
+        output.extend(cutlass_path)
+        return output
+
+    def get_include_directories(self) -> List[str]:
+        return self._build_include_directories()
+
+    def _build_gnu_host_compiler_options(self) -> List[str]:
+        return [
+            "-fPIC",
+            "-Wconversion",
+            "-fno-strict-aliasing",
+            "-fvisibility=hidden",
+        ]
+
+    def get_host_compiler_options(self) -> List[str]:
+        return self._build_gnu_host_compiler_options()
+
+    def _build_nvcc_compiler_options(self) -> List[str]:
         options = [
             "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
             "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
             "-w",
             f"-gencode=arch=compute_{self._arch},code=[sm_{self._arch},compute_{self._arch}]",
-            "-Xcompiler=-fPIC",
-            "-Xcompiler=-Wconversion",
-            "-Xcompiler=-fno-strict-aliasing",
-            "-Xcompiler -fvisibility=hidden",
             environ.get_compiler_opt_level(),
             "-std=c++17",
             "--expt-relaxed-constexpr",
-            f"-I{ait_static_path}",
-        ] + ["-I" + path for path in cutlass_path]
+        ]
         if self._ndebug == 1:
             options.append("-DNDEBUG")
         if environ.use_fast_math():
             options.append("--use_fast_math")
+        return options
+
+    def get_device_compiler_options(self) -> List[str]:
+        return self._build_nvcc_compiler_options()
+
+    def _build_compile_options(self):
+        include_paths = self._build_include_directories()
+        host_compiler_options = self._build_gnu_host_compiler_options()
+        nvcc_compiler_options = self._build_nvcc_compiler_options()
+
+        options = (
+            nvcc_compiler_options
+            + [
+                f"-Xcompiler {opt}" if "=" in opt else f"-Xcompiler={opt}"
+                for opt in host_compiler_options
+            ]
+            + ["-I" + path for path in include_paths]
+        )
+
         return " ".join(options)
 
     def src_extension(self):
@@ -251,20 +285,36 @@ class FBCUDA(CUDA):
             **kwargs,
         )
 
+    def _build_include_directories(self) -> List[str]:
+        cutlass_path = [
+            os.path.join(self._template_path, "include"),
+            os.path.join(self._template_path, "tools/util/include"),
+            os.path.join(self._template_path, "examples/35_gemm_softmax"),
+            os.path.join(self._template_path, "examples/41_fused_multi_head_attention"),
+            os.path.join(self._template_path, "examples/45_dual_gemm"),
+            os.path.join(self._template_path, "../att_include"),
+            os.path.join(self._template_path, "../att_include/fmha"),
+        ]
+        if self._include_path is not None:
+            ait_static_path = os.path.join(self._include_path, "static")
+            return [ait_static_path] + cutlass_path
+        else:
+            return cutlass_path
+
+    def get_include_directories(self) -> List[str]:
+        return self._build_include_directories()
+
+    def get_host_compiler_options(self) -> List[str]:
+        # a placeholder
+        raise NotImplementedError
+
+    def get_device_compiler_options(self) -> List[str]:
+        # a placeholder
+        raise NotImplementedError
+
     def _build_compile_options(self):
         if not FBCUDA.compile_options_:
-            cutlass_path = [
-                os.path.join(self._template_path, "include"),
-                os.path.join(self._template_path, "tools/util/include"),
-                os.path.join(self._template_path, "examples/35_gemm_softmax"),
-                os.path.join(
-                    self._template_path, "examples/41_fused_multi_head_attention"
-                ),
-                os.path.join(self._template_path, "examples/45_dual_gemm"),
-                os.path.join(self._template_path, "../att_include"),
-                os.path.join(self._template_path, "../att_include/fmha"),
-            ]
-            ait_static_path = os.path.join(self._include_path, "static")
+            include_paths = self._build_include_directories()
             fb_include_path = os.path.join(self._include_path, "fb_include")
             pp_args = self.nvcc_options_json["pp_args"]
             with open(fb_include_path, "w") as fb_include:
@@ -278,9 +328,8 @@ class FBCUDA(CUDA):
 
             options = (
                 self.nvcc_options_json["args"]
-                + ["-I" + path for path in cutlass_path]
+                + ["-I" + path for path in include_paths]
                 + [
-                    f"-I{ait_static_path}",
                     f"-Xcompiler '-Wp\,@{fb_include_path}'",  # noqa: W605
                     "-Xcompiler -Wno-strict-aliasing",
                     "-Xcompiler -Wno-narrowing",

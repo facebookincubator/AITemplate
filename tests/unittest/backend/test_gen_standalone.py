@@ -127,7 +127,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         else:
             working_env["LD_LIBRARY_PATH"] = workdir
         _LOGGER.info(f"work dir: {workdir}")
-        exe_name = "./test.exe" if is_windows() else "./test"
+        exe_name = "test.exe" if is_windows() else "./test"
         with subprocess.Popen(
             [exe_name],
             shell=True,

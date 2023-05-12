@@ -20,7 +20,11 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.public import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    filter_test_cases_by_params,
+    get_random_torch_tensor,
+    TestEnv,
+)
 from parameterized import param, parameterized
 
 
@@ -72,15 +76,24 @@ class TestFull(unittest.TestCase):
             torch.testing.assert_close(z, z_pt, atol=1e-2, rtol=1e-2)
 
     @parameterized.expand(
-        [
-            param(1, [1], 1, "float16"),
-            param(2, [10, 20, 30], 3.14, "float16"),
-            param(3, [IntVar([10, 20]), 30], 0, "float16"),
-            param(4, 123, -5, "float16"),
-            param(5, [20, 30], 2.71, "float32"),
-            param(6, [IntVar([1, 128]), 10], -1.23, "float32"),
-            param(7, IntVar([1, 128]), 1234, "float32"),
-        ]
+        **filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [
+                    param(1, [1], 1, "float16"),
+                    param(2, [10, 20, 30], 3.14, "float16"),
+                    param(3, [IntVar([10, 20]), 30], 0, "float16"),
+                    param(4, 123, -5, "float16"),
+                    param(5, [20, 30], 2.71, "float32"),
+                    param(6, [IntVar([1, 128]), 10], -1.23, "float32"),
+                    param(7, IntVar([1, 128]), 1234, "float32"),
+                ],
+                TestEnv.CUDA_SM80: [
+                    param(8, [20, 30], 2.71, "bfloat16"),
+                    param(9, [IntVar([1, 128]), 10], -1.23, "bfloat16"),
+                    param(10, IntVar([1, 128]), 1234, "bfloat16"),
+                ],
+            }
+        )
     )
     def test_full(self, i, shape, fill_value, dtype):
         self._test_full(

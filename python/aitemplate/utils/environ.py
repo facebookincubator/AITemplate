@@ -207,3 +207,13 @@ def multistream_max_mem_parallel_ops() -> int:
     """
     # unlimited by default
     return int(os.getenv("AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS", "99999999"))
+
+
+def is_cmake_compilation() -> bool:
+    """
+    When enabled, compiles the model via invoking CMake rather than
+    invoking make directly.
+    """
+
+    # todo: replace with more builders?
+    return os.getenv("AIT_USE_CMAKE_COMPILATION", "0") == "1"

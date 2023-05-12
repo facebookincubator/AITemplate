@@ -40,6 +40,7 @@ from aitemplate.utils import environ
 
 from aitemplate.utils.debug_settings import AITDebugSettings
 
+from aitemplate.utils.environ import is_cmake_compilation
 from aitemplate.utils.misc import is_debug, is_windows
 
 # pylint: disable=W0221,C0103
@@ -894,3 +895,14 @@ clean:
         if not is_debug():
             cmds.append(make_clean_constants_cmd)
         _run_make_cmds(cmds, self._timeout, build_dir, allow_cache=allow_cache)
+
+
+def get_compile_engine():
+    if is_cmake_compilation():
+        from aitemplate.backend.cuda import builder_cmake
+
+        compile_engine = builder_cmake.BuilderCMake()
+    else:
+        compile_engine = Builder()
+
+    return compile_engine

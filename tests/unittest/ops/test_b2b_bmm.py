@@ -42,6 +42,7 @@ _LOGGER = logging.getLogger(__name__)
     detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
     "Not supported by CUDA < SM80.",
 )
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class ClassicB2bBmmTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -142,7 +143,6 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_b2b_bmm_fp16_fp32acc(self):
         self._test_classic_b2b_bmm(
             test_name="classic_b2b_bmm_fp16_basic_fp32acc",
@@ -158,7 +158,38 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
             use_fp16_acc=False,
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_classic_b2b_bmm_bf16_fp32acc(self):
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_basic_fp32acc",
+            dtype="bfloat16",
+            batch_sizes=1,
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_sigmoid_fp32acc",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="Sigmoid",
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_complex",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            use_fp16_acc=False,
+        )
+        self._test_classic_b2b_bmm(
+            test_name="classic_b2b_bmm_bf16_rectangular",
+            dtype="bfloat16",
+            batch_sizes=[2],
+            m=512,
+            n0=128,
+            n1=128,
+            use_fp16_acc=False,
+        )
+
     def test_classic_b2b_bmm_fp16(self):
         self._test_classic_b2b_bmm(
             test_name="classic_b2b_bmm_fp16_basic",
@@ -203,6 +234,7 @@ class ClassicB2bBmmTestCase(unittest.TestCase):
     detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
     "Not supported by CUDA < SM80.",
 )
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -224,6 +256,7 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
         atol=1e-2,
         rtol=1e-2,
         bias_broadcast=(False, False, False, False),
+        use_fp16_acc=True,
     ):
         # Initialize AIT classic_b2b_bmm operator.
         assert len(bias_broadcast) == 4
@@ -279,7 +312,7 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
         Y._attrs["is_output"] = True
         Y._attrs["name"] = "output"
 
-        target = detect_target(use_fp16_acc=True)
+        target = detect_target(use_fp16_acc=use_fp16_acc)
         module = compile_model(Y, target, "./tmp", test_name)
 
         # Run tests.
@@ -325,7 +358,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead1_b2b_bmm(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead1_b2b_bmm_fp16_basic",
@@ -334,7 +366,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             num_heads=1,
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead2_b2b_bmm(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead2_b2b_bmm_fp16_basic",
@@ -343,7 +374,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             num_heads=2,
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead1_b2b_bmm_bias_broadcast1(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead1_b2b_bmm_broadcast1_fp16_basic",
@@ -353,7 +383,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             bias_broadcast=[True, True, False, False],
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead2_b2b_bmm_bias_broadcast1(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead2_b2b_bmm_broadcast1_fp16_basic",
@@ -363,7 +392,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             bias_broadcast=[True, True, False, False],
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead2_b2b_bmm_bias_broadcast2(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead2_b2b_bmm_broadcast2_fp16_basic",
@@ -373,7 +401,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             bias_broadcast=[True, True, True, False],
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead2_b2b_bmm_bias_broadcast3(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead2_b2b_bmm_broadcast3_fp16_basic",
@@ -383,7 +410,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             bias_broadcast=[True, False, False, False],
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead4_b2b_bmm(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead4_b2b_bmm_fp16_dynamic_batch",
@@ -392,7 +418,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             num_heads=4,
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead16_b2b_bmm(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead16_b2b_bmm_fp16_rectangular",
@@ -404,7 +429,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             num_heads=16,
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead3_b2b_bmm(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead3_b2b_bmm_fp16_causal",
@@ -414,7 +438,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             num_heads=3,
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead8_b2b_bmm(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead8_b2b_bmm_fp16_sigmoid",
@@ -424,7 +447,6 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             num_heads=8,
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_classic_multihead1_relu_b2b_bmm(self):
         self._test_classic_multihead_b2b_bmm(
             test_name="classic_multihead1_b2b_bmm_fp16_complex",
@@ -435,11 +457,41 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
             num_heads=1,
         )
 
+    def test_classic_multihead_b2b_bmm_bf16(self):
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead8_b2b_bmm_bf16_sigmoid",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="Sigmoid",
+            num_heads=8,
+            use_fp16_acc=False,
+        )
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead1_b2b_bmm_bf16_complex",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            num_heads=1,
+            use_fp16_acc=False,
+        )
+        self._test_classic_multihead_b2b_bmm(
+            test_name="classic_multihead16_b2b_bmm_bf16_rectangular",
+            dtype="bfloat16",
+            batch_sizes=[2],
+            m=512,
+            n0=128,
+            n1=128,
+            num_heads=16,
+            use_fp16_acc=False,
+        )
+
 
 @unittest.skipIf(
     detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
     "Not supported by CUDA < SM80.",
 )
+@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class FMHAStyleB2bBmmTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -585,7 +637,6 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             module.run_with_tensors(inputs, [y])
             torch.testing.assert_close(y, y_pt.to(torch_dtype), atol=atol, rtol=rtol)
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_fmha_style_b2b_bmm_fp16(self):
         self._test_fmha_style_b2b_bmm(
             test_name="fmha_style_b2b_bmm_fp16_basic",
@@ -691,6 +742,47 @@ class FMHAStyleB2bBmmTestCase(unittest.TestCase):
             use_fp16_acc=False,
             seq_lens=512,
             seq_lens_kv=512,
+        )
+
+    def test_fmha_style_b2b_bmm_bf16(self):
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_basic",
+            dtype="bfloat16",
+            batch_sizes=1,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_rectangular",
+            dtype="bfloat16",
+            batch_sizes=[2],
+            seq_lens=512,
+            seq_lens_kv=128,
+            n1=128,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_complex",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="SiLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            has_bias=True,
+            bias_broadcast=[False, True, False, False],
+            num_heads=4,
+            use_fp16_acc=False,
+        )
+        self._test_fmha_style_b2b_bmm(
+            test_name="fmha_style_b2b_bmm_bf16_complex_fp32_acc",
+            dtype="bfloat16",
+            batch_sizes=[1, 4],
+            epilogue_math_name="ReLu",
+            causal_type=CausalType.LOWER_LEFT_EMPTY,
+            has_bias=True,
+            bias_broadcast=[False, False, True, False],
+            num_heads=2,
+            seq_lens=512,
+            seq_lens_kv=512,
+            use_fp16_acc=False,
         )
 
 

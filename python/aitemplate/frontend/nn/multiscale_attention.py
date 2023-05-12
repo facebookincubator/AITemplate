@@ -220,9 +220,7 @@ class _AttentionPool(Module):
         # input shape: B, num_heads, seqlen, head_dim
         B, N, L, C = get_shape(tensor)
         T, H, W = thw_shape
-        tensor = ops.permute()(
-            ops.reshape()(tensor, [B * N, -1, H, W, C]), [0, 4, 1, 2, 3]
-        )
+        tensor = ops.reshape()(tensor, [B * N, -1, H, W, C])
 
         if self.norm_before_pool:
             # If use BN, we apply norm before pooling instead of after pooling.
@@ -230,7 +228,7 @@ class _AttentionPool(Module):
             # We also empirically find that adding a GELU here is beneficial.
             tensor = ops.elementwise(FuncEnum.GELU)(tensor)
 
-        tensor = self.pool(ops.permute()(tensor, [0, 2, 3, 4, 1]))
+        tensor = self.pool(tensor)
 
         shape = get_shape(tensor)
         thw_shape = [shape[1], shape[2], shape[3]]
@@ -672,7 +670,7 @@ class MultiScaleBlock(Module):
         super().__init__()
         self.dim = dim
         self.dim_out = dim_out
-        self.norm1 = norm_layer(dim)
+        self.norm1 = norm_layer(dim, permute_input_output=True)
         self.norm1_is_batchnorm_1d = isinstance(self.norm1, BatchNorm1d)
         kernel_skip = [s + 1 if s > 1 else s for s in stride_q]
         stride_skip = stride_q
@@ -697,7 +695,7 @@ class MultiScaleBlock(Module):
             max_seq_len=seq_len,
         )
         self.drop_path = DropPath(droppath_rate) if droppath_rate > 0.0 else Identity()
-        self.norm2 = norm_layer(dim)
+        self.norm2 = norm_layer(dim, permute_input_output=True)
         self.norm2_is_batchnorm_1d = isinstance(self.norm2, BatchNorm1d)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.has_cls_embed = has_cls_embed

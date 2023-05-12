@@ -24,6 +24,8 @@ Codegen
 
 **AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS**: Maximum number of parallel operators used in memory planning for simple multi-stream mode. Default value is "99999999" (basically, unlimited).
 
+**AIT_USE_CMAKE_COMPILATION**: (An experimental feature) If set to "1", then `cmake` will used instead of `make`. This allows to build AITemplate using MSVC Compiler + MSBuild on Windows, and it works for linux as well. This builder does not support many features (such as caching) yet. But it allows to generate a cmake project that can be loaded to a modern IDE. Default value is "0".
+
 Profiling
 ---------
 
