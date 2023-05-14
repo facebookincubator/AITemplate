@@ -755,28 +755,31 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         expected_read_types,
         expected_op_t,
         expected_data_t,
+        ns=None,
         dtype="float16",
     ):
         """
-        Test add(add(X0(B, M0, K0), X1(B, M1, K1)), X2(B, M2, K2))
+        Test add(add(X0(B, M0, K0, N0), X1(B, M1, K1, N1)), X2(B, M2, K2, N2))
         """
 
         batch_dim = shape_utils.gen_int_var_min_max(batch_sizes, name="batch_dim")
+        if ns is None:
+            ns = [1, 1, 1]
 
         X0 = Tensor(
-            shape=[batch_dim, IntImm(ms[0]), IntImm(ks[0])],
+            shape=[batch_dim, IntImm(ms[0]), IntImm(ks[0]), IntImm(ns[0])],
             dtype=dtype,
             name="input0",
             is_input=True,
         )
         X1 = Tensor(
-            shape=[batch_dim, IntImm(ms[1]), IntImm(ks[1])],
+            shape=[batch_dim, IntImm(ms[1]), IntImm(ks[1]), IntImm(ns[1])],
             dtype=dtype,
             name="input1",
             is_input=True,
         )
         X2 = Tensor(
-            shape=[batch_dim, IntImm(ms[2]), IntImm(ks[2])],
+            shape=[batch_dim, IntImm(ms[2]), IntImm(ks[2]), IntImm(ns[2])],
             dtype=dtype,
             name="input2",
             is_input=True,
@@ -801,9 +804,15 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
         self.assertEqual(sorted_ops[0]._attrs["data_t"], expected_data_t)
 
         for batch_size in batch_sizes:
-            x0_pt = get_random_torch_tensor([batch_size, ms[0], ks[0]], dtype=dtype)
-            x1_pt = get_random_torch_tensor([batch_size, ms[1], ks[1]], dtype=dtype)
-            x2_pt = get_random_torch_tensor([batch_size, ms[2], ks[2]], dtype=dtype)
+            x0_pt = get_random_torch_tensor(
+                [batch_size, ms[0], ks[0], ns[0]], dtype=dtype
+            )
+            x1_pt = get_random_torch_tensor(
+                [batch_size, ms[1], ks[1], ns[1]], dtype=dtype
+            )
+            x2_pt = get_random_torch_tensor(
+                [batch_size, ms[2], ks[2], ns[2]], dtype=dtype
+            )
             output_pt = (x0_pt + x1_pt) + x2_pt
             inputs = {"input0": x0_pt, "input1": x1_pt, "input2": x2_pt}
             output = torch.empty_like(output_pt)
@@ -884,6 +893,18 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             test_name="fused_elementwise_vectorization_fp16_7",
             expected_max_read_t="uint2",
             expected_read_types=["uint2", "uint2", "uint2"],
+            expected_op_t="half2",
+            expected_data_t="half",
+            dtype="float16",
+        )
+        self._test_vectorization(
+            batch_sizes=[1],
+            ms=[4, 1, 1],
+            ks=[2, 2, 1],
+            ns=[1, 2, 1],
+            test_name="fused_elementwise_vectorization_fp16_8",
+            expected_max_read_t="uint",
+            expected_read_types=["half", "uint", "half"],
             expected_op_t="half2",
             expected_data_t="half",
             dtype="float16",

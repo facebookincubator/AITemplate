@@ -213,6 +213,7 @@ def compile_model(
     # arguments (even if we put quotes around it)!!
     test_name = test_name.replace(",", "_")
     test_dir = os.path.join(workdir, test_name)
+    _LOGGER.info(f"Start to compile AIT model. {test_dir=}")
     if profile_dir is None:
         profile_dir = workdir
 

@@ -30,6 +30,7 @@ TWO_TENSOR_INPUTS = [
     (torch.randn(2, 3, 4), torch.randn(1, 1, 1)),
     (torch.randn(1, 3, 4), torch.randn(5, 1, 4)),
     (torch.randn(1), torch.randn(2, 3, 4)),
+    (torch.randn(3, 2, 1), torch.randn(1, 2, 2)),
 ]
 
 
