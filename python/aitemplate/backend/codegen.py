@@ -805,6 +805,9 @@ class ModelContainerGenerator:
         name = node._attrs["name"]
         dtype = node._attrs["dtype"]
         if isinstance(node, IntVarTensor):
+            # Check to prevent duplicate declaration in case IntVarTensor is already declared from dims for another tensor
+            if node._attrs["name"] in self.visited_dims:
+                return
             int_var = node._attrs["int_var"]
             if isinstance(int_var, IntImm):
                 self.tensor_decl.append(
