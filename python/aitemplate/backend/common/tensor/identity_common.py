@@ -26,6 +26,7 @@ from aitemplate.compiler.dtype import get_dtype_size
 
 FUNC_TEMPLATE = jinja2.Template(
     """
+{{extra_headers}}
 {{func_signature}}
 {
 {% if is_copy %}
@@ -61,7 +62,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def gen_function(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function(func_attrs: Dict[str, Any], backend_spec, extra_headers='') -> str:
     """Generates function.
 
     Parameters
@@ -81,6 +82,7 @@ def gen_function(func_attrs: Dict[str, Any], backend_spec) -> str:
     is_copy = func_attrs["outputs"][0]._attrs["is_output"]
 
     return FUNC_TEMPLATE.render(
+        extra_headers=extra_headers,
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"],
             prefix=backend_spec.prefix,

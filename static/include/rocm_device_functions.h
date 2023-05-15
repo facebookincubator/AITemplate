@@ -187,7 +187,7 @@ inline DeviceError StreamDestroy(StreamType stream) {
 }
 
 inline DeviceError StreamWaitEvent(StreamType stream, EventType event) {
-  return hipStreamWaitEvent(stream, event);
+  return hipStreamWaitEvent(stream, event, 0);
 }
 
 inline DeviceError GraphInstantiate(

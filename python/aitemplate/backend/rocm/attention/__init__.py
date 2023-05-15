@@ -12,25 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-"""
-ROCM tensor ops module init
-"""
-from aitemplate.backend.rocm.tensor import (  # noqa
-    argmax,
-    batch_gather,
-    concatenate,
-    concatenate_tanh,
-    dynamic_slice,
-    full,
-    identity,
-    permute021,
-    permute0213,
-    permute102,
-    permute210,
-    slice_reshape_scatter,
-    slice_scatter,
-    split,
-    topk,
-    expand,
-    expand_static_shape,
-)
+
+from aitemplate.backend.rocm.attention import mem_eff_attention
+
+__all__ = ["mem_eff_attention"]

@@ -16,10 +16,18 @@
 ROCM identity function
 """
 
+import jinja2
+
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import ROCMSpec
 from aitemplate.backend.common.tensor import identity_common
 
+
+EXTRA_HEADERS = jinja2.Template(
+    """
+#include <hip/hip_runtime.h>
+    """
+)
 
 @registry.reg("rocm.identity.func_decl")
 def gen_function_decl(func_attrs):
@@ -53,7 +61,7 @@ def gen_function(func_attrs):
     str
         Rendered function body.
     """
-    return identity_common.gen_function(func_attrs=func_attrs, backend_spec=ROCMSpec())
+    return identity_common.gen_function(func_attrs=func_attrs, backend_spec=ROCMSpec(), extra_headers=EXTRA_HEADERS.render())
 
 
 @registry.reg("rocm.identity.func_call")

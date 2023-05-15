@@ -330,17 +330,17 @@ class CrossAttention(Module):
 
         self.op = ops.mem_eff_attention(causal=causal)
 
-        self.proj_q = Linear(
+        self.query = Linear(
             dim,
             dim,
             bias=qkv_bias,
         )
-        self.proj_k = Linear(
+        self.key = Linear(
             dim,
             dim,
             bias=qkv_bias,
         )
-        self.proj_v = Linear(
+        self.value = Linear(
             dim,
             dim,
             bias=qkv_bias,
@@ -350,13 +350,13 @@ class CrossAttention(Module):
         self.proj = Linear(dim, dim, specialization="add" if has_residual else None)
         self.proj_drop = Dropout(proj_drop)
 
-    def attention(self, q, k, v):
+    def attention(self, q, k, v, seqlens=None):
         batch = q.shape()[0]
         head_dim = self.dim // self.num_heads
 
-        query = self.proj_q(q)
-        key = self.proj_k(k)
-        value = self.proj_v(v)
+        query = self.query(q)
+        key = self.key(k)
+        value = self.value(v)
 
         query = ops.permute()(
             ops.reshape()(query, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
@@ -368,14 +368,26 @@ class CrossAttention(Module):
             ops.reshape()(value, [batch, -1, self.num_heads, head_dim]),
             [0, 2, 1, 3],
         )
-        return self.op(query, key, value)
+        return self.op(query, key, value, seqlens)
 
-    def forward(self, *args):
+    def forward(self, *args, seqlens=None):
         """forward pass for calling mha module"""
         assert len(args) >= 3
         x = args[0]
         batch = x.shape()[0]
-        attn_output = self.attention(args[0], args[1], args[2])
+        if detect_target().name() == "cuda":
+            attn_output = self.attention(args[0], args[1], args[2])
+        else:
+            if seqlens:
+                attn_output = self.attention(args[0], args[1], args[2], seqlens)
+            else:
+                OP = ops.bmm_softmax_bmm_permute(
+                    shape=(self.num_heads,),
+                    scale=(self.dim // self.num_heads)**-0.5,
+                    causal=self.causal,
+                )
+                attn_output = OP(*args)
+                
         attn_output = ops.reshape()(attn_output, [batch, -1, self.dim])
 
         if self.has_residual:
