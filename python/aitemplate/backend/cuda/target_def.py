@@ -147,7 +147,10 @@ class CUDA(Target):
         ]
         if self._ndebug == 1:
             options.append("-DNDEBUG")
-        if environ.use_fast_math():
+        if environ.use_fast_math() and (
+            "use_fast_math" not in Target.current()._kwargs
+            or Target.current()._kwargs["use_fast_math"]
+        ):
             options.append("--use_fast_math")
         return options
 
