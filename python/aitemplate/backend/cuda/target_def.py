@@ -138,7 +138,6 @@ class CUDA(Target):
     def _build_nvcc_compiler_options(self) -> List[str]:
         options = [
             "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-            "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
             "-w",
             f"-gencode=arch=compute_{self._arch},code=[sm_{self._arch},compute_{self._arch}]",
             environ.get_compiler_opt_level(),
@@ -148,10 +147,15 @@ class CUDA(Target):
         if self._ndebug == 1:
             options.append("-DNDEBUG")
         if environ.use_fast_math() and (
-            "use_fast_math" not in Target.current()._kwargs
-            or Target.current()._kwargs["use_fast_math"]
+            "use_fast_math" not in self._kwargs or self._kwargs["use_fast_math"]
         ):
-            options.append("--use_fast_math")
+            options.extend(
+                [
+                    "--use_fast_math",
+                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
+                    "-DAIT_USE_FAST_MATH=1",
+                ]
+            )
         return options
 
     def get_device_compiler_options(self) -> List[str]:
@@ -234,7 +238,7 @@ class FBCUDA(CUDA):
 
     nvcc_option_json = None
     cutlass_path_ = None
-    compile_options_ = None
+    static_compile_options_ = None
 
     def __init__(self, arch="80", remote_cache_bytes=None, **kwargs):
         from libfb.py import parutil
@@ -316,7 +320,7 @@ class FBCUDA(CUDA):
         raise NotImplementedError
 
     def _build_compile_options(self):
-        if not FBCUDA.compile_options_:
+        if not FBCUDA.static_compile_options_:
             include_paths = self._build_include_directories()
             fb_include_path = os.path.join(self._include_path, "fb_include")
             pp_args = self.nvcc_options_json["pp_args"]
@@ -342,7 +346,6 @@ class FBCUDA(CUDA):
                     "-Xcompiler -fPIC",
                     "-Xcompiler -fvisibility=hidden",
                     "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
-                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
                     "-w",
                     "--expt-relaxed-constexpr",
                     f"-gencode=arch=compute_{nvcc_arch},code=[sm_{nvcc_arch},compute_{nvcc_arch}]",
@@ -353,12 +356,21 @@ class FBCUDA(CUDA):
             )
             if self._ndebug == 1:
                 options.append("-DNDEBUG")
-            if environ.use_fast_math():
-                options.append("--use_fast_math")
-            FBCUDA.compile_options_ = " ".join(options)
-        compile_options = FBCUDA.compile_options_
-        _LOGGER.info(f"The compile options are: {compile_options}")
-        return compile_options
+            FBCUDA.static_compile_options_ = options
+        compile_options = list(FBCUDA.static_compile_options_)
+        if environ.use_fast_math() and (
+            "use_fast_math" not in self._kwargs or self._kwargs["use_fast_math"]
+        ):
+            compile_options.extend(
+                [
+                    "--use_fast_math",
+                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
+                    "-DAIT_USE_FAST_MATH=1",
+                ]
+            )
+        compile_options_str = " ".join(compile_options)
+        _LOGGER.info(f"The compile options are: {compile_options_str}")
+        return compile_options_str
 
     def __exit__(self, ptype, value, trace):
         super().__exit__(ptype, value, trace)
