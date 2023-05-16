@@ -509,6 +509,7 @@ class StableDiffusionAITPipeline:
             # clip_state_dict = convert_text_enc_state_dict(clip_state_dict)
             unet_state_dict = convert_ldm_unet_checkpoint(unet_state_dict)
             vae_state_dict = convert_ldm_vae_checkpoint(vae_state_dict)
+            state_dict = None
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir
         )
@@ -524,6 +525,9 @@ class StableDiffusionAITPipeline:
         self.clip_ait_exe.set_many_constants_with_tensors(clip_params_ait)
         print("Folding constants")
         self.clip_ait_exe.fold_constants()
+        #cleanup
+        self.clip_pt = None
+        clip_params_ait = None
 
         self.unet_ait_exe = self.init_ait_module(
             model_name="UNet2DConditionModel", workdir=workdir
@@ -540,6 +544,9 @@ class StableDiffusionAITPipeline:
         self.unet_ait_exe.set_many_constants_with_tensors(unet_params_ait)
         print("Folding constants")
         self.unet_ait_exe.fold_constants()
+        #cleanup
+        self.unet_pt = None
+        unet_params_ait = None
 
         self.vae_ait_exe = self.init_ait_module(
             model_name="AutoencoderKL", workdir=workdir
@@ -589,6 +596,11 @@ class StableDiffusionAITPipeline:
         self.vae_ait_exe.set_many_constants_with_tensors(vae_params_ait)
         print("Folding constants")
         self.vae_ait_exe.fold_constants()
+        #cleanup
+        self.vae_pt = None
+        ait_vae = None
+        vae_params_ait = None
+
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
         self.scheduler = EulerDiscreteScheduler.from_pretrained(
             "runwayml/stable-diffusion-v1-5", subfolder="scheduler"
@@ -605,7 +617,7 @@ class StableDiffusionAITPipeline:
 
     def unet_inference(self, latent_model_input, timesteps, encoder_hidden_states, height, width):
         exe_module = self.unet_ait_exe
-        timesteps_pt = timesteps.expand(latent_model_input.shape[0])
+        timesteps_pt = timesteps.expand(self.batch * 2)
         inputs = {
             "input0": latent_model_input.permute((0, 2, 3, 1))
             .contiguous()

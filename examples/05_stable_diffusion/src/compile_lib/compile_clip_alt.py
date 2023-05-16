@@ -44,7 +44,7 @@ def map_clip_params(pt_mod, batch_size=1, seqlen=77, depth=12):
 
 def compile_clip(
     pt_mod,
-    batch_size=1,
+    batch_size=(1,8),
     seqlen=64,
     dim=768,
     num_heads=12,
@@ -71,7 +71,7 @@ def compile_clip(
 
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)
-    batch_size = IntVar(values=[1, 8], name="batch_size")
+    batch_size = IntVar(values=list(batch_size), name="batch_size")
 
     input_ids_ait = Tensor(
         [batch_size, seqlen], name="input0", dtype="int64", is_input=True

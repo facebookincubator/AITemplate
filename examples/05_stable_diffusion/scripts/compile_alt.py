@@ -34,17 +34,15 @@ from src.compile_lib.compile_vae_alt import compile_vae
     default="./tmp/diffusers-pipeline/runwayml/stable-diffusion-v1-5",
     help="the local diffusers pipeline directory",
 )
-@click.option("--min-width", default=512, help="Minimum width of generated image")
-@click.option("--max-width", default=512, help="Maximum width of generated image")
-@click.option("--min-height", default=512, help="Minimum height of generated image")
-@click.option("--max-height", default=512, help="Maximum height of generated image")
-@click.option("--batch-size", default=1, help="batch size")
-@click.option("--clip-chunks", default=1, help="batch size")
+@click.option("--width", default=(64,2048), type=(int, int), nargs=2, help="Minimum and maximum width")
+@click.option("--height", default=(64,2048), type=(int, int), nargs=2, help="Minimum and maximum height")
+@click.option("--batch-size", default=(1,4), type=(int, int), nargs=2, help="Minimum and maximum batch size")
+@click.option("--clip-chunks", default=6, help="Maximum number of clip chunks")
 @click.option("--include-constants", default=None, help="include constants (model weights) with compiled model")
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile_diffusers(
-    local_dir, min_width, max_width, min_height, max_height, batch_size, clip_chunks, include_constants, use_fp16_acc=True, convert_conv_to_gemm=True, 
+    local_dir, width, height, batch_size, clip_chunks, include_constants, use_fp16_acc=True, convert_conv_to_gemm=True, 
 ):
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
@@ -52,23 +50,19 @@ def compile_diffusers(
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
+    assert (
+        width[0] % 64 == 0 and width[1] % 64 == 0
+    ), "Minimum Width and Maximum Width must be multiples of 64, otherwise, the compilation process will fail."
+    assert (
+        height[0] % 64 == 0 and height[1] % 64 == 0
+    ), "Minimum Height and Maximum Height must be multiples of 64, otherwise, the compilation process will fail."
+
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,
         revision="fp16",
         torch_dtype=torch.float16,
     ).to("cuda")
 
-    assert (
-        min_width % 64 == 0 and max_width % 64 == 0
-    ), "Minimum Width and Maximum Width must be multiples of 64, otherwise, the compilation process will fail."
-    assert (
-        min_height % 64 == 0 and max_height % 64 == 0
-    ), "Minimum Height and Maximum Height must be multiples of 64, otherwise, the compilation process will fail."
-
-    min_height=min_height // 8
-    max_height=max_height // 8
-    min_width=min_width // 8
-    max_width=max_width // 8
     # CLIP
     compile_clip(
         pipe.text_encoder,
@@ -85,11 +79,9 @@ def compile_diffusers(
     # UNet
     compile_unet(
         pipe.unet,
-        batch_size=batch_size * 2,
-        min_height=min_height,
-        max_height=max_height,
-        min_width=min_width,
-        max_width=max_width,
+        batch_size=batch_size,
+        width=width,
+        height=height,
         clip_chunks=clip_chunks,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
@@ -102,10 +94,8 @@ def compile_diffusers(
     compile_vae(
         pipe.vae,
         batch_size=batch_size,
-        min_height=min_height,
-        max_height=max_height,
-        min_width=min_width,
-        max_width=max_width,
+        width=width,
+        height=height,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
         constants=True if include_constants else False,

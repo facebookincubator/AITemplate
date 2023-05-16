@@ -50,11 +50,9 @@ def map_unet_params(pt_mod, dim):
 
 def compile_unet(
     pt_mod,
-    batch_size=2,
-    min_height=8,
-    max_height=256,
-    min_width=8,
-    max_width=256,
+    batch_size=(1,8),
+    height=(64,2048),
+    width=(64,2048),
     clip_chunks=1,
     dim=320,
     hidden_dim=1024,
@@ -76,14 +74,14 @@ def compile_unet(
     # set AIT parameters
     pt_mod = pt_mod.eval()
     params_ait = map_unet_params(pt_mod, dim)
-    # batch_size = IntVar(values=[1, 8], name="batch_size")
-    height_values = [value for value in range(min_height, max_height+8, 8)]
-    width_values = [value for value in range(min_width, max_width+8, 8)]
-    tokens = 77
-    embedding_values = [value for value in range(tokens, tokens*clip_chunks+1, tokens)]
-    height_d = IntVar(values=height_values, name="height")
-    width_d = IntVar(values=width_values, name="width")
-    embedding_size = IntVar(values=embedding_values, name="embedding_size")
+    batch_size = (batch_size[0], batch_size[1] * 2) #double batch size for unet
+    batch_size = IntVar(values=list(batch_size), name="batch_size")
+    height = height[0]//8, height[1]//8
+    width = width[0]//8, width[1]//8
+    height_d = IntVar(values=list(height), name="height")
+    width_d = IntVar(values=list(width), name="width")
+    clip_chunks = 77, 77*clip_chunks
+    embedding_size = IntVar(values=list(clip_chunks), name="embedding_size")
 
     latent_model_input_ait = Tensor(
         [batch_size, height_d, width_d, 4], name="input0", is_input=True

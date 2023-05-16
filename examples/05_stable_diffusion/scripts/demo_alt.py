@@ -33,18 +33,25 @@ from src.pipeline_stable_diffusion_ait_alt import StableDiffusionAITPipeline
 @click.option("--batch", default=1, help="Batch size of generated image")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option("--negative_prompt", default="", help="prompt")
-@click.option(
-    "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
-)
-def run(hf_hub_or_path, ckpt, width, height, batch, prompt, negative_prompt, benchmark):
+@click.option("--steps", default=50, help="Number of inference steps")
+@click.option("--cfg", default=7.5, help="Guidance scale")
+def run(hf_hub_or_path, ckpt, width, height, batch, prompt, negative_prompt, steps, cfg):
     pipe = StableDiffusionAITPipeline(
         hf_hub_or_path=hf_hub_or_path,
         ckpt=ckpt,
     )
 
     prompt = [prompt] * batch
+    negative_prompt = [negative_prompt] * batch
     with torch.autocast("cuda"):
-        image = pipe(prompt, height, width).images[0]
+        image = pipe(
+            prompt=prompt,
+            height=height,
+            width=width,
+            negative_prompt=negative_prompt,
+            num_inference_steps=steps,
+            guidance_scale=cfg,
+        ).images[0]
     image.save("example_ait.png")
 
 

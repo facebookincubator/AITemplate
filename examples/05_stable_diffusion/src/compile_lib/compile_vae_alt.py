@@ -86,13 +86,9 @@ def map_vae_params(ait_module, pt_module, batch_size=1, seq_len=4096):
 
 def compile_vae(
     pt_mod,
-    batch_size=1,
-    height=64,
-    width=64,
-    min_height=8,
-    max_height=256,
-    min_width=8,
-    max_width=256,
+    batch_size=(1,8),
+    height=(64,2048),
+    width=(64,2048),
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
     name="AutoencoderKL",
@@ -118,10 +114,11 @@ def compile_vae(
     latent_channels = 4
     sample_size = 512
 
+    # values not important, we only need this for mapping keys
     ait_vae = ait_AutoencoderKL(
-        batch_size,
-        height,
-        width,
+        1,
+        64,
+        64,
         in_channels=in_channels,
         out_channels=out_channels,
         down_block_types=down_block_types,
@@ -132,11 +129,11 @@ def compile_vae(
         latent_channels=latent_channels,
         sample_size=sample_size,
     )
-    # batch_size = IntVar(values=[1, 8], name="batch_size")
-    height_values = [value for value in range(min_height, max_height+8, 8)]
-    width_values = [value for value in range(min_width, max_width+8, 8)]
-    height_d = IntVar(values=height_values, name="height")
-    width_d = IntVar(values=width_values, name="width")
+    batch_size = IntVar(values=list(batch_size), name="batch_size")
+    height = height[0]//8, height[1]//8
+    width = width[0]//8, width[1]//8
+    height_d = IntVar(values=list(height), name="height")
+    width_d = IntVar(values=list(width), name="width")
 
     ait_input = Tensor(
         shape=[batch_size, height_d, width_d, latent_channels],
@@ -146,7 +143,7 @@ def compile_vae(
     ait_vae.name_parameter_tensor()
 
     pt_mod = pt_mod.eval()
-    params_ait = map_vae_params(ait_vae, pt_mod, batch_size, height * width)
+    params_ait = map_vae_params(ait_vae, pt_mod)
 
     Y = ait_vae.decode(ait_input)
     mark_output(Y)
