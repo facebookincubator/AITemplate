@@ -15,23 +15,15 @@
 import inspect
 
 import os
-import warnings
 from typing import List, Optional, Union
 from tqdm import tqdm
-import re
 
 import torch
 from aitemplate.compiler import Model
 
 from diffusers import (
     AutoencoderKL,
-    DDIMScheduler,
-    DPMSolverMultistepScheduler,
-    EulerAncestralDiscreteScheduler,
     EulerDiscreteScheduler,
-    LMSDiscreteScheduler,
-    PNDMScheduler,
-    StableDiffusionPipeline,
     UNet2DConditionModel,
 )
 
@@ -40,9 +32,7 @@ from diffusers.pipelines.stable_diffusion import (
 )
 from diffusers.utils.pil_utils import numpy_to_pil
 
-from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer, CLIPTextConfig
-from .compile_lib.compile_clip_alt import map_clip_params
-from .compile_lib.compile_unet_alt import map_unet_params
+from transformers import CLIPTextModel, CLIPTokenizer, CLIPTextConfig
 from .compile_lib.compile_vae_alt import map_vae_params
 from .modeling.vae import AutoencoderKL as ait_AutoencoderKL
 
