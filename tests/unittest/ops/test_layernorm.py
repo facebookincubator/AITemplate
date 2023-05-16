@@ -44,6 +44,7 @@ class LayernormTestCase(unittest.TestCase):
         atol=1e-3,
         rtol=1e-3,
         dtype="float16",
+        use_welford_algorithm=False,
     ):
         torch_dtype = string_to_torch_dtype(dtype)
         BS = [1, 1024]
@@ -96,9 +97,17 @@ class LayernormTestCase(unittest.TestCase):
         X4._attrs["is_output"] = True
         X4._attrs["name"] = "output"
 
-        target = detect_target()
+        target = detect_target(
+            layernorm_use_welford_algorithm=use_welford_algorithm,
+        )
         dll_name = f"test_{self.test_count}.so"
-        module = compile_model(X4, target, "./tmp", "layernorm", dll_name=dll_name)
+        module = compile_model(
+            X4,
+            target,
+            "./tmp",
+            f"layernorm_{dtype}",
+            dll_name=dll_name,
+        )
 
         for batch_size in [50, 900, 1024]:
             x1_pt = torch.randn(batch_size, *MS, *NS, dtype=torch_dtype).cuda()
@@ -122,47 +131,53 @@ class LayernormTestCase(unittest.TestCase):
             torch.testing.assert_close(x4, x4_pt, atol=atol, rtol=rtol)
             self.test_count += 1
 
-    def test_layernorm(self):
-        if detect_target().name() == "rocm":
-            self._test_layernorm(use_size_op=False, MS=(256,), NS=(768,))
-            self._test_layernorm(use_size_op=False, MS=(), NS=(768,))
-            self._test_layernorm(
-                use_size_op=False,
-                MS=(
-                    256,
-                    3,
-                ),
-                NS=(256,),
-            )
-        else:
-            for use_size_op in (True, False):
-                self._test_layernorm(use_size_op=use_size_op)
-                self._test_layernorm(gamma_is_none=True, use_size_op=use_size_op)
-                self._test_layernorm(beta_is_none=True, use_size_op=use_size_op)
+    def test_layernorm_fp16(self):
+        for use_size_op in (True, False):
+            self._test_layernorm(use_size_op=use_size_op)
+            self._test_layernorm(gamma_is_none=True, use_size_op=use_size_op)
+            self._test_layernorm(use_size_op=use_size_op, eps=0.1)
+            self._test_layernorm(MS=(16, 64), NS=(4, 32), use_size_op=use_size_op)
+
+            for use_welford_algorithm in (True, False):
                 self._test_layernorm(
-                    gamma_is_none=True, beta_is_none=True, use_size_op=use_size_op
+                    beta_is_none=True,
+                    use_size_op=use_size_op,
+                    use_welford_algorithm=use_welford_algorithm,
                 )
-                self._test_layernorm(use_size_op=use_size_op, eps=0.1)
-                self._test_layernorm(MS=(16, 64), NS=(4, 32), use_size_op=use_size_op)
                 self._test_layernorm(
-                    MS=(16, 8, 4), NS=(2, 4, 32), use_size_op=use_size_op
+                    gamma_is_none=True,
+                    beta_is_none=True,
+                    use_size_op=use_size_op,
+                    use_welford_algorithm=use_welford_algorithm,
+                )
+                self._test_layernorm(
+                    MS=(16, 8, 4),
+                    NS=(2, 4, 32),
+                    use_size_op=use_size_op,
+                    use_welford_algorithm=use_welford_algorithm,
                 )
 
-    @unittest.skipIf(
-        detect_target().name() == "rocm", "fp32 layer norm is not supported on ROCm"
-    )
-    def test_layernorm_fp32(self):
+    def test_layernorm_rocm(self):
+        self._test_layernorm(use_size_op=False, MS=(256,), NS=(768,))
+        self._test_layernorm(use_size_op=False, MS=(), NS=(768,))
+        self._test_layernorm(use_size_op=False, MS=(256, 3), NS=(256,))
+
+    def test_layernorm_fp32_sm80(self):
         self._test_layernorm(dtype="float32")
         self._test_layernorm(gamma_is_none=True, dtype="float32")
         self._test_layernorm(beta_is_none=True, dtype="float32")
         self._test_layernorm(gamma_is_none=True, beta_is_none=True, dtype="float32")
         self._test_layernorm(eps=0.1, dtype="float32")
         self._test_layernorm(MS=(16, 64), NS=(4, 32), dtype="float32")
-        self._test_layernorm(MS=(16, 8, 4), NS=(2, 4, 32), dtype="float32")
 
-    @unittest.skipIf(
-        detect_target().name() == "rocm", "fp32 layer norm is not supported on ROCm"
-    )
+        for use_welford_algorithm in (True, False):
+            self._test_layernorm(
+                MS=(16, 8, 4),
+                NS=(2, 4, 32),
+                dtype="float32",
+                use_welford_algorithm=use_welford_algorithm,
+            )
+
     def test_layernorm_bf16(self):
         self._test_layernorm(dtype="bfloat16", atol=1e-2, rtol=1e-2)
         self._test_layernorm(gamma_is_none=True, dtype="bfloat16", atol=1e-2, rtol=1e-2)
@@ -178,12 +193,20 @@ class LayernormTestCase(unittest.TestCase):
         self._test_layernorm(
             MS=(16, 64), NS=(4, 32), dtype="bfloat16", atol=1e-2, rtol=1e-2
         )
-        self._test_layernorm(
-            MS=(16, 8, 4), NS=(2, 4, 32), dtype="bfloat16", atol=1e-2, rtol=1e-2
-        )
+
+        for use_welford_algorithm in (True, False):
+            self._test_layernorm(
+                MS=(16, 8, 4),
+                NS=(2, 4, 32),
+                dtype="bfloat16",
+                atol=1e-2,
+                rtol=1e-2,
+                use_welford_algorithm=use_welford_algorithm,
+            )
 
 
 filter_test_cases_by_test_env(LayernormTestCase)
+
 
 if __name__ == "__main__":
     unittest.main()
