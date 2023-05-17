@@ -49,6 +49,7 @@ from aitemplate.compiler.ops.gemm_universal.cache_entry import (
 )
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.utils import alignment, environ
+from aitemplate.testing import detect_target
 
 # pylint: disable=C0103,R1711,W0102,W0221,E1120
 
@@ -867,6 +868,11 @@ class gemm(Operator):
 
 
 def _profiler_results_groupby_key(instance):
+    if detect_target().name() == "rocm":
+        return (
+            instance[1]["op"],  # unique op name
+            instance[3],  # profiler key (gemm shape)
+        )
     return (
         instance[1]["name"],  # unique op name
         instance[2],  # profiler executable

@@ -134,9 +134,15 @@ class mem_eff_attention(Operator):
 
         Parameters
         ----------
-        qkv : float16
-            QKV tensor
-            shape: (b, seqlen, num_heads, Kv)
+        q : float16
+            Q tensor
+            shape: (b, seqlen, num_heads, head_dim)
+        k : float16
+            K tensor
+            shape: (b, seqlen, num_heads, head_dim)
+        v : float16
+            V tensor
+            shape: (b, seqlen, num_heads, head_dim)
 
         Returns
         ----------

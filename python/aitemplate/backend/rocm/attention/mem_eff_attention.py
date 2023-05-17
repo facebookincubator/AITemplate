@@ -158,7 +158,7 @@ using DeviceGemmInstance =
 {{func_signature}}
 {
 
-    bool input_permute = false;
+    bool input_permute = true;
     bool output_permute = true;
     
     auto a_element_op    = AElementOp{};
@@ -341,7 +341,7 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
 
     batch_size = q.shape()[0]._attrs["name"]
 
-    num_heads = q._attrs["shape"][1]._attrs["values"][0]
+    num_heads = q._attrs["shape"][2]._attrs["values"][0]
     head_dim = q._attrs["shape"][3]._attrs["values"][0]
     
     softmax_scale = head_dim ** (-0.5)

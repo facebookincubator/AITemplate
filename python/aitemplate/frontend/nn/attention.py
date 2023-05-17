@@ -357,17 +357,38 @@ class CrossAttention(Module):
         query = self.query(q)
         key = self.key(k)
         value = self.value(v)
+        if detect_target().name() == "cuda":
+            query = ops.permute()(
+                ops.reshape()(query, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+            )
+            key = ops.permute()(
+                ops.reshape()(key, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+            )
+            value = ops.permute()(
+                ops.reshape()(value, [batch, -1, self.num_heads, head_dim]),
+                [0, 2, 1, 3],
+            )
+        elif seqlens is None:
+            query = ops.reshape()(query, [batch, -1, self.num_heads, head_dim])
+            query = ops.transpose()(query, 1, 2)
+            query = ops.reshape()(query, [-1, query.shape()[2], head_dim])
+            key = ops.reshape()(key, [batch, -1, self.num_heads, head_dim])
+            key = ops.transpose()(key, 1, 2)
+            key = ops.reshape()(key, [-1, key.shape()[2], head_dim])
+            value = ops.reshape()(value, [batch, -1, self.num_heads, head_dim])
+            value = ops.transpose()(value, 1, 2)
+            value = ops.reshape()(value, [-1, value.shape()[2], head_dim])  
+            OP = ops.bmm_softmax_bmm_permute(
+                shape=(self.num_heads,),
+                scale=head_dim**-0.5,
+                causal=self.causal,
+            )
+            return OP(query, key, value)
+        else:
+            query = ops.reshape()(query, [batch, -1, self.num_heads, head_dim])
+            key = ops.reshape()(key, [batch, -1, self.num_heads, head_dim])
+            value = ops.reshape()(value, [batch, -1, self.num_heads, head_dim])
 
-        query = ops.permute()(
-            ops.reshape()(query, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
-        )
-        key = ops.permute()(
-            ops.reshape()(key, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
-        )
-        value = ops.permute()(
-            ops.reshape()(value, [batch, -1, self.num_heads, head_dim]),
-            [0, 2, 1, 3],
-        )
         return self.op(query, key, value, seqlens)
 
     def forward(self, *args, seqlens=None):
@@ -378,15 +399,7 @@ class CrossAttention(Module):
         if detect_target().name() == "cuda":
             attn_output = self.attention(args[0], args[1], args[2])
         else:
-            if seqlens:
-                attn_output = self.attention(args[0], args[1], args[2], seqlens)
-            else:
-                OP = ops.bmm_softmax_bmm_permute(
-                    shape=(self.num_heads,),
-                    scale=(self.dim // self.num_heads)**-0.5,
-                    causal=self.causal,
-                )
-                attn_output = OP(*args)
+            attn_output = self.attention(args[0], args[1], args[2], seqlens)
                 
         attn_output = ops.reshape()(attn_output, [batch, -1, self.dim])
 
