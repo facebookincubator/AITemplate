@@ -339,6 +339,11 @@ class FusedElementwiseMetaData:
     # and computes the dense_inx from jagged_idx (with binary search).
     use_jagged_space_indexing: bool = False
 
+    # whether all intermediate computations should be performed in float32
+    use_fp32_acc: bool = False
+    # the float32 type of the used back-end
+    float32_t: str = "float"
+
 
 def gen_function_single_thread(
     fused_func_metadata,
@@ -348,34 +353,44 @@ def gen_function_single_thread(
 ) -> str:
     """Per thread elementwise function codegen."""
     tensor_to_expr: Dict[Tensor, str] = {}
+    float32_t = fused_func_metadata.float32_t
     body = ""
 
     for tensor, name in zip(fused_func_metadata.original_inputs, input_names):
+        if fused_func_metadata.use_fp32_acc and fused_func_metadata.op_t != float32_t:
+            input_converter = type_converter.get(fused_func_metadata.op_t).get(
+                float32_t
+            )
+            name = "{}({})".format(input_converter, name)
         tensor_to_expr[tensor] = name
 
     tmp_output_idx: int = 0
     for func_metadata in fused_func_metadata.sub_funcs:
         params: List[str] = []
-        func_op_t = func_metadata.op_t
         input_converter = None
         output_converter = None
-        if func_op_t != fused_func_metadata.op_t:
-            input_converter = type_converter.get(fused_func_metadata.op_t).get(
-                func_op_t
-            )
-            output_converter = type_converter.get(func_op_t).get(
-                fused_func_metadata.op_t
-            )
-            assert (
-                input_converter is not None
-            ), "Unsupported convertion from {} to {}".format(
-                fused_func_metadata.op_t, func_op_t
-            )
-            assert (
-                output_converter is not None
-            ), "Unsupported convertion from {} to {}".format(
-                func_op_t, fused_func_metadata.op_t
-            )
+        func_op_t = func_metadata.op_t
+
+        # intermediate input / output converters are not
+        # required when doing all computation in float32
+        if not fused_func_metadata.use_fp32_acc:
+            if func_op_t != fused_func_metadata.op_t:
+                input_converter = type_converter.get(fused_func_metadata.op_t).get(
+                    func_op_t
+                )
+                output_converter = type_converter.get(func_op_t).get(
+                    fused_func_metadata.op_t
+                )
+                assert (
+                    input_converter is not None
+                ), "Unsupported convertion from {} to {}".format(
+                    fused_func_metadata.op_t, func_op_t
+                )
+                assert (
+                    output_converter is not None
+                ), "Unsupported convertion from {} to {}".format(
+                    func_op_t, fused_func_metadata.op_t
+                )
 
         for arg in func_metadata.args:
             if arg in tensor_to_expr:
@@ -421,7 +436,12 @@ def gen_function_single_thread(
         if len(output._attrs["dst_ops"]) > 1:
             name = "tmp_" + (str)(tmp_output_idx)
             tmp_output_idx += 1
-            body += "{} {} = {};\n".format(fused_func_metadata.op_t, name, func_def)
+            temp_t = (
+                float32_t
+                if fused_func_metadata.use_fp32_acc
+                else fused_func_metadata.op_t
+            )
+            body += "{} {} = {};\n".format(temp_t, name, func_def)
             tensor_to_expr[output] = name
         else:
             tensor_to_expr[output] = func_def
@@ -434,38 +454,57 @@ def gen_function_single_thread(
                 )
             )
         expr = tensor_to_expr[tensor]
+        if fused_func_metadata.use_fp32_acc and fused_func_metadata.op_t != float32_t:
+            output_converter = type_converter.get(float32_t).get(
+                fused_func_metadata.op_t
+            )
+            expr = "{}({})".format(output_converter, expr)
         body += "{} = {};\n".format(name, expr)
 
     return body
 
 
 def _get_sub_func_metadata(
-    ops: List[Operator], data_t: str, op_t: str, backend_spec: BackendSpec
+    ops: List[Operator],
+    data_t: str,
+    op_t: str,
+    backend_spec: BackendSpec,
+    float32_t: str,
 ) -> Tuple[List[ElementwiseMetaData], str]:
-    candidate_op_types = backend_spec.get_candidate_op_types(op_t)
-    func_enums = []
-    for op in ops:
-        func_enum = op._attrs["func"]
-        func_enums.append(func_enum)
-        funcs = backend_spec.func_enum_to_func_name.get(func_enum)
-        if funcs is None:
-            raise NotImplementedError("Func {} is not supported!".format(func_enum))
-        for candidate_op_t in candidate_op_types:
-            func_name = funcs.get(candidate_op_t)
-            if func_name is not None:
-                candidate_op_types = backend_spec.get_candidate_op_types(candidate_op_t)
-                break
-    if len(candidate_op_types) == 0:
-        raise RuntimeError(
-            "Cannot find a common backend data type! candidate_op_types: {}, op_t: {}.".format(
-                candidate_op_types, op_t
-            )
-        )
-    if op_t in set(candidate_op_types):
-        op_t = candidate_op_types[0]
-    else:
+    use_fp32_acc = Target.current()._kwargs.get("elementwise_use_fp32_acc", False)
+    if use_fp32_acc:
+        # vectorized op types are not allowed when all
+        # intermediate computation is done in float32
         op_t = data_t
+        # only float functions must be used
+        candidate_op_types = [float32_t]
+    else:
         candidate_op_types = backend_spec.get_candidate_op_types(op_t)
+        func_enums = []
+        for op in ops:
+            func_enum = op._attrs["func"]
+            func_enums.append(func_enum)
+            funcs = backend_spec.func_enum_to_func_name.get(func_enum)
+            if funcs is None:
+                raise NotImplementedError("Func {} is not supported!".format(func_enum))
+            for candidate_op_t in candidate_op_types:
+                func_name = funcs.get(candidate_op_t)
+                if func_name is not None:
+                    candidate_op_types = backend_spec.get_candidate_op_types(
+                        candidate_op_t
+                    )
+                    break
+        if len(candidate_op_types) == 0:
+            raise RuntimeError(
+                "Cannot find a common backend data type! candidate_op_types: {}, op_t: {}.".format(
+                    candidate_op_types, op_t
+                )
+            )
+        if op_t in set(candidate_op_types):
+            op_t = candidate_op_types[0]
+        else:
+            op_t = data_t
+            candidate_op_types = backend_spec.get_candidate_op_types(op_t)
 
     sub_func_metadata = []
     for op in ops:
@@ -487,7 +526,8 @@ def _get_sub_func_metadata(
                 func_name, func_op_t, op._attrs["args"], op._attrs["outputs"]
             )
         )
-    return (sub_func_metadata, op_t)
+
+    return sub_func_metadata, op_t, use_fp32_acc
 
 
 def _is_jagged_shape(shape: List[IntVar]) -> bool:
@@ -777,8 +817,13 @@ def _parse_func_metadata(
     # larger tmp variable which is valid for selected op_type.
     op_type = backend_spec.get_elementwise_op_backend_type(max(input_alignments), dtype)
     data_type = backend_spec.dtype_to_backend_type(dtype)
-    sub_func_metadata, op_type = _get_sub_func_metadata(
-        ops, data_type, op_type, backend_spec
+    float32_type = backend_spec.dtype_to_backend_type("float32")
+    sub_func_metadata, op_type, use_fp32_acc = _get_sub_func_metadata(
+        ops,
+        data_type,
+        op_type,
+        backend_spec,
+        float32_type,
     )
     dynamic_dims = get_dynamic_dims(*[acc.original_shapes for acc in output_accessors])
 
@@ -799,6 +844,8 @@ def _parse_func_metadata(
         mixed_jagged_dense_indexing,
         output_volume,
         use_jagged_space_indexing,
+        use_fp32_acc,
+        float32_type,
     )
 
 
