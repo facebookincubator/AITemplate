@@ -270,7 +270,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
            << ", \\"input_sizes\\": " << "{{ input_sizes | replace("'", '\\\\"') }}"
            << ", \\"output_sizes\\": " << "{{ output_sizes | replace("'", '\\\\"') }}"
         {% for prop_name, prop_value in func_properties.items() %}
-          << ", \\"{{ prop_name }}\\": " << "{{ prop_value }}"
+          << ", \\"{{ prop_name }}\\": " << "\\"{{ prop_value }}\\""
         {% endfor %}
            << " } ";
         {% if loop.last %}

@@ -755,8 +755,11 @@ class ModelContainerGenerator:
                 self._input_shape_seq.append(input_shape)
                 self._output_shape_seq.append(output_shape)
                 props = {}
-                if "concat_dim" in func._attrs:
-                    props["dim"] = func._attrs["concat_dim"]
+                for item in func._args_for_pseudo_code():
+                    res = item.split("=")
+                    if len(res) == 2:
+                        res[1] = res[1].replace("\n", " ")
+                        props[res[0]] = res[1]
                 self.func_prop_seq.append(props)
 
                 # save the rendered code for the future

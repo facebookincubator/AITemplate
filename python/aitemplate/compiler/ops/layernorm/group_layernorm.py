@@ -157,3 +157,9 @@ class group_layernorm(layernorm):
             self._attrs["output_accessors"].append(TensorAccessor(output))
             self._attrs["input_accessors"].append(TensorAccessor(x))
         return self._attrs["outputs"]
+
+    def _args_for_pseudo_code(self):
+        res = []
+        for shapes in self._attrs["normalized_shape"]:
+            res.append(",".join([str(s.symbolic_value()) for s in shapes]))
+        return [f"normalized_shape={res}"]
