@@ -101,3 +101,6 @@ class slice_scatter(Operator):
     def gen_function(self) -> str:
         func = self._get_func("{target}.{op}.gen_function")
         return func(self._attrs)
+
+    def _args_for_pseudo_code(self):
+        return [f"scatter_dim={str(self._attrs['scatter_dim'])}]"]

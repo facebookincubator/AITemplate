@@ -123,4 +123,4 @@ class fused_elementwise(Operator):
         return func(self._attrs)
 
     def _args_for_pseudo_code(self):
-        return [op._attrs["func"] for op in self._attrs["elementwise_ops"]]
+        return [f"func={[op._attrs['func'] for op in self._attrs['elementwise_ops']]}"]

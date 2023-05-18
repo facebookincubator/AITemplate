@@ -195,7 +195,10 @@ class dynamic_slice(Operator):
         return func(self._attrs)
 
     def _inputs_for_pseudo_code(self):
-        return self._attrs["inputs"] + [
+        return self._attrs["inputs"]
+
+    def _args_for_pseudo_code(self):
+        return [
             f"start_indices=[{self._pseudo_code_helper(self._attrs['start_indices'], with_shape=True)}]",
             f"end_indices=[{self._pseudo_code_helper(self._attrs['end_indices'], with_shape=True)}]",
         ]

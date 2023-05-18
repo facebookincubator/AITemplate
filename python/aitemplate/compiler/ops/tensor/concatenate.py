@@ -271,4 +271,7 @@ class concatenate(Operator):
         self._attrs["input_accessors"] = new_input_accessors
 
     def _inputs_for_pseudo_code(self):
-        return self._attrs["inputs"] + [f"dim={self._attrs['concat_dim']}"]
+        return self._attrs["inputs"]
+
+    def _args_for_pseudo_code(self):
+        return [f"dim={self._attrs['concat_dim']}"]

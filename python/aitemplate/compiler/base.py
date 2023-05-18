@@ -1251,7 +1251,7 @@ class Operator(Node):
         return self._attrs["outputs"]
 
     def _args_for_pseudo_code(self):
-        return []
+        return [f"{key}={value}" for key, value in self._get_op_attributes().items()]
 
     def _pseudo_code_helper(self, node: Any, with_shape: bool) -> str:
         if isinstance(node, list):
