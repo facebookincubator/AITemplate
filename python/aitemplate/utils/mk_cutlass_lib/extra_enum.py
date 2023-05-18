@@ -220,6 +220,7 @@ EpilogueScheduleMapping = {
     EpilogueFunctor.LinearCombinationHardSwish: EpilogueScheduleType.TmaWarpSpecializedElementwiseHardSwish,
     EpilogueFunctor.LinearCombinationGELU: EpilogueScheduleType.TmaWarpSpecializedElementwiseGELU,
     EpilogueFunctor.LinearCombinationFastGELU: EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU,
+    EpilogueFunctor.LinearCombinationResidualBlock: EpilogueScheduleType.TmaWarpSpecialized,
   },
   EpilogueScheduleType.TmaWarpSpecializedCooperative: {
     EpilogueFunctor.LinearCombinationRelu: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu,
@@ -229,6 +230,7 @@ EpilogueScheduleMapping = {
     EpilogueFunctor.LinearCombinationHardSwish: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseHardSwish,
     EpilogueFunctor.LinearCombinationGELU: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU,
     EpilogueFunctor.LinearCombinationFastGELU: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU,
+    EpilogueFunctor.LinearCombinationResidualBlock: EpilogueScheduleType.TmaWarpSpecializedCooperative,
   },
 }
 
