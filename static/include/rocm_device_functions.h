@@ -202,7 +202,8 @@ inline DeviceError GraphDestroy(GraphType graph) {
 
 inline DeviceError GraphExecUpdate(GraphExecType graph_exec, GraphType graph) {
   // We don't have hipGraphExecUpdate in some versions of rocm
-  return hipErrorUnknown;
+  hipGraphExecUpdateResult update;
+  return hipGraphExecUpdate(graph_exec, graph, nullptr, &update);
 }
 
 inline DeviceError GraphExecDestroy(GraphExecType graph_exec) {

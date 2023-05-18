@@ -100,7 +100,7 @@ class ModelBase {
   void Run(StreamType stream, bool graph_mode) {
     auto* model = static_cast<ModelType*>(this);
     model->SetUpInputsOutputs();
-    if (target_has_graph_mode && graph_mode) {
+    if (graph_mode) {
       RunAsGraph(stream);
     } else {
       model->RunImpl(stream);
@@ -216,37 +216,39 @@ class ModelBase {
   }
 
   void RunAsGraph(StreamType stream) {
-    DEVICE_CHECK(StreamBeginCapture(graph_capture_stream_, /*global=*/false));
-    try {
-      static_cast<ModelType*>(this)->RunImpl(graph_capture_stream_);
-    } catch (...) {
-      GraphType graph;
-      // No need to DEVICE_CHECK here, we want to see the original exception.
-      EndCapture(&graph);
-      if (graph != nullptr && GraphDestroy(graph) != GetDeviceSuccess()) {
-        LOG(WARNING)
-            << "Graph destruction failed while handling exception! Memory will be leaked.";
+    if(!graph_created_){
+      DEVICE_CHECK(StreamBeginCapture(graph_capture_stream_, /*global=*/false));
+      try {
+        static_cast<ModelType*>(this)->RunImpl(graph_capture_stream_);
+      } catch (...) {
+        GraphType graph;
+        // No need to DEVICE_CHECK here, we want to see the original exception.
+        EndCapture(&graph);
+        if (graph != nullptr && GraphDestroy(graph) != GetDeviceSuccess()) {
+          LOG(WARNING)
+              << "Graph destruction failed while handling exception! Memory will be leaked.";
+        }
+        throw;
       }
-      throw;
+
+      // The following function ends the capture and creates a graph
+      // inside a unique_ptr that cleans up it when it goes out of scope.
+      // Note that it throws an exception if EndCapture fails.
+      auto graph = RAII_EndCaptureAndCreateGraph(
+          [this](GraphType* graph_ptr) { return EndCapture(graph_ptr); });
+
+      if (graph_exec_ == nullptr) {
+        DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
+      } else if (
+          GraphExecUpdate(graph_exec_, graph.get()) != GetDeviceSuccess()) {
+        // Consume the last cuda error, which may affect the next GraphExecLaunch
+        // call.
+        GetLastError();
+        DEVICE_CHECK(GraphExecDestroy(graph_exec_));
+        DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
+      }
+      graph_created_ = true;
     }
-
-    // The following function ends the capture and creates a graph
-    // inside a unique_ptr that cleans up it when it goes out of scope.
-    // Note that it throws an exception if EndCapture fails.
-    auto graph = RAII_EndCaptureAndCreateGraph(
-        [this](GraphType* graph_ptr) { return EndCapture(graph_ptr); });
-
-    if (graph_exec_ == nullptr) {
-      DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
-    } else if (
-        GraphExecUpdate(graph_exec_, graph.get()) != GetDeviceSuccess()) {
-      // Consume the last cuda error, which may affect the next GraphExecLaunch
-      // call.
-      GetLastError();
-      DEVICE_CHECK(GraphExecDestroy(graph_exec_));
-      DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
-    }
-
     DEVICE_CHECK(GraphExecLaunch(graph_exec_, stream));
   }
 
@@ -316,6 +318,7 @@ class ModelBase {
   std::vector<ParamInfo> params_;
 
   GraphExecType graph_exec_ = nullptr;
+  bool graph_created_ = false;
   StreamType graph_capture_stream_;
 
   std::unordered_map<std::string, const void**> constant_name_to_ptr_;
