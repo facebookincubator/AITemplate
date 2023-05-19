@@ -1,5 +1,6 @@
 # AITemplate
 
+[![Support Ukraine](https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB)](https://opensource.fb.com/support-ukraine)
 [![License](https://img.shields.io/badge/License-Apache_2.0-brightgreen.svg)](https://github.com/facebookincubator/AITemplate/blob/main/LICENSE) |
 [![Documentation](https://github.com/facebookincubator/AITemplate/actions/workflows/docs.yaml/badge.svg)](https://facebookincubator.github.io/AITemplate) |
 [![CircleCI](https://circleci.com/gh/facebookincubator/AITemplate.svg?style=svg)](https://app.circleci.com/pipelines/github/facebookincubator/AITemplate)
