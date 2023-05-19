@@ -15,7 +15,7 @@
 """
 Common functions and templates for bmm-family ops
 """
-from dataclasses import dataclass
+import dataclasses
 
 import jinja2
 
@@ -157,7 +157,7 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
 )
 
 
-@dataclass
+@dataclasses.dataclass
 class Bmm_problem_info:
     alpha_value: float = 1
     beta_value: float = 0
@@ -576,6 +576,30 @@ def gen_profiler(
     return common.build_profiler(file_pairs)
 
 
+def add_elem_types_to_mm_info(mm_info, func_attrs):
+    """
+    CUTLASS 3.x problem args require explicit I/O pointer types
+    (not void*). This function arugments the input and output
+    pointers in the mm_info with the appropriate elem_input_type
+    and elem_output_type casts.
+    """
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+
+    return dataclasses.replace(
+        mm_info,
+        a_ptr=f"({elem_input_type}*)({mm_info.a_ptr})",
+        b_ptr=f"({elem_input_type}*)({mm_info.b_ptr})",
+        bias_ptr=f"({elem_output_type}*)({mm_info.bias_ptr})",
+        c_ptr=f"({elem_output_type}*)({mm_info.c_ptr})",
+    )
+
+
 def default_gen_profiler(
     func_attrs,
     workdir,
@@ -603,23 +627,11 @@ def default_gen_profiler(
     problem_args = PROBLEM_ARGS_TEMPLATE.render(
         mm_info=default_mm_info,
     )
-
-    backend_spec = CUDASpec()
-    elem_input_type = backend_spec.dtype_to_lib_type(
-        func_attrs["inputs"][0]._attrs["dtype"]
-    )
-    elem_output_type = backend_spec.dtype_to_lib_type(
-        func_attrs["outputs"][0]._attrs["dtype"]
-    )
-
-    # CUTLASS 3.x problem args require explicit I/O pointer types (not void*)
-    default_mm_info.a_ptr = f"({elem_input_type}*)({default_mm_info.a_ptr})"
-    default_mm_info.b_ptr = f"({elem_input_type}*)({default_mm_info.b_ptr})"
-    default_mm_info.bias_ptr = f"({elem_output_type}*)({default_mm_info.bias_ptr})"
-    default_mm_info.c_ptr = f"({elem_output_type}*)({default_mm_info.c_ptr})"
-
     problem_args_cutlass_3x = PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
-        mm_info=default_mm_info,
+        mm_info=add_elem_types_to_mm_info(
+            mm_info=default_mm_info,
+            func_attrs=func_attrs,
+        ),
     )
 
     return gen_profiler(

@@ -43,6 +43,9 @@ def _get_default_problem_info(**kwargs):
         "ldb": "K",
         "ldbias": "0",
         "ldc": "N * B",
+        "a_row_major": True,
+        "b_row_major": False,
+        "c_row_major": True,
     }
     for k, v in kwargs.items():
         problem_args[k] = v
@@ -73,6 +76,9 @@ def _get_strided_problem_info(func_attrs):
         ldb="K",
         ldbias="0",
         ldc="output_stride",
+        a_row_major=True,
+        b_row_major=False,
+        c_row_major=True,
     )
 
 
@@ -93,15 +99,22 @@ def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
         mm_info=mm_info,
     )
+    problem_args_cutlass_3x = bmm_common.PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+        mm_info=bmm_common.add_elem_types_to_mm_info(
+            mm_info=mm_info,
+            func_attrs=func_attrs,
+        ),
+    )
 
     return bmm_common.gen_profiler(
-        func_attrs,
-        workdir,
-        profiler_filename,
-        dim_info_dict,
-        common_bias.SRC_TEMPLATE,
-        problem_args,
-        args_parser,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=common_bias.SRC_TEMPLATE,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
+        args_parser=args_parser,
         bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
     )
 
@@ -118,16 +131,23 @@ def gen_function(
     problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
         mm_info=bmm_problem_info,
     )
+    problem_args_cutlass_3x = bmm_common.PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+        mm_info=bmm_common.add_elem_types_to_mm_info(
+            mm_info=bmm_problem_info,
+            func_attrs=func_attrs,
+        ),
+    )
 
     input_ndims = len(func_attrs["input_accessors"][0].original_shapes)
     weight_ndims = len(func_attrs["input_accessors"][1].original_shapes)
     output_ndims = len(func_attrs["output_accessors"][0].original_shapes)
 
     return common.gen_function(
-        func_attrs,
-        common_bias.SRC_TEMPLATE,
-        exec_cond_template,
-        problem_args,
+        func_attrs=func_attrs,
+        src_template=common_bias.SRC_TEMPLATE,
+        exec_cond_template=exec_cond_template,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
         input_ndims=input_ndims,
         weight_ndims=weight_ndims,
         output_ndims=output_ndims,
