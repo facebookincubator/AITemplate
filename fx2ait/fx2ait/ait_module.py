@@ -27,16 +27,20 @@ class AITModule(torch.nn.Module):
         self.engine = engine
         self.interp_result = interp_result
 
-    def forward(self, *inputs):
+    def forward(self, *inputs, **kwargs):
         python_inputs = []
         if self.interp_result:
             inputs = list(inputs)
             for name, inp in zip(self.interp_result.fx_input_names, inputs):
                 if name in self.interp_result.input_names:
                     python_inputs.append(inp)
+            for name in self.interp_result.input_names:
+                if name in kwargs:
+                    python_inputs.append(kwargs[name])
             assert len(python_inputs) == len(self.interp_result.input_names)
         else:
-            python_inputs = inputs
+            python_inputs = list(inputs)
+            python_inputs.extend(kwargs.values())
 
         outputs = self.engine.forward(python_inputs)
         if len(outputs) == 1:
