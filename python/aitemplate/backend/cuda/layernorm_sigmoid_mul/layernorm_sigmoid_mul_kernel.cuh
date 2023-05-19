@@ -1557,14 +1557,14 @@ struct Arguments {
 // input  b * [m, n] row-major
 // gamma b * [n]
 // beta  b * [n]
-// grid [b, m]
+// grid [m, b]
 // block [block_size] -- each thread deals with 4 elements
 // block_size = n / 4
 template <bool FuseSigmoidMul, int NumInputs>
 __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
     const Arguments<half4, float, NumInputs>& args) {
-  const int b_idx = blockIdx.x;
-  const int m_idx = blockIdx.y;
+  const int m_idx = blockIdx.x;
+  const int b_idx = blockIdx.y;
   const int tid = threadIdx.x;
   __shared__ float s_mean, s_variance;
   float local_sums[1] = {0.0f};
@@ -1713,14 +1713,14 @@ __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
 // input  b * [m, n] row-major
 // gamma b * [n]
 // beta  b * [n]
-// grid [b, m]
+// grid [m, b]
 // block [block_size] -- each thread deals with 4 elements
 // block_size = n / 4
 template <bool FuseSigmoidMul, int NumInputs>
 __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
     const Arguments<bfloat16_4, float, NumInputs>& args) {
-  const int b_idx = blockIdx.x;
-  const int m_idx = blockIdx.y;
+  const int m_idx = blockIdx.x;
+  const int b_idx = blockIdx.y;
   const int tid = threadIdx.x;
   __shared__ float s_mean, s_variance;
   float local_sums[1] = {0.0f};
@@ -1915,14 +1915,14 @@ __global__ void group_layernorm_sigmoid_mul_stored_locally_bfloat16(
 // input  b * [m, n] row-major
 // gamma b * [n]
 // beta  b * [n]
-// grid [b, m]
+// grid [m, b]
 // block [block_size] -- each thread deals with 1 element
 // block_size = n
 template <typename T, typename T_ACC, bool FuseSigmoidMul, int NumInputs>
 __device__ void group_layernorm_sigmoid_mul_stored_locally_impl(
     const Arguments<T, T_ACC, NumInputs>& args) {
-  const int b_idx = blockIdx.x;
-  const int m_idx = blockIdx.y;
+  const int m_idx = blockIdx.x;
+  const int b_idx = blockIdx.y;
   const int tid = threadIdx.x;
   __shared__ float s_mean, s_variance;
 
@@ -2028,14 +2028,14 @@ __global__ void group_layernorm_sigmoid_mul_stored_locally(
 // input  b * [m, n] row-major
 // gamma b * [n]
 // beta  b * [n]
-// grid [b, m]
+// grid [m, b]
 // block [block_size] -- each thread deals with n / block_size element
 // block_size = 512
 template <typename T, typename T_ACC, bool FuseSigmoidMul, int NumInputs>
 __device__ void group_layernorm_sigmoid_mul_impl(
     Arguments<T, T_ACC, NumInputs> args) {
-  const int b_idx = blockIdx.x;
-  const int m_idx = blockIdx.y;
+  const int m_idx = blockIdx.x;
+  const int b_idx = blockIdx.y;
   const int tid = threadIdx.x;
   __shared__ float s_mean, s_variance;
 
@@ -2142,7 +2142,7 @@ cudaError_t invokeGroupLayernormSigmoidMul(
     return cudaSuccess;
   }
 
-  dim3 grid(b, m);
+  dim3 grid(m, b);
   // TODO: implement float4 group kernel
   if (std::is_same<T, half>::value && n_is_multiple_of_4 && (min_n >= 128) &&
       (max_n <= 4096)) {
