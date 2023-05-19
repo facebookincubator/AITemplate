@@ -25,7 +25,6 @@ func_call, and filter for each layout combination under names like
 
 
 from aitemplate.backend import registry
-from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.cuda.gemm_universal import bmm_common, common
 from aitemplate.backend.cuda.gemm_universal.bmm_xxx import _get_problem_args, get_config
@@ -108,23 +107,11 @@ def get_gen_profiler(a_layout, b_layout, c_layout):
         problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
             mm_info=default_mm_info,
         )
-
-        backend_spec = CUDASpec()
-        elem_input_type = backend_spec.dtype_to_lib_type(
-            func_attrs["inputs"][0]._attrs["dtype"]
-        )
-        elem_output_type = backend_spec.dtype_to_lib_type(
-            func_attrs["outputs"][0]._attrs["dtype"]
-        )
-
-        # CUTLASS 3.x problem args require explicit I/O pointer types (not void*)
-        default_mm_info.a_ptr = f"({elem_input_type}*)({default_mm_info.a_ptr})"
-        default_mm_info.b_ptr = f"({elem_input_type}*)({default_mm_info.b_ptr})"
-        default_mm_info.bias_ptr = f"({elem_output_type}*)({default_mm_info.bias_ptr})"
-        default_mm_info.c_ptr = f"({elem_output_type}*)({default_mm_info.c_ptr})"
-
         problem_args_cutlass_3x = bmm_common.PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
-            mm_info=default_mm_info,
+            mm_info=bmm_common.add_elem_types_to_mm_info(
+                mm_info=default_mm_info,
+                func_attrs=func_attrs,
+            ),
         )
 
         return bmm_common.gen_profiler(
