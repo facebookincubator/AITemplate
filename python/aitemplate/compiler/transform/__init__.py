@@ -16,6 +16,7 @@
 from aitemplate.compiler.transform.bind_constants import bind_constants
 from aitemplate.compiler.transform.constant_folding import constant_folding
 from aitemplate.compiler.transform.fuse_conv_elementwise import fuse_conv_elementwise
+from aitemplate.compiler.transform.fuse_expand_bmm import fuse_expand_bmm
 from aitemplate.compiler.transform.fuse_group_ops import (
     fuse_group_gemm_ops,
     fuse_group_layernorm_ops,
