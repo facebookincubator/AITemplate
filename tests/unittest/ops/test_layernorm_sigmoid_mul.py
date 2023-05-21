@@ -901,6 +901,16 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
             use_size_op=True,
             dtype=dtype,
         )
+        self._test_group_fused_layernorm_sigmoid_mul(
+            [
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+            ],
+            dtype=dtype,
+        )
 
         # Make sure we test the boundary between being able to fit the arguments in constant memory vs not.
         for num_groups in range(38, 41):
@@ -1024,6 +1034,17 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
                 [1024, 256],
                 [1024, 128],
                 [1024, 256],
+            ],
+            fuse_sigmoid_mul=False,
+            dtype=dtype,
+        )
+        self._test_group_fused_layernorm_sigmoid_mul(
+            [
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
             ],
             fuse_sigmoid_mul=False,
             dtype=dtype,
