@@ -210,10 +210,8 @@ class ControlNetModel(nn.Module):
 
         # 2. pre-process
         sample = self.conv_in(sample)
-        print(sample.shape)
 
         controlnet_cond = self.controlnet_cond_embedding(controlnet_cond)
-        print(controlnet_cond.shape)
 
         sample = sample + controlnet_cond
         # 3. down
