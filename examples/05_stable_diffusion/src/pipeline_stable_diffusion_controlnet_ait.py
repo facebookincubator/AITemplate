@@ -13,24 +13,16 @@
 #  limitations under the License.
 #
 import inspect
-
 import os
 from typing import List, Optional, Union
 
 import torch
 from aitemplate.compiler import Model
-
-from diffusers import (
-    AutoencoderKL,
-    EulerDiscreteScheduler,
-    UNet2DConditionModel,
-    ControlNetModel,
-)
-
+from diffusers import (AutoencoderKL, ControlNetModel, EulerDiscreteScheduler,
+                       UNet2DConditionModel)
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils.pil_utils import numpy_to_pil
 from tqdm import tqdm
-
 from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 
 from .compile_lib.compile_vae_alt import map_vae_params

@@ -14,19 +14,18 @@
 #
 
 import click
-import torch
-
-from aitemplate.utils.import_path import import_parent
-from diffusers.utils import load_image
+import cv2
 import numpy as np
 import torch
-import cv2
+from aitemplate.utils.import_path import import_parent
+from diffusers.utils import load_image
 from PIL import Image
 
 if __name__ == "__main__":
     import_parent(filepath=__file__, level=1)
 
-from src.pipeline_stable_diffusion_controlnet_ait import StableDiffusionAITPipeline
+from src.pipeline_stable_diffusion_controlnet_ait import \
+    StableDiffusionAITPipeline
 
 
 def prepare_image(

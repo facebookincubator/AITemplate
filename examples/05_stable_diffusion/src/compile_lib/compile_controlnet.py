@@ -13,14 +13,12 @@
 #  limitations under the License.
 #
 import torch
-
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 
-from ..modeling.controlnet_unet_2d_condition import (
-    ControlNetModel as ait_ControlNetModel,
-)
+from ..modeling.controlnet_unet_2d_condition import \
+    ControlNetModel as ait_ControlNetModel
 from .util import mark_output
 
 

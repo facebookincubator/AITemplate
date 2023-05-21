@@ -14,11 +14,11 @@
 #
 from typing import Optional, Tuple, Union
 
-from aitemplate.frontend import nn
 from aitemplate.compiler import ops
+from aitemplate.frontend import nn
 
 from .embeddings import TimestepEmbedding, Timesteps
-from .unet_blocks import get_down_block, get_up_block, UNetMidBlock2DCrossAttn
+from .unet_blocks import UNetMidBlock2DCrossAttn, get_down_block, get_up_block
 
 
 class ControlNetConditioningEmbedding(nn.Module):
@@ -111,8 +111,6 @@ class ControlNetModel(nn.Module):
         self.global_pool_conditions = global_pool_conditions
 
         # input
-        conv_in_kernel = 3
-        conv_in_padding = (conv_in_kernel - 1) // 2
         self.conv_in = nn.Conv2dBias(in_channels, block_out_channels[0], 3, 1, 1)
 
         # time
