@@ -207,6 +207,7 @@ def compile_model(
 
     recompile = os.getenv("AIT_RECOMPILE", "1")
     graph = None
+    os.makedirs(workdir, exist_ok=True)  # explicitly ensure workdir exists
     # Super important: we cannot have commas in the test name.
     # We want to add a -Iworkdir/test_name flag to nvcc, but
     # if the name has a comma in it, it will be parsed as two
