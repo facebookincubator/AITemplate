@@ -63,6 +63,7 @@ from src.compile_lib.compile_vae_alt import compile_vae
 )
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
+@click.option("--controlnet", default=False, help="UNet for controlnet")
 def compile_diffusers(
     local_dir,
     width,
@@ -72,6 +73,7 @@ def compile_diffusers(
     include_constants,
     use_fp16_acc=True,
     convert_conv_to_gemm=True,
+    controlnet=False,
 ):
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
@@ -118,6 +120,7 @@ def compile_diffusers(
         attention_head_dim=pipe.unet.config.attention_head_dim,
         use_linear_projection=pipe.unet.config.get("use_linear_projection", False),
         constants=True if include_constants else False,
+        controlnet=True if controlnet else False,
     )
     # VAE
     compile_vae(

@@ -21,6 +21,9 @@ from aitemplate.testing import detect_target
 from ..modeling.unet_2d_condition import (
     UNet2DConditionModel as ait_UNet2DConditionModel,
 )
+from ..modeling.controlnet_unet_2d_condition import (
+    ControlNetUNet2DConditionModel as ait_ControlNetUNet2DConditionModel,
+)
 from .util import mark_output
 
 
@@ -58,28 +61,45 @@ def compile_unet(
     hidden_dim=1024,
     use_fp16_acc=False,
     convert_conv_to_gemm=False,
+    controlnet=True,
     attention_head_dim=[5, 10, 20, 20],  # noqa: B006
     model_name="UNet2DConditionModel",
     use_linear_projection=False,
     constants=True,
 ):
-    ait_mod = ait_UNet2DConditionModel(
-        sample_size=64,
-        cross_attention_dim=hidden_dim,
-        attention_head_dim=attention_head_dim,
-        use_linear_projection=use_linear_projection,
-    )
+    if controlnet:
+        ait_mod = ait_ControlNetUNet2DConditionModel(
+            sample_size=64,
+            cross_attention_dim=hidden_dim,
+            attention_head_dim=attention_head_dim,
+            use_linear_projection=use_linear_projection,
+        )
+    else:
+        ait_mod = ait_UNet2DConditionModel(
+            sample_size=64,
+            cross_attention_dim=hidden_dim,
+            attention_head_dim=attention_head_dim,
+            use_linear_projection=use_linear_projection,
+        )
     ait_mod.name_parameter_tensor()
 
     # set AIT parameters
     pt_mod = pt_mod.eval()
     params_ait = map_unet_params(pt_mod, dim)
-    batch_size = (batch_size[0], batch_size[1] * 2)  # double batch size for unet
-    batch_size = IntVar(values=list(batch_size), name="batch_size")
-    height = height[0] // 8, height[1] // 8
-    width = width[0] // 8, width[1] // 8
-    height_d = IntVar(values=list(height), name="height")
-    width_d = IntVar(values=list(width), name="width")
+    if controlnet:
+        # static sizes only for now
+        batch_size = batch_size[0] * 2  # double batch size for unet
+        height = height[0] // 8
+        width = width[0] // 8
+        height_d = height
+        width_d = width
+    else:
+        batch_size = (batch_size[0], batch_size[1] * 2)  # double batch size for unet
+        batch_size = IntVar(values=list(batch_size), name="batch_size")
+        height = height[0] // 8, height[1] // 8
+        width = width[0] // 8, width[1] // 8
+        height_d = IntVar(values=list(height), name="height")
+        width_d = IntVar(values=list(width), name="width")
     clip_chunks = 77, 77 * clip_chunks
     embedding_size = IntVar(values=list(clip_chunks), name="embedding_size")
 
@@ -90,17 +110,103 @@ def compile_unet(
     text_embeddings_pt_ait = Tensor(
         [batch_size, embedding_size, hidden_dim], name="input2", is_input=True
     )
+    if controlnet:
+        down_block_residual_0 = Tensor(
+            [batch_size, height, width, 320],
+            name="down_block_residual_0",
+            is_input=True,
+        )
+        down_block_residual_1 = Tensor(
+            [batch_size, height, width, 320],
+            name="down_block_residual_1",
+            is_input=True,
+        )
+        down_block_residual_2 = Tensor(
+            [batch_size, height, width, 320],
+            name="down_block_residual_2",
+            is_input=True,
+        )
+        down_block_residual_3 = Tensor(
+            [batch_size, height // 2, width // 2, 320],
+            name="down_block_residual_3",
+            is_input=True,
+        )
+        down_block_residual_4 = Tensor(
+            [batch_size, height // 2, width // 2, 640],
+            name="down_block_residual_4",
+            is_input=True,
+        )
+        down_block_residual_5 = Tensor(
+            [batch_size, height // 2, width // 2, 640],
+            name="down_block_residual_5",
+            is_input=True,
+        )
+        down_block_residual_6 = Tensor(
+            [batch_size, height // 4, width // 4, 640],
+            name="down_block_residual_6",
+            is_input=True,
+        )
+        down_block_residual_7 = Tensor(
+            [batch_size, height // 4, width // 4, 1280],
+            name="down_block_residual_7",
+            is_input=True,
+        )
+        down_block_residual_8 = Tensor(
+            [batch_size, height // 4, width // 4, 1280],
+            name="down_block_residual_8",
+            is_input=True,
+        )
+        down_block_residual_9 = Tensor(
+            [batch_size, height // 8, width // 8, 1280],
+            name="down_block_residual_9",
+            is_input=True,
+        )
+        down_block_residual_10 = Tensor(
+            [batch_size, height // 8, width // 8, 1280],
+            name="down_block_residual_10",
+            is_input=True,
+        )
+        down_block_residual_11 = Tensor(
+            [batch_size, height // 8, width // 8, 1280],
+            name="down_block_residual_11",
+            is_input=True,
+        )
+        mid_block_residual = Tensor(
+            [batch_size, height // 8, width // 8, 1280],
+            name="mid_block_residual",
+            is_input=True,
+        )
+    else:
+        mid_block_additional_residual = None
+        down_block_additional_residuals = None
 
-    mid_block_additional_residual = None
-    down_block_additional_residuals = None
-
-    Y = ait_mod(
-        latent_model_input_ait,
-        timesteps_ait,
-        text_embeddings_pt_ait,
-        down_block_additional_residuals,
-        mid_block_additional_residual,
-    )
+    if controlnet:
+        Y = ait_mod(
+            latent_model_input_ait,
+            timesteps_ait,
+            text_embeddings_pt_ait,
+            down_block_residual_0,
+            down_block_residual_1,
+            down_block_residual_2,
+            down_block_residual_3,
+            down_block_residual_4,
+            down_block_residual_5,
+            down_block_residual_6,
+            down_block_residual_7,
+            down_block_residual_8,
+            down_block_residual_9,
+            down_block_residual_10,
+            down_block_residual_11,
+            mid_block_residual,
+        )
+    else:
+        Y = ait_mod(
+            latent_model_input_ait,
+            timesteps_ait,
+            text_embeddings_pt_ait,
+            mid_block_additional_residual,
+            down_block_additional_residuals,
+        )
     mark_output(Y)
 
     target = detect_target(
