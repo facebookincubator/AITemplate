@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 import torch
-from typing import Optional, Tuple, Union
 
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import IntVar, Tensor
@@ -21,7 +20,6 @@ from aitemplate.testing import detect_target
 
 from ..modeling.controlnet_unet_2d_condition import (
     ControlNetModel as ait_ControlNetModel,
-    ControlNetConditioningEmbedding as ait_ControlNetConditioningEmbedding,
 )
 from .util import mark_output
 

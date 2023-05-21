@@ -14,7 +14,7 @@
 #
 from typing import Optional, Tuple, Union
 
-from aitemplate.frontend import nn, Tensor, IntVar
+from aitemplate.frontend import nn
 from aitemplate.compiler import ops
 
 from .embeddings import TimestepEmbedding, Timesteps
