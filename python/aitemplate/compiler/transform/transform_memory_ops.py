@@ -133,7 +133,7 @@ def _is_supported_dst_op_for_first_cat(
     def _supported_op_type(op_type):
         if op_type in supported_strided_ops:
             return True
-        return op_type.startswith("bmm_crr")
+        return op_type.startswith(("bmm_crr", "bmm_rrr"))
 
     dst_op_type = dst_op._attrs["op"]
     if _supported_op_type(dst_op_type):
