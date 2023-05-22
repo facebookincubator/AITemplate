@@ -18,7 +18,7 @@ from aitemplate.compiler import ops
 from aitemplate.frontend import nn
 
 from .embeddings import TimestepEmbedding, Timesteps
-from .unet_blocks import UNetMidBlock2DCrossAttn, get_down_block, get_up_block
+from .unet_blocks import get_down_block, get_up_block, UNetMidBlock2DCrossAttn
 
 
 class ControlNetConditioningEmbedding(nn.Module):

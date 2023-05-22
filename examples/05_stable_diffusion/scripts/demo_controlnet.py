@@ -24,8 +24,7 @@ from PIL import Image
 if __name__ == "__main__":
     import_parent(filepath=__file__, level=1)
 
-from src.pipeline_stable_diffusion_controlnet_ait import \
-    StableDiffusionAITPipeline
+from src.pipeline_stable_diffusion_controlnet_ait import StableDiffusionAITPipeline
 
 
 def prepare_image(
