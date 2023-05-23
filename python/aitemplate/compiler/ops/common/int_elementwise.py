@@ -132,7 +132,7 @@ class int_elementwise(Operator):
         return {"func_enum": self._attrs["func"]}
 
     def _args_for_pseudo_code(self):
-        return [self._attrs["func"]]
+        return [f"func={self._attrs['func']}"]
 
     def gen_function(self) -> str:
         target = backend.target.Target.current()

@@ -39,8 +39,11 @@ def build_ait_module(
     ait_dtype="float16",
     workdir="./tmp",
     test_name="strided_layernorm",
+    use_welford_algorithm=False,
 ):
-    target = detect_target()
+    target = detect_target(
+        layernorm_use_welford_algorithm=use_welford_algorithm,
+    )
     X0 = Tensor(
         shape=[
             shape_utils.gen_int_var_min_max(values=batch_sizes, name="input_batch"),
@@ -88,7 +91,7 @@ def build_ait_module(
         output,
         target,
         workdir,
-        test_name,
+        f"{test_name}_{test_id}",
         dll_name=dll_name,
     )
 
@@ -151,6 +154,8 @@ class SliceLayerNormTestCase(unittest.TestCase):
         start_indices: List[int] = (0,),
         end_indices: List[int] = (None,),
         dtype: str = "float16",
+        test_name="test_slice_layer_norm",
+        use_welford_algorithm=False,
     ):
         input_rank = 1 + len(input_nonbatch_shape)
         if 1 == len(start_indices) and len(start_indices) != input_rank:
@@ -174,6 +179,8 @@ class SliceLayerNormTestCase(unittest.TestCase):
             **_layernorm_common_params,
             test_id=self._test_id,
             ait_dtype=dtype,
+            test_name=f"{test_name}_{dtype}",
+            use_welford_algorithm=use_welford_algorithm,
         )
         self._test_id += 1
         pt_dtype = torch_utils.string_to_torch_dtype(dtype)
@@ -186,29 +193,30 @@ class SliceLayerNormTestCase(unittest.TestCase):
             }
             ait_outputs = {"output": torch.empty_like(pt_tensors["output"])}
             ait_module.run_with_tensors(ait_inputs, ait_outputs)
-
-            self.assertTrue(
-                torch.allclose(
-                    ait_outputs["output"], pt_tensors["output"], atol=1e-3, rtol=1e-3
-                )
+            torch.testing.assert_close(
+                ait_outputs["output"],
+                pt_tensors["output"],
+                atol=1e-3,
+                rtol=1e-3,
             )
 
     def _test_slice_layer_norm_kernels(
         self,
         **kwargs,
     ):
-        for start_indices, end_indices, input_nonbatch_shape in (
+        for start_indices, end_indices, input_nonbatch_shape, use_welford_algorithm in (
             # (cuda-half4) kernel
-            ((0, 0, 0, 4), (None, None, None, 36), (4, 1, 40)),
+            ((0, 0, 0, 4), (None, None, None, 36), (4, 1, 40), False),
             # (generic n < 1024) kernel
-            ((0, 0, 0, 11), (None, None, None, 13), (4, 1, 15)),
+            ((0, 0, 0, 11), (None, None, None, 13), (4, 1, 15), False),
             # (cuda-half; block size = 512) kernel
-            ((0, 0, 0, 1), (None, None, None, 1026), (4, 1, 1027)),
+            ((0, 0, 0, 1), (None, None, None, 1026), (4, 1, 1027), True),
         ):
             self._test_slice_layer_norm(
                 start_indices=start_indices,
                 end_indices=end_indices,
                 input_nonbatch_shape=input_nonbatch_shape,
+                use_welford_algorithm=use_welford_algorithm,
                 **kwargs,
             )
 
@@ -216,18 +224,19 @@ class SliceLayerNormTestCase(unittest.TestCase):
         self,
         **kwargs,
     ):
-        for start_indices, end_indices, input_nonbatch_shape in (
+        for start_indices, end_indices, input_nonbatch_shape, use_welford_algorithm in (
             # (cuda-half4) kernel
-            ((0, 0, 4, 0), (None, None, 36, None), (2, 40, 4)),
+            ((0, 0, 4, 0), (None, None, 36, None), (2, 40, 4), False),
             # (generic n < 1024) kernel
-            ((0, 0, 11, 0), (None, None, 13, None), (2, 15, 2)),
+            ((0, 0, 11, 0), (None, None, 13, None), (2, 15, 2), True),
             # (cuda-half; block size = 512) kernel
-            ((0, 0, 1, 0), (None, None, 1026, None), (2, 1027, 2)),
+            ((0, 0, 1, 0), (None, None, 1026, None), (2, 1027, 2), False),
         ):
             self._test_slice_layer_norm(
                 start_indices=start_indices,
                 end_indices=end_indices,
                 input_nonbatch_shape=input_nonbatch_shape,
+                use_welford_algorithm=use_welford_algorithm,
                 **kwargs,
             )
 
@@ -246,6 +255,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
                 gamma_is_none=gamma_is_none,
                 beta_is_none=beta_is_none,
                 fuse_sigmoid_mul=False,
+                test_name="test_slice_layer_norm_float16",
             )
 
     def test_middle_slice_layer_norm_float16(self):
@@ -263,6 +273,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
                 gamma_is_none=gamma_is_none,
                 beta_is_none=beta_is_none,
                 fuse_sigmoid_mul=False,
+                test_name="test_middle_slice_layer_norm_float16",
             )
 
     def test_slice_layer_norm_fuse_sigmoid_mul_float16(self):
@@ -280,6 +291,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
                 gamma_is_none=gamma_is_none,
                 beta_is_none=beta_is_none,
                 fuse_sigmoid_mul=True,
+                test_name="test_slice_layer_norm_fuse_sigmoid_mul_float16",
             )
 
     def test_middle_slice_layer_norm_fuse_sigmoid_mul_float16(self):
@@ -297,6 +309,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
                 gamma_is_none=gamma_is_none,
                 beta_is_none=beta_is_none,
                 fuse_sigmoid_mul=True,
+                test_name="test_middle_slice_layer_norm_fuse_sigmoid_mul_float16",
             )
 
     @unittest.skipIf(
@@ -309,6 +322,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
             beta_is_none=True,
             fuse_sigmoid_mul=False,
             dtype="float32",
+            test_name="test_slice_layer_norm_float32_1",
         )
         self._test_middle_slice_layer_norm_kernels(
             n_normalize_over_last_dims=2,
@@ -316,6 +330,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
             beta_is_none=False,
             fuse_sigmoid_mul=False,
             dtype="float32",
+            test_name="test_slice_layer_norm_float32_2",
         )
         self._test_slice_layer_norm_kernels(
             n_normalize_over_last_dims=3,
@@ -323,6 +338,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
             beta_is_none=True,
             fuse_sigmoid_mul=True,
             dtype="float32",
+            test_name="test_slice_layer_norm_float32_3",
         )
         self._test_middle_slice_layer_norm_kernels(
             n_normalize_over_last_dims=2,
@@ -330,6 +346,7 @@ class SliceLayerNormTestCase(unittest.TestCase):
             beta_is_none=False,
             fuse_sigmoid_mul=True,
             dtype="float32",
+            test_name="test_slice_layer_norm_float32_4",
         )
 
 

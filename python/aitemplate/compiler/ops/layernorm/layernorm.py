@@ -443,3 +443,8 @@ class layernorm(Operator):
 
     def _get_op_attributes(self):
         return {"normalized_shape": self._attrs["default_normalized_shape"]}
+
+    def _args_for_pseudo_code(self):
+        return [
+            f"normalized_shape={[s.symbolic_value() for s in self._attrs['normalized_shape']]}"
+        ]

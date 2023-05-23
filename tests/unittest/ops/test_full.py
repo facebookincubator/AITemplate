@@ -103,6 +103,42 @@ class TestFull(unittest.TestCase):
             test_name=f"test_full_{i}",
         )
 
+    def test_const_full_with_copy(self, dtype="float16"):
+        shape = [IntVar([1, 128]), 10]
+        full = ops.full()(shape, 1.0, dtype)
+        add = ops.elementwise(FuncEnum.ADD)(full, 1.0)
+        Y = ops.flatten()(add)
+
+        X = Tensor(
+            shape=shape,
+            name="X",
+            dtype=dtype,
+            is_input=True,
+        )
+
+        flattened_X = ops.flatten()(X)
+        Z = ops.elementwise(FuncEnum.ADD)(flattened_X, Y)
+        Z._attrs["name"] = "Z"
+        Z._attrs["is_output"] = True
+
+        target = detect_target()
+        module = compile_model(Z, target, "./tmp", "const_full_with_copy")
+
+        if isinstance(shape[0], IntVar):
+            shapes = [[val] + shape[1:] for val in shape[0]._attrs["values"]]
+        else:
+            shapes = [shape]
+
+        for shape in shapes:
+            x_pt = get_random_torch_tensor(shape, dtype=dtype)
+            tmp_pt = x_pt + 1.0 + 1.0
+            z_pt = torch.flatten(tmp_pt)
+
+            z = torch.empty_like(z_pt)
+
+            module.run_with_tensors([x_pt], [z])
+            torch.testing.assert_close(z, z_pt, atol=1e-2, rtol=1e-2)
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

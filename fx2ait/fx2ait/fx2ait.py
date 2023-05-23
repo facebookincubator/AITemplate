@@ -67,6 +67,7 @@ class AITInterpreter(torch.fx.Interpreter):
         remote_cache_file_path: Optional[str] = None,
         save_remote_cache: Optional[bool] = False,
         do_optimize_graph: bool = True,
+        use_fast_math: bool = True,
     ):
         """
         Args:
@@ -84,6 +85,7 @@ class AITInterpreter(torch.fx.Interpreter):
             load_ait_dir: location for existing ait files
             remote_cache_file_path: AITemplate profiling cache location
             save_remote_cache: whether to save the updated cache
+            use_fast_math: whether to use fast math in CUDA kernels
         """
         super().__init__(module)
 
@@ -106,6 +108,7 @@ class AITInterpreter(torch.fx.Interpreter):
             os.environ["CACHE_DIR"] = self.cache_dir
             _LOGGER.info(f"Set CACHE_DIR to {self.cache_dir}")
         self.use_fp16_acc = use_fp16_acc
+        self.use_fast_math = use_fast_math
         self.hardware_target = self._create_target()
         self.input_specs = input_specs
         self.input_specs_iter = 0
@@ -128,7 +131,9 @@ class AITInterpreter(torch.fx.Interpreter):
     def _create_target(self):
         """Detect GPU target"""
         return detect_target(
-            use_fp16_acc=self.use_fp16_acc, remote_cache_bytes=self.remote_cache_bytes
+            use_fp16_acc=self.use_fp16_acc,
+            remote_cache_bytes=self.remote_cache_bytes,
+            use_fast_math=self.use_fast_math,
         )
 
     def _load_profile_cache(self) -> bytes:

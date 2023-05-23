@@ -37,6 +37,9 @@ def _get_default_problem_info(**kwargs):
         "ldb": "N",
         "ldbias": "N * B",
         "ldc": "N * B",
+        "a_row_major": True,
+        "b_row_major": True,
+        "c_row_major": True,
     }
     for k, v in kwargs.items():
         problem_args[k] = v
@@ -66,6 +69,9 @@ def _get_strided_problem_info(func_attrs):
         ldb="N",
         ldbias="output_stride",
         ldc="output_stride",
+        a_row_major=True,
+        b_row_major=True,
+        c_row_major=True,
     )
 
 
@@ -83,7 +89,10 @@ def gemm_rrr_config(func_attrs, dtype="float16"):
             epilogue_name=func_attrs["epilogue"],
         )
 
-    func_attrs["op_instance"] = common.extract_config(fproc)
+    func_attrs["op_instance"] = common.extract_config(
+        f_proc_op=fproc,
+        include_cutlass_3x_ops=True,
+    )
 
 
 @registry.reg("cuda.perm102_bmm_rrr.gen_profiler")
@@ -98,15 +107,22 @@ def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
     problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
         mm_info=mm_info,
     )
+    problem_args_cutlass_3x = bmm_common.PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+        mm_info=bmm_common.add_elem_types_to_mm_info(
+            mm_info=mm_info,
+            func_attrs=func_attrs,
+        ),
+    )
 
     return bmm_common.gen_profiler(
-        func_attrs,
-        workdir,
-        profiler_filename,
-        dim_info_dict,
-        common.SRC_TEMPLATE,
-        problem_args,
-        args_parser,
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=common.SRC_TEMPLATE,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
+        args_parser=args_parser,
     )
 
 
@@ -122,14 +138,21 @@ def gen_function(
     problem_args = bmm_common.PROBLEM_ARGS_TEMPLATE.render(
         mm_info=bmm_problem_info,
     )
+    problem_args_cutlass_3x = bmm_common.PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+        mm_info=bmm_common.add_elem_types_to_mm_info(
+            mm_info=bmm_problem_info,
+            func_attrs=func_attrs,
+        ),
+    )
 
     return bmm_common.gen_function(
-        func_attrs,
-        exec_cond_template,
-        problem_args,
-        dim_info_dict,
-        "",  # input_addr_calculator
-        get_output_addr_calculator(func_attrs),
+        func_attrs=func_attrs,
+        exec_cond_template=exec_cond_template,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
+        dim_info_dict=dim_info_dict,
+        input_addr_calculator="",
+        output_addr_calculator=get_output_addr_calculator(func_attrs),
     )
 
 

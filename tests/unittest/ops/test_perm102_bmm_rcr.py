@@ -29,28 +29,23 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
-    filter_test_cases_by_params,
+    env_variables,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
-    TestEnv,
 )
-from parameterized import parameterized
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class Perm102BMM_RCR_TestCase(unittest.TestCase):
-    @parameterized.expand(
-        **filter_test_cases_by_params(
-            {
-                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
-            }
-        )
-    )
-    def test_perm102_bmm_rrr(self, dtype):
-        B = 25
-        M = 128
-        K = 256
-        N = 100
+class Perm102BMMRCRTestCase(unittest.TestCase):
+    def _test_perm102_bmm_rcr(
+        self,
+        B=25,
+        M=128,
+        K=256,
+        N=100,
+        dtype="float16",
+        test_name="perm102_bmm_rcr",
+    ):
         target = detect_target()
         X = Tensor(shape=[M, B, K], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(shape=[B, N, K], dtype=dtype, name="input_1", is_input=True)
@@ -58,7 +53,7 @@ class Perm102BMM_RCR_TestCase(unittest.TestCase):
         Y = OP(X, W)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"perm102_bmm_rcr_{dtype}")
+        module = compile_model(Y, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor(shape=(M, B, K), dtype=dtype)
         W_pt = get_random_torch_tensor(shape=(B, N, K), dtype=dtype)
@@ -71,22 +66,57 @@ class Perm102BMM_RCR_TestCase(unittest.TestCase):
 
         torch.testing.assert_close(Y_pt, y, atol=1e-1, rtol=1e-1)
 
+    def test_perm102_bmm_rcr_fp16(self):
+        self._test_perm102_bmm_rcr(
+            dtype="float16",
+            test_name="perm102_bmm_rcr_fp16",
+        )
+
+    def test_perm102_bmm_rcr_fp32_sm80(self):
+        self._test_perm102_bmm_rcr(
+            dtype="float32",
+            test_name="perm102_bmm_rcr_fp32",
+        )
+
+    def test_perm102_bmm_rcr_bf16(self):
+        self._test_perm102_bmm_rcr(
+            dtype="bfloat16",
+            test_name="perm102_bmm_rcr_bf16",
+        )
+
+    def test_perm102_bmm_rcr_sm90(self):
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            self._test_perm102_bmm_rcr(
+                K=256,
+                dtype="float16",
+                test_name="perm102_bmm_rcr_fp16_force_sm90",
+            )
+            self._test_perm102_bmm_rcr(
+                K=256,
+                dtype="float32",
+                test_name="perm102_bmm_rcr_fp32_force_sm90",
+            )
+            self._test_perm102_bmm_rcr(
+                K=256,
+                dtype="bfloat16",
+                test_name="perm102_bmm_rcr_bf16_force_sm90",
+            )
+
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-class Perm102BMM_RCR_BiasTestCase(unittest.TestCase):
-    @parameterized.expand(
-        **filter_test_cases_by_params(
-            {
-                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
-            }
-        )
-    )
-    def test_perm102_bmm_rrr_bias(self, dtype):
-        B = 25
-        M = 128
-        K = 256
-        N = 100
+class Perm102BMMRCRBiasTestCase(unittest.TestCase):
+    def _test_perm102_bmm_rcr_bias(
+        self,
+        B=25,
+        M=128,
+        N=100,
+        K=256,
+        dtype="float16",
+        test_name="perm102_bmm_rcr_bias",
+    ):
         target = detect_target()
         X = Tensor(shape=[M, B, K], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(shape=[B, N, K], dtype=dtype, name="input_1", is_input=True)
@@ -95,7 +125,7 @@ class Perm102BMM_RCR_BiasTestCase(unittest.TestCase):
         Y = OP(X, W, BIAS)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(Y, target, "./tmp", f"perm102_bmm_rcr_bias_{dtype}")
+        module = compile_model(Y, target, "./tmp", test_name)
 
         X_pt = get_random_torch_tensor(shape=(M, B, K), dtype=dtype)
         W_pt = get_random_torch_tensor(shape=(B, N, K), dtype=dtype)
@@ -112,6 +142,49 @@ class Perm102BMM_RCR_BiasTestCase(unittest.TestCase):
         )
 
         torch.testing.assert_close(Y_pt, y, atol=1e-1, rtol=1e-1)
+
+    def test_perm102_bmm_rcr_bias_fp16(self):
+        self._test_perm102_bmm_rcr_bias(
+            dtype="float16",
+            test_name="perm102_bmm_rcr_bias_fp16",
+        )
+
+    def test_perm102_bmm_rcr_bias_fp32_sm80(self):
+        self._test_perm102_bmm_rcr_bias(
+            dtype="float32",
+            test_name="perm102_bmm_rcr_bias_fp32",
+        )
+
+    def test_perm102_bmm_rcr_bias_bf16(self):
+        self._test_perm102_bmm_rcr_bias(
+            dtype="bfloat16",
+            test_name="perm102_bmm_rcr_bias_bf16",
+        )
+
+    def test_perm102_bmm_rcr_bias_sm90(self):
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            self._test_perm102_bmm_rcr_bias(
+                K=256,
+                dtype="float16",
+                test_name="perm102_bmm_rcr_bias_fp16_force_sm90",
+            )
+            self._test_perm102_bmm_rcr_bias(
+                K=256,
+                dtype="float32",
+                test_name="perm102_bmm_rcr_bias_fp32_force_sm90",
+            )
+            self._test_perm102_bmm_rcr_bias(
+                K=256,
+                dtype="bfloat16",
+                test_name="perm102_bmm_rcr_bias_bf16_force_sm90",
+            )
+
+
+filter_test_cases_by_test_env(Perm102BMMRCRTestCase)
+filter_test_cases_by_test_env(Perm102BMMRCRBiasTestCase)
 
 
 if __name__ == "__main__":

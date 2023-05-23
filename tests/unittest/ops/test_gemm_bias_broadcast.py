@@ -20,6 +20,7 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    env_variables,
     filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
@@ -317,9 +318,9 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         m1,
         k,
         n,
-        use_fp16_acc=False,
         dtype="float16",
         test_name_suffix="",
+        use_fp16_acc=False,
     ):
         target = detect_target(use_fp16_acc=use_fp16_acc)
         self._init_tensors(m, k, n, m0, m1, dtype)
@@ -439,7 +440,15 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         name_func=custom_name_func_with_funcname,
     )
     def test_gemm_bias_broadcast_float32_sm80(self, func, m, m0, m1, k, n, dtype):
-        func(self, m, m0, m1, k, n, dtype)
+        func(
+            self,
+            m=m,
+            m0=m0,
+            m1=m1,
+            k=k,
+            n=n,
+            dtype=dtype,
+        )
 
     @parameterized.expand(
         [
@@ -456,14 +465,109 @@ class GEMMBiasBroadcastTestCase(unittest.TestCase):
         name_func=custom_name_func_with_funcname,
     )
     def test_gemm_bias_broadcast_bfloat16_bf16(self, func, m, m0, m1, k, n, dtype):
-        func(self, m, m0, m1, k, n, dtype)
+        func(
+            self,
+            m=m,
+            m0=m0,
+            m1=m1,
+            k=k,
+            n=n,
+            dtype=dtype,
+        )
+
+    @parameterized.expand(
+        [
+            (_test_bias_rcr_mul_add, None, 2, 32, 256, 128),
+            (_test_bias_rcr_sigmoid_mul, None, 2, 32, 256, 128),
+            (_test_bias_rcr_sigmoid_mul_tanh, None, 2, 32, 256, 128),
+            (_test_bias_rcr_add, None, 2, 32, 256, 128),
+            (_test_bias_rcr_add_relu, None, 2, 32, 256, 128),
+            (_test_bias_rcr_add_add_relu, None, 2, 32, 256, 128),
+            (_test_bias_rcr_mul, None, 2, 32, 256, 128),
+            (_test_bias_rcr_add_add, None, 2, 32, 256, 128),
+            (_test_bias_rcr_mul_tanh, None, 2, 32, 256, 128),
+        ],
+        name_func=custom_name_func_with_funcname,
+    )
+    def test_gemm_bias_broadcast_sm90(self, func, m, m0, m1, k, n):
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # input alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                func(
+                    self,
+                    m=m,
+                    m0=m0,
+                    m1=m1,
+                    k=k - 4,
+                    n=n,
+                    dtype="float16",
+                    test_name_suffix="_wrong_input_alignment_sm90",
+                )
+
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # output alignment < 8 not supported by SM90 TMA epilogues
+                func(
+                    self,
+                    m=m,
+                    m0=m0,
+                    m1=m1,
+                    k=k,
+                    n=n - 1,
+                    dtype="float16",
+                    test_name_suffix="_wrong_output_alignment_sm90",
+                )
+
+            func(
+                self,
+                m=m,
+                m0=m0,
+                m1=m1,
+                k=k,
+                n=n,
+                dtype="float16",
+                test_name_suffix="_force_sm90",
+            )
+            func(
+                self,
+                m=m,
+                m0=m0,
+                m1=m1,
+                k=k,
+                n=n,
+                dtype="bfloat16",
+                test_name_suffix="_force_sm90",
+            )
 
     def test_gemm_bias_broadcast_use_fp16_acc_sm80(self):
         self._test_bias_rcr_mul(
-            None, 2, 32, 256, 128, use_fp16_acc=True, dtype="float32"
+            m=None,
+            m0=2,
+            m1=32,
+            k=256,
+            n=128,
+            dtype="float32",
+            test_name_suffix="_use_fp16_acc",
+            use_fp16_acc=True,
         )
         self._test_bias_rcr_mul(
-            None, 2, 32, 256, 128, use_fp16_acc=True, dtype="bfloat16"
+            m=None,
+            m0=2,
+            m1=32,
+            k=256,
+            n=128,
+            dtype="bfloat16",
+            test_name_suffix="_use_fp16_acc",
+            use_fp16_acc=True,
         )
 
 

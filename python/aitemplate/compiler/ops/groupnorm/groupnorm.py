@@ -472,9 +472,6 @@ class group_norm(Operator):
             )
             self._attrs["exec_path"][exec_item.profiling_key] = exec_item
 
-    def _inputs_for_pseudo_code(self):
-        return self._attrs["inputs"] + [f"num_groups={self._attrs['num_groups']}"]
-
     def _get_op_attributes(self):
         return {
             "num_groups": self._attrs["num_groups"],

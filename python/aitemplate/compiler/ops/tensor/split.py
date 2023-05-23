@@ -192,7 +192,10 @@ class split(Operator):
         self._attrs["outputs"] = new_outputs
 
     def _inputs_for_pseudo_code(self):
-        return self._attrs["inputs"] + [
+        return self._attrs["inputs"]
+
+    def _args_for_pseudo_code(self):
+        return [
             f"split_sizes={str(self._attrs['split_sizes'])}]",
             f"dim={str(self._attrs['split_dim'])}]",
         ]

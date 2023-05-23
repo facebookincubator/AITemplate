@@ -91,7 +91,11 @@ class GPUBackendSpec(BackendSpec):
     backend_datatype_convertors: Dict[str, Dict[str, str]] = field(
         default_factory=lambda: {
             "half": {"float": "__half2float"},
-            "float": {"half": "__float2half_rn"},
+            "bfloat16": {"float": "__bfloat162float"},
+            "float": {
+                "half": "__float2half_rn",
+                "bfloat16": "__float2bfloat16_rn",
+            },
         }
     )
 

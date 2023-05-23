@@ -295,12 +295,19 @@ class FusedElementwiseMetaData:
     original_inputs: List[Tensor]
     original_outputs: List[Tensor]
 
-    # holding the largest read type for the fused kernel
+    # Holds the largest read type for the fused kernel.
+    # This is equivalent to write_t in the current implementation.
+    # This is used to determine N_ELEMENTS_PER_THREAD.
     max_read_t: str
-    # holding the read_t for each fused input
+
+    # Holds the read_t for each input of the fused kernel.
+    # Note: read_types is only used for a small optimization for last_dim input broadcasting.
+    # General mixed read_types are not supported (which requires multiple get_strided_inputs calls).
     read_types: List[str]
+
     op_t: str
     data_t: str
+
     input_broadcast_sizes: List[List[IntVar]]
     dynamic_dims: List[IntVar]
     sub_funcs: List[ElementwiseMetaData]
@@ -332,6 +339,11 @@ class FusedElementwiseMetaData:
     # and computes the dense_inx from jagged_idx (with binary search).
     use_jagged_space_indexing: bool = False
 
+    # whether all intermediate computations should be performed in float32
+    use_fp32_acc: bool = False
+    # the float32 type of the used back-end
+    float32_t: str = "float"
+
 
 def gen_function_single_thread(
     fused_func_metadata,
@@ -341,34 +353,44 @@ def gen_function_single_thread(
 ) -> str:
     """Per thread elementwise function codegen."""
     tensor_to_expr: Dict[Tensor, str] = {}
+    float32_t = fused_func_metadata.float32_t
     body = ""
 
     for tensor, name in zip(fused_func_metadata.original_inputs, input_names):
+        if fused_func_metadata.use_fp32_acc and fused_func_metadata.op_t != float32_t:
+            input_converter = type_converter.get(fused_func_metadata.op_t).get(
+                float32_t
+            )
+            name = "{}({})".format(input_converter, name)
         tensor_to_expr[tensor] = name
 
     tmp_output_idx: int = 0
     for func_metadata in fused_func_metadata.sub_funcs:
         params: List[str] = []
-        func_op_t = func_metadata.op_t
         input_converter = None
         output_converter = None
-        if func_op_t != fused_func_metadata.op_t:
-            input_converter = type_converter.get(fused_func_metadata.op_t).get(
-                func_op_t
-            )
-            output_converter = type_converter.get(func_op_t).get(
-                fused_func_metadata.op_t
-            )
-            assert (
-                input_converter is not None
-            ), "Unsupported convertion from {} to {}".format(
-                fused_func_metadata.op_t, func_op_t
-            )
-            assert (
-                output_converter is not None
-            ), "Unsupported convertion from {} to {}".format(
-                func_op_t, fused_func_metadata.op_t
-            )
+        func_op_t = func_metadata.op_t
+
+        # intermediate input / output converters are not
+        # required when doing all computation in float32
+        if not fused_func_metadata.use_fp32_acc:
+            if func_op_t != fused_func_metadata.op_t:
+                input_converter = type_converter.get(fused_func_metadata.op_t).get(
+                    func_op_t
+                )
+                output_converter = type_converter.get(func_op_t).get(
+                    fused_func_metadata.op_t
+                )
+                assert (
+                    input_converter is not None
+                ), "Unsupported convertion from {} to {}".format(
+                    fused_func_metadata.op_t, func_op_t
+                )
+                assert (
+                    output_converter is not None
+                ), "Unsupported convertion from {} to {}".format(
+                    func_op_t, fused_func_metadata.op_t
+                )
 
         for arg in func_metadata.args:
             if arg in tensor_to_expr:
@@ -414,7 +436,12 @@ def gen_function_single_thread(
         if len(output._attrs["dst_ops"]) > 1:
             name = "tmp_" + (str)(tmp_output_idx)
             tmp_output_idx += 1
-            body += "{} {} = {};\n".format(fused_func_metadata.op_t, name, func_def)
+            temp_t = (
+                float32_t
+                if fused_func_metadata.use_fp32_acc
+                else fused_func_metadata.op_t
+            )
+            body += "{} {} = {};\n".format(temp_t, name, func_def)
             tensor_to_expr[output] = name
         else:
             tensor_to_expr[output] = func_def
@@ -427,38 +454,57 @@ def gen_function_single_thread(
                 )
             )
         expr = tensor_to_expr[tensor]
+        if fused_func_metadata.use_fp32_acc and fused_func_metadata.op_t != float32_t:
+            output_converter = type_converter.get(float32_t).get(
+                fused_func_metadata.op_t
+            )
+            expr = "{}({})".format(output_converter, expr)
         body += "{} = {};\n".format(name, expr)
 
     return body
 
 
 def _get_sub_func_metadata(
-    ops: List[Operator], data_t: str, op_t: str, backend_spec: BackendSpec
+    ops: List[Operator],
+    data_t: str,
+    op_t: str,
+    backend_spec: BackendSpec,
+    float32_t: str,
 ) -> Tuple[List[ElementwiseMetaData], str]:
-    candidate_op_types = backend_spec.get_candidate_op_types(op_t)
-    func_enums = []
-    for op in ops:
-        func_enum = op._attrs["func"]
-        func_enums.append(func_enum)
-        funcs = backend_spec.func_enum_to_func_name.get(func_enum)
-        if funcs is None:
-            raise NotImplementedError("Func {} is not supported!".format(func_enum))
-        for candidate_op_t in candidate_op_types:
-            func_name = funcs.get(candidate_op_t)
-            if func_name is not None:
-                candidate_op_types = backend_spec.get_candidate_op_types(candidate_op_t)
-                break
-    if len(candidate_op_types) == 0:
-        raise RuntimeError(
-            "Cannot find a common backend data type! candidate_op_types: {}, op_t: {}.".format(
-                candidate_op_types, op_t
-            )
-        )
-    if op_t in set(candidate_op_types):
-        op_t = candidate_op_types[0]
-    else:
+    use_fp32_acc = Target.current()._kwargs.get("elementwise_use_fp32_acc", False)
+    if use_fp32_acc:
+        # vectorized op types are not allowed when all
+        # intermediate computation is done in float32
         op_t = data_t
+        # only float functions must be used
+        candidate_op_types = [float32_t]
+    else:
         candidate_op_types = backend_spec.get_candidate_op_types(op_t)
+        func_enums = []
+        for op in ops:
+            func_enum = op._attrs["func"]
+            func_enums.append(func_enum)
+            funcs = backend_spec.func_enum_to_func_name.get(func_enum)
+            if funcs is None:
+                raise NotImplementedError("Func {} is not supported!".format(func_enum))
+            for candidate_op_t in candidate_op_types:
+                func_name = funcs.get(candidate_op_t)
+                if func_name is not None:
+                    candidate_op_types = backend_spec.get_candidate_op_types(
+                        candidate_op_t
+                    )
+                    break
+        if len(candidate_op_types) == 0:
+            raise RuntimeError(
+                "Cannot find a common backend data type! candidate_op_types: {}, op_t: {}.".format(
+                    candidate_op_types, op_t
+                )
+            )
+        if op_t in set(candidate_op_types):
+            op_t = candidate_op_types[0]
+        else:
+            op_t = data_t
+            candidate_op_types = backend_spec.get_candidate_op_types(op_t)
 
     sub_func_metadata = []
     for op in ops:
@@ -480,7 +526,8 @@ def _get_sub_func_metadata(
                 func_name, func_op_t, op._attrs["args"], op._attrs["outputs"]
             )
         )
-    return (sub_func_metadata, op_t)
+
+    return sub_func_metadata, op_t, use_fp32_acc
 
 
 def _is_jagged_shape(shape: List[IntVar]) -> bool:
@@ -488,111 +535,74 @@ def _is_jagged_shape(shape: List[IntVar]) -> bool:
     return len(shape) > 0 and isinstance(shape[0], JaggedIntVar)
 
 
-def _get_alignments(
-    extended_input_shapes: List[List[IntVar]],
-    input_broadcast_sizes: List[int],
-    num_rightmost_non_broadcast_dims: List[int],
-    rightmost_broadcast_dim: int,
-    output_rank: int,
-    dtype: str,
-) -> Tuple[List[int], List[int]]:
-    """
-    A helper function that returns two alignments lists, where the first list
-    is the alignments for inputs and the second one contains the alignments
-    for those non-broadcasted inputs
-    """
-    # We track alignment for each input
-    alignments = []
-    non_broadcast_alignments = []
-    for extended_input_shape, input_broadcast_sz, num_rightmost_non_br_dims in zip(
-        extended_input_shapes,
-        input_broadcast_sizes,
-        num_rightmost_non_broadcast_dims,
-    ):
-        # make sure we are not going to wrongfully generate an larger vector read type
-        if input_broadcast_sz is None and rightmost_broadcast_dim is not None:
-            num_rightmost_non_br_dims = output_rank - rightmost_broadcast_dim
-        num_elements_for_alignments = shape_utils.get_num_rightmost_static_elements(
-            extended_input_shape, num_rightmost_non_br_dims
-        )
-        if num_elements_for_alignments > 1 or input_broadcast_sz is None:
-            non_broadcast_alignments.append(num_elements_for_alignments)
-        alignment = alignment_utils.find_max_alignment(
-            num_elements_for_alignments, dtype
-        )
-        alignments.append(alignment)
-    return (alignments, non_broadcast_alignments)
-
-
-def _refine_alignments_with_tensor_accessors(
-    non_broadcast_alignments: List[int],
-    alignments: List[int],
-    dtype: str,
+def _get_input_alignments(
     input_accessors: List[TensorAccessor],
-    output_accessors: List[TensorAccessor],
+    input_broadcast_sizes: List[Optional[List[IntVar]]],
+    max_num_rightmost_dims_considered_for_alignments: int,
+    output_shape: List[IntVar],
+    dtype: str,
+    global_max_alignment: int,
 ) -> List[int]:
-    """
-    This helper function returns the valid alignments based on the constrains
-    imposed on non_broadcast_alignments, input_accessors and output_accessors.
-    """
-    max_non_broadcast_alignment = None
-    if len(non_broadcast_alignments) > 1:
-        max_non_broadcast_alignment = alignment_utils.find_max_alignment_from(
-            non_broadcast_alignments, dtype
-        )
+    # Broadcasts need to be handled carefully.
+    # We have a hacky optimization for last-dim broadcasting:
+    # The element is read once, and broadcasted multiple times.
+    # However, we don't support reading more than 1 element for broadcasting.
+    #
+    # Consider following cases:
+    # X1[2, 1, 1]
+    # X2[1, 1, 2]
+    # X3[1, 2, 1]
+    # We do not support global_max_alignment 8 (reading two X1, X2, X3 per thread).
+    # We only support global_max_alignment 2, so that we make sure each thread
+    # reads at most 1 element for broadcasting.
+
+    # Update global_max_alignment based on broadcasting rules,
+    # and find max_alignments for each input.
+    alignments = [None] * len(input_broadcast_sizes)
+    for i, input_broadcast_size in enumerate(input_broadcast_sizes):
+        if input_broadcast_size is not None:
+            prev_is_broadcast = None
+            for j in range(max_num_rightmost_dims_considered_for_alignments):
+                is_broadcast = input_broadcast_size[-j - 1] != output_shape[-j - 1]
+                if (
+                    not is_broadcast
+                    and input_broadcast_size[-j - 1] == IntImm(1)
+                    and prev_is_broadcast is None
+                ):
+                    # Skip last-dim 1s if the output shape is the same.
+                    is_broadcast = None
+                if prev_is_broadcast is None:
+                    prev_is_broadcast = is_broadcast
+                    if is_broadcast:
+                        # Update alignment for last-dim broadcasting cases.
+                        alignments[i] = 1
+                elif prev_is_broadcast != is_broadcast:
+                    alignment = alignment_utils.find_max_alignment(
+                        shape_utils.get_num_rightmost_static_elements(output_shape, j),
+                        dtype,
+                    )
+                    # Update global_max_alignment when is_broadcast is not the
+                    # same as prev_is_broadcast.
+                    global_max_alignment = min(global_max_alignment, alignment)
+                    if not prev_is_broadcast:
+                        # Update alignment for mid-dim broadcasting cases.
+                        alignments[i] = alignment
+                    break
+
+    # Cap alignments based on global_max_alignment.
     alignments = [
-        align
-        if align == 1 or max_non_broadcast_alignment is None
-        else max_non_broadcast_alignment
-        for align in alignments
-    ]
-    max_input_accessor_alignment = (
-        tensor_accessor_codegen.find_max_alignment_for_accessors(dtype, input_accessors)
-    )
-    # Note that we use the same alignment for accessing inputs and outputs, although
-    # they may have different alignment requirements. We may lose perf a little bit,
-    # but reduce the complexity of our jinja template. We can do some perf
-    # experiments later to determine if we want to chase more perf gains.
-    max_accessor_alignment = tensor_accessor_codegen.find_max_alignment(
-        max_input_accessor_alignment, dtype, output_accessors
-    )
-    # all alignments are capped by the max_accessor_alignment
-    alignments = [
-        align if align <= max_accessor_alignment else max_accessor_alignment
-        for align in alignments
+        min(alignment, global_max_alignment)
+        if alignment is not None
+        else global_max_alignment
+        for alignment in alignments
     ]
     return alignments
 
 
-def _get_alignments_and_sizes_and_dtype(
-    inputs: List[Tensor],
-    input_accessors: List[TensorAccessor],
-    output_accessors: List[TensorAccessor],
-    backend_spec: BackendSpec,
-    mixed_jagged_dense_indexing: bool,
-    output_volume: Optional[List[IntVar]],
-) -> Tuple[List[int], List[List[IntVar]], str]:
-    """
-    Returns Tuple(alignments, input_broadcast_sizes, dtype)
-    """
-    # Handle input broadcast.
-    dtype = inputs[0]._attrs["dtype"]
-
-    # Determine the rightmost broadcast dim among all inputs.
-    # This value prevents us from wrongfully generating a larger alignment
-    # for cases such as X1[2, 2], X2[2, 1], where [2, 2] and [2, 1] are shapes.
-    # If we do not have a rightmost_broadcast_dim guard, we would
-    # end up generating alignment = 4 for X1. But, this would be wrong, because
-    # in the kernel, we might have a single effective thread that loads four
-    # elements from X1 and only one element from X2. Potentially, we could
-    # make this thread load two elements from X2, but it would make address
-    # indexing templates fairly complicated in general. Let's make simple
-    # cases work and extend it later if we had to, e.g. we saw large perf penalty
-    # without doing it.
-    rightmost_broadcast_dim = None
-    num_rightmost_non_broadcast_dims = []
+def _get_input_broadcast_sizes(
+    input_accessors, output_accessors, mixed_jagged_dense_indexing, output_volume
+) -> List[Optional[List[IntVar]]]:
     input_broadcast_sizes = []
-    extended_input_shapes = []
     for input_accessor in input_accessors:
         input_shape = input_accessor.original_shapes
 
@@ -620,55 +630,77 @@ def _get_alignments_and_sizes_and_dtype(
                 )
             )
         extended_input_shape = list(input_shape)
-        num_rightmost_non_br_dims = len(output_shape)
         if input_shape == output_shape:
             input_broadcast_sizes.append(None)
-        else:
+        if input_shape != output_shape:
             extended_input_shape = [IntImm(1)] * len(output_shape)
             extended_input_shape[len(output_shape) - len(input_shape) :] = input_shape
             input_broadcast_sizes.append(extended_input_shape)
-            for i in reversed(range(len(extended_input_shape))):
-                if extended_input_shape[i] != output_shape[i]:
-                    num_rightmost_non_br_dims -= i + 1
-                    if rightmost_broadcast_dim is None:
-                        rightmost_broadcast_dim = i
-                    else:
-                        rightmost_broadcast_dim = max(i, rightmost_broadcast_dim)
-                    break
+    return input_broadcast_sizes
 
-        if mixed_jagged_dense_indexing:
-            # in the mixed jagged / dense indexing case, the number of the
-            # rightmost non-broadcated static dimensions of the dense inputs
-            # to be considered for vectorization can't be larger than the
-            # number of the jagged output's inner dimensions (i.e., the
-            # dimensions following the JaggedIntVar). otherwise, there may
-            # be an overlap with the jagged dimensions, in which case the
-            # vectorization can break.
-            jagged_output_shape = output_accessors[0].original_shapes
-            num_inner_dims_in_jagged_shape = len(jagged_output_shape) - 1
-            num_rightmost_non_br_dims = min(
-                num_rightmost_non_br_dims,
-                num_inner_dims_in_jagged_shape,
-            )
 
-        extended_input_shapes.append(extended_input_shape)
-        num_rightmost_non_broadcast_dims.append(num_rightmost_non_br_dims)
-    (alignments, non_broadcast_alignments) = _get_alignments(
-        extended_input_shapes,
-        input_broadcast_sizes,
-        num_rightmost_non_broadcast_dims,
-        rightmost_broadcast_dim,
-        len(output_shape),
-        dtype,
+def _get_alignments_and_broadcast_sizes(
+    dtype: str,
+    input_accessors: List[TensorAccessor],
+    output_accessors: List[TensorAccessor],
+    mixed_jagged_dense_indexing: bool,
+    output_volume: Optional[List[IntVar]],
+) -> Tuple[List[int], List[Optional[List[IntVar]]]]:
+    """
+    Returns Tuple(input_alignments, input_broadcast_sizes)
+    """
+    # Handle input broadcast.
+    output_shape = output_accessors[0].original_shapes
+
+    input_broadcast_sizes = _get_input_broadcast_sizes(
+        input_accessors, output_accessors, mixed_jagged_dense_indexing, output_volume
     )
-    alignments = _refine_alignments_with_tensor_accessors(
-        non_broadcast_alignments,
-        alignments,
-        dtype,
+
+    # In the mixed jagged / dense indexing case, the number of the
+    # rightmost non-broadcated static dimensions of the dense inputs
+    # to be considered for vectorization can't be larger than the
+    # number of the jagged output's inner dimensions (i.e., the
+    # dimensions following the JaggedIntVar). Otherwise, there may
+    # be an overlap with the jagged dimensions, in which case the
+    # vectorization can break.
+    max_num_rightmost_dims_considered_for_alignments = (
+        len(output_shape) - 1 if mixed_jagged_dense_indexing else len(output_shape)
+    )
+
+    # We do not support mixed input / output alignments except for last dim broadcast.
+    # The global_max_alignment is the min value of:
+    #     1) input shape alignments (with input broadcast in consideration);
+    #     2) input tensor accessor alignments (strides, offsets);
+    #     3) output shape alignments;
+    #     4) output tensor accessor alignments (strides, offsets);
+
+    # Now calculate global_max_alignment based on 2), 3) and 4) first.
+    global_max_alignment = min(
+        alignment_utils.find_max_alignment(
+            shape_utils.get_num_rightmost_static_elements(
+                output_shape, max_num_rightmost_dims_considered_for_alignments
+            ),
+            dtype,
+        ),
+        tensor_accessor_codegen.find_max_alignment_for_accessors(
+            dtype, input_accessors
+        ),
+        tensor_accessor_codegen.find_max_alignment_for_accessors(
+            dtype, output_accessors
+        ),
+    )
+
+    # Now calculate global_max_alignment based on 1).
+    # Also calculate input alignments.
+    input_alignments = _get_input_alignments(
         input_accessors,
-        output_accessors,
+        input_broadcast_sizes,
+        max_num_rightmost_dims_considered_for_alignments,
+        output_shape,
+        dtype,
+        global_max_alignment,
     )
-    return alignments, input_broadcast_sizes, dtype
+    return input_alignments, input_broadcast_sizes
 
 
 def get_dynamic_dims(*shapes: List[List[IntVar]]) -> List[IntVar]:
@@ -698,7 +730,7 @@ def get_dynamic_dims(*shapes: List[List[IntVar]]) -> List[IntVar]:
 def _get_mixed_jagged_dense_config(
     input_accessors: List[TensorAccessor],
     output_accessors: List[TensorAccessor],
-) -> Tuple[bool, List[IntVar]]:
+) -> Tuple[bool, List[IntVar], bool]:
     """
     Returns Tuple(
         mixed_jagged_dense_indexing,
@@ -764,28 +796,34 @@ def _parse_func_metadata(
         input_accessors,
         output_accessors,
     )
-    alignments, input_broadcast_sizes, dtype = _get_alignments_and_sizes_and_dtype(
-        inputs,
+    dtype = inputs[0]._attrs["dtype"]
+    (input_alignments, input_broadcast_sizes) = _get_alignments_and_broadcast_sizes(
+        dtype,
         input_accessors,
         output_accessors,
-        backend_spec,
         mixed_jagged_dense_indexing,
         output_volume,
     )
     max_read_type = backend_spec.get_elementwise_read_backend_type(
-        max(alignments), dtype
+        max(input_alignments), dtype
     )
     read_types = [
         backend_spec.get_elementwise_read_backend_type(alignment, dtype)
-        for alignment in alignments
+        for alignment in input_alignments
     ]
+
     # It's safe to use the maximum alignment for determine op_type, because
     # smaller inputs (i.e. those being broadcasted) will be placed into a
     # larger tmp variable which is valid for selected op_type.
-    op_type = backend_spec.get_elementwise_op_backend_type(max(alignments), dtype)
+    op_type = backend_spec.get_elementwise_op_backend_type(max(input_alignments), dtype)
     data_type = backend_spec.dtype_to_backend_type(dtype)
-    sub_func_metadata, op_type = _get_sub_func_metadata(
-        ops, data_type, op_type, backend_spec
+    float32_type = backend_spec.dtype_to_backend_type("float32")
+    sub_func_metadata, op_type, use_fp32_acc = _get_sub_func_metadata(
+        ops,
+        data_type,
+        op_type,
+        backend_spec,
+        float32_type,
     )
     dynamic_dims = get_dynamic_dims(*[acc.original_shapes for acc in output_accessors])
 
@@ -806,6 +844,8 @@ def _parse_func_metadata(
         mixed_jagged_dense_indexing,
         output_volume,
         use_jagged_space_indexing,
+        use_fp32_acc,
+        float32_type,
     )
 
 

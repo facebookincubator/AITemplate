@@ -60,6 +60,30 @@ GEMM_UNIVERSAL_WITH_BROADCAST_TEMPLATE = jinja2.Template(
 """
 )
 
+# we use the transposed problem with swapped A and B
+# operands and column-major C and D in CUTLASS 3.x
+EPILOGUE_TENSOR_BROADCAST_TEMPLATE = jinja2.Template(
+    """
+using {{epilogue_name}} =
+  cutlass::epilogue::collective::detail::Sm90TmaWarpSpecializedAdapter<
+    cutlass::epilogue::collective::EpilogueTensorBroadcast<
+      cutlass::gemm::TagToStrideC_t<cutlass::layout::LayoutTranspose<{{layout_c}}>::type>,
+      cutlass::gemm::TagToStrideC_t<cutlass::layout::LayoutTranspose<{{layout_d}}>::type>,
+      cutlass::epilogue::thread::LinearCombinationTensorBroadcast<
+        {{element_d}}, {{element_accumulator}}, {{element_compute}}, {{element_c}},
+        {{unary_op1}},
+        {{binary_op1}},
+{% if has_d1 %}
+        {{binary_op2}},
+{% else %}
+        cutlass::epilogue::thread::detail::NoOp,
+{% endif %}
+        {{unary_op2}}
+        >,
+      {{epilogue_schedule}}>>;
+"""
+)
+
 # For func codegen.
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
@@ -105,6 +129,37 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 """
 )
 
+# we use the transposed problem with swapped A and B
+# operands and column-major C and D in CUTLASS 3.x
+PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
+    """
+    cutlass::gemm::GemmUniversalMode::kGemm,                     // GemmUniversalMode mode
+    {
+        static_cast<coord_t>({{layout.n}}),
+        static_cast<coord_t>({{layout.m}}),
+        static_cast<coord_t>({{layout.k}}),
+        static_cast<coord_t>(1)
+    },                                                           // ProblemShape problem_shape
+    ({{elem_input_type}}*)(b_ptr) + input_b_offset,              // ElementA const* ptr_A
+    {input_b_stride, cute::Int<1>{}, cute::Int<0>{}},            // StrideA dA
+    ({{elem_input_type}}*)(a_ptr) + input_a_offset,              // ElementB const* ptr_B
+    {input_a_stride, cute::Int<1>{}, cute::Int<0>{}},            // StrideB dB
+    {
+        {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename ThreadEpilogueOp::Params thread
+        {cute::Int<1>{}, {{layout.stride_c}}, cute::Int<0>{}},   // StrideC dC
+        ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementD* ptr_D
+        {cute::Int<1>{}, output_stride, cute::Int<0>{}},         // StrideD dD
+        ({{elem_input_type}}*)(bias_ptr),                        // ElementBias* ptr_Bias
+        ({{elem_output_type}}*)(d0_ptr),                         // ElementC* ptr_C0
+{% if has_d1 %}
+        ({{elem_output_type}}*)(d1_ptr),                         // ElementC* ptr_C1
+{% else %}
+        nullptr,
+{% endif %}
+    },                                                           // EpilogueArguments epilogue
+"""
+)
+
 # for profiler, no need to include TensorAccessor
 PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
@@ -139,14 +194,45 @@ PROFILER_PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     0,                                                       // int64_t batch_stride_Vector
     0,                                                       // int64_t batch_stride_Tensor
     {{layout.stride_a}},                                     // typename LayoutA::Stride::Index lda
-    {{layout.stride_b}},                                     // typename LayoutA::Stride::Index ldb
-    {{layout.stride_c}},                                     // typename LayoutA::Stride::Index ldc1
+    {{layout.stride_b}},                                     // typename LayoutB::Stride::Index ldb
+    {{layout.stride_c}},                                     // typename LayoutC::Stride::Index ldc1
 {% if has_d1 %}
-    {{layout.stride_c}},                                     // typename LayoutA::Stride::Index ldc2
+    {{layout.stride_c}},                                     // typename LayoutC::Stride::Index ldc2
 {% endif %}
-    output_stride,                                           // typename LayoutA::Stride::Index ldd
-    0,                                                       // typename LayoutA::Stride::Index ldr
-    0,                                                       // typename LayoutA::Stride::Index ldt
+    output_stride,                                           // typename LayoutC::Stride::Index ldd
+    0,                                                       // typename LayoutC::Stride::Index ldr
+    0,                                                       // typename LayoutC::Stride::Index ldt
+"""
+)
+
+# we use the transposed problem with swapped A and B
+# operands and column-major C and D in CUTLASS 3.x
+PROFILER_PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
+    """
+    cutlass::gemm::GemmUniversalMode::kGemm,                     // GemmUniversalMode mode
+    {
+        static_cast<coord_t>({{layout.n}}),
+        static_cast<coord_t>({{layout.m}}),
+        static_cast<coord_t>({{layout.k}}),
+        static_cast<coord_t>(1)
+    },                                                           // ProblemShape problem_shape
+    ({{elem_input_type}}*)(b_ptr),                               // ElementB const* ptr_A
+    { {{layout.stride_b}}, cute::Int<1>{}, cute::Int<0>{}},      // StrideB dA
+    ({{elem_input_type}}*)(a_ptr),                               // ElementA const* ptr_B
+    { {{layout.stride_a}}, cute::Int<1>{}, cute::Int<0>{}},      // StrideA dB
+    {
+        {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename ThreadEpilogueOp::Params thread
+        {cute::Int<1>{}, {{layout.stride_c}}, cute::Int<0>{}},   // StrideC dC
+        ({{elem_output_type}}*)(c_ptr),                          // ElementD* ptr_D
+        {cute::Int<1>{}, output_stride, cute::Int<0>{}},         // StrideD dD
+        ({{elem_input_type}}*)(bias_ptr),                        // ElementBias* ptr_Bias
+        ({{elem_output_type}}*)(d0_ptr),                         // ElementC* ptr_C0
+{% if has_d1 %}
+        ({{elem_output_type}}*)(d1_ptr),                         // ElementC* ptr_C1
+{% else %}
+        nullptr,
+{% endif %}
+    },                                                           // EpilogueArguments epilogue
 """
 )
 
@@ -165,6 +251,14 @@ SRC_TEMPLATE = jinja2.Template(
 #include "cutlass/util/reference/host/tensor_fill.h"
 #include "cutlass/util/reference/device/tensor_fill.h"
 #include "cutlass/util/device_memory.h"
+
+#include "cutlass/gemm/gemm.h"
+#include "cutlass/numeric_types.h"
+#include "cutlass/gemm/kernel/gemm_universal.hpp"
+#include "cutlass/gemm/collective/collective_builder.hpp"
+#include "cutlass/gemm/device/gemm_universal_adapter.h"
+#include "cutlass/epilogue/collective/epilogue_tensor_broadcast.hpp"
+#include "cutlass/epilogue/thread/linear_combination_tensor_broadcast.hpp"
 
 using bfloat16 = nv_bfloat16;
 
@@ -348,6 +442,82 @@ def _support_split_k(func_attrs):
     return func_attrs["split_k"] is not None
 
 
+def _replace_epilogue_cutlass_3x(
+    op_def,
+    unary_op1,
+    binary_op1,
+    binary_op2,
+    unary_op2,
+):
+    # example of the generated epilogue replaced by this function:
+    # ------------------------------------------------------------
+    # using cutlass3x_sm90_tensorop_s64x128x16gemm_f16_f16_f32_f16_f16_256x128x64_2x1x1_0_tnt_align8_warpspecialized_pingpong_epi_tma_epilogue =
+    # typename cutlass::epilogue::collective::CollectiveBuilder<
+    #     cutlass::arch::Sm90, cutlass::arch::OpClassTensorOp,
+    #     cute::Shape<cute::_256, cute::_128, cute::_64>,
+    #     cute::Shape<cute::_2,cute::_1,cute::_1>,
+    #     cutlass::epilogue::collective::EpilogueTileAuto,
+    #     float, float,
+    #     cutlass::half_t, cutlass::layout::RowMajor, 8,
+    #     cutlass::half_t, cutlass::layout::RowMajor, 8,
+    #     cutlass::epilogue::TmaWarpSpecialized
+    # >::CollectiveOp;
+
+    CUTLASS_3X_EPILOGUE_NUM_LINES = 11
+
+    lines = op_def.split("\n")
+    stripped_lines = [line.strip() for line in lines]
+    epilogue_start, epilogue_lines = None, []
+    for i in range(len(stripped_lines)):
+        if stripped_lines[i].endswith("_epilogue ="):
+            epilogue_start = i
+            for j in range(i, len(stripped_lines)):
+                epilogue_lines.append(stripped_lines[j])
+                if stripped_lines[j].endswith("::CollectiveOp;"):
+                    break
+            break
+
+    if epilogue_start is None:
+        raise ValueError(
+            f"Generated epilogue not found in the CUTLASS 3.x op_def:\n\n{op_def}"
+        )
+    if len(epilogue_lines) != CUTLASS_3X_EPILOGUE_NUM_LINES:
+        raise ValueError(
+            "Generated CUTLASS 3.x epilogue must be 11 lines long, "
+            f"but got {CUTLASS_3X_EPILOGUE_NUM_LINES}:\n\n{op_def}"
+        )
+
+    epilogue_name = epilogue_lines[0].split(" ")[1]
+    element_c, layout_c = epilogue_lines[7].split(", ")[:2]
+    element_d, layout_d = epilogue_lines[8].split(", ")[:2]
+    element_accumulator, element_compute = epilogue_lines[6].split(",")[:2]
+    element_compute = element_compute.strip()
+    epilogue_schedule = epilogue_lines[9]
+
+    new_epilogue = EPILOGUE_TENSOR_BROADCAST_TEMPLATE.render(
+        epilogue_name=epilogue_name,
+        element_c=element_c,
+        layout_c=layout_c,
+        element_d=element_d,
+        layout_d=layout_d,
+        element_accumulator=element_accumulator,
+        element_compute=element_compute,
+        unary_op1=unary_op1,
+        binary_op1=binary_op1,
+        binary_op2=binary_op2,
+        unary_op2=unary_op2,
+        epilogue_schedule=epilogue_schedule,
+        has_d1=(binary_op2 is not None),
+    )
+
+    lines_before = lines[:epilogue_start]
+    lines_after = lines[epilogue_start + CUTLASS_3X_EPILOGUE_NUM_LINES :]
+    new_lines = lines_before + [new_epilogue] + lines_after
+    new_op_def = "\n".join(new_lines)
+
+    return new_op_def
+
+
 def gemm_bias_broadcast_instance(
     op_def,
     func_attrs,
@@ -363,6 +533,15 @@ def gemm_bias_broadcast_instance(
     """
     adjust gemm instance with respect to input_accessors, layout and epilogue ops
     """
+    if cutlass_3x:
+        return _replace_epilogue_cutlass_3x(
+            op_def=op_def,
+            unary_op1=unary_op1,
+            binary_op1=binary_op1,
+            binary_op2=binary_op2,
+            unary_op2=unary_op2,
+        )
+
     op_def = common.update_alignments_in_gemm_instance(op_def, func_attrs, for_profiler)
     gemm_universal_params = common.get_gemm_instance_template_params(op_def)
     epilogue_pattern = re.compile(r"\s*(cutlass::epilogue::thread::.*)\s*<")
@@ -409,7 +588,11 @@ def gemm_bias_broadcast_instance(
 
 
 def gemm_bias_broadcast_config(func_attrs, layout, dtype="float16"):
-    common.make_fproc(func_attrs, layout)
+    common.make_fproc(
+        func_attrs=func_attrs,
+        layout=layout,
+        include_cutlass_3x_ops=True,
+    )
 
 
 def gen_profiler(
@@ -423,6 +606,12 @@ def gen_profiler(
     binary_op2,
     unary_op2,
 ):
+    import cutlass_lib
+
+    op_type = func_attrs["op"]
+    op_instance = func_attrs["op_instance"]
+    op_instance = common.filter_cutlass_3x_ops(op_instance, func_attrs)
+
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_lib_type(
         func_attrs["inputs"][0]._attrs["dtype"]
@@ -433,9 +622,7 @@ def gen_profiler(
     elem_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][0]._attrs["dtype"]
     )
-    op_type = func_attrs["op"]
     support_split_k = _support_split_k(func_attrs)
-    op_instance = func_attrs["op_instance"]
     has_d1 = common.has_d1(func_attrs)
 
     ndims = 2
@@ -455,6 +642,12 @@ def gen_profiler(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
             support_split_k=support_split_k,
+            layout=layout,
+            has_d1=has_d1,
+        ),
+        problem_args_cutlass_3x=PROFILER_PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+            elem_input_type=elem_input_type,
+            elem_output_type=elem_output_type,
             layout=layout,
             has_d1=has_d1,
         ),
@@ -482,11 +675,21 @@ def gen_profiler(
                 elem_type=elem_input_type,
             ),
         )
-        config_name = common.extract_config_name(config)
         instance_name = f"{instance_name_base}_{instance_idx}"
         gemm_op = f"gemm_op_{instance_idx}"
-        instance = common.INSTANCE_TEMPLATE.render(
-            config_name=config_name, name=instance_name, config=config
+        cutlass_3x = op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x
+        instance_template = (
+            common.INSTANCE_TEMPLATE_CUTLASS_3X
+            if cutlass_3x
+            else common.INSTANCE_TEMPLATE
+        )
+        instance = instance_template.render(
+            config_name=common.extract_config_name(
+                config,
+                cutlass_3x=cutlass_3x,
+            ),
+            name=instance_name,
+            config=config,
         )
         benchmark_instance = common.BENCHMARK_INSTANCE_TEMPLATE.render(
             indent="  ",
@@ -595,15 +798,22 @@ def gen_function(
         support_split_k=support_split_k,
         has_d1=has_d1,
     )
+    problem_args_cutlass_3x = PROBLEM_ARGS_TEMPLATE_CUTLASS_3X.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+        layout=layout,
+        has_d1=has_d1,
+    )
     return common.gen_function(
-        func_attrs,
-        SRC_TEMPLATE,
-        exec_cond_template,
-        problem_args,
-        input_ndims,
-        weight_ndims,
-        output_ndims,
-        dim_info_dict,
+        func_attrs=func_attrs,
+        src_template=SRC_TEMPLATE,
+        exec_cond_template=exec_cond_template,
+        problem_args=problem_args,
+        problem_args_cutlass_3x=problem_args_cutlass_3x,
+        input_ndims=input_ndims,
+        weight_ndims=weight_ndims,
+        output_ndims=output_ndims,
+        dim_info_dict=dim_info_dict,
         f_instance_convertor=partial(
             gemm_bias_broadcast_instance,
             layout=layout,

@@ -59,15 +59,15 @@ def gemm_rcr_config(func_attrs, dtype="float16"):
 def gen_profiler_template(unary_op1, binary_op1, binary_op2, unary_op2):
     def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
         return common_bias_broadcast.gen_profiler(
-            func_attrs,
-            workdir,
-            profiler_filename,
-            dim_info_dict,
-            RCR,
-            unary_op1,
-            binary_op1,
-            binary_op2,
-            unary_op2,
+            func_attrs=func_attrs,
+            workdir=workdir,
+            profiler_filename=profiler_filename,
+            dim_info_dict=dim_info_dict,
+            layout=RCR,
+            unary_op1=unary_op1,
+            binary_op1=binary_op1,
+            binary_op2=binary_op2,
+            unary_op2=unary_op2,
         )
 
     return gen_profiler
@@ -80,14 +80,14 @@ def gen_function_template(unary_op1, binary_op1, binary_op2, unary_op2):
         dim_info_dict,
     ):
         return common_bias_broadcast.gen_function(
-            func_attrs,
-            exec_cond_template,
-            dim_info_dict,
-            RCR,
-            unary_op1,
-            binary_op1,
-            binary_op2,
-            unary_op2,
+            func_attrs=func_attrs,
+            exec_cond_template=exec_cond_template,
+            dim_info_dict=dim_info_dict,
+            layout=RCR,
+            unary_op1=unary_op1,
+            binary_op1=binary_op1,
+            binary_op2=binary_op2,
+            unary_op2=unary_op2,
         )
 
     return gen_function

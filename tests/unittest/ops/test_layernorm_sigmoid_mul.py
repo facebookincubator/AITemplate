@@ -46,6 +46,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         rtol=1e-2,
         eps=1e-5,
         dtype="float16",
+        use_welford_algorithm=False,
     ):
         logging.info(
             f"_test_fused_layernorm_sigmoid_mul: M={MS}, N={NS}, "
@@ -95,12 +96,14 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
         X6._attrs["is_output"] = True
         X6._attrs["name"] = "output"
 
-        target = detect_target()
+        target = detect_target(
+            layernorm_use_welford_algorithm=use_welford_algorithm,
+        )
         with compile_model(
             X6,
             target,
             "./tmp",
-            f"fused_layernorm_sigmoid_mul_test_{self._test_id}",
+            f"fused_layernorm_sigmoid_mul_test_{dtype}_{self._test_id}",
         ) as module:
             self._test_id += 1
             for batch_size in [50, 900, 1024]:
@@ -184,20 +187,24 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
             eps=eps,
             dtype="float16",
         )
-        # block_size = 512 kernel
-        self._test_fused_layernorm_sigmoid_mul(
-            MS=(2, 4),
-            NS=(1055, 5),
-            eps=eps,
-            dtype="float16",
-        )
 
-        self._test_fused_layernorm_sigmoid_mul(
-            NS=(1496,),
-            gamma_is_none=True,
-            beta_is_none=True,
-            dtype="float16",
-        )
+        for use_welford_algorithm in (True, False):
+            # block_size = 512 kernel
+            self._test_fused_layernorm_sigmoid_mul(
+                MS=(2, 4),
+                NS=(1055, 5),
+                eps=eps,
+                dtype="float16",
+                use_welford_algorithm=use_welford_algorithm,
+            )
+            self._test_fused_layernorm_sigmoid_mul(
+                NS=(1496,),
+                gamma_is_none=True,
+                beta_is_none=True,
+                dtype="float16",
+                use_welford_algorithm=use_welford_algorithm,
+            )
+
         self._test_fused_layernorm_sigmoid_mul(
             NS=(515,),
             gamma_is_none=True,
@@ -271,20 +278,24 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
             eps=eps,
             dtype="float32",
         )
-        # block_size = 512 kernel
-        self._test_fused_layernorm_sigmoid_mul(
-            MS=(2, 4),
-            NS=(1055, 5),
-            eps=eps,
-            dtype="float32",
-        )
 
-        self._test_fused_layernorm_sigmoid_mul(
-            NS=(1496,),
-            gamma_is_none=True,
-            beta_is_none=True,
-            dtype="float32",
-        )
+        for use_welford_algorithm in (True, False):
+            # block_size = 512 kernel
+            self._test_fused_layernorm_sigmoid_mul(
+                MS=(2, 4),
+                NS=(1055, 5),
+                eps=eps,
+                dtype="float32",
+                use_welford_algorithm=use_welford_algorithm,
+            )
+            self._test_fused_layernorm_sigmoid_mul(
+                NS=(1496,),
+                gamma_is_none=True,
+                beta_is_none=True,
+                dtype="float32",
+                use_welford_algorithm=use_welford_algorithm,
+            )
+
         self._test_fused_layernorm_sigmoid_mul(
             NS=(515,),
             gamma_is_none=True,
@@ -345,24 +356,28 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
             atol=1e-2,
             rtol=1e-2,
         )
-        # block_size = 512 kernel
-        self._test_fused_layernorm_sigmoid_mul(
-            MS=(2, 4),
-            NS=(1055, 5),
-            eps=eps,
-            dtype="bfloat16",
-            atol=1e-2,
-            rtol=1e-2,
-        )
 
-        self._test_fused_layernorm_sigmoid_mul(
-            NS=(1496,),
-            gamma_is_none=True,
-            beta_is_none=True,
-            dtype="bfloat16",
-            atol=1e-2,
-            rtol=1e-2,
-        )
+        for use_welford_algorithm in (True, False):
+            # block_size = 512 kernel
+            self._test_fused_layernorm_sigmoid_mul(
+                MS=(2, 4),
+                NS=(1055, 5),
+                eps=eps,
+                dtype="bfloat16",
+                atol=1e-2,
+                rtol=1e-2,
+                use_welford_algorithm=use_welford_algorithm,
+            )
+            self._test_fused_layernorm_sigmoid_mul(
+                NS=(1496,),
+                gamma_is_none=True,
+                beta_is_none=True,
+                dtype="bfloat16",
+                atol=1e-2,
+                rtol=1e-2,
+                use_welford_algorithm=use_welford_algorithm,
+            )
+
         self._test_fused_layernorm_sigmoid_mul(
             NS=(515,),
             gamma_is_none=True,
@@ -886,6 +901,16 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
             use_size_op=True,
             dtype=dtype,
         )
+        self._test_group_fused_layernorm_sigmoid_mul(
+            [
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+            ],
+            dtype=dtype,
+        )
 
         # Make sure we test the boundary between being able to fit the arguments in constant memory vs not.
         for num_groups in range(38, 41):
@@ -1009,6 +1034,17 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
                 [1024, 256],
                 [1024, 128],
                 [1024, 256],
+            ],
+            fuse_sigmoid_mul=False,
+            dtype=dtype,
+        )
+        self._test_group_fused_layernorm_sigmoid_mul(
+            [
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
+                [330, 200, 48],
             ],
             fuse_sigmoid_mul=False,
             dtype=dtype,
