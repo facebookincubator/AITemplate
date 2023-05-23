@@ -49,7 +49,6 @@ from aitemplate.compiler.ops.gemm_universal.cache_entry import (
 )
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.utils import alignment, environ
-from aitemplate.testing import detect_target
 
 # pylint: disable=C0103,R1711,W0102,W0221,E1120
 
@@ -868,7 +867,7 @@ class gemm(Operator):
 
 
 def _profiler_results_groupby_key(instance):
-    if detect_target().name() == "rocm":
+    if backend.target.Target.current().name() == "rocm":
         return (
             instance[1]["op"],  # unique op name
             instance[3],  # profiler key (gemm shape)
@@ -921,6 +920,7 @@ class GemmProfilerPostprocessingDelegate:
             self._instances,
             key=_profiler_results_groupby_key,
         ):
+            group = list(group)
             min_runtime_results = min(group, key=_profiler_group_reduce_min_key)
             (
                 (best_algo, runtime, workspace),
@@ -929,9 +929,22 @@ class GemmProfilerPostprocessingDelegate:
                 exec_key,
                 split_k,
             ) = min_runtime_results
-            func_attrs["exec_path"][exec_key].algo = best_algo
-            func_attrs["workspace"] = max(func_attrs["workspace"], workspace)
-            func_attrs["split_k"] = split_k
+            if target.name() == "rocm":
+                for results in group:
+                    (
+                        (_, _, _),
+                        func_attrs,
+                        _,
+                        _,
+                        _,
+                    ) = results
+                    func_attrs["exec_path"][exec_key].algo = best_algo
+                    func_attrs["workspace"] = max(func_attrs["workspace"], workspace)
+                    func_attrs["split_k"] = split_k
+            else:
+                func_attrs["exec_path"][exec_key].algo = best_algo
+                func_attrs["workspace"] = max(func_attrs["workspace"], workspace)
+                func_attrs["split_k"] = split_k
 
             _LOGGER.info(
                 f"Profiler ({profiler_filename} {exec_key}) selected kernel: "

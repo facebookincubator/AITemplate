@@ -60,7 +60,6 @@ using B1DataType       = InputType;
 using AccDataType      = F32;
 using CShuffleDataType = F32;
 using CDataType        = InputType;
-using GemmDataType     = InputType;
 using Acc0BiasDataType = ck::Tuple<>;
 using Acc1BiasDataType = ck::Tuple<>;
 
@@ -157,7 +156,6 @@ using DeviceGemmInstance =
 
 {{func_signature}}
 {
-
     bool input_permute = true;
     bool output_permute = true;
     
@@ -224,11 +222,15 @@ using DeviceGemmInstance =
                                  {},   // acc1_biases_gs_ms_os_lengths
                                  {}}); // acc1_biases_gs_ms_os_strides
 
-        auto offset = i * K * G1 * M * sizeof(InputType);
-        q_ptrs.push_back(reinterpret_cast<const void*>(q_ptr + offset));                               
-        k_ptrs.push_back(reinterpret_cast<const void*>(k_ptr + offset));                               
-        v_ptrs.push_back(reinterpret_cast<const void*>(v_ptr + offset));                               
-        output_ptrs.push_back(reinterpret_cast<void*>(output_ptr + offset));                               
+        auto offset = K * G1 * M * sizeof(InputType);
+        q_ptrs.push_back(reinterpret_cast<const void*>(q_ptr)); 
+        q_ptr += offset;                              
+        k_ptrs.push_back(reinterpret_cast<const void*>(k_ptr));   
+        k_ptr += offset;                            
+        v_ptrs.push_back(reinterpret_cast<const void*>(v_ptr));
+        v_ptr += offset;                               
+        output_ptrs.push_back(reinterpret_cast<void*>(output_ptr)); 
+        output_ptr += offset;                              
     }
 
     // do GEMM
@@ -269,6 +271,7 @@ void {{func_name}}(void* output,
                    const void* k,
                    const void* v,
                    const int* seqlens,
+                   const int max_seqlen,
                    int64_t batch_size,
                    int num_heads,
                    int head_dim,
@@ -288,7 +291,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
     """
 {{indent}}{{func_name}}(
 {{indent}}   {{output}}, {{q}}, {{k}}, {{v}}, {{seqlens}},
-{{indent}}    {{batch_size}},
+{{indent}}    {{max_seqlen}}, {{batch_size}},
 {{indent}}    {{num_heads}},
 {{indent}}    {{head_dim}},
 {{indent}}    {{softmax_scale}},
@@ -339,9 +342,9 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
 
     q = func_attrs["inputs"][0]
 
-    batch_size = q.shape()[0]._attrs["name"]
-
-    num_heads = q._attrs["shape"][2]._attrs["values"][0]
+    batch_size = func_attrs["inputs"][3].shape()[0]._attrs["name"]
+    num_heads = q._attrs["shape"][1]._attrs["values"][0]
+    max_seqlen = q._attrs["shape"][0].upper_bound() // 16
     head_dim = q._attrs["shape"][3]._attrs["values"][0]
     
     softmax_scale = head_dim ** (-0.5)
@@ -353,6 +356,7 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
         k=k_name,
         v=v_name,
         seqlens=seqlens_name,
+        max_seqlen=max_seqlen,
         batch_size=batch_size,
         num_heads=num_heads,
         head_dim=head_dim,

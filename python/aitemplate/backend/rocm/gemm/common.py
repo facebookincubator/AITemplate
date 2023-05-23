@@ -24,6 +24,7 @@ import jinja2
 
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.target import Target
+from aitemplate.compiler.base import IntVar
 
 INPUT_ADDR_CALCULATOR = jinja2.Template(
     """
@@ -646,6 +647,7 @@ def gen_profiler(
     file_pairs = []
     has_d0_flag = has_d0(func_attrs)
     has_d1_flag = has_d1(func_attrs)
+
     for op_name, op in op_instance.items():
         config = emit_instance(op)
         config_name = extract_config_name(config)
@@ -812,6 +814,13 @@ def gen_function(
             problem_args=problem_args,
             is_profiler=False,
         )
+        has_dynamic_shape = False
+        for inp in func_attrs["inputs"]:
+            for dim in inp.shape():
+                if isinstance(dim, IntVar):
+                    has_dynamic_shape = True
+        if has_dynamic_shape:
+            key = "true"
         exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     extra_header = extra_header_template.render(
@@ -991,5 +1000,15 @@ def make_fproc_f16(func_attrs, layout, op_kind, extra_kind):
             b_layout=b_layout,
             c_layout=c_layout,
         )
-
+    has_dynamic_shape = False
+    for inp in func_attrs["inputs"]:
+        for dim in inp.shape():
+            if isinstance(dim, IntVar):
+                has_dynamic_shape = True
     func_attrs["op_instance"] = extract_config(op_kind, extra_kind, fproc_f16)
+    if has_dynamic_shape:
+        filtered_op_instance = {}
+        for op_name, op in func_attrs["op_instance"].items():
+            if "Padding" in emit_instance(op):
+                filtered_op_instance[op_name] = op
+        func_attrs["op_instance"] = filtered_op_instance
