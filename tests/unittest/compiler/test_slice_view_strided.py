@@ -44,7 +44,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
         torch.manual_seed(0)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
@@ -101,7 +101,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
@@ -158,7 +158,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
@@ -237,7 +237,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
@@ -310,7 +310,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
@@ -382,7 +382,7 @@ class SliceViewStridedOpTestCase(unittest.TestCase):
             torch.testing.assert_close(y, y_pt, **_TOLERANCE_LIMITS[dtype])
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
                 TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],

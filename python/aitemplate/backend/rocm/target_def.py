@@ -87,7 +87,7 @@ class ROCM(Target):
         rocm_path = os.environ.get("ROCM_PATH", "/opt/rocm")
         return rocm_path
 
-    def _get_ck_paths(self):
+    def _get_ck_paths(self) -> List[str]:
         ck_paths = [
             os.path.join(self._template_path),
             os.path.join(self._template_path, "include/"),
@@ -96,6 +96,9 @@ class ROCM(Target):
             os.path.join(self._template_path, "profiler/include/"),
         ]
         return ck_paths
+
+    def get_include_directories(self) -> List[str]:
+        return self._get_ck_paths()
 
     def _build_compile_options(self):
         """Build compilation commands, including compilation flag library and includes.

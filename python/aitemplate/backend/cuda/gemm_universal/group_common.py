@@ -290,7 +290,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}  );
 {{indent}}}
 
-
+{{indent}}using coord_t = cutlass::gemm::GemmCoord::Index;
 {{indent}}typename {{instance}}::Arguments arguments{
 
 {{problem_args}}
@@ -766,7 +766,12 @@ def update_alignments_in_group_gemm_instance(
     return "\n".join(instance_lines)
 
 
-def group_gemm_instance(op_def: str, func_attrs: Dict[str, Any], for_profiler: bool):
+def group_gemm_instance(
+    op_def: str,
+    func_attrs: Dict[str, Any],
+    for_profiler: bool,
+    cutlass_3x: bool = False,
+):
     # TODO: This is a dirty thing need to add an extra emitter to clean this up
     op_def = update_alignments_in_group_gemm_instance(op_def, func_attrs, for_profiler)
     tmp = op_def.replace("DefaultGemmUniversal", "DefaultGemmGrouped")

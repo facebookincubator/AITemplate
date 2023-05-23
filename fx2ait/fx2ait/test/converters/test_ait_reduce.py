@@ -92,3 +92,24 @@ class TestMeanConverter(AITTestCase):
         model = TestModule().cuda()
         inputs = [torch.randn(2, 3, 5).half().cuda() + 1] * 2
         self.run_test(model, inputs, expected_ops={acc_ops.mean})
+
+    @parameterized.expand(
+        [
+            ["keepdim_false", (1,), False],
+            ["keepdim_true", (1,), True],
+            ["keepdim_false", (0,), False],
+            ["keepdim_true", (2,), True],
+        ]
+    )
+    # std is a combo of basic binary and mean ops
+    def test_std(self, name, dim, keepdim) -> None:
+        class TestModule(torch.nn.Module):
+            def forward(self, input: torch.Tensor) -> torch.Tensor:
+                return torch.std(input, dim=dim, keepdim=keepdim)
+
+        model = TestModule().cuda()
+        self.run_test(
+            model,
+            [torch.randn(2, 3, 4).half().cuda()],
+            expected_ops={},
+        )

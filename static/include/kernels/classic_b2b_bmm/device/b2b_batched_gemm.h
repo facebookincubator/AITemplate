@@ -204,18 +204,25 @@ class B2bGemmBatched {
     GemmCoord problem_size_0;
     GemmCoord problem_size_1;
     TensorRef<ElementA const, LayoutA> ref_A0;
-    int64_t stride_A0;
+    int64_t head_stride_A0;
+    int64_t batch_stride_A0;
     TensorRef<ElementB const, LayoutB> ref_B0;
-    int64_t stride_B0;
+    int64_t head_stride_B0;
+    int64_t batch_stride_B0;
     TensorRef<ElementC const, LayoutC> ref_C0;
-    int64_t stride_C0;
+    int64_t head_stride_C0;
+    int64_t batch_stride_C0;
     TensorRef<ElementB const, LayoutB1> ref_B1;
-    int64_t stride_B1;
+    int64_t head_stride_B1;
+    int64_t batch_stride_B1;
     TensorRef<ElementC const, LayoutC> ref_C1;
-    int64_t stride_C1;
+    int64_t head_stride_C1;
+    int64_t batch_stride_C1;
     TensorRef<ElementC, LayoutC> ref_D1;
-    int64_t stride_D1;
+    int64_t head_stride_D1;
+    int64_t batch_stride_D1;
     int batch_count;
+    int num_heads;
     typename EpilogueOutputOp0::Params epilogue0;
     typename EpilogueOutputOp1::Params epilogue1;
 
@@ -235,18 +242,25 @@ class B2bGemmBatched {
       GemmCoord problem_size_0_,
       GemmCoord problem_size_1_,
       TensorRef<ElementA const, LayoutA> ref_A0_,
-      int64_t stride_A0_,
+      int64_t head_stride_A0_,
+      int64_t batch_stride_A0_,
       TensorRef<ElementB const, LayoutB> ref_B0_,
-      int64_t stride_B0_,
+      int64_t head_stride_B0_,
+      int64_t batch_stride_B0_,
       TensorRef<ElementC const, LayoutC> ref_C0_,
-      int64_t stride_C0_,
+      int64_t head_stride_C0_,
+      int64_t batch_stride_C0_,
       TensorRef<ElementB const, LayoutB1> ref_B1_,
-      int64_t stride_B1_,
+      int64_t head_stride_B1_,
+      int64_t batch_stride_B1_,
       TensorRef<ElementC const, LayoutC> ref_C1_,
-      int64_t stride_C1_,
+      int64_t head_stride_C1_,
+      int64_t batch_stride_C1_,
       TensorRef<ElementC, LayoutC> ref_D1_,
-      int64_t stride_D1_,
+      int64_t head_stride_D1_,
+      int64_t batch_stride_D1_,
       int batch_count_,
+      int num_heads_,
       typename EpilogueOutputOp0::Params epilogue0_ =
         typename EpilogueOutputOp0::Params(),
       typename EpilogueOutputOp1::Params epilogue1_ =
@@ -255,18 +269,25 @@ class B2bGemmBatched {
       problem_size_0(problem_size_0_),
       problem_size_1(problem_size_1_),
       ref_A0(ref_A0_),
-      stride_A0(stride_A0_),
+      head_stride_A0(head_stride_A0_),
+      batch_stride_A0(batch_stride_A0_),
       ref_B0(ref_B0_),
-      stride_B0(stride_B0_),
+      head_stride_B0(head_stride_B0_),
+      batch_stride_B0(batch_stride_B0_),
       ref_C0(ref_C0_),
-      stride_C0(stride_C0_),
+      head_stride_C0(head_stride_C0_),
+      batch_stride_C0(batch_stride_C0_),
       ref_B1(ref_B1_),
-      stride_B1(stride_B1_),
+      head_stride_B1(head_stride_B1_),
+      batch_stride_B1(batch_stride_B1_),
       ref_C1(ref_C1_),
-      stride_C1(stride_C1_),
+      head_stride_C1(head_stride_C1_),
+      batch_stride_C1(batch_stride_C1_),
       ref_D1(ref_D1_),
-      stride_D1(stride_D1_),
+      head_stride_D1(head_stride_D1_),
+      batch_stride_D1(batch_stride_D1_),
       batch_count(batch_count_),
+      num_heads(num_heads_),
       epilogue0(epilogue0_),
       epilogue1(epilogue1_) {
 
@@ -318,7 +339,7 @@ public:
     cutlass::gemm::GemmCoord grid_shape = threadblock_swizzle.get_tiled_shape(
       args.problem_size_0,
       {ThreadblockShape0::kM, ThreadblockShape0::kN, ThreadblockShape0::kK},
-      args.batch_count);
+      args.batch_count * args.num_heads);
 
     // Initialize the Params structure
     params_ = typename B2bGemmBatchedKernel::Params{
@@ -326,18 +347,25 @@ public:
       args.problem_size_1,
       grid_shape,
       args.ref_A0.non_const_ref(),
-      args.stride_A0,
+      args.head_stride_A0,
+      args.batch_stride_A0,
       args.ref_B0.non_const_ref(),
-      args.stride_B0,
+      args.head_stride_B0,
+      args.batch_stride_B0,
       args.ref_C0.non_const_ref(),
-      args.stride_C0,
+      args.head_stride_C0,
+      args.batch_stride_C0,
       args.ref_B1.non_const_ref(),
-      args.stride_B1,
+      args.head_stride_B1,
+      args.batch_stride_B1,
       args.ref_C1.non_const_ref(),
-      args.stride_C1,
+      args.head_stride_C1,
+      args.batch_stride_C1,
       args.ref_D1,
-      args.stride_D1,
+      args.head_stride_D1,
+      args.batch_stride_D1,
       args.batch_count,
+      args.num_heads,
       args.epilogue0,
       args.epilogue1
     };

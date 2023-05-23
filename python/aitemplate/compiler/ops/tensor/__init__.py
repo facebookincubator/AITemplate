@@ -25,6 +25,7 @@ from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice
 from aitemplate.compiler.ops.tensor.expand import expand
 from aitemplate.compiler.ops.tensor.full import full
 from aitemplate.compiler.ops.tensor.gather import gather
+from aitemplate.compiler.ops.tensor.identity import identity
 from aitemplate.compiler.ops.tensor.jagged_to_padded_dense import jagged_to_padded_dense
 from aitemplate.compiler.ops.tensor.masked_select import masked_select
 from aitemplate.compiler.ops.tensor.padded_dense_to_jagged import padded_dense_to_jagged

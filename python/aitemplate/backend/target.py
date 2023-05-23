@@ -152,6 +152,10 @@ class Target:
         make_path = shutil.which("make")
         return make_path if make_path is not None else "make"
 
+    def cmake(self):
+        cmake_path = shutil.which("cmake")
+        return cmake_path if cmake_path is not None else "cmake"
+
     def compile_cmd(self, executable: bool = False):
         """Compile command string template for this target.
 
@@ -467,6 +471,39 @@ class Target:
             The dictionary storing the record
         """
         return
+
+    def get_include_directories(self) -> List[str]:
+        """
+        Returns a list of include directories for a compiler.
+
+        Raises
+        ------
+        NotImplementedError
+            Need to be implemented by subclass.
+        """
+        raise NotImplementedError
+
+    def get_host_compiler_options(self) -> List[str]:
+        """
+        Returns a list of options for the host compiler.
+
+        Raises
+        ------
+        NotImplementedError
+            Need to be implemented by subclass.
+        """
+        raise NotImplementedError
+
+    def get_device_compiler_options(self) -> List[str]:
+        """
+        Returns a list of options for the device compiler.
+
+        Raises
+        ------
+        NotImplementedError
+            Need to be implemented by subclass.
+        """
+        raise NotImplementedError
 
 
 def CUDA(template_path: str = CUTLASS_PATH, arch: str = "80", **kwargs):

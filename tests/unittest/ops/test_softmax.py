@@ -64,7 +64,7 @@ class SoftmaxTestCase(unittest.TestCase):
             torch.testing.assert_close(y_pt, y, atol=1e-2, rtol=1e-2)
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [
                     ("dim_1_fp16", "float16", (1, 1024), (6,), 1),

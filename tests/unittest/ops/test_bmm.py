@@ -21,20 +21,12 @@ from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
-    filter_test_cases_by_params,
+    env_variables,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
-    TestEnv,
 )
 from aitemplate.utils import shape_utils
-
-from parameterized import parameterized
-
-
-_TEST_PARAMS = {
-    TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-    TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
-}
 
 
 class BMMTestCase(unittest.TestCase):
@@ -68,15 +60,15 @@ class BMMTestCase(unittest.TestCase):
 
     def test_rcr(self):
         self._test_rcr([1024], [128], N=512, K=256, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_rcr([1, 5, 977, 1024], [32], N=512, K=256, test_name="dynamic_b")
-            self._test_rcr([1], [100, 200, 300], N=512, K=256, test_name="dynamic_m")
-            self._test_rcr(
-                [1, 2, 5], [100, 200, 300], N=512, K=256, test_name="dynamic_bm"
-            )
-            self._test_rcr([0], [128], N=512, K=256, test_name="zero_batch")
-            self._test_rcr([1], [128], N=512, K=0, test_name="zero_k")
-            self._test_rcr([1], [128], N=0, K=8, test_name="zero_n")
+        self._test_rcr([1, 5, 977, 1024], [32], N=512, K=256, test_name="dynamic_b")
+        self._test_rcr([1], [100, 200, 300], N=512, K=256, test_name="dynamic_m")
+        self._test_rcr([1, 2, 5], [100, 200, 300], N=512, K=256, test_name="dynamic_bm")
+        self._test_rcr([0], [128], N=512, K=256, test_name="zero_batch")
+        self._test_rcr([1], [128], N=512, K=0, test_name="zero_k")
+        self._test_rcr([1], [128], N=0, K=8, test_name="zero_n")
+
+    def test_rcr_rocm(self):
+        self._test_rcr([1024], [128], N=512, K=256, test_name="static")
 
     def _test_crr(self, bs, ks, M, N, test_name, dtype="float16"):
         target = detect_target()
@@ -107,10 +99,12 @@ class BMMTestCase(unittest.TestCase):
 
     def test_crr(self):
         self._test_crr([1024], [128], M=256, N=512, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_crr([3, 977, 1024], [128], M=256, N=512, test_name="dynamic_b")
-            self._test_crr([5], [45, 56, 78], M=256, N=512, test_name="dynamic_k")
-            self._test_crr([1, 2, 5], [3, 6, 8], M=256, N=512, test_name="dynamic_bk")
+        self._test_crr([3, 977, 1024], [128], M=256, N=512, test_name="dynamic_b")
+        self._test_crr([5], [45, 56, 78], M=256, N=512, test_name="dynamic_k")
+        self._test_crr([1, 2, 5], [3, 6, 8], M=256, N=512, test_name="dynamic_bk")
+
+    def test_crr_rocm(self):
+        self._test_crr([1024], [128], M=256, N=512, test_name="static")
 
     def _test_rrr(self, bs, ms, K, N, test_name, dtype="float16"):
         target = detect_target()
@@ -138,10 +132,12 @@ class BMMTestCase(unittest.TestCase):
 
     def test_rrr(self):
         self._test_rrr([87], [23], K=256, N=512, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_rrr([2, 5, 99], [23], K=128, N=512, test_name="dynamic_b")
-            self._test_rrr([77], [4, 7, 9], K=8, N=512, test_name="dynamic_m")
-            self._test_rrr([2, 5, 7], [1, 7, 9], K=256, N=512, test_name="dynamic_bm")
+        self._test_rrr([2, 5, 99], [23], K=128, N=512, test_name="dynamic_b")
+        self._test_rrr([77], [4, 7, 9], K=8, N=512, test_name="dynamic_m")
+        self._test_rrr([2, 5, 7], [1, 7, 9], K=256, N=512, test_name="dynamic_bm")
+
+    def test_rrr_rocm(self):
+        self._test_rrr([87], [23], K=256, N=512, test_name="static")
 
     def _test_ccr(self, bs, M, N, K, test_name, dtype="float16"):
         target = detect_target()
@@ -166,8 +162,10 @@ class BMMTestCase(unittest.TestCase):
 
     def test_ccr(self):
         self._test_ccr([77], M=256, N=64, K=128, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_ccr([1, 9, 101], M=256, N=64, K=128, test_name="dynamic_b")
+        self._test_ccr([1, 9, 101], M=256, N=64, K=128, test_name="dynamic_b")
+
+    def test_ccr_rocm(self):
+        self._test_ccr([77], M=256, N=64, K=128, test_name="static")
 
     def _test_rcc(self, bs, ms, N, K, test_name, dtype="float16"):
         target = detect_target()
@@ -200,15 +198,15 @@ class BMMTestCase(unittest.TestCase):
 
     def test_rcc(self):
         self._test_rcc([1024], [128], N=512, K=256, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_rcc([1, 5, 977, 1024], [32], N=512, K=256, test_name="dynamic_b")
-            self._test_rcc([1], [100, 200, 300], N=512, K=256, test_name="dynamic_m")
-            self._test_rcc(
-                [1, 2, 5], [100, 200, 300], N=512, K=256, test_name="dynamic_bm"
-            )
-            self._test_rcc([0], [128], N=512, K=256, test_name="zero_batch")
-            self._test_rcc([1], [128], N=512, K=0, test_name="zero_k")
-            self._test_rcc([1], [128], N=0, K=8, test_name="zero_n")
+        self._test_rcc([1, 5, 977, 1024], [32], N=512, K=256, test_name="dynamic_b")
+        self._test_rcc([1], [100, 200, 300], N=512, K=256, test_name="dynamic_m")
+        self._test_rcc([1, 2, 5], [100, 200, 300], N=512, K=256, test_name="dynamic_bm")
+        self._test_rcc([0], [128], N=512, K=256, test_name="zero_batch")
+        self._test_rcc([1], [128], N=512, K=0, test_name="zero_k")
+        self._test_rcc([1], [128], N=0, K=8, test_name="zero_n")
+
+    def test_rcc_rocm(self):
+        self._test_rcc([1024], [128], N=512, K=256, test_name="static")
 
     def _test_crc(self, bs, ks, M, N, test_name, dtype="float16"):
         target = detect_target()
@@ -240,10 +238,12 @@ class BMMTestCase(unittest.TestCase):
 
     def test_crc(self):
         self._test_crc([1024], [128], M=256, N=512, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_crc([3, 977, 1024], [128], M=256, N=512, test_name="dynamic_b")
-            self._test_crc([5], [45, 56, 78], M=256, N=512, test_name="dynamic_k")
-            self._test_crc([1, 2, 5], [3, 6, 8], M=256, N=512, test_name="dynamic_bk")
+        self._test_crc([3, 977, 1024], [128], M=256, N=512, test_name="dynamic_b")
+        self._test_crc([5], [45, 56, 78], M=256, N=512, test_name="dynamic_k")
+        self._test_crc([1, 2, 5], [3, 6, 8], M=256, N=512, test_name="dynamic_bk")
+
+    def test_crc_rocm(self):
+        self._test_crc([1024], [128], M=256, N=512, test_name="static")
 
     def _test_rrc(self, bs, ms, K, N, test_name, dtype="float16"):
         target = detect_target()
@@ -272,10 +272,12 @@ class BMMTestCase(unittest.TestCase):
 
     def test_rrc(self):
         self._test_rrc([87], [23], K=256, N=512, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_rrc([2, 5, 99], [23], K=128, N=512, test_name="dynamic_b")
-            self._test_rrc([77], [4, 7, 9], K=8, N=512, test_name="dynamic_m")
-            self._test_rrc([2, 5, 7], [1, 7, 9], K=256, N=512, test_name="dynamic_bm")
+        self._test_rrc([2, 5, 99], [23], K=128, N=512, test_name="dynamic_b")
+        self._test_rrc([77], [4, 7, 9], K=8, N=512, test_name="dynamic_m")
+        self._test_rrc([2, 5, 7], [1, 7, 9], K=256, N=512, test_name="dynamic_bm")
+
+    def test_rrc_rocm(self):
+        self._test_rrc([87], [23], K=256, N=512, test_name="static")
 
     def _test_ccc(self, bs, M, N, K, test_name, dtype="float16"):
         target = detect_target()
@@ -302,12 +304,12 @@ class BMMTestCase(unittest.TestCase):
 
     def test_ccc(self):
         self._test_ccc([77], M=256, N=64, K=128, test_name="static")
-        if detect_target().name() == "cuda":
-            self._test_ccc([1, 9, 101], M=256, N=64, K=128, test_name="dynamic_b")
+        self._test_ccc([1, 9, 101], M=256, N=64, K=128, test_name="dynamic_b")
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_bmm_0_dtype(self, dtype):
+    def test_ccc_rocm(self):
+        self._test_ccc([77], M=256, N=64, K=128, test_name="static")
+
+    def test_bmm_0_fp32_sm80(self, dtype="float32"):
         self._test_rcr([128], [64], N=8, K=64, test_name=f"static_{dtype}", dtype=dtype)
         self._test_rcr(
             [1, 5, 77, 128],
@@ -332,9 +334,32 @@ class BMMTestCase(unittest.TestCase):
             [1, 9, 11], M=64, N=32, K=16, test_name=f"dynamic_b_{dtype}", dtype=dtype
         )
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_bmm_1_dtype(self, dtype):
+    def test_bmm_0_bf16(self, dtype="bfloat16"):
+        self._test_rcr([128], [64], N=8, K=64, test_name=f"static_{dtype}", dtype=dtype)
+        self._test_rcr(
+            [1, 5, 77, 128],
+            [32],
+            N=16,
+            K=64,
+            test_name=f"dynamic_b_{dtype}",
+            dtype=dtype,
+        )
+        self._test_crr(
+            [1, 2, 5],
+            [3, 6, 8],
+            M=24,
+            N=64,
+            test_name=f"dynamic_bk_{dtype}",
+            dtype=dtype,
+        )
+        self._test_rrr(
+            [8], [4, 7, 9], K=64, N=32, test_name=f"dynamic_m_{dtype}", dtype=dtype
+        )
+        self._test_ccr(
+            [1, 9, 11], M=64, N=32, K=16, test_name=f"dynamic_b_{dtype}", dtype=dtype
+        )
+
+    def test_bmm_1_fp32_sm80(self, dtype="float32"):
         self._test_rcc([128], [64], N=8, K=64, test_name=f"static_{dtype}", dtype=dtype)
         self._test_rcc(
             [1, 5, 77, 128],
@@ -358,6 +383,391 @@ class BMMTestCase(unittest.TestCase):
         self._test_ccc(
             [1, 9, 11], M=64, N=32, K=16, test_name=f"dynamic_b_{dtype}", dtype=dtype
         )
+
+    def test_bmm_1_bf16(self, dtype="bfloat16"):
+        self._test_rcc([128], [64], N=8, K=64, test_name=f"static_{dtype}", dtype=dtype)
+        self._test_rcc(
+            [1, 5, 77, 128],
+            [32],
+            N=16,
+            K=64,
+            test_name=f"dynamic_b_{dtype}",
+            dtype=dtype,
+        )
+        self._test_crc(
+            [1, 2, 5],
+            [3, 6, 8],
+            M=24,
+            N=64,
+            test_name=f"dynamic_bk_{dtype}",
+            dtype=dtype,
+        )
+        self._test_rrc(
+            [8], [4, 7, 9], K=64, N=32, test_name=f"dynamic_m_{dtype}", dtype=dtype
+        )
+        self._test_ccc(
+            [1, 9, 11], M=64, N=32, K=16, test_name=f"dynamic_b_{dtype}", dtype=dtype
+        )
+
+    def test_rrr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rrr(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    K=60,
+                    N=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rrr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rrr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=60,
+                N=28,
+                test_name="dynamic_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rrr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_rcr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rcr(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    N=60,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rcr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rcr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=60,
+                K=28,
+                test_name="dynamic_bm_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rcr(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_ccr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_ccr(
+                    bs=[1, 5, 11],
+                    M=60,
+                    N=7,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_ccr(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_ccr(
+                bs=[1, 5, 11],
+                M=60,
+                N=7,
+                K=28,
+                test_name="dynamic_b_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_ccr(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_crr_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_crr(
+                    bs=[1, 2, 5],
+                    ks=[3, 6, 8],
+                    M=28,
+                    N=60,
+                    test_name="dynamic_bk_fp16_forse_sm90",
+                    dtype="float16",
+                )
+
+            self._test_crr(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_crr(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=28,
+                N=60,
+                test_name="dynamic_bk_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_crr(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_rrc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rrc(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    K=60,
+                    N=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rrc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rrc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=60,
+                N=28,
+                test_name="dynamic_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rrc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                K=64,
+                N=32,
+                test_name="dynamic_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_rcc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_rcc(
+                    bs=[2, 5, 7],
+                    ms=[1, 7, 9],
+                    N=60,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_rcc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_rcc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=60,
+                K=28,
+                test_name="dynamic_bm_fp32_force_sm90",
+                dtype="float32",
+            )
+            self._test_rcc(
+                bs=[2, 5, 7],
+                ms=[1, 7, 9],
+                N=64,
+                K=32,
+                test_name="dynamic_bm_bf16_force_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_ccc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_ccc(
+                    bs=[1, 5, 11],
+                    M=60,
+                    N=7,
+                    K=28,
+                    test_name="wrong_alignment_force_sm90",
+                    dtype="float16",
+                )
+
+            self._test_ccc(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_ccc(
+                bs=[1, 5, 11],
+                M=60,
+                N=7,
+                K=28,
+                test_name="dynamic_b_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_ccc(
+                bs=[1, 5, 11],
+                M=64,
+                N=7,
+                K=32,
+                test_name="dynamic_b_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
+
+    def test_crc_sm90(self) -> None:
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_crc(
+                    bs=[1, 2, 5],
+                    ks=[3, 6, 8],
+                    M=28,
+                    N=60,
+                    test_name="dynamic_bk_fp16_forse_sm90",
+                    dtype="float16",
+                )
+
+            self._test_crc(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_fp16_forse_sm90",
+                dtype="float16",
+            )
+            self._test_crc(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=28,
+                N=60,
+                test_name="dynamic_bk_fp32_forse_sm90",
+                dtype="float32",
+            )
+            self._test_crc(
+                bs=[1, 2, 5],
+                ks=[3, 6, 8],
+                M=32,
+                N=64,
+                test_name="dynamic_bk_bf16_forse_sm90",
+                dtype="bfloat16",
+            )
 
 
 @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
@@ -727,8 +1137,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         self._test_ccr([8, 16], [8, 32, 8], "2d_broadcastable_a")
         self._test_ccr([8, 8, 16], [32, 8], "2d_broadcastable_b")
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_broadcast_0_dtype(self, dtype):
+    def test_bmm_broadcast_0_fp32_sm80(self, dtype="float32"):
         self._test_rcr([2, 16, 8], [1, 32, 8], f"broadcastable_b_{dtype}", dtype=dtype)
         self._test_rcr([16, 8], [8, 32, 8], f"2d_broadcastable_a_{dtype}", dtype=dtype)
         self._test_crr([1, 8, 16], [2, 8, 32], f"broadcastable_a_{dtype}", dtype=dtype)
@@ -738,8 +1147,27 @@ class BMMBroadcastTestCase(unittest.TestCase):
         self._test_ccr([1, 8, 16], [2, 32, 8], f"broadcastable_a_{dtype}", dtype=dtype)
         self._test_ccr([8, 8, 16], [32, 8], f"2d_broadcastable_b_{dtype}", dtype=dtype)
 
-    @parameterized.expand(filter_test_cases_by_params(_TEST_PARAMS))
-    def test_bmm_broadcast_1_dtype(self, dtype):
+    def test_bmm_broadcast_0_bf16(self, dtype="bfloat16"):
+        self._test_rcr([2, 16, 8], [1, 32, 8], f"broadcastable_b_{dtype}", dtype=dtype)
+        self._test_rcr([16, 8], [8, 32, 8], f"2d_broadcastable_a_{dtype}", dtype=dtype)
+        self._test_crr([1, 8, 16], [2, 8, 32], f"broadcastable_a_{dtype}", dtype=dtype)
+        self._test_crr([8, 8, 16], [8, 32], f"2d_broadcastable_b_{dtype}", dtype=dtype)
+        self._test_rrr([2, 16, 8], [1, 8, 32], f"broadcastable_b_{dtype}", dtype=dtype)
+        self._test_rrr([16, 8], [8, 8, 32], f"2d_broadcastable_a_{dtype}", dtype=dtype)
+        self._test_ccr([1, 8, 16], [2, 32, 8], f"broadcastable_a_{dtype}", dtype=dtype)
+        self._test_ccr([8, 8, 16], [32, 8], f"2d_broadcastable_b_{dtype}", dtype=dtype)
+
+    def test_bmm_broadcast_1_fp32_sm80(self, dtype="float32"):
+        self._test_rcc([2, 16, 8], [1, 32, 8], f"broadcastable_b_{dtype}", dtype=dtype)
+        self._test_rcc([16, 8], [8, 32, 8], f"2d_broadcastable_a_{dtype}", dtype=dtype)
+        self._test_crc([1, 8, 16], [2, 8, 32], f"broadcastable_a_{dtype}", dtype=dtype)
+        self._test_crc([8, 8, 16], [8, 32], f"2d_broadcastable_b_{dtype}", dtype=dtype)
+        self._test_rrc([2, 16, 8], [1, 8, 32], f"broadcastable_b_{dtype}", dtype=dtype)
+        self._test_rrc([16, 8], [8, 8, 32], f"2d_broadcastable_a_{dtype}", dtype=dtype)
+        self._test_ccc([1, 8, 16], [2, 32, 8], f"broadcastable_a_{dtype}", dtype=dtype)
+        self._test_ccc([8, 8, 16], [32, 8], f"2d_broadcastable_b_{dtype}", dtype=dtype)
+
+    def test_bmm_broadcast_1_bf16(self, dtype="bfloat16"):
         self._test_rcc([2, 16, 8], [1, 32, 8], f"broadcastable_b_{dtype}", dtype=dtype)
         self._test_rcc([16, 8], [8, 32, 8], f"2d_broadcastable_a_{dtype}", dtype=dtype)
         self._test_crc([1, 8, 16], [2, 8, 32], f"broadcastable_a_{dtype}", dtype=dtype)
@@ -772,7 +1200,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         try:
             module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
             raise AssertionError(
-                "Shouldn't be able to run be imcompatible tensor shape!"
+                "Shouldn't be able to run be incompatible tensor shape!"
             )
         except RuntimeError:
             pass
@@ -800,7 +1228,7 @@ class BMMBroadcastTestCase(unittest.TestCase):
         try:
             module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
             raise AssertionError(
-                "Shouldn't be able to run be imcompatible tensor shape!"
+                "Shouldn't be able to run be incompatible tensor shape!"
             )
         except RuntimeError:
             pass
@@ -828,10 +1256,14 @@ class BMMBroadcastTestCase(unittest.TestCase):
         try:
             module.run_with_tensors({"input_0": X_pt, "input_1": W_pt}, [y])
             raise AssertionError(
-                "Shouldn't be able to run be imcompatible tensor shape!"
+                "Shouldn't be able to run be incompatible tensor shape!"
             )
         except RuntimeError:
             pass
+
+
+filter_test_cases_by_test_env(BMMTestCase)
+filter_test_cases_by_test_env(BMMBroadcastTestCase)
 
 
 if __name__ == "__main__":

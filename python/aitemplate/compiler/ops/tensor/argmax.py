@@ -28,7 +28,6 @@ import numpy as np
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import Operator, Tensor
-from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,W0223
 
@@ -64,30 +63,9 @@ class argmax(Operator):
         self._attrs["workspace"] = 0
         self.exec_key_template = EXEC_KEY_TEMPLATE
 
-    def _infer_shape(self, x: List[int]):
-        """Infer the output shape"""
-        output = list(x)[:-1]
-        return output
-
     def _infer_shapes(self, x: Tensor):
         """Infer the output shape"""
-        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
-        x_shapes = itertools.product(*x_shape_values)
-        # run infershape for each
-        y_shapes = []
-        for x_shape in x_shapes:
-            y_shape = self._infer_shape(x_shape)
-            y_shapes.append(y_shape)
-
-        def unique(vector):
-            return sorted(set(vector))
-
-        output_shape = []
-        for idx in range(len(y_shapes[0])):
-            output_shape.append(
-                shape_utils.gen_int_var(values=unique([d[idx] for d in y_shapes]))
-            )
-        return output_shape
+        return x._attrs["shape"][:-1]
 
     def __call__(self, x: Tensor) -> Tensor:
         """call the op

@@ -23,11 +23,19 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
+    env_variables,
     filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
 from aitemplate.utils import shape_utils
+
+
+_TOLERANCE_LIMITS = {
+    "float16": {"atol": 1e-1, "rtol": 1e-1},
+    "float32": {"atol": 1e-1, "rtol": 1e-1},
+    "bfloat16": {"atol": 3e-1, "rtol": 3e-1},
+}
 
 
 class NewGELUActivation(torch.nn.Module):
@@ -55,16 +63,26 @@ class GEMMRcrFastGeluTestCase(unittest.TestCase):
     def setUpClass(cls) -> None:
         torch.manual_seed(10)
 
-    def _test_rcr(
-        self, Ms, test_name, use_fast_gelu=True, atol=1e-1, rtol=1e-1, dtype="float16"
+    def _test_gemm_rcr_fast_gelu(
+        self,
+        Ms,
+        test_name,
+        K=1024,
+        N=64,
+        dtype="float16",
     ):
-        K = 1024
-        N = 64
-        target = detect_target()
         MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
-        X = Tensor(shape=[MDim, IntImm(K)], dtype=dtype, name="input_0", is_input=True)
+        X = Tensor(
+            shape=[MDim, IntImm(K)],
+            dtype=dtype,
+            name="input_0",
+            is_input=True,
+        )
         W = Tensor(
-            shape=[IntImm(N), IntImm(K)], dtype=dtype, name="input_1", is_input=True
+            shape=[IntImm(N), IntImm(K)],
+            dtype=dtype,
+            name="input_1",
+            is_input=True,
         )
 
         OP = ops.gemm_rcr_fast_gelu()
@@ -73,7 +91,12 @@ class GEMMRcrFastGeluTestCase(unittest.TestCase):
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
 
-        module = compile_model(Y, target, "./tmp", f"gemm_rcr_fast_gelu_{test_name}")
+        module = compile_model(
+            Y,
+            detect_target(),
+            "./tmp",
+            f"gemm_rcr_fast_gelu_{test_name}",
+        )
 
         for M in Ms:
             logging.info(f"Testing {M=}")
@@ -86,38 +109,95 @@ class GEMMRcrFastGeluTestCase(unittest.TestCase):
                 {"input_0": X_pt, "input_1": W_pt},
                 [y],
             )
-            torch.testing.assert_close(Y_pt, y, atol=atol, rtol=rtol)
+            torch.testing.assert_close(Y_pt, y, **_TOLERANCE_LIMITS[dtype])
 
-    def test_rcr(self):
-        self._test_rcr([128], "static", use_fast_gelu=True)
-        if detect_target().name() == "cuda":
-            self._test_rcr([1, 7, 64, 127], "dynamic_m", use_fast_gelu=True)
-            self._test_rcr([128], "static", use_fast_gelu=False)
-            self._test_rcr([1, 7, 64, 127], "dynamic_m", use_fast_gelu=False)
-
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_gemm_rcr_fast_gelu_float_sm80(self):
-        self._test_rcr([128], "static_float", use_fast_gelu=True, dtype="float")
-        self._test_rcr(
-            [1, 7, 64, 127], "dynamic_m_float", use_fast_gelu=True, dtype="float"
+    def test_gemm_rcr_fast_gelu_fp16(self):
+        self._test_gemm_rcr_fast_gelu(
+            Ms=[128],
+            test_name="static_fp16",
+            dtype="float16",
+        )
+        self._test_gemm_rcr_fast_gelu(
+            Ms=[1, 7, 64, 127],
+            test_name="dynamic_m_fp16",
+            dtype="float16",
         )
 
-    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
-    def test_gemm_rcr_fast_gelu_bfloat16_sm80(self):
-        self._test_rcr(
-            [128],
-            "static_float",
-            use_fast_gelu=True,
-            atol=3e-1,
-            rtol=3e-1,
+    def test_gemm_rcr_fast_gelu_fp16_rocm(self):
+        self._test_gemm_rcr_fast_gelu(
+            Ms=[128],
+            test_name="static_fp16_rocm",
+            dtype="float16",
+        )
+
+    def test_gemm_rcr_fast_gelu_fp32_sm80(self):
+        self._test_gemm_rcr_fast_gelu(
+            Ms=[128],
+            test_name="static_fp32",
+            dtype="float32",
+        )
+        self._test_gemm_rcr_fast_gelu(
+            Ms=[1, 7, 64, 127],
+            test_name="dynamic_m_fp32",
+            dtype="float32",
+        )
+
+    def test_gemm_rcr_fast_gelu_bf16(self):
+        self._test_gemm_rcr_fast_gelu(
+            Ms=[128],
+            test_name="static_bf16",
             dtype="bfloat16",
         )
-        self._test_rcr(
-            [1, 7, 64, 127], "dynamic_m_float", use_fast_gelu=True, dtype="bfloat16"
+        self._test_gemm_rcr_fast_gelu(
+            Ms=[1, 7, 64, 127],
+            test_name="dynamic_m_bf16",
+            dtype="bfloat16",
         )
+
+    def test_gemm_rcr_fast_gelu_sm90(self):
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # input alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_gemm_rcr_fast_gelu(
+                    Ms=[1, 7, 64, 127],
+                    K=1020,
+                    test_name="wrong_input_alignment_sm90",
+                    dtype="float16",
+                )
+
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # output alignment < 8 not supported by SM90 TMA epilogues
+                self._test_gemm_rcr_fast_gelu(
+                    Ms=[1, 7, 64, 127],
+                    N=63,
+                    test_name="wrong_output_alignment_sm90",
+                    dtype="float16",
+                )
+
+            self._test_gemm_rcr_fast_gelu(
+                Ms=[1, 7, 64, 127],
+                test_name="dynamic_m_fp16_force_sm90",
+                dtype="float16",
+            )
+            self._test_gemm_rcr_fast_gelu(
+                Ms=[1, 7, 64, 127],
+                test_name="dynamic_m_bf16_force_sm90",
+                dtype="bfloat16",
+            )
 
 
 filter_test_cases_by_test_env(GEMMRcrFastGeluTestCase)
+
 
 if __name__ == "__main__":
     unittest.main()

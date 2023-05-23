@@ -16,7 +16,13 @@
 """
 CUDA backend codegen functions.
 """
-from aitemplate.backend.cuda import cuda_common, lib_template, target_def, utils
+from aitemplate.backend.cuda import (
+    builder_cmake,
+    cuda_common,
+    lib_template,
+    target_def,
+    utils,
+)
 from aitemplate.backend.cuda.common import *
 from aitemplate.backend.cuda.conv2d import *
 from aitemplate.backend.cuda.conv3d import *

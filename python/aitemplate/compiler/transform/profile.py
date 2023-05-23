@@ -86,7 +86,7 @@ def profile(
         f"generated {len(generated_profilers)} profilers elapsed time: {elapsed_dt_sec(start_t)}",
     )
     start_t = datetime.now()
-    compile_engine = builder.Builder()
+    compile_engine = builder.get_compile_engine()
     compile_engine.make_profilers(generated_profilers, profiler_dir)
     _LOGGER.info(f"compiled profilers elapsed time: {elapsed_dt_sec(start_t)}")
     funcs_to_profile = OrderedDict(

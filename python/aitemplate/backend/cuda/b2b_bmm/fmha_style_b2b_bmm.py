@@ -42,12 +42,12 @@ constexpr bool kSingleValueIteration = ({{head_dim_value}} <= kKeysPerBlock);
 }  // end namespace
 
 {{func_signature}} {
+  using ElementInput = {{elem_input_type}};
   using ElementOutput = {{elem_output_type}};
   using ElementAccumulator = {{elem_accum_type}};
-  using ElementCompute = {{elem_input_type}};
 
   using Attention = AttentionKernel<
-    ElementCompute,
+    ElementInput,
     ElementAccumulator,
     cutlass::arch::Sm80,  // ArchTag
     true,                 // Memory is aligned
@@ -66,11 +66,11 @@ constexpr bool kSingleValueIteration = ({{head_dim_value}} <= kKeysPerBlock);
 
   typename Attention::Params p;
   { // set parameters
-    p.query_ptr = static_cast<ElementCompute*>(query);
-    p.key_ptr = static_cast<ElementCompute*>(key);
-    p.value_ptr = static_cast<ElementCompute*>(value);
+    p.query_ptr = static_cast<ElementInput*>(query);
+    p.key_ptr = static_cast<ElementInput*>(key);
+    p.value_ptr = static_cast<ElementInput*>(value);
     if (bias) {
-      p.attn_bias_ptr = static_cast<ElementCompute*>(bias);
+      p.attn_bias_ptr = static_cast<ElementInput*>(bias);
     }
     p.output_accum_ptr = nullptr;
     if (Attention::kNeedsOutputAccumulatorBuffer) {
@@ -234,10 +234,14 @@ def fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
     elem_output_type = backend_spec.dtype_to_lib_type(
         func_attrs["outputs"][0]._attrs["dtype"]
     )
-    elem_accum_type = elem_input_type
-    if elem_input_type == "cutlass:half_t" and not Target.current()._kwargs.get(
-        "use_fp16_acc", False
+
+    if (
+        "use_fp16_acc" in Target.current()._kwargs
+        and Target.current()._kwargs["use_fp16_acc"]
+        and elem_input_type == "cutlass::half_t"
     ):
+        elem_accum_type = "cutlass::half_t"
+    else:
         elem_accum_type = "float"
 
     import cutlass_lib

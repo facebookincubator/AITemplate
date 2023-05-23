@@ -59,3 +59,39 @@ def short_str(s, length=8) -> str:
     """
     hash_str = hashlib.sha256(s.encode()).hexdigest()
     return hash_str[0:length]
+
+
+def callstack_stats(enable=False):
+    if enable:
+
+        def decorator(f):
+            import cProfile
+            import io
+            import pstats
+
+            logger = logging.getLogger(__name__)
+
+            def inner_function(*args, **kwargs):
+                pr = cProfile.Profile()
+                pr.enable()
+                result = f(*args, **kwargs)
+                pr.disable()
+                s = io.StringIO()
+                pstats.Stats(pr, stream=s).sort_stats(
+                    pstats.SortKey.CUMULATIVE
+                ).print_stats(30)
+                logger.debug(s.getvalue())
+                return result
+
+            return inner_function
+
+        return decorator
+    else:
+
+        def decorator(f):
+            def inner_function(*args, **kwargs):
+                return f(*args, **kwargs)
+
+            return inner_function
+
+        return decorator

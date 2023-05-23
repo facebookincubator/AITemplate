@@ -268,7 +268,8 @@ class ProfilerRunner:
         timeout : int
             timeout to wait for all profilers completion in seconds
         """
-        if devices is None:
+        if not devices:
+            # devices is either None or empty list: use device 0
             devices = [0]
         # This queue is used to ensure only one task is executed on a device at a time
         self._device_queue = Queue()

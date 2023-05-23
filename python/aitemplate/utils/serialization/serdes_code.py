@@ -15,6 +15,7 @@
 """
 Dump/Read sorted_graph to/from python code.
 """
+import copy
 import os
 
 from typing import Dict, List, Optional, Tuple, Union
@@ -310,6 +311,7 @@ def dump_program(
     """
     if isinstance(sorted_graph, Tensor):
         sorted_graph = [sorted_graph]
+    sorted_graph = copy.deepcopy(sorted_graph)
 
     # Make sure the graph is in correct order and has names and param set correctly.
     sorted_graph = toposort(sorted_graph)

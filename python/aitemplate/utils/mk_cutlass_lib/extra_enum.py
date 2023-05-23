@@ -131,9 +131,9 @@ class EpiloguePermuteLayout(enum.Enum):
   NoPermute = enum_auto()
 
 EpiloguePermuteLayoutTag = {
-  EpiloguePermuteLayout.Permute5D_20314: 'cutlass::layout::Tensor5DPermute20314',
-  EpiloguePermuteLayout.Permute4D_0213: 'cutlass::layout::Tensor4DPermute0213',
-  EpiloguePermuteLayout.Permute4DBMM_0213: 'cutlass::layout::Tensor4DPermuteBMM0213',
+  EpiloguePermuteLayout.Permute5D_20314: 'cutlass::layout::Tensor5DPermute20314RowMajor',
+  EpiloguePermuteLayout.Permute4D_0213: 'cutlass::layout::Tensor4DPermute0213RowMajor',
+  EpiloguePermuteLayout.Permute4DBMM_0213: 'cutlass::layout::Tensor4DPermuteBMM0213RowMajor',
   EpiloguePermuteLayout.NoPermute: 'cutlass::layout::NoPermute',
   # EpiloguePermuteLayout.Permute3DBMM_021: 'cutlass::layout::Tensor3DPermute021BMM',
 }
@@ -144,6 +144,92 @@ EpiloguePermuteLayoutName = {
   "Permute4DBMM_0213": EpiloguePermuteLayout.Permute4DBMM_0213,
   "NoPermute": EpiloguePermuteLayout.NoPermute,
   # "Permute3DBMM_021": EpiloguePermuteLayout.Permute3DBMM_021,
+}
+
+class EpilogueScheduleType(enum.Enum):
+  ScheduleAuto = enum_auto()
+  EpilogueTransposed = enum_auto()
+  NoSmemWarpSpecialized = enum_auto()
+  TmaWarpSpecialized = enum_auto()
+  TmaWarpSpecializedCooperative = enum_auto()
+  TmaWarpSpecializedElementwiseRelu = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseRelu = enum_auto()
+  TmaWarpSpecializedElementwiseSigmoid = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseSigmoid = enum_auto()
+  TmaWarpSpecializedElementwiseSiLu = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseSiLu = enum_auto()
+  TmaWarpSpecializedElementwiseTanh = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseTanh = enum_auto()
+  TmaWarpSpecializedElementwiseHardSwish = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseHardSwish = enum_auto()
+  TmaWarpSpecializedElementwiseGELU = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseGELU = enum_auto()
+  TmaWarpSpecializedElementwiseFastGELU = enum_auto()
+  TmaWarpSpecializedCooperativeElementwiseFastGELU = enum_auto()
+
+EpilogueScheduleTag = {
+  EpilogueScheduleType.ScheduleAuto: 'cutlass::epilogue::collective::EpilogueScheduleAuto',
+  EpilogueScheduleType.EpilogueTransposed: 'cutlass::gemm::EpilogueTransposed',
+  EpilogueScheduleType.NoSmemWarpSpecialized: 'cutlass::epilogue::NoSmemWarpSpecialized',
+  EpilogueScheduleType.TmaWarpSpecialized: 'cutlass::epilogue::TmaWarpSpecialized',
+  EpilogueScheduleType.TmaWarpSpecializedCooperative: 'cutlass::epilogue::TmaWarpSpecializedCooperative',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseRelu: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::ReLu>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::ReLu>',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseSigmoid: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::Sigmoid>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSigmoid: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::Sigmoid>',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseSiLu: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::SiLu>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSiLu: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::SiLu>',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseTanh: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::Tanh>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseTanh: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::Tanh>',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseHardSwish: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::HardSwish>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseHardSwish: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::HardSwish>',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseGELU: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::GELU>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::GELU>',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::GELU_taylor>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::GELU_taylor>',
+}
+
+EpilogueScheduleSuffixes = {
+  EpilogueScheduleType.ScheduleAuto: '',
+  EpilogueScheduleType.EpilogueTransposed: '',
+  EpilogueScheduleType.NoSmemWarpSpecialized: '_epi_nosmem',
+  EpilogueScheduleType.TmaWarpSpecialized: '_epi_tma',
+  EpilogueScheduleType.TmaWarpSpecializedCooperative: '_epi_tma',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseRelu: '_epi_tma_relu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu: '_epi_tma_relu',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseSigmoid: '_epi_tma_sigmoid',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSigmoid: '_epi_tma_sigmoid',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseSiLu: '_epi_tma_silu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSiLu: '_epi_tma_silu',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseTanh: '_epi_tma_tanh',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseTanh: '_epi_tma_tanh',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseHardSwish: '_epi_tma_hardswish',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseHardSwish: '_epi_tma_hardswish',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseGELU: '_epi_tma_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU: '_epi_tma_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU: '_epi_tma_fast_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU: '_epi_tma_fast_gelu',
+}
+
+EpilogueScheduleMapping = {
+  EpilogueScheduleType.TmaWarpSpecialized: {
+    EpilogueFunctor.LinearCombinationRelu: EpilogueScheduleType.TmaWarpSpecializedElementwiseRelu,
+    EpilogueFunctor.LinearCombinationSigmoid: EpilogueScheduleType.TmaWarpSpecializedElementwiseSigmoid,
+    EpilogueFunctor.LinearCombinationSilu: EpilogueScheduleType.TmaWarpSpecializedElementwiseSiLu,
+    EpilogueFunctor.LinearCombinationTanh: EpilogueScheduleType.TmaWarpSpecializedElementwiseTanh,
+    EpilogueFunctor.LinearCombinationHardSwish: EpilogueScheduleType.TmaWarpSpecializedElementwiseHardSwish,
+    EpilogueFunctor.LinearCombinationGELU: EpilogueScheduleType.TmaWarpSpecializedElementwiseGELU,
+    EpilogueFunctor.LinearCombinationFastGELU: EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU,
+  },
+  EpilogueScheduleType.TmaWarpSpecializedCooperative: {
+    EpilogueFunctor.LinearCombinationRelu: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu,
+    EpilogueFunctor.LinearCombinationSigmoid: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSigmoid,
+    EpilogueFunctor.LinearCombinationSilu: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSiLu,
+    EpilogueFunctor.LinearCombinationTanh: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseTanh,
+    EpilogueFunctor.LinearCombinationHardSwish: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseHardSwish,
+    EpilogueFunctor.LinearCombinationGELU: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU,
+    EpilogueFunctor.LinearCombinationFastGELU: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU,
+  },
 }
 
 """

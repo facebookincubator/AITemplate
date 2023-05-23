@@ -15,6 +15,7 @@
 """
 Operator definition for groupnorm.
 """
+import itertools
 import logging
 import os
 import re
@@ -38,6 +39,7 @@ from aitemplate.compiler.base import (
 from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
 
 from aitemplate.testing import detect_target
+from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,W0223
 
@@ -49,6 +51,19 @@ EXEC_COND_TEMPLATE = jinja2.Template(
 {{indent}}if ({{cond}}) {
 {{indent}}  {{program}}
 {{indent}}}
+"""
+)
+
+SHAPE_FUNC_TEMPLATE = jinja2.Template(
+    """
+{{indent}}{{dtype}}NI = {{x_dim0}};
+{{indent}}{{dtype}}HI = {{x_dim1}};
+{{indent}}{{dtype}}WI = {{x_dim2}};
+{{indent}}{{dtype}}CI = {{x_dim3}};
+{{indent}}{{dtype}}NO = NI;
+{{indent}}{{dtype}}HO = HI;
+{{indent}}{{dtype}}WO = WI;
+{{indent}}{{dtype}}CO = {{x_dim3}};
 """
 )
 
@@ -67,6 +82,7 @@ class group_norm(Operator):
             self._attrs["has_profiler"] = True
         self._attrs["num_channels"] = num_channels
         self._attrs["workspace"] = 0
+        self.shape_eval_template = SHAPE_FUNC_TEMPLATE
 
     @staticmethod
     def check_shapes(x_shapes, gamma_shapes, beta_shapes, num_groups):
@@ -111,8 +127,51 @@ class group_norm(Operator):
 
     def _infer_shapes(self, x: Tensor):
         """Infer shapes for groupnorm."""
-
         return x._attrs["shape"]
+
+    def _infer_shape(self, x: List[int]):
+        eval_func = self.shape_eval_template.render(
+            indent="",
+            dtype="",
+            div="//",
+            x_dim0=x[0],
+            x_dim1=x[1],
+            x_dim2=x[2],
+            x_dim3=x[3],
+        )
+        output = {}
+        exec(eval_func, output)  # noqa: P204
+        return [
+            int(output["NO"]),
+            int(output["HO"]),
+            int(output["WO"]),
+            int(output["CO"]),
+        ]
+
+    def _infer_shapes_v2(self, x: Tensor):
+        x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
+        x_shapes = itertools.product(*x_shape_values)
+        # run infershape for each
+        y_shapes = []
+        for x_shape in x_shapes:
+            y_shape = self._infer_shape(x_shape)
+            y_shapes.append(y_shape)
+
+        def unique(vector):
+            return sorted(set(vector))
+
+        output_shape = [
+            x.shape()[0],
+            shape_utils.gen_int_var(unique([d[1] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[2] for d in y_shapes])),
+            shape_utils.gen_int_var(unique([d[3] for d in y_shapes])),
+        ]
+
+        in_h = x._attrs["shape"][1]._attrs["symbolic_value"]
+        in_w = x._attrs["shape"][2]._attrs["symbolic_value"]
+        output_shape[1]._attrs["symbolic_value"] = in_h
+        output_shape[2]._attrs["symbolic_value"] = in_w
+        return output_shape
 
     def __call__(
         self,

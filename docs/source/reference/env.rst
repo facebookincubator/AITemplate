@@ -16,6 +16,16 @@ Codegen
 
 **AIT_TIME_COMPILATION**: If set to "1", time each make command at the compilation time. This helps us to do compilation time analysis. Requires to install `time <https://man7.org/linux/man-pages/man1/time.1.html>`_ package.
 
+**AIT_MULTISTREAM_MODE**: Controls multi-stream mode. Default mode is "0".
+* If set to "0", then no multistreaming is used.
+* If set to "1", then a simple multistreaming is used (iteratively track a wavefront of independent operators and execute ones).
+
+**AIT_MULTISTREAM_EXTRA_STREAMS**: Specifies the number of additional streams used. Default value is "4".
+
+**AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS**: Maximum number of parallel operators used in memory planning for simple multi-stream mode. Default value is "99999999" (basically, unlimited).
+
+**AIT_USE_CMAKE_COMPILATION**: (An experimental feature) If set to "1", then `cmake` will used instead of `make`. This allows to build AITemplate using MSVC Compiler + MSBuild on Windows, and it works for linux as well. This builder does not support many features (such as caching) yet. But it allows to generate a cmake project that can be loaded to a modern IDE. Default value is "0".
+
 Profiling
 ---------
 
@@ -48,3 +58,5 @@ Miscellaneous
 **LOGLEVEL**: It is used to control the logging level in Python. The default value is "INFO". "DEBUG" is useful for debugging.
 
 **AIT_PLOT_SHORTEN_TENSOR_NAMES**: If set to "1", shorten too long tensor names for a plot of a model graph, thus making a plot much easier to analyze visually. "0" by default.
+
+**AIT_USE_FAST_MATH**: If set to "0", no fast math option will be used for the device code generation. Default value is "1".

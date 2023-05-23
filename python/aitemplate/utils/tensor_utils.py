@@ -21,8 +21,8 @@ def wrap_dim(idx, rank):
     """
     Wrap tensor index, idx, if it's negative.
     """
-    assert isinstance(idx, int)
+    assert isinstance(idx, int), "idx must be int, but got {}".format(type(idx))
     if idx < 0:
         idx = idx + rank
-    assert idx < rank
+    assert idx < rank, "idx {} out of range; rank {}".format(idx, rank)
     return idx

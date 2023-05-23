@@ -17,6 +17,8 @@ Basic data types of AITemplate.
 """
 from __future__ import annotations
 
+import copy
+
 import math
 
 from abc import ABC, abstractmethod
@@ -940,6 +942,12 @@ class Tensor(Node):
             )
         self._attrs["data"] = data
 
+    def __deepcopy__(self, memo):
+        result = Tensor(self.shape())
+        memo[id(self)] = result
+        result._attrs = copy.deepcopy(self._attrs, memo)
+        return result
+
     def __add__(self, other: Any) -> Tensor:
         return OP_REGISTRY.get("ADD")(self, other)
 
@@ -1032,6 +1040,12 @@ class IntVarTensor(Tensor):
     def pseudo_code(self, with_shape=True) -> str:
         return f"IntVarTensor({self._attrs['int_var'].pseudo_code()})"
 
+    def __deepcopy__(self, memo):
+        result = IntVarTensor(self._attrs["int_var"])
+        memo[id(self)] = result
+        result._attrs = copy.deepcopy(self._attrs, memo)
+        return result
+
     def __add__(self, other: Any) -> Tensor:
         return OP_REGISTRY.get("INT_ADD")(self, other)
 
@@ -1107,6 +1121,12 @@ class Operator(Node):
         NotImplementedError
         """
         raise NotImplementedError
+
+    def __deepcopy__(self, memo):
+        result = type(self)(**self._get_op_attributes())
+        memo[id(self)] = result
+        result._attrs = copy.deepcopy(self._attrs, memo)
+        return result
 
     def _set_depth(self) -> None:
         """

@@ -33,7 +33,7 @@ from parameterized import param, parameterized
 
 class PadGemmWithElementwise(unittest.TestCase):
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [
                     param("static_M_float16", [23], 7, 3, "float16"),
@@ -92,7 +92,7 @@ class PadGemmWithElementwise(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [
                     ("static_shape_float16", [3], [1], 5, 3, "float16"),
@@ -161,7 +161,7 @@ class PadGemmWithElementwise(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [
                     ("static_shape_float16", [3], [1], 5, 3, "float16"),
@@ -234,7 +234,7 @@ class PadGemmWithElementwise(unittest.TestCase):
             self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
     @parameterized.expand(
-        filter_test_cases_by_params(
+        **filter_test_cases_by_params(
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [
                     param("static_M_float16", [23], 7, 3, "float16"),

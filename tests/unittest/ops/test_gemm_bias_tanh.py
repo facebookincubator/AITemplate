@@ -21,13 +21,12 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
-    filter_test_cases_by_params,
+    env_variables,
+    filter_test_cases_by_test_env,
     get_random_torch_tensor,
     get_torch_empty_tensor,
-    TestEnv,
 )
 from aitemplate.utils import shape_utils
-from parameterized import parameterized
 
 
 _TOLERANCE_LIMITS = {
@@ -42,11 +41,14 @@ class GEMMBiasTanhTestCase(unittest.TestCase):
         super(GEMMBiasTanhTestCase, self).__init__(*args, **kwargs)
         self._test_id = 0
 
-    def _test_rcr(self, Ms, test_name, dtype="float16"):
-        K = 1024
-        N = 64
-        target = detect_target()
-        tolerance_limits = _TOLERANCE_LIMITS[dtype]
+    def _test_gemm_rcr_bias_tanh(
+        self,
+        Ms,
+        K=1024,
+        N=64,
+        dtype="float16",
+        test_suffix=None,
+    ):
         MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
         X = Tensor(shape=[MDim, IntImm(K)], dtype=dtype, name="input_0", is_input=True)
         W = Tensor(
@@ -57,10 +59,11 @@ class GEMMBiasTanhTestCase(unittest.TestCase):
         Y = OP(X, W, B)
         Y._attrs["name"] = "output_0"
         Y._attrs["is_output"] = True
-        module = compile_model(
-            Y, target, "./tmp", f"gemm_rcr_bias_tanh_{test_name}_{self._test_id}"
-        )
+        if test_suffix is None:
+            test_suffix = dtype
+        test_name = f"gemm_rcr_bias_tanh_{test_suffix}_{self._test_id}"
         self._test_id += 1
+        module = compile_model(Y, detect_target(), "./tmp", test_name)
 
         for M in Ms:
             X_pt = get_random_torch_tensor([M, K], dtype)
@@ -72,20 +75,84 @@ class GEMMBiasTanhTestCase(unittest.TestCase):
                 {"input_0": X_pt, "input_1": W_pt, "input_2": B_pt},
                 [y],
             )
-            torch.testing.assert_close(Y_pt, y, **tolerance_limits)
+            torch.testing.assert_close(Y_pt, y, **_TOLERANCE_LIMITS[dtype])
 
-    @parameterized.expand(
-        filter_test_cases_by_params(
-            {
-                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
-                TestEnv.CUDA_SM80: [("float32"), ("bfloat16")],
-                TestEnv.ROCM: [("float16")],
-            }
+    def test_gemm_rcr_bias_tanh_fp16(self):
+        self._test_gemm_rcr_bias_tanh(
+            Ms=[128],
+            dtype="float16",
+            test_suffix="static_m_fp16",
         )
-    )
-    def test_rcr_bias_tanh_floats(self, dtype):
-        self._test_rcr([128], f"static_m_{dtype}", dtype=dtype)
-        self._test_rcr([1, 7, 64, 127], f"dynamic_m_{dtype}", dtype=dtype)
+        self._test_gemm_rcr_bias_tanh(
+            Ms=[1, 7, 64, 127],
+            dtype="float16",
+            test_suffix="dynamic_m_fp16",
+        )
+
+    def test_gemm_rcr_bias_tanh_fp16_rocm(self):
+        self._test_gemm_rcr_bias_tanh(
+            Ms=[128],
+            dtype="float16",
+            test_suffix="static_m_fp16",
+        )
+
+    def test_gemm_rcr_bias_tanh_fp32_sm80(self):
+        self._test_gemm_rcr_bias_tanh(
+            Ms=[128],
+            dtype="float32",
+            test_suffix="static_m_fp32",
+        )
+
+    def test_gemm_rcr_bias_tanh_bf16(self):
+        self._test_gemm_rcr_bias_tanh(
+            Ms=[128],
+            dtype="bfloat16",
+            test_suffix="static_m_bf16",
+        )
+
+    def test_gemm_rcr_bias_tanh_sm90(self):
+        with env_variables(
+            AIT_FORCE_CUTLASS_SM90_KERNELS="1",
+            INSIDE_RE_WORKER="1",
+        ):
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # input alignment < 8 not supported by SM90 kernels
+                # use alignment 4 to avoid auto-padding to 8
+                self._test_gemm_rcr_bias_tanh(
+                    Ms=[128],
+                    K=1020,
+                    dtype="float16",
+                    test_suffix="wrong_input_alignment_sm90",
+                )
+
+            with self.assertRaisesRegex(
+                expected_exception=RuntimeError,
+                expected_regex="No GEMM op instances are left after filtering",
+            ):
+                # output alignment < 8 not supported by SM90 TMA epilogues
+                self._test_gemm_rcr_bias_tanh(
+                    Ms=[128],
+                    N=63,
+                    dtype="float16",
+                    test_suffix="wrong_output_alignment_sm90",
+                )
+
+            self._test_gemm_rcr_bias_tanh(
+                Ms=[128],
+                dtype="float16",
+                test_suffix="float16_force_sm90",
+            )
+            self._test_gemm_rcr_bias_tanh(
+                Ms=[128],
+                dtype="bfloat16",
+                test_suffix="bfloat16_force_sm90",
+            )
+
+
+filter_test_cases_by_test_env(GEMMBiasTanhTestCase)
 
 
 if __name__ == "__main__":

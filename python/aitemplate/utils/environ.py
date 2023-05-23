@@ -36,6 +36,16 @@ def get_compiler_opt_level() -> str:
     return compiler_opt
 
 
+def use_fast_math() -> str:
+    """
+    Whether the fast math option should be used for the device code generation.
+    Fast math implies the use of approximate math operations (say,
+    a division operation), allowing to gain speed at the cost of accuracy.
+    Default value is "1".
+    """
+    return os.getenv("AIT_USE_FAST_MATH", "1") == "1"
+
+
 def force_profiler_cache() -> bool:
     """
     Force the profiler to use the cached results. The profiler will throw
@@ -117,3 +127,93 @@ def ait_build_cache_max_mb() -> int:
     be skipped. Defaults to 30.
     """
     return int(os.environ.get("AIT_BUILD_CACHE_MAX_MB", "30"))
+
+
+def allow_cutlass_sm90_kernels() -> bool:
+    """
+    Whether the SM90 CUTLASS kernels should to be considered
+    alongside the SM80 CUTLASS kernels on the CUDA arch 90
+    (for the CUDA back-end of the GEMM ops). Default: False.
+    """
+    return (
+        force_cutlass_sm90_kernels()
+        or os.getenv("AIT_ALLOW_CUTLASS_SM90_KERNELS", "0") == "1"
+    )
+
+
+def force_cutlass_sm90_kernels() -> bool:
+    """
+    Whether only the SM90 CUTLASS kernels (and not the SM80 ones)
+    should be considered on the CUDA arch 90 (for the CUDA
+    back-end of the GEMM ops). Default: False.
+    """
+    return os.getenv("AIT_FORCE_CUTLASS_SM90_KERNELS", "0") == "1"
+
+
+def multistream_mode() -> int:
+    """
+    Multi-stream mode. 0 - no multistream. 1 - simple multistream.
+    Default: 0.
+    """
+
+    # temporarily override it in order to test
+    return int(os.getenv("AIT_MULTISTREAM_MODE", "0"))
+
+
+def multistream_additional_streams() -> int:
+    """
+    Number of extra streams in multi-stream mode.
+
+    This option is independent from AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS.
+
+    For example, say, there are 100 ops that can be run in parallel.
+
+    Example 1: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=100.
+    In this case 5 streams will be used (1 base and 4 extra),
+    every stream gets 20 operators and no inter-stream barriers are used.
+    Memory planning is done for 100 parallel ops.
+
+    Example 2: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=5.
+    In this case 5 streams will be used (1 base and 4 extra),
+    there will be 20 waves separated by inter-stream barriers,
+    every stream gets 1 operator for every wave.
+    Memory planning is done for 20 waves of 5 parallel ops each.
+
+    """
+    return int(os.getenv("AIT_MULTISTREAM_EXTRA_STREAMS", "4"))
+
+
+def multistream_max_mem_parallel_ops() -> int:
+    """
+    Maximum number of parallel operators used in memory planning
+    for simple multi-stream mode.
+    Larger value imply higher level of possible parallelism, but
+    higher memory allocations.
+
+    This option is independent from AIT_MULTISTREAM_EXTRA_STREAMS.
+
+    For example, say, there are 100 ops that can be run in parallel.
+
+    Example 1: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=100.
+    In this case 5 streams will be used (1 base and 4 extra),
+    every stream gets 20 operators and no inter-stream barriers are used.
+    Memory planning is done for 100 parallel ops.
+
+    Example 2: AIT_MULTISTREAM_EXTRA_STREAMS=4 and AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS=5.
+    In this case 5 streams will be used (1 base and 4 extra),
+    there will be 20 waves separated by inter-stream barriers,
+    every stream gets 1 operator for every wave.
+    Memory planning is done for 20 waves of 5 parallel ops each.
+    """
+    # unlimited by default
+    return int(os.getenv("AIT_MULTISTREAM_MAX_MEM_PARALLEL_OPS", "99999999"))
+
+
+def is_cmake_compilation() -> bool:
+    """
+    When enabled, compiles the model via invoking CMake rather than
+    invoking make directly.
+    """
+
+    # todo: replace with more builders?
+    return os.getenv("AIT_USE_CMAKE_COMPILATION", "0") == "1"

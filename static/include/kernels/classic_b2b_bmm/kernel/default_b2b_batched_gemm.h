@@ -196,7 +196,7 @@ struct DefaultB2bGemmBatched<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, 
   /// Define the threadblock-scoped matrix multiply-accumulate
   using B2bMma = typename cutlass::gemm::threadblock::DefaultB2bMma<
       ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, kAlignmentB, LayoutB1,
-      ElementAccumulator, layout::RowMajor, arch::OpClassTensorOp, arch::Sm80,
+      ElementC, ElementAccumulator, layout::RowMajor, arch::OpClassTensorOp, arch::Sm80,
       ThreadblockShape0, ThreadblockShape1, WarpShape0, WarpShape1,
       InstructionShape, Stages, Operator, CausalMaskAfterGemm0, EpilogueOutputOp0>::ThreadblockB2bMma;
 
@@ -205,7 +205,7 @@ struct DefaultB2bGemmBatched<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, 
 
   /// Define the epilogue
   using Epilogue =
-      typename cutlass::epilogue::threadblock::DefaultEpilogueTensorOp<
+      typename cutlass::epilogue::threadblock::classic_b2b_bmm::DefaultEpilogueTensorOp<
           ThreadblockShape1, typename B2bMma::Operator1, kPartitionsK1, EpilogueOutputOp1,
           EpilogueOutputOp1::kCount>::Epilogue;
 

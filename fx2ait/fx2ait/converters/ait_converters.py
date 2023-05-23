@@ -17,7 +17,7 @@ import math
 import operator
 from typing import Dict, List, Sequence, Tuple, Union
 
-import numpy as np
+import torch
 
 from aitemplate.compiler.public import (
     avg_pool2d,
@@ -40,10 +40,12 @@ from aitemplate.compiler.public import (
     gemm_rrr,
     getitem,
     group_norm,
+    identity,
     IntImm,
     IntVar,
     IntVarTensor,
     layernorm,
+    masked_select,
     max_pool2d,
     ndhwc3to8,
     pad_last_dim,
@@ -213,7 +215,9 @@ def acc_ops_clone(
     input_val = kwargs["input"]
     # deepcopy results with an error. replace with Idnetity multiplication by 1.
     # TODO: implement __deepcopy__ / clone for AITTensor.
-    one_const = AITTensor(shape=[], dtype="float16", name="one_const", value=1.0)
+    one_const = AITTensor(
+        shape=[], dtype=input_val.dtype(), name="one_const", value=1.0
+    )
     identity_mul_result = elementwise(FuncEnum.MUL)(input_val, one_const)
     return identity_mul_result
 
@@ -669,7 +673,8 @@ def acc_ops_slice(
             num_none_indices += 1
             continue
         if isinstance(i, int):
-            i = get_positive_dim(i, input_val.shape()[index].value())
+            if isinstance(input_val.shape()[index], IntImm):
+                i = get_positive_dim(i, input_val.shape()[index].value())
             # If we pass an int, we need to squeeze this dim.
             # Note that because we skip None-indices before, so we adjust
             # the index by subtracting the number of None-indices.
@@ -752,17 +757,8 @@ def acc_ops_topk(
     if sorted is not None:
         logger.warning("Ignoring the value of 'sorted': %s", sorted)
 
-    result_indices = topk(k=k)(input_val)
-    # current AIT implementation only returns indices. to match the torch topk return types, create dummy values
-    #
-    # TODO remove the hard coded dtype below, once we know whether AIT will support fp32 (thus providing an option of
-    # fp16 or fp32 for values)
-    return (
-        AITTensor(
-            shape=result_indices.shape(), dtype="float16", name=f"{name}_result_values"
-        ),
-        result_indices,
-    )
+    result = topk(k=k)(input_val)
+    return result
 
 
 @ait_converter(acc_ops.tuple_construct)
@@ -905,16 +901,22 @@ def acc_ops_nan_to_num(
 
     def _get_dtype(dtype: str):
         if dtype in ("float", "float32"):
-            return np.float32
-        elif dtype == "float16":
-            return np.float16
+            return torch.float32
+        elif dtype in ("half", "float16"):
+            return torch.float16
+        elif dtype == "bfloat16":
+            return torch.bfloat16
         else:
             raise NotImplementedError(f"Unsupported dtype {dtype} for nan_to_num")
 
     input_dtype = input_val.dtype()
-    np_dtype = _get_dtype(input_dtype)
-    posinf = np.finfo(np_dtype).max if kwargs["posinf"] is None else kwargs["posinf"]
-    neginf = np.finfo(np_dtype).min if kwargs["neginf"] is None else kwargs["neginf"]
+    torch_dtype = _get_dtype(input_dtype)
+    posinf = (
+        torch.finfo(torch_dtype).max if kwargs["posinf"] is None else kwargs["posinf"]
+    )
+    neginf = (
+        torch.finfo(torch_dtype).min if kwargs["neginf"] is None else kwargs["neginf"]
+    )
     return elementwise(FuncEnum.NAN_TO_NUM)(
         input_val,
         AITTensor(value=nan, shape=[], name="nan", dtype=input_dtype),
@@ -1093,6 +1095,9 @@ def ait_acc_ops_split(
         raise ValueError(
             f"Unexpected value for split_size_or_sections in {name}: {split_size_or_sections}"
         )
+
+    if "dim" not in kwargs:
+        return split()(input_val, split_size_or_sections)
 
     dim = kwargs["dim"]
     if not isinstance(dim, int):
@@ -1551,7 +1556,8 @@ def acc_ops_contiguous(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    return kwargs["input"]
+    input_val = kwargs["input"]
+    return identity()(input_val)
 
 
 @ait_converter(acc_ops.to_dtype)
@@ -1561,7 +1567,12 @@ def acc_ops_to_dtype(
     kwargs: Dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
-    return kwargs["input"]
+    # We suppose to bypass this op but in extreme case like
+    # a = placeholder(); return a.to()
+    # It introduces a node in AIT graph which has is_input=True and is_output=True. The node name is output_xx
+    # fx2ait throws error when doing the input name binding. So we need an identity layer.
+    input_val = kwargs["input"]
+    return identity()(input_val)
 
 
 @ait_converter(acc_ops.gelu)
@@ -1645,7 +1656,7 @@ def acc_ops_neg(
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     new_kwargs = kwargs.copy()
     dt = new_kwargs["input"]._attrs["dtype"]
-    if dt == "float16" or dt == "float32":
+    if dt == "float16" or dt == "float32" or dt == "bfloat16":
         new_kwargs["other"] = float(-1)
     elif dt == "int32" or dt == "int64":
         new_kwargs["other"] = int(-1)
@@ -1733,3 +1744,15 @@ def acc_ops_zeros_like(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
     return full()(input_val.shape(), 0, dtype=input_val.dtype())
+
+
+@ait_converter(acc_ops.masked_select)
+def acc_ops_masked_select(
+    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+    mask = kwargs["mask"]
+
+    return masked_select()(input_val, mask)

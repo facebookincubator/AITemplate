@@ -117,6 +117,8 @@ def optimize_graph(
         split_large_split_ops,
         transform_permute_to_reshape,
         transform_memory_ops,
+        # FIXME: temporarily disable this due to some accuracy issue
+        # eliminate_permutations,
     ]
 
     if not optimize:

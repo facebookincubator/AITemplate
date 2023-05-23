@@ -46,7 +46,10 @@ def _check_permute_to_reshape(op: Operator) -> bool:
         op._attrs["op"], len(inputs)
     )
 
-    input_shape = inputs[0].shape()
+    if "input_accessors" in op._attrs:
+        input_shape = op._attrs["input_accessors"][0].original_shapes
+    else:
+        input_shape = inputs[0].shape()
 
     if op._attrs["op"] == "permute":
         permutation = list(op._attrs["dims"])
@@ -63,7 +66,12 @@ def _check_permute_to_reshape(op: Operator) -> bool:
         raise NotImplementedError(
             f"Not implemented for permute operation: {op._attrs['op']}"
         )
-
+    if "input_accessors" in op._attrs:
+        # Can't convert permute to reshape if one of the dimensions included
+        # in permutation is strided
+        ta = op._attrs["input_accessors"][0]
+        if ta.is_from_strided_tensor and ta.stride_dim in permutation:
+            return False
     # Get non-singular dimension indices
     permutation = [
         dim_idx
@@ -85,8 +93,15 @@ def transform_permute_to_reshape(
     it's basically a reshape op, i.e. the underlying memory layout
     does not change.
 
-    Example:
+    If a permute op has a non-empty input tensor accessor, its original shape
+    should be used to determine whether it can be converted to reshape.
+    In this case the shape of the actual input tensor might not match the rank
+    of the permutation (but the original shape does) - see the second
+    example below.
+
+    Examples:
         [256x5x1x32] -> [256x5x32x1] (with 0132) is a reshape
+        [256x5x32] -> [256x5x1x32] (with 0132) is a reshape
         [256x1x5x1x32] -> [256x5x32x1x1] (with 02431) is a reshape
         [256x5x1x32] -> [256x32x5x1] (with 0312) is not a reshape
 
