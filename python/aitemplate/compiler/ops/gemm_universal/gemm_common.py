@@ -440,10 +440,14 @@ class gemm(Operator):
             for wkl in workloads:
                 exec_entry_sha1 = sha1(wkl.encode("utf-8")).hexdigest()
                 query = GemmQueryEntry(
-                    dtype_a=tmp_op.A.element.value,
-                    dtype_b=tmp_op.B.element.value,
-                    dtype_c=tmp_op.C.element.value,
-                    dtype_acc=tmp_op.accumulator_type().value,
+                    # 1 is subtracted from the type enum values for consistency with the existing
+                    # cache databases; due to the "void" type being added to the DataType enum as
+                    # the very first enum member (and shifting the values of other enum members) in
+                    # https://github.com/NVIDIA/cutlass/commit/7c04f954151f606e60608061e891785fba229ae2
+                    dtype_a=tmp_op.A.element.value - 1,
+                    dtype_b=tmp_op.B.element.value - 1,
+                    dtype_c=tmp_op.C.element.value - 1,
+                    dtype_acc=tmp_op.accumulator_type().value - 1,
                     major_a=tmp_op.A.layout.value,
                     major_b=tmp_op.B.layout.value,
                     major_c=tmp_op.C.layout.value,
@@ -633,10 +637,14 @@ class gemm(Operator):
         # have a cache entry for the problem size before gen_profiler, we will
         # setup exec_path correctly in gen_profiler, so we won't get here at all.
         query = GemmQueryEntry(
-            dtype_a=tmp_op.A.element.value,
-            dtype_b=tmp_op.B.element.value,
-            dtype_c=tmp_op.C.element.value,
-            dtype_acc=tmp_op.accumulator_type().value,
+            # 1 is subtracted from the type enum values for consistency with the existing
+            # cache databases; due to the "void" type being added to the DataType enum as
+            # the very first enum member (and shifting the values of other enum members) in
+            # https://github.com/NVIDIA/cutlass/commit/7c04f954151f606e60608061e891785fba229ae2
+            dtype_a=tmp_op.A.element.value - 1,
+            dtype_b=tmp_op.B.element.value - 1,
+            dtype_c=tmp_op.C.element.value - 1,
+            dtype_acc=tmp_op.accumulator_type().value - 1,
             major_a=tmp_op.A.layout.value,
             major_b=tmp_op.B.layout.value,
             major_c=tmp_op.C.layout.value,
@@ -903,10 +911,14 @@ class GemmProfilerPostprocessingDelegate:
             cache_record = GemmRecordEntry(
                 exec_entry=exec_key,
                 exec_entry_sha1=exec_entry_sha1,
-                dtype_a=tmp_op.A.element.value,
-                dtype_b=tmp_op.B.element.value,
-                dtype_c=tmp_op.C.element.value,
-                dtype_acc=tmp_op.accumulator_type().value,
+                # 1 is subtracted from the type enum values for consistency with the existing
+                # cache databases; due to the "void" type being added to the DataType enum as
+                # the very first enum member (and shifting the values of other enum members) in
+                # https://github.com/NVIDIA/cutlass/commit/7c04f954151f606e60608061e891785fba229ae2
+                dtype_a=tmp_op.A.element.value - 1,
+                dtype_b=tmp_op.B.element.value - 1,
+                dtype_c=tmp_op.C.element.value - 1,
+                dtype_acc=tmp_op.accumulator_type().value - 1,
                 major_a=tmp_op.A.layout.value,
                 major_b=tmp_op.B.layout.value,
                 major_c=tmp_op.C.layout.value,
