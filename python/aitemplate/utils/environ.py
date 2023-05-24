@@ -46,6 +46,14 @@ def use_fast_math() -> str:
     return os.getenv("AIT_USE_FAST_MATH", "1") == "1"
 
 
+def enable_cuda_lto() -> bool:
+    """
+    nvcc will use LTO flags during compilation
+    Default value is "0".
+    """
+    return os.getenv("AIT_ENABLE_CUDA_LTO", "0") == "1"
+
+
 def force_profiler_cache() -> bool:
     """
     Force the profiler to use the cached results. The profiler will throw
