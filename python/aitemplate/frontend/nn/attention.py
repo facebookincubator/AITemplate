@@ -331,17 +331,17 @@ class CrossAttention(Module):
 
         self.op = ops.mem_eff_attention(causal=causal)
 
-        self.query = Linear(
+        self.proj_q = Linear(
             dim,
             dim,
             bias=qkv_bias,
         )
-        self.key = Linear(
+        self.proj_k = Linear(
             dim,
             dim,
             bias=qkv_bias,
         )
-        self.value = Linear(
+        self.proj_v = Linear(
             dim,
             dim,
             bias=qkv_bias,
@@ -355,9 +355,9 @@ class CrossAttention(Module):
         batch = q.shape()[0]
         head_dim = self.dim // self.num_heads
 
-        query = self.query(q)
-        key = self.key(k)
-        value = self.value(v)
+        query = self.proj_q(q)
+        key = self.proj_k(k)
+        value = self.proj_v(v)
         
         if detect_target().name() == "cuda":
             query = ops.permute()(
