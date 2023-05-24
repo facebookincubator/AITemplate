@@ -41,6 +41,7 @@ class BatchnormTestCase(unittest.TestCase):
         bn_op,
         input_shape,
         input_type="float16",
+        test_name="batch_norm",
     ):
         pt_op = getattr(torch.nn, bn_op)(num_features).cuda().half().eval()
         ait_op = getattr(batch_norm, bn_op)(
@@ -73,8 +74,13 @@ class BatchnormTestCase(unittest.TestCase):
 
         target = detect_target()
         module = compile_model(
-            Y_ait, target, "./tmp", f"batch_norm_{self.test_id}", constants=params_ait
+            Y_ait,
+            target,
+            "./tmp",
+            f"{test_name}_{self.test_id}",
+            constants=params_ait,
         )
+        self.test_id += 1
 
         y = get_torch_empty_tensor(Ys_ait, dtype=input_type)
         inputs = {"input0": X_pt}
@@ -87,13 +93,22 @@ class BatchnormTestCase(unittest.TestCase):
     def test_batch_norm(self):
         self._test_batchnorm(num_features=3, bn_op="BatchNorm1d", input_shape=[5, 3])
         self._test_batchnorm(
-            num_features=3, bn_op="BatchNorm1d", input_shape=[5, 3, 234]
+            num_features=3,
+            bn_op="BatchNorm1d",
+            input_shape=[5, 3, 234],
+            test_name="batch_norm_1d",
         )
         self._test_batchnorm(
-            num_features=3, bn_op="BatchNorm2d", input_shape=[1, 3, 244, 244]
+            num_features=3,
+            bn_op="BatchNorm2d",
+            input_shape=[1, 3, 244, 244],
+            test_name="batch_norm_2d",
         )
         self._test_batchnorm(
-            num_features=6, bn_op="BatchNorm3d", input_shape=[4, 6, 24, 24, 11]
+            num_features=6,
+            bn_op="BatchNorm3d",
+            input_shape=[4, 6, 24, 24, 11],
+            test_name="batch_norm_3d",
         )
 
 
