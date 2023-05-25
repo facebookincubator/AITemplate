@@ -24,14 +24,36 @@ import jinja2
 
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.target import Target
+from aitemplate.compiler.base import IntVar
+
+INPUT_ADDR_CALCULATOR = jinja2.Template(
+    """
+    {% if accessor_a.is_from_strided_tensor %}
+      stride_a = {{accessor_a.stride(0)}};
+      offset_a = {{accessor_a.offset}}; // default to 0
+    {% endif %}
+    {% if accessor_b.is_from_strided_tensor %}
+      stride_b = {{accessor_b.stride(0)}};
+      offset_b = {{accessor_b.offset}}; // default to 0
+    {% endif %}
+    """
+)
 
 # pylint: disable=C0103,C0415,W0611,C0301
+OUTPUT_ADDR_CALCULATOR = jinja2.Template(
+    """
+  {% if output_accessor.is_from_strided_tensor %}
+    stride_c = {{output_accessor.actual_total_elements_from_stride_dim}};
+    offset_c = {{output_accessor.offset}};
+  {% endif %}
+    """
+)
 
 EXTRA_SHAPE_TEMPLATE = jinja2.Template(
     """
-{{indent}}const int64_t stride_a = *a_dim1;
-{{indent}}const int64_t stride_b = *b_dim1;
-{{indent}}const int64_t stride_c = *c_dim1;
+{{indent}}ck::index_t stride_a = *a_dim1;
+{{indent}}ck::index_t stride_b = *b_dim1;
+{{indent}}ck::index_t stride_c = *c_dim1;
 """
 )
 
@@ -43,6 +65,7 @@ using {{name}} = {{ config_name }};
 """
 )
 
+
 EXEC_TEMPLATE = jinja2.Template(
     """
 {{indent}}auto op =  {{instance}}{};
@@ -51,9 +74,7 @@ EXEC_TEMPLATE = jinja2.Template(
 {{problem_args}}
 {{indent}});
 {{indent}}if(!op.IsSupportedArgument(argument)) {
-{{indent}}  throw std::runtime_error(
-{{indent}}    "wrong! device_gemm with the specified compilation parameters does "
-{{indent}}    "not support this Gemm problem");
+{{indent}}  LOG(FATAL) << "wrong! " << op.GetTypeString() << " with the specified compilation parameters does not support this Gemm problem.";
 {{indent}}}
 {% if is_profiler %}
 {{indent}}auto workspace_size = op.GetWorkSpaceSize(&argument);
@@ -68,17 +89,16 @@ EXEC_TEMPLATE = jinja2.Template(
 EXTRA_HEADER_TEMPLATE = jinja2.Template(
     """
 {% if gemm_flag == "" %}
-#include "include/ck/tensor_operation/gpu/device/device_gemm_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp"
 {% elif gemm_flag == "permute_m2n3" %}
-#include "ck/tensor_operation/gpu/device/device_batched_contraction_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_contraction_multiple_d_xdl_cshuffle.hpp"
 {% elif "bias" in gemm_flag or has_d0 %}
-#include "ck/tensor_operation/gpu/device/device_gemm_multiple_d_xdl_cshuffle.hpp"
-    {% if gemm_flag == "bias_permute" %}
-#include "ck/tensor_operation/gpu/device/device_gemm_bias_e_permute_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
+{% elif gemm_flag in ["permute", "bias_permute"] %}
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_bias_e_permute_xdl.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-    {% elif gemm_flag in ["bias_permute_m2n3", "bias_permute_m3n2"]  %}
-#include "ck/tensor_operation/gpu/device/device_batched_contraction_multiple_d_xdl_cshuffle.hpp"
-    {% endif %}
+{% elif gemm_flag in ["bias_permute_m2n3", "bias_permute_m3n2"]  %}
+#include "ck/tensor_operation/gpu/device/impl/device_batched_contraction_multiple_d_xdl_cshuffle.hpp"
 {% endif %}
 """
 )
@@ -93,6 +113,7 @@ SRC_TEMPLATE = jinja2.Template(
 // #include <half.hpp>
 #include <random>
 #include <rocrand/rocrand.h>
+#include "logging.h"
 #include "include/ck/utility/print.hpp"
 #include "library/include/ck/library/utility/device_memory.hpp"
 #include "library/include/ck/library/utility/host_tensor.hpp"
@@ -111,7 +132,7 @@ void {{function_name}}(
     void * in_ptr,
     void * weight_ptr,
     void * out_ptr,
-{% if "bias" in gemm_flag %}
+{% if "bias" in gemm_flag or gemm_flag == "add" %}
     void * bias_ptr,
 {% endif %}
 {% if has_d0 %}
@@ -135,14 +156,15 @@ void {{function_name}}(
     hipStream_t stream
     ) {
   {{shape_func}}
+  int64_t offset_a = 0;
+  int64_t offset_b = 0;
+  int64_t offset_c = 0;
   {{extra_shape}}
   {{input_addr_calculator}}
   {{output_addr_calculator}}
   {{exec_paths}}
 
-  throw std::runtime_error(
-      "Unsupported workload for this gemm specialization."
-  );
+  LOG(FATAL) << "Unsupported workload for this gemm specialization.";
 }
 """
 )
@@ -153,7 +175,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{in_ptr}},
 {{indent}}    {{weight_ptr}},
 {{indent}}    {{out_ptr}},
-{% if "bias" in gemm_flag %}
+{% if "bias" in gemm_flag or gemm_flag == "add" %}
 {{indent}}    {{bias_ptr}},
 {% endif %}
 {% if d0_ptr != "" %}
@@ -182,11 +204,13 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 PROBLEM_ARGS_TEMPLATE = jinja2.Template(
     """
-{{indent}}                                static_cast<ck::half_t *>(in_ptr),
-{{indent}}                                static_cast<ck::half_t *>(weight_ptr),
+{{indent}}                                static_cast<ck::half_t *>(in_ptr) + offset_a,
+{{indent}}                                static_cast<ck::half_t *>(weight_ptr) + offset_b,
 
 {% if gemm_flag == "bias_permute" %}
 {{indent}}                                static_cast<ck::half_t *>(bias_ptr),
+{% elif gemm_flag == "permute" %}
+{{indent}}                                nullptr,
 {% elif gemm_flag == "bias_permute_m2n3" %}
 {{indent}}                                std::array<const void*, 1>{static_cast<ck::half_t *>(bias_ptr)},
 {% elif gemm_flag == "permute_m2n3" %}
@@ -203,7 +227,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
                                                                     static_cast<ck::half_t *>(d1_ptr)},
 {% endif %}
 {% endif %}
-{{indent}}                                static_cast<ck::half_t *>(out_ptr),
+{{indent}}                                static_cast<ck::half_t *>(out_ptr) + offset_c,
 {% if gemm_flag not in ["permute_m2n3", "bias_permute_m2n3", "bias_permute_m3n2"]  %}
 {{indent}}                                M,
 {{indent}}                                N,
@@ -213,6 +237,9 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {% endif %}
 {% if gemm_flag == "bias_permute" %}
 {{indent}}                                {M0, M1, M2, N0, N1, stride_D_M0, stride_D_M1, stride_D_M2, stride_D_N0, stride_D_N1},
+{{indent}}                                {M0, M1, M2, N0, N1, stride_E_M0, stride_E_M1, stride_E_M2, stride_E_N0, stride_E_N1},
+{% elif gemm_flag == "permute" %}
+{{indent}}                                {},
 {{indent}}                                {M0, M1, M2, N0, N1, stride_E_M0, stride_E_M1, stride_E_M2, stride_E_N0, stride_E_N1},
 {% elif gemm_flag in ["permute_m2n3", "bias_permute_m2n3", "bias_permute_m3n2"]  %}
 {{indent}}                                a_ms_ks_lengths,
@@ -242,7 +269,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {% if gemm_flag == "" %}
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{}
-{% elif gemm_flag == "permute_m2n3" %}
+{% elif gemm_flag in ["permute", "permute_m2n3"] %}
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{}
 {% elif gemm_flag == "bias" or "bias_permute" in gemm_flag %}
 {{indent}}                                ck::tensor_operation::element_wise::Add{}
@@ -251,6 +278,8 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {% elif gemm_flag == "bias_fast_gelu" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddFastGelu{}
 {% elif gemm_flag == "bias_swish" %}
+{{indent}}                                ck::tensor_operation::element_wise::AddSwish{}
+{% elif gemm_flag == "bias_hardswish" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddHardswish{}
 {% elif gemm_flag == "bias_tanh" %}
 {{indent}}                                ck::tensor_operation::element_wise::AddTanh{}
@@ -449,8 +478,9 @@ int main(int argc, char** argv) {
     {{func_call}}
   }
   timer->End();
-  std::cout << "WS:" <<GLOBAL_WORKSPACE_SIZE<<std::endl;
-  std::cout << "TIME:" << timer->GetElapsedTime() << std::endl;
+  std::cout << "OP:" << "{{op_name}}" << ",";
+  std::cout << "TIME:" << timer->GetElapsedTime() << ",";
+  std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
   delete(timer);
 }
 """
@@ -463,7 +493,7 @@ void {{func_name}}(
   void *,
   void *,
   void *,
-{% if "bias" in gemm_flag %}
+{% if "bias" in gemm_flag or gemm_flag == "add" %}
   void *,
 {% endif %}
 {% if has_d0 %}
@@ -608,7 +638,7 @@ def gen_profiler(
     op_instance = func_attrs["op_instance"]
     # shape function
     op_func_shape = gemm_common.gen_shape_eval_code(
-        indent=2, dtype="int64_t", dim_info_dict=dim_info_dict, is_ptr=True
+        indent=2, dtype="ck::index_t", dim_info_dict=dim_info_dict, is_ptr=True
     )
 
     adims = ["&a_dim" + str(i) for i in range(ndims)]
@@ -621,6 +651,7 @@ def gen_profiler(
     file_pairs = []
     has_d0_flag = has_d0(func_attrs)
     has_d1_flag = has_d1(func_attrs)
+
     for op_name, op in op_instance.items():
         config = emit_instance(op)
         config_name = extract_config_name(config)
@@ -685,6 +716,7 @@ def gen_profiler(
             args_parse=args_parse,
             tensor_decl=tensor_decl,
             func_call=func_call,
+            op_name=op_name,
         )
         prefix = os.path.join(workdir, "profiler", op_type)
         if not os.path.exists(prefix):
@@ -769,7 +801,7 @@ def gen_function(
 
     extra_shape_func = extra_shape_template.render(indent="  ")
     shape_eval_func = gemm_common.gen_shape_eval_code(
-        indent=1, dtype="int64_t", dim_info_dict=dim_info_dict, is_ptr=True
+        indent=1, dtype="ck::index_t", dim_info_dict=dim_info_dict, is_ptr=True
     )
     exec_paths = ""
     for key, _ in instances.items():
@@ -786,6 +818,13 @@ def gen_function(
             problem_args=problem_args,
             is_profiler=False,
         )
+        has_dynamic_shape = False
+        for inp in func_attrs["inputs"]:
+            for dim in inp.shape():
+                if isinstance(dim, IntVar):
+                    has_dynamic_shape = True
+        if has_dynamic_shape:
+            key = "true"
         exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst
     extra_header = extra_header_template.render(
@@ -858,7 +897,7 @@ def gen_function_call(func_attrs, indent="  ", gemm_flag=""):
     b = func_attrs["inputs"][1]
     c = func_attrs["outputs"][0]
     bias_ptr = ""
-    if "bias" in gemm_flag:
+    if "bias" in gemm_flag or gemm_flag == "add":
         bias = func_attrs["inputs"][2]
         bias_ptr = bias._attrs["name"]
     d0_ptr = ""
@@ -965,5 +1004,15 @@ def make_fproc_f16(func_attrs, layout, op_kind, extra_kind):
             b_layout=b_layout,
             c_layout=c_layout,
         )
-
+    has_dynamic_shape = False
+    for inp in func_attrs["inputs"]:
+        for dim in inp.shape():
+            if isinstance(dim, IntVar):
+                has_dynamic_shape = True
     func_attrs["op_instance"] = extract_config(op_kind, extra_kind, fproc_f16)
+    if has_dynamic_shape:
+        filtered_op_instance = {}
+        for op_name, op in func_attrs["op_instance"].items():
+            if "Padding" in emit_instance(op):
+                filtered_op_instance[op_name] = op
+        func_attrs["op_instance"] = filtered_op_instance

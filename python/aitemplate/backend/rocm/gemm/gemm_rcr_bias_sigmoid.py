@@ -28,7 +28,7 @@ from aitemplate.backend.rocm.gemm.layout import RCR
 
 EXTRA_CODE = jinja2.Template(
     """
-#include "data_type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -143,6 +143,13 @@ def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
         dim_info_dict,
         "bias_sigmoid",
         extra_code=EXTRA_CODE.render(),
+        input_addr_calculator=common.INPUT_ADDR_CALCULATOR.render(
+            accessor_a=func_attrs["input_accessors"][0],
+            accessor_b=func_attrs["input_accessors"][1],
+        ),
+        output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
+            output_accessor=func_attrs["output_accessors"][0]
+        ),
     )
 
 

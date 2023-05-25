@@ -19,11 +19,53 @@ This is used for `torch.nn.functional.linear + swish`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
 
+import jinja2
+
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.gemm import common
 from aitemplate.backend.rocm.gemm.layout import RCR
 
 # pylint: disable=C0415,W0613
+EXTRA_CODE = jinja2.Template(
+    """
+#include "ck/utility/data_type.hpp"
+
+namespace ck {
+namespace tensor_operation {
+namespace element_wise {
+namespace {
+struct AddSwish
+{
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
+    template <>
+    __host__ __device__ constexpr void
+    operator()<float>(float& y, const float& x0, const float& x1) const
+    {
+        const float a = x0 + x1;
+        y             = a / (1.0f + exp(-a));
+    };
+    template <>
+    __host__ __device__ constexpr void
+    operator()<double>(double& y, const double& x0, const double& x1) const
+    {
+        const double a = x0 + x1;
+        y              = a / (1.0 + exp(-a));
+    };
+    template <>
+    __host__ __device__ constexpr void
+    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    {
+        const half_t a = x0 + x1;
+        y              = a / (type_convert<half_t>(1.0) + type_convert<half_t>(exp(ck::type_convert<float>(-a))));
+    };
+};
+} // namespace
+} // namespace element_wise
+} // namespace tensor_operation
+} // namespace ck
+"""
+)
 
 
 @registry.reg("rocm.gemm_rcr_bias_swish.config")
@@ -45,7 +87,7 @@ def gemm_config(func_attrs, dtype="float16"):
     import ck_lib  # noqa: F401
 
     op_kind = ck_lib.library.GemmKind.Gemm
-    extra_kind = ck_lib.library.TensorOperation.AddHardswish
+    extra_kind = ck_lib.library.TensorOperation.AddSwish
     common.make_fproc_f16(func_attrs, RCR, op_kind, extra_kind)
 
 
@@ -69,6 +111,7 @@ def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
         dim_info_dict=dim_info_dict,
         args_parse=RCR.args_parse,
         gemm_flag="bias_swish",
+        extra_code=EXTRA_CODE.render(),
     )
 
 
@@ -96,6 +139,14 @@ def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
         exec_cond_template,
         dim_info_dict,
         "bias_swish",
+        extra_code=EXTRA_CODE.render(),
+        input_addr_calculator=common.INPUT_ADDR_CALCULATOR.render(
+            accessor_a=func_attrs["input_accessors"][0],
+            accessor_b=func_attrs["input_accessors"][1],
+        ),
+        output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
+            output_accessor=func_attrs["output_accessors"][0]
+        ),
     )
 
 

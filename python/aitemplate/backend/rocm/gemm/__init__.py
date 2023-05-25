@@ -17,10 +17,13 @@ Rocm gemm init.
 """
 from aitemplate.backend.rocm.gemm import (  # noqa: F401
     bmm_ccr,
+    bmm_ccr_add,
     bmm_crr,
+    bmm_crr_add,
     bmm_rcr,
     bmm_rcr_permute,
     bmm_rrr,
+    bmm_rrr_add,
     bmm_rrr_permute,
     bmm_softmax_bmm,
     bmm_softmax_bmm_permute,
@@ -43,6 +46,7 @@ from aitemplate.backend.rocm.gemm import (  # noqa: F401
     gemm_rcr_bias_sigmoid_mul_tanh,
     gemm_rcr_bias_swish,
     gemm_rcr_bias_tanh,
+    gemm_rcr_permute,
     gemm_rcr_permute_m2n3,
     gemm_rrr,
     gemm_rrr_bias_permute,
