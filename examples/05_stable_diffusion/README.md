@@ -52,12 +52,13 @@ The original pipeline requires a diffusers model local dir, and relies directly 
 
 * AITemplate modules are created
 * Model weights are loaded, converted/mapped, then applied to AITemplate module
-* Scheduler and tokenizer are created from `runwayml/stable-diffusion-v1-5` and `openai/clip-vit-large-patch14` respectively
+* Tokenizer is created from `openai/clip-vit-large-patch14`.
+* Scheduler is created from `hf-hub-or-path`.
+* Loading CLIPTextModel from `ckpt` requires the appropriate `hf-hub-or-path` to be specified i.e. `runwayml/stable-diffusion-v1-5` for SD1.x checkpoints, `stabilityai/stable-diffusion-2-1` for SD2.x checkpoints.
 
 ```
-python3 scripts/demo.py --hf-hub-or-path runwayml/stable-diffusion-v1-5
-or
-python3 scripts/demo.py --ckpt v1-5-pruned-emaonly.ckpt
+python3 scripts/demo.py --hf-hub-or-path runwayml/stable-diffusion-v1-5 --ckpt v1-5-pruned-emaonly.ckpt
+python3 scripts/demo.py --hf-hub-or-path stabilityai/stable-diffusion-2-1 --ckpt v2-1_768-ema-pruned.ckpt
 ```
 
 `--ckpt` takes preference over `--hf-hub-or-path` if both are specified
