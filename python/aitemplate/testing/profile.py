@@ -93,7 +93,7 @@ def profile_callable(
     n_groups = len(sorted_events) // n_iter
     # in each group (corresponding to a profiling iteration),
     # skip measuring the first kernel, which is the l2 cache flush
-    event_groups = [g[0:] for g in zip(*([iter(sorted_events)] * n_groups))]
+    event_groups = [g[1:] for g in zip(*([iter(sorted_events)] * n_groups))]
     logger.info(
         f"First kernel sequence: {list(map(itemgetter('name'), event_groups[0]))}"
     )
