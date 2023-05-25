@@ -408,6 +408,7 @@ class ROCMSpec(GPUBackendSpec):
     prefix = "hip"
     stream = "stream"
     cub = "hipcub"
+    tile_size = 64
 
     cast_to_ptr_template = jinja2.Template("reinterpret_cast<{{dtype}}*>({{name}})")
     cast_to_half_ptr_template = jinja2.Template("reinterpret_cast<half*>({{name}})")
@@ -446,6 +447,7 @@ class CUDASpec(GPUBackendSpec):
     prefix = "cuda"
     stream = "stream"
     cub = "cub"
+    tile_size = 32
 
     cast_to_ptr_template = jinja2.Template("reinterpret_cast<{{dtype}}*>({{name}})")
     cast_to_half_ptr_template = jinja2.Template("reinterpret_cast<half*>({{name}})")

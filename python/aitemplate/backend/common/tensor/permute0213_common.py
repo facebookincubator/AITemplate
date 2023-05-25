@@ -185,7 +185,7 @@ SRC_TEMPLATE = jinja2.Template(
     """
 {{header_files}}
 
-#define TILE_SIZE 32
+#define TILE_SIZE {{tile_size}}
 #define ITEMS_PER_THREAD 4
 #define DIRECT_BLOCK_Y 4
 #define DIRECT_BLOCK_Z 2
@@ -353,8 +353,8 @@ void permute0213_launcher(const void* in_ptr,
   } else {
     const int m = ((M + TILE_SIZE - 1) / TILE_SIZE);
 
-    dim3 grid((D + 31) / 32, (N + DIRECT_BLOCK_Y - 1) / DIRECT_BLOCK_Y, B * m);
-    dim3 block(32, DIRECT_BLOCK_Y, DIRECT_BLOCK_Z);  // x = 32, the warp size
+    dim3 grid((D + TILE_SIZE - 1) / TILE_SIZE, (N + DIRECT_BLOCK_Y - 1) / DIRECT_BLOCK_Y, B * m);
+    dim3 block(TILE_SIZE, DIRECT_BLOCK_Y, DIRECT_BLOCK_Z);  // x = TILE_SIZE, the warp size
 
     permute0213_direct_kernel<T><<<grid, block, 0, stream>>>(
       static_cast<T*>(out_ptr),
@@ -421,6 +421,7 @@ def gen_function(
         dtype=backend_spec.dtype_to_backend_type(xdtype),
     )
     return SRC_TEMPLATE.render(
+        tile_size=backend_spec.tile_size,
         function_name=func_name,
         exec_paths=exec_paths,
         header_files=header_files,

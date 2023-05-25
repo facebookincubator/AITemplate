@@ -199,13 +199,13 @@ def create_template_args(
     # Efficient vectorized & buffered repeat copy implementation,
     # even for odd shapes
     custom_libs = Target.current().get_custom_libs(
-        os.path.dirname(__file__), "repeat.cuh"
+        os.path.dirname(__file__), "repeat.h"
     )
     rocm_spec = ROCMSpec()
     dtype = rocm_spec.dtype_to_backend_dtype[x.dtype()]
     assert (
         dtype is not None
-    ), f"CUDA implementation does not support dtype {x.dtype()} (yet)"
+    ), f"ROCM implementation does not support dtype {x.dtype()} (yet)"
     dtype2 = rocm_spec.type_for_size.get(rocm_spec.sizeof_types[dtype] * 2, None)
     dtype4 = rocm_spec.type_for_size.get(rocm_spec.sizeof_types[dtype] * 4, None)
     xshape = x._attrs["shape"]
@@ -359,7 +359,7 @@ def create_template_args(
         "grid_blocks_x": grid_blocks_x,  # number of x grid blocks in the strided copy kernel
         "grid_threads_y": grid_threads_y,  # number of y threads per grid block in the strided copy kernel
         "grid_threads_x": grid_threads_x,  # number of x threads per grid block in the strided copy kernel
-        "custom_libs": custom_libs,  # custom library path, e.g. path to repeat.cuh
+        "custom_libs": custom_libs,  # custom library path, e.g. path to repeat.h
     }
 
 
