@@ -36,7 +36,6 @@ class TestResNet(unittest.TestCase):
         verify_accuracy(
             model,
             inputs,
-            permute_inputs=[0, 2, 3, 1],
         )
         results = []
         for batch_size in [1, 8, 16, 32, 256, 512]:
@@ -47,7 +46,6 @@ class TestResNet(unittest.TestCase):
                     100,
                     model,
                     inputs,
-                    permute_inputs=[0, 2, 3, 1],
                 )
             )
         for res in results:

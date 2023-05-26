@@ -1397,13 +1397,11 @@ def acc_ops_max_pool3d(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
-    if (
-        isinstance(kwargs["kernel_size"], tuple)
-        and isinstance(kwargs["stride"], tuple)
-        and isinstance(kwargs["padding"], tuple)
+    if isinstance(kwargs["kernel_size"], tuple) and isinstance(
+        kwargs["padding"], tuple
     ):
         kernel_size_tuple = kwargs["kernel_size"]
-        stride_tuple = kwargs["stride"]
+        stride_tuple = kwargs["stride"] if kwargs["stride"] else kwargs["kernel_size"]
         padding_tuple = kwargs["padding"]
 
         assert kernel_size_tuple[0] == 1, "max_pool3d only supports kT == 1 currently"
@@ -1415,13 +1413,9 @@ def acc_ops_max_pool3d(
         kernel_size = identical_elem_tuple_to_int(kernel_size_tuple[1:])
         stride = identical_elem_tuple_to_int(stride_tuple[1:])
         padding = identical_elem_tuple_to_int(padding_tuple[1:])
-    elif (
-        isinstance(kwargs["kernel_size"], int)
-        and isinstance(kwargs["stride"], int)
-        and isinstance(kwargs["padding"], int)
-    ):
+    elif isinstance(kwargs["kernel_size"], int) and isinstance(kwargs["padding"], int):
         kernel_size = kwargs["kernel_size"]
-        stride = kwargs["stride"]
+        stride = kwargs["stride"] if kwargs["stride"] else kwargs["kernel_size"]
         padding = kwargs["padding"]
     else:
         raise RuntimeError("Only int or tuple types are supported")
@@ -1470,7 +1464,11 @@ def acc_ops_max_pool2d(
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
     kernel_size = identical_elem_tuple_to_int(kwargs["kernel_size"])
-    stride = identical_elem_tuple_to_int(kwargs["stride"])
+    stride = (
+        identical_elem_tuple_to_int(kwargs["stride"])
+        if kwargs["stride"]
+        else kernel_size
+    )
     padding = identical_elem_tuple_to_int(kwargs["padding"])
     ceil_mode = kwargs["ceil_mode"]
     return_indices = kwargs["return_indices"]
@@ -1494,7 +1492,11 @@ def acc_ops_avg_pool2d(
         raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
 
     kernel_size = identical_elem_tuple_to_int(kwargs["kernel_size"])
-    stride = identical_elem_tuple_to_int(kwargs["stride"])
+    stride = (
+        identical_elem_tuple_to_int(kwargs["stride"])
+        if kwargs["stride"]
+        else kernel_size
+    )
     padding = identical_elem_tuple_to_int(kwargs["padding"])
     ceil_mode = kwargs["ceil_mode"]
     count_include_pad = kwargs["count_include_pad"]

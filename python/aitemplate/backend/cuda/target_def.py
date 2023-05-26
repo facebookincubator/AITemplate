@@ -136,10 +136,14 @@ class CUDA(Target):
         return self._build_gnu_host_compiler_options()
 
     def _build_nvcc_compiler_options(self) -> List[str]:
+        code = [f"sm_{self._arch}", f"compute_{self._arch}"]
+        if environ.enable_cuda_lto():
+            code += [f"lto_{self._arch}"]
         options = [
+            "-t=0",
             "-DCUTLASS_ENABLE_TENSOR_CORE_MMA=1",
             "-w",
-            f"-gencode=arch=compute_{self._arch},code=[sm_{self._arch},compute_{self._arch}]",
+            f"-gencode=arch=compute_{self._arch},code=[{','.join(code)}]",
             environ.get_compiler_opt_level(),
             "-std=c++17",
             "--expt-relaxed-constexpr",
