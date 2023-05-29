@@ -46,7 +46,6 @@ from aitemplate.backend.rocm.gemm import (  # noqa: F401
     gemm_rcr_bias_sigmoid_mul_tanh,
     gemm_rcr_bias_swish,
     gemm_rcr_bias_tanh,
-    gemm_rcr_permute,
     gemm_rcr_permute_m2n3,
     gemm_rrr,
     gemm_rrr_bias_permute,
