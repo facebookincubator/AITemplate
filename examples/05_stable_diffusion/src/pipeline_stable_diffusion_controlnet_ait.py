@@ -13,20 +13,20 @@
 #  limitations under the License.
 #
 import inspect
-
 import os
-import re
 from typing import List, Optional, Union
 
 import torch
 from aitemplate.compiler import Model
-
-from diffusers import AutoencoderKL, EulerDiscreteScheduler, UNet2DConditionModel
-
+from diffusers import (
+    AutoencoderKL,
+    ControlNetModel,
+    EulerDiscreteScheduler,
+    UNet2DConditionModel,
+)
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils.pil_utils import numpy_to_pil
 from tqdm import tqdm
-
 from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 
 from .compile_lib.compile_vae_alt import map_vae_params
@@ -541,74 +541,6 @@ def convert_ldm_unet_checkpoint(unet_state_dict, layers_per_block=2):
     return new_checkpoint
 
 
-textenc_conversion_lst = [
-    ("positional_embedding", "text_model.embeddings.position_embedding.weight"),
-    ("token_embedding.weight", "text_model.embeddings.token_embedding.weight"),
-    ("ln_final.weight", "text_model.final_layer_norm.weight"),
-    ("ln_final.bias", "text_model.final_layer_norm.bias"),
-]
-textenc_conversion_map = {x[0]: x[1] for x in textenc_conversion_lst}
-
-textenc_transformer_conversion_lst = [
-    # (stable-diffusion, HF Diffusers)
-    ("resblocks.", "text_model.encoder.layers."),
-    ("ln_1", "layer_norm1"),
-    ("ln_2", "layer_norm2"),
-    (".c_fc.", ".fc1."),
-    (".c_proj.", ".fc2."),
-    (".attn", ".self_attn"),
-    ("ln_final.", "transformer.text_model.final_layer_norm."),
-    (
-        "token_embedding.weight",
-        "transformer.text_model.embeddings.token_embedding.weight",
-    ),
-    (
-        "positional_embedding",
-        "transformer.text_model.embeddings.position_embedding.weight",
-    ),
-]
-protected = {re.escape(x[0]): x[1] for x in textenc_transformer_conversion_lst}
-textenc_pattern = re.compile("|".join(protected.keys()))
-
-
-def convert_text_enc_state_dict(state_dict):
-    if "transformer.resblocks.22.ln_1.bias" not in state_dict.keys():
-        return state_dict  # SD1.x
-    new_state_dict = {}
-    d_model = 1024
-    for key, arr in state_dict.items():
-        if "resblocks.23" in key:
-            continue  # diffusers skips the last layer
-        if key in textenc_conversion_map:
-            new_state_dict[textenc_conversion_map[key]] = arr
-        if key.startswith("transformer."):
-            new_key = key[len("transformer.") :]
-            if new_key.endswith(".in_proj_weight"):
-                new_key = new_key[: -len(".in_proj_weight")]
-                new_key = textenc_pattern.sub(
-                    lambda m: protected[re.escape(m.group(0))], new_key
-                )
-                new_state_dict[new_key + ".q_proj.weight"] = arr[:d_model, :]
-                new_state_dict[new_key + ".k_proj.weight"] = arr[
-                    d_model : d_model * 2, :
-                ]
-                new_state_dict[new_key + ".v_proj.weight"] = arr[d_model * 2 :, :]
-            elif new_key.endswith(".in_proj_bias"):
-                new_key = new_key[: -len(".in_proj_bias")]
-                new_key = textenc_pattern.sub(
-                    lambda m: protected[re.escape(m.group(0))], new_key
-                )
-                new_state_dict[new_key + ".q_proj.bias"] = arr[:d_model]
-                new_state_dict[new_key + ".k_proj.bias"] = arr[d_model : d_model * 2]
-                new_state_dict[new_key + ".v_proj.bias"] = arr[d_model * 2 :]
-            else:
-                new_key = textenc_pattern.sub(
-                    lambda m: protected[re.escape(m.group(0))], new_key
-                )
-                new_state_dict[new_key] = arr
-    return new_state_dict
-
-
 # =========================#
 #    AITemplate mapping   #
 # =========================#
@@ -659,6 +591,32 @@ def map_clip_state_dict(state_dict):
     return params_ait
 
 
+def map_controlnet_params(pt_mod):
+    pt_params = dict(pt_mod.named_parameters())
+    params_ait = {}
+    for key, arr in pt_params.items():
+        if len(arr.shape) == 4:
+            arr = arr.permute((0, 2, 3, 1)).contiguous()
+        elif key.endswith("ff.net.0.proj.weight"):
+            w1, w2 = arr.chunk(2, dim=0)
+            params_ait[key.replace(".", "_")] = w1
+            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
+            continue
+        elif key.endswith("ff.net.0.proj.bias"):
+            w1, w2 = arr.chunk(2, dim=0)
+            params_ait[key.replace(".", "_")] = w1
+            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
+            continue
+        params_ait[key.replace(".", "_")] = arr
+    params_ait["controlnet_cond_embedding_conv_in_weight"] = torch.nn.functional.pad(
+        params_ait["controlnet_cond_embedding_conv_in_weight"], (0, 1, 0, 0, 0, 0, 0, 0)
+    )
+    params_ait["arange"] = (
+        torch.arange(start=0, end=320 // 2, dtype=torch.float32).cuda().half()
+    )
+    return params_ait
+
+
 class StableDiffusionAITPipeline:
     def __init__(self, hf_hub_or_path, ckpt):
         self.device = torch.device("cuda")
@@ -684,10 +642,21 @@ class StableDiffusionAITPipeline:
                 elif key.startswith("model.diffusion_model."):
                     new_key = key.replace("model.diffusion_model.", "")
                     unet_state_dict[new_key] = state_dict[key]
-            clip_state_dict = convert_text_enc_state_dict(clip_state_dict)
+            # TODO: SD2.x clip support, get from diffusers convert_from_ckpt.py
+            # clip_state_dict = convert_text_enc_state_dict(clip_state_dict)
             unet_state_dict = convert_ldm_unet_checkpoint(unet_state_dict)
             vae_state_dict = convert_ldm_vae_checkpoint(vae_state_dict)
             state_dict = None
+
+        self.controlnet_ait_exe = self.init_ait_module("ControlNetModel", "./tmp")
+        print("Loading PyTorch ControlNet")
+        controlnet_pt = ControlNetModel.from_pretrained(
+            "lllyasviel/sd-controlnet-canny", torch_dtype=torch.float16
+        ).to("cuda")
+        controlnet_pt.eval()
+        ait_params = map_controlnet_params(controlnet_pt)
+        self.controlnet_ait_exe.set_many_constants_with_tensors(ait_params)
+        self.controlnet_ait_exe.fold_constants()
         self.clip_ait_exe = self.init_ait_module(
             model_name="CLIPTextModel", workdir=workdir
         )
@@ -704,9 +673,6 @@ class StableDiffusionAITPipeline:
                 hf_hub_or_path, subfolder="text_encoder"
             )
             self.clip_pt = CLIPTextModel(config)
-            clip_state_dict[
-                "text_model.embeddings.position_ids"
-            ] = self.clip_pt.text_model.embeddings.get_buffer("position_ids")
             self.clip_pt.load_state_dict(clip_state_dict)
         clip_params_ait = map_clip_state_dict(dict(self.clip_pt.named_parameters()))
         print("Setting constants")
@@ -718,7 +684,7 @@ class StableDiffusionAITPipeline:
         clip_params_ait = None
 
         self.unet_ait_exe = self.init_ait_module(
-            model_name="UNet2DConditionModel", workdir=workdir
+            model_name="ControlNetUNet2DConditionModel", workdir=workdir
         )
 
         print("Loading PyTorch UNet")
@@ -801,7 +767,7 @@ class StableDiffusionAITPipeline:
 
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
         self.scheduler = EulerDiscreteScheduler.from_pretrained(
-            hf_hub_or_path, subfolder="scheduler"
+            "runwayml/stable-diffusion-v1-5", subfolder="scheduler"
         )
         self.batch = 1
 
@@ -813,8 +779,39 @@ class StableDiffusionAITPipeline:
         mod = Model(os.path.join(workdir, model_name, "test.so"))
         return mod
 
+    def controlnet_inference(
+        self, latent_model_input, timesteps, encoder_hidden_states, controlnet_cond
+    ):
+        exe_module = self.controlnet_ait_exe
+        timesteps_pt = timesteps.expand(latent_model_input.shape[0])
+        inputs = {
+            "input0": latent_model_input.permute((0, 2, 3, 1))
+            .contiguous()
+            .cuda()
+            .half(),
+            "input1": timesteps_pt.cuda().half(),
+            "input2": encoder_hidden_states.cuda().half(),
+            "input3": controlnet_cond.permute((0, 2, 3, 1)).contiguous().cuda().half(),
+        }
+        ys = []
+        num_outputs = len(exe_module.get_output_name_to_index_map())
+        for i in range(num_outputs):
+            shape = exe_module.get_output_maximum_shape(i)
+            ys.append(torch.empty(shape).cuda().half())
+        exe_module.run_with_tensors(inputs, ys, graph_mode=False)
+        down_block_residuals = (y for y in ys[:-1])
+        mid_block_residuals = ys[-1]
+        return down_block_residuals, mid_block_residuals
+
     def unet_inference(
-        self, latent_model_input, timesteps, encoder_hidden_states, height, width
+        self,
+        latent_model_input,
+        timesteps,
+        encoder_hidden_states,
+        height,
+        width,
+        down_block_residuals,
+        mid_block_residual,
     ):
         exe_module = self.unet_ait_exe
         timesteps_pt = timesteps.expand(self.batch * 2)
@@ -826,6 +823,9 @@ class StableDiffusionAITPipeline:
             "input1": timesteps_pt.cuda().half(),
             "input2": encoder_hidden_states.cuda().half(),
         }
+        for i, y in enumerate(down_block_residuals):
+            inputs[f"down_block_residual_{i}"] = y
+        inputs["mid_block_residual"] = mid_block_residual
         ys = []
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
@@ -862,7 +862,7 @@ class StableDiffusionAITPipeline:
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
-            shape[0] = self.batch
+            shape[0] = self.batch * 2
             shape[1] = height
             shape[2] = width
             ys.append(torch.empty(shape).cuda().half())
@@ -874,6 +874,7 @@ class StableDiffusionAITPipeline:
     def __call__(
         self,
         prompt: Union[str, List[str]],
+        control_cond: torch.FloatTensor,
         height: Optional[int] = 512,
         width: Optional[int] = 512,
         num_inference_steps: Optional[int] = 50,
@@ -1056,7 +1057,9 @@ class StableDiffusionAITPipeline:
                 torch.cat([latents] * 2) if do_classifier_free_guidance else latents
             )
             latent_model_input = self.scheduler.scale_model_input(latent_model_input, t)
-
+            down_block_residuals, mid_block_residual = self.controlnet_inference(
+                latent_model_input, t, text_embeddings, control_cond
+            )
             # predict the noise residual
             noise_pred = self.unet_inference(
                 latent_model_input,
@@ -1064,6 +1067,8 @@ class StableDiffusionAITPipeline:
                 encoder_hidden_states=text_embeddings,
                 height=height,
                 width=width,
+                down_block_residuals=down_block_residuals,
+                mid_block_residual=mid_block_residual,
             )
 
             # perform guidance

@@ -10,6 +10,7 @@ let
     pytorch-bin
     pip
     wheel
+    click
     unidecode
     inflect
     librosa
@@ -17,6 +18,7 @@ let
     sympy
     einops
     parameterized
+    transformers
     # (
     #   buildPythonPackage rec {
     #     pname = "cuda_python";
@@ -38,7 +40,7 @@ pkgs.mkShell {
   buildInputs = [
     pkgs.cmake
     pkgs.cudatoolkit
-    (pkgs.python39.withPackages ait-deps)
+    (pkgs.python310.withPackages ait-deps)
   ];
 
   shellHook = ''

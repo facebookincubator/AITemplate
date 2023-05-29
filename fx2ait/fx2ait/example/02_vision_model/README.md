@@ -20,10 +20,8 @@ Therefore the definition of model is as simple as
             def forward(self, x):
                 return self.mod(x)
 ```
-Notice that because AIT supports channel last, while pytorch supports channel first operation, we need to permute the input
-```
-inputs = [inp.permute([0, 2, 3, 1]).contiguous() for inp in inputs]
-``
+Notice that because AIT supports channel last, while pytorch supports channel first operation, FX2AIT automatically performs this layout conversion for you.
+
 To run the test and benchmark,
 ```
 python fx2ait/fx2ait/example/02_vision_model/test_vision_model.py

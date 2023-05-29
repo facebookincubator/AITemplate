@@ -62,16 +62,11 @@ class timm_export:
         conv_w = torch.tensor(conv_w)
         bn_rm = torch.tensor(bn_rm)
         bn_rv = torch.tensor(bn_rv)
-        bn_w = torch.tensor(bn_w)
-        bn_b = torch.tensor(bn_b)
+        conv_b = torch.tensor(conv_b) if conv_b is not None else torch.zeros_like(bn_rm)
+        bn_w = torch.tensor(bn_w) if bn_w is not None else torch.ones_like(bn_rm)
+        bn_b = torch.tensor(bn_b) if bn_b is not None else torch.zeros_like(bn_rm)
         bn_eps = torch.tensor(bn_eps)
 
-        if conv_b is None:
-            conv_b = torch.zeros_like(bn_rm)
-        if bn_w is None:
-            bn_w = torch.ones_like(bn_rm)
-        if bn_b is None:
-            bn_b = torch.zeros_like(bn_rm)
         bn_var_rsqrt = torch.rsqrt(bn_rv + bn_eps)
 
         if transpose:
