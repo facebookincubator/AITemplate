@@ -2,7 +2,7 @@ name: ROCM_CI
 
 on: 
   pull_request:
-    types: [labeled]
+    types: [labeled, synchronize, reopened]
 
 jobs:
   build:
