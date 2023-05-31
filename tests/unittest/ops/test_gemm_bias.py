@@ -111,6 +111,7 @@ class GEMMBiasTestCase(unittest.TestCase):
         with env_variables(
             AIT_FORCE_CUTLASS_SM90_KERNELS="1",
             INSIDE_RE_WORKER="1",
+            FORCE_PROFILE="1",
         ):
             with self.assertRaisesRegex(
                 expected_exception=RuntimeError,
