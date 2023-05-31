@@ -38,10 +38,12 @@ from src.pipeline_stable_diffusion_ait_alt import StableDiffusionAITPipeline
 @click.option("--negative_prompt", default="", help="prompt")
 @click.option("--steps", default=50, help="Number of inference steps")
 @click.option("--cfg", default=7.5, help="Guidance scale")
+@click.option("--workdir", default="v21", help="Workdir")
 def run(
-    hf_hub_or_path, ckpt, width, height, batch, prompt, negative_prompt, steps, cfg
+    hf_hub_or_path, ckpt, width, height, batch, prompt, negative_prompt, steps, cfg, workdir
 ):
     pipe = StableDiffusionAITPipeline(
+        workdir=workdir,
         hf_hub_or_path=hf_hub_or_path,
         ckpt=ckpt,
     )
