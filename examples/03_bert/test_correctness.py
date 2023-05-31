@@ -18,7 +18,7 @@ import unittest
 
 import torch
 
-from demo import run_model
+from .demo import run_model
 
 try:
     from libfb.py.asyncio.await_utils import await_sync

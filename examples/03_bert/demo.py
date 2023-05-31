@@ -16,10 +16,10 @@ import click
 
 import torch
 
-from benchmark_ait import compile_module
-from modeling.torch_model import BertBaseUncased as BertPt
-
 from transformers import BertTokenizer
+
+from .benchmark_ait import compile_module
+from .modeling.torch_model import BertBaseUncased as BertPt
 
 
 def prepare_data(prompt: str, model_path: str):

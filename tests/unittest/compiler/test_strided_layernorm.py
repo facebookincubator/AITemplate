@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-import itertools
 import unittest
 from typing import List
 
@@ -22,6 +21,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils, torch_utils
+from parameterized import param, parameterized
 
 
 def build_ait_module(
@@ -139,6 +139,7 @@ def eval_pt(
 class SliceLayerNormTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(SliceLayerNormTestCase, self).__init__(*args, **kwargs)
+        torch.manual_seed(0)
         self._test_id = 0
 
     def _test_slice_layer_norm(
@@ -240,113 +241,140 @@ class SliceLayerNormTestCase(unittest.TestCase):
                 **kwargs,
             )
 
-    def test_slice_layer_norm_float16(self):
-        for (
-            n_normalize_over_last_dims,
-            gamma_is_none,
-            beta_is_none,
-        ) in itertools.product(
-            (1, 3),
-            (True, False),
-            (True, False),
-        ):
-            self._test_slice_layer_norm_kernels(
-                n_normalize_over_last_dims=n_normalize_over_last_dims,
-                gamma_is_none=gamma_is_none,
-                beta_is_none=beta_is_none,
-                fuse_sigmoid_mul=False,
-                test_name="test_slice_layer_norm_float16",
-            )
+    @parameterized.expand(
+        [
+            param(0, 1, True, True),
+            param(1, 1, True, False),
+            param(2, 1, False, True),
+            param(3, 1, False, False),
+            param(4, 3, True, True),
+            param(5, 3, True, False),
+            param(6, 3, False, True),
+            param(7, 3, False, False),
+        ]
+    )
+    def test_slice_layer_norm_float16(
+        self,
+        test_id,
+        n_normalize_over_last_dims,
+        gamma_is_none,
+        beta_is_none,
+    ):
+        self._test_slice_layer_norm_kernels(
+            n_normalize_over_last_dims=n_normalize_over_last_dims,
+            gamma_is_none=gamma_is_none,
+            beta_is_none=beta_is_none,
+            fuse_sigmoid_mul=False,
+            test_name=f"test_slice_layer_norm_float16_{test_id}",
+        )
 
-    def test_middle_slice_layer_norm_float16(self):
-        for (
-            n_normalize_over_last_dims,
-            gamma_is_none,
-            beta_is_none,
-        ) in itertools.product(
-            (2, 3),
-            (True, False),
-            (True, False),
-        ):
-            self._test_middle_slice_layer_norm_kernels(
-                n_normalize_over_last_dims=n_normalize_over_last_dims,
-                gamma_is_none=gamma_is_none,
-                beta_is_none=beta_is_none,
-                fuse_sigmoid_mul=False,
-                test_name="test_middle_slice_layer_norm_float16",
-            )
+    @parameterized.expand(
+        [
+            param(0, 2, True, True),
+            param(1, 2, True, False),
+            param(2, 2, False, True),
+            param(3, 2, False, False),
+            param(4, 3, True, True),
+            param(5, 3, True, False),
+            param(6, 3, False, True),
+            param(7, 3, False, False),
+        ]
+    )
+    def test_middle_slice_layer_norm_float16(
+        self,
+        test_id,
+        n_normalize_over_last_dims,
+        gamma_is_none,
+        beta_is_none,
+    ):
+        self._test_middle_slice_layer_norm_kernels(
+            n_normalize_over_last_dims=n_normalize_over_last_dims,
+            gamma_is_none=gamma_is_none,
+            beta_is_none=beta_is_none,
+            fuse_sigmoid_mul=False,
+            test_name=f"test_middle_slice_layer_norm_float16_{test_id}",
+        )
 
-    def test_slice_layer_norm_fuse_sigmoid_mul_float16(self):
-        for (
-            n_normalize_over_last_dims,
-            gamma_is_none,
-            beta_is_none,
-        ) in itertools.product(
-            (1, 3),
-            (True, False),
-            (True, False),
-        ):
-            self._test_slice_layer_norm_kernels(
-                n_normalize_over_last_dims=n_normalize_over_last_dims,
-                gamma_is_none=gamma_is_none,
-                beta_is_none=beta_is_none,
-                fuse_sigmoid_mul=True,
-                test_name="test_slice_layer_norm_fuse_sigmoid_mul_float16",
-            )
+    @parameterized.expand(
+        [
+            param(0, 1, True, True),
+            param(1, 1, True, False),
+            param(2, 1, False, True),
+            param(3, 1, False, False),
+            param(4, 3, True, True),
+            param(5, 3, True, False),
+            param(6, 3, False, True),
+            param(7, 3, False, False),
+        ]
+    )
+    def test_slice_layer_norm_fuse_sigmoid_mul_float16(
+        self,
+        test_id,
+        n_normalize_over_last_dims,
+        gamma_is_none,
+        beta_is_none,
+    ):
+        self._test_slice_layer_norm_kernels(
+            n_normalize_over_last_dims=n_normalize_over_last_dims,
+            gamma_is_none=gamma_is_none,
+            beta_is_none=beta_is_none,
+            fuse_sigmoid_mul=True,
+            test_name=f"test_slice_layer_norm_fuse_sigmoid_mul_float16_{test_id}",
+        )
 
-    def test_middle_slice_layer_norm_fuse_sigmoid_mul_float16(self):
-        for (
-            n_normalize_over_last_dims,
-            gamma_is_none,
-            beta_is_none,
-        ) in itertools.product(
-            (2, 3),
-            (True, False),
-            (True, False),
-        ):
-            self._test_middle_slice_layer_norm_kernels(
-                n_normalize_over_last_dims=n_normalize_over_last_dims,
-                gamma_is_none=gamma_is_none,
-                beta_is_none=beta_is_none,
-                fuse_sigmoid_mul=True,
-                test_name="test_middle_slice_layer_norm_fuse_sigmoid_mul_float16",
-            )
+    @parameterized.expand(
+        [
+            param(0, 2, True, True),
+            param(1, 2, True, False),
+            param(2, 2, False, True),
+            param(3, 2, False, False),
+            param(4, 3, True, True),
+            param(5, 3, True, False),
+            param(6, 3, False, True),
+            param(7, 3, False, False),
+        ]
+    )
+    def test_middle_slice_layer_norm_fuse_sigmoid_mul_float16(
+        self,
+        test_id,
+        n_normalize_over_last_dims,
+        gamma_is_none,
+        beta_is_none,
+    ):
+        self._test_middle_slice_layer_norm_kernels(
+            n_normalize_over_last_dims=n_normalize_over_last_dims,
+            gamma_is_none=gamma_is_none,
+            beta_is_none=beta_is_none,
+            fuse_sigmoid_mul=True,
+            test_name=f"test_middle_slice_layer_norm_fuse_sigmoid_mul_float16_{test_id}",
+        )
 
     @unittest.skipIf(
         detect_target().name() != "cuda", "fp32 is only supported in CUDA backend"
     )
-    def test_slice_layer_norm_float32(self):
+    @parameterized.expand(
+        [
+            param(0, 1, True, True, False),
+            param(1, 2, True, False, False),
+            param(2, 3, False, True, True),
+            param(3, 2, False, False, True),
+        ]
+    )
+    def test_slice_layer_norm_float32(
+        self,
+        test_id,
+        n_normalize_over_last_dims,
+        gamma_is_none,
+        beta_is_none,
+        fuse_sigmoid_mul,
+    ):
         self._test_slice_layer_norm_kernels(
-            n_normalize_over_last_dims=1,
-            gamma_is_none=True,
-            beta_is_none=True,
-            fuse_sigmoid_mul=False,
+            n_normalize_over_last_dims=n_normalize_over_last_dims,
+            gamma_is_none=gamma_is_none,
+            beta_is_none=beta_is_none,
+            fuse_sigmoid_mul=fuse_sigmoid_mul,
             dtype="float32",
-            test_name="test_slice_layer_norm_float32_1",
-        )
-        self._test_middle_slice_layer_norm_kernels(
-            n_normalize_over_last_dims=2,
-            gamma_is_none=True,
-            beta_is_none=False,
-            fuse_sigmoid_mul=False,
-            dtype="float32",
-            test_name="test_slice_layer_norm_float32_2",
-        )
-        self._test_slice_layer_norm_kernels(
-            n_normalize_over_last_dims=3,
-            gamma_is_none=False,
-            beta_is_none=True,
-            fuse_sigmoid_mul=True,
-            dtype="float32",
-            test_name="test_slice_layer_norm_float32_3",
-        )
-        self._test_middle_slice_layer_norm_kernels(
-            n_normalize_over_last_dims=2,
-            gamma_is_none=False,
-            beta_is_none=False,
-            fuse_sigmoid_mul=True,
-            dtype="float32",
-            test_name="test_slice_layer_norm_float32_4",
+            test_name=f"test_slice_layer_norm_float32_{test_id}",
         )
 
 

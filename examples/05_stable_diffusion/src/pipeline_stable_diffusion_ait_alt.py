@@ -15,6 +15,7 @@
 import inspect
 
 import os
+import re
 from typing import List, Optional, Union
 
 import torch
@@ -540,6 +541,74 @@ def convert_ldm_unet_checkpoint(unet_state_dict, layers_per_block=2):
     return new_checkpoint
 
 
+textenc_conversion_lst = [
+    ("positional_embedding", "text_model.embeddings.position_embedding.weight"),
+    ("token_embedding.weight", "text_model.embeddings.token_embedding.weight"),
+    ("ln_final.weight", "text_model.final_layer_norm.weight"),
+    ("ln_final.bias", "text_model.final_layer_norm.bias"),
+]
+textenc_conversion_map = {x[0]: x[1] for x in textenc_conversion_lst}
+
+textenc_transformer_conversion_lst = [
+    # (stable-diffusion, HF Diffusers)
+    ("resblocks.", "text_model.encoder.layers."),
+    ("ln_1", "layer_norm1"),
+    ("ln_2", "layer_norm2"),
+    (".c_fc.", ".fc1."),
+    (".c_proj.", ".fc2."),
+    (".attn", ".self_attn"),
+    ("ln_final.", "transformer.text_model.final_layer_norm."),
+    (
+        "token_embedding.weight",
+        "transformer.text_model.embeddings.token_embedding.weight",
+    ),
+    (
+        "positional_embedding",
+        "transformer.text_model.embeddings.position_embedding.weight",
+    ),
+]
+protected = {re.escape(x[0]): x[1] for x in textenc_transformer_conversion_lst}
+textenc_pattern = re.compile("|".join(protected.keys()))
+
+
+def convert_text_enc_state_dict(state_dict):
+    if "transformer.resblocks.22.ln_1.bias" not in state_dict.keys():
+        return state_dict  # SD1.x
+    new_state_dict = {}
+    d_model = 1024
+    for key, arr in state_dict.items():
+        if "resblocks.23" in key:
+            continue  # diffusers skips the last layer
+        if key in textenc_conversion_map:
+            new_state_dict[textenc_conversion_map[key]] = arr
+        if key.startswith("transformer."):
+            new_key = key[len("transformer.") :]
+            if new_key.endswith(".in_proj_weight"):
+                new_key = new_key[: -len(".in_proj_weight")]
+                new_key = textenc_pattern.sub(
+                    lambda m: protected[re.escape(m.group(0))], new_key
+                )
+                new_state_dict[new_key + ".q_proj.weight"] = arr[:d_model, :]
+                new_state_dict[new_key + ".k_proj.weight"] = arr[
+                    d_model : d_model * 2, :
+                ]
+                new_state_dict[new_key + ".v_proj.weight"] = arr[d_model * 2 :, :]
+            elif new_key.endswith(".in_proj_bias"):
+                new_key = new_key[: -len(".in_proj_bias")]
+                new_key = textenc_pattern.sub(
+                    lambda m: protected[re.escape(m.group(0))], new_key
+                )
+                new_state_dict[new_key + ".q_proj.bias"] = arr[:d_model]
+                new_state_dict[new_key + ".k_proj.bias"] = arr[d_model : d_model * 2]
+                new_state_dict[new_key + ".v_proj.bias"] = arr[d_model * 2 :]
+            else:
+                new_key = textenc_pattern.sub(
+                    lambda m: protected[re.escape(m.group(0))], new_key
+                )
+                new_state_dict[new_key] = arr
+    return new_state_dict
+
+
 # =========================#
 #    AITemplate mapping   #
 # =========================#
@@ -615,8 +684,7 @@ class StableDiffusionAITPipeline:
                 elif key.startswith("model.diffusion_model."):
                     new_key = key.replace("model.diffusion_model.", "")
                     unet_state_dict[new_key] = state_dict[key]
-            # TODO: SD2.x clip support, get from diffusers convert_from_ckpt.py
-            # clip_state_dict = convert_text_enc_state_dict(clip_state_dict)
+            clip_state_dict = convert_text_enc_state_dict(clip_state_dict)
             unet_state_dict = convert_ldm_unet_checkpoint(unet_state_dict)
             vae_state_dict = convert_ldm_vae_checkpoint(vae_state_dict)
             state_dict = None
@@ -636,6 +704,9 @@ class StableDiffusionAITPipeline:
                 hf_hub_or_path, subfolder="text_encoder"
             )
             self.clip_pt = CLIPTextModel(config)
+            clip_state_dict[
+                "text_model.embeddings.position_ids"
+            ] = self.clip_pt.text_model.embeddings.get_buffer("position_ids")
             self.clip_pt.load_state_dict(clip_state_dict)
         clip_params_ait = map_clip_state_dict(dict(self.clip_pt.named_parameters()))
         print("Setting constants")
@@ -730,7 +801,7 @@ class StableDiffusionAITPipeline:
 
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
         self.scheduler = EulerDiscreteScheduler.from_pretrained(
-            "runwayml/stable-diffusion-v1-5", subfolder="scheduler"
+            hf_hub_or_path, subfolder="scheduler"
         )
         self.batch = 1
 

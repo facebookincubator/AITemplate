@@ -125,10 +125,7 @@ class ControlNetModel(nn.Module):
         )
 
         # control net conditioning embedding
-        self.controlnet_cond_embedding = ControlNetConditioningEmbedding(
-            conditioning_embedding_channels=block_out_channels[0],
-            block_out_channels=conditioning_embedding_out_channels,
-        )
+        self.controlnet_cond_embedding = ControlNetConditioningEmbedding()
 
         self.down_blocks = nn.ModuleList([])
         self.controlnet_down_blocks = nn.ModuleList([])
