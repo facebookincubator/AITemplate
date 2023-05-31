@@ -449,7 +449,7 @@ def gen_profiler(
 
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
-    op_instance = common.filter_cutlass_3x_ops(op_instance, func_attrs)
+    op_instance, _ = common.filter_cutlass_3x_ops(op_instance, func_attrs)
 
     backend_spec = CUDASpec()
     elem_type = backend_spec.dtype_to_backend_type(
