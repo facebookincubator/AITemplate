@@ -23,6 +23,7 @@ from aitemplate.backend import registry
 
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.gemm_universal import common
+from aitemplate.backend.cuda.gemm_universal.layout import RRR
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 
@@ -85,7 +86,7 @@ PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
     {cute::Int<1>{}, N, cute::Int<0>{}},                         // StrideB dB
     {
         {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},  // typename ThreadEpilogueOp::Params thread
-        ({{elem_output_type}}*)(c_ptr),                          // ElementC const* ptr_C
+        nullptr,                                                 // ElementC const* ptr_C
         {N, cute::Int<1>{}, cute::Int<0>{}},                     // StrideC dC
         ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementD const* ptr_D
         {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideD dD
@@ -96,22 +97,14 @@ PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
 
 @registry.reg("cuda.gemm_rrr.config")
 def gemm_rrr_config(func_attrs, dtype="float16"):
-    def fproc(op):
-        import cutlass_lib
+    common.make_fproc(func_attrs, RRR, include_cutlass_3x_ops=True)
 
-        return common.default_fproc(
-            op=op,
-            a_layout=cutlass_lib.library.LayoutType.RowMajor,
-            b_layout=cutlass_lib.library.LayoutType.RowMajor,
-            c_layout=cutlass_lib.library.LayoutType.RowMajor,
-            dtype=func_attrs["inputs"][0].dtype(),
-            epilogue_name=func_attrs["epilogue"],
-        )
+    import cutlass_lib
 
-    func_attrs["op_instance"] = common.extract_config(
-        f_proc_op=fproc,
-        include_cutlass_3x_ops=True,
-    )
+    for op in func_attrs["op_instance"].values():
+        if op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x:
+            # disable residual to leave more SMEM for the mainloop
+            op.C.element = cutlass_lib.library.DataType.void
 
 
 @registry.reg("cuda.gemm_rrr.gen_profiler")

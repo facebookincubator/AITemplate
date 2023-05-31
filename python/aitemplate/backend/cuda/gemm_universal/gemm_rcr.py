@@ -86,7 +86,7 @@ PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
     {input_b_stride, cute::Int<1>{}, cute::Int<0>{}},            // StrideB dB
     {
         {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},  // typename ThreadEpilogueOp::Params thread
-        ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementC const* ptr_C
+        nullptr,                                                 // ElementC const* ptr_C
         {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideC dC
         ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementD const* ptr_D
         {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideD dD
@@ -137,7 +137,7 @@ PROFILER_PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
     {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideB dB
     {
         {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},  // typename ThreadEpilogueOp::Params thread
-        ({{elem_output_type}}*)(c_ptr),                          // ElementC const* ptr_C
+        nullptr,                                                 // ElementC const* ptr_C
         {N, cute::Int<1>{}, cute::Int<0>{}},                     // StrideC dC
         ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementD const* ptr_D
         {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideD dD
@@ -149,6 +149,13 @@ PROFILER_PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
 @registry.reg("cuda.gemm_rcr.config")
 def gemm_rcr_config(func_attrs, dtype="float16"):
     common.make_fproc(func_attrs, RCR, include_cutlass_3x_ops=True)
+
+    import cutlass_lib
+
+    for op in func_attrs["op_instance"].values():
+        if op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x:
+            # disable residual to leave more SMEM for the mainloop
+            op.C.element = cutlass_lib.library.DataType.void
 
 
 def common_gen_profiler(
