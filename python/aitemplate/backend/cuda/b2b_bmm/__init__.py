@@ -21,5 +21,6 @@ b2b bmm module init
 from aitemplate.backend.cuda.b2b_bmm import (
     classic_b2b_bmm,
     fmha_style_b2b_bmm,
+    grouped_classic_b2b_bmm,
     grouped_fmha_style_b2b_bmm,
 )
