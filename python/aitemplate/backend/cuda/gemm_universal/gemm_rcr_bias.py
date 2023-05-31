@@ -199,26 +199,12 @@ def gemm_rcr_config(func_attrs, dtype="float16"):
             op.C.layout = cutlass_lib.library.LayoutType.ColumnMajor
             op.D.layout = cutlass_lib.library.LayoutType.ColumnMajor
 
-            # change the TMA epilogue schedule to
-            # the corresponding bias + elementwise one
-            if (
-                op.epilogue_schedule
-                == cutlass_lib.library.EpilogueScheduleType.TmaWarpSpecialized
-            ):
-                op.epilogue_schedule = (
-                    cutlass_lib.library.EpilogueScheduleType.TmaWarpSpecializedBiasElementwise
-                )
-            elif (
-                op.epilogue_schedule
-                == cutlass_lib.library.EpilogueScheduleType.TmaWarpSpecializedCooperative
-            ):
-                op.epilogue_schedule = (
-                    cutlass_lib.library.EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwise
-                )
-            else:
-                raise ValueError(
-                    f"Unexpected epilouge schedule type: {op.epilogue_schedule}."
-                )
+            # switch to a TMA epilogue with bias
+            op.epilogue_schedule = (
+                cutlass_lib.library.EpilogueScheduleBiasElementwiseMapping[
+                    op.epilogue_schedule
+                ]
+            )
 
 
 @registry.reg("cuda.gemm_rcr_bias.gen_profiler")

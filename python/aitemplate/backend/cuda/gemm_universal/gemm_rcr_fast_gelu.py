@@ -26,6 +26,8 @@ from aitemplate.backend.cuda.gemm_universal import (
     common_bias_activation,
     common_no_bias,
 )
+from aitemplate.backend.cuda.gemm_universal.layout import RCR
+
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
 
@@ -118,11 +120,7 @@ PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
 
 @registry.reg("cuda.gemm_rcr_fast_gelu.config")
 def gemm_rcr_config(func_attrs, dtype="float16"):
-    return common_bias_activation.gemm_rcr_config(
-        func_attrs=func_attrs,
-        dtype=dtype,
-        include_cutlass_3x_ops=True,
-    )
+    common.make_fproc(func_attrs, RCR, include_cutlass_3x_ops=True)
 
 
 @registry.reg("cuda.gemm_rcr_fast_gelu.gen_profiler")
