@@ -29,6 +29,7 @@ EXTRA_HEADERS = jinja2.Template(
     """
 )
 
+
 @registry.reg("rocm.identity.func_decl")
 def gen_function_decl(func_attrs):
     """Generate function declaration.
@@ -61,7 +62,11 @@ def gen_function(func_attrs):
     str
         Rendered function body.
     """
-    return identity_common.gen_function(func_attrs=func_attrs, backend_spec=ROCMSpec(), extra_headers=EXTRA_HEADERS.render())
+    return identity_common.gen_function(
+        func_attrs=func_attrs,
+        backend_spec=ROCMSpec(),
+        extra_headers=EXTRA_HEADERS.render(),
+    )
 
 
 @registry.reg("rocm.identity.func_call")

@@ -1000,6 +1000,7 @@ def make_fproc_f16(func_attrs, layout, op_kind, extra_kind):
             b_layout=b_layout,
             c_layout=c_layout,
         )
+
     has_dynamic_shape = False
     for inp in func_attrs["inputs"]:
         for dim in inp.shape():

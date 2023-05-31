@@ -62,7 +62,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def gen_function(func_attrs: Dict[str, Any], backend_spec, extra_headers='') -> str:
+def gen_function(func_attrs: Dict[str, Any], backend_spec, extra_headers="") -> str:
     """Generates function.
 
     Parameters

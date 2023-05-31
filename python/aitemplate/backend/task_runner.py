@@ -26,7 +26,6 @@ from collections import OrderedDict
 from typing import List
 
 
-
 # pylint: disable=R1732,R1710,R1721
 class Task:
     """Task is an object containing a bash command,

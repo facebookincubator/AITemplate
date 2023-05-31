@@ -358,10 +358,11 @@ class CrossAttention(Module):
         query = self.proj_q(q)
         key = self.proj_k(k)
         value = self.proj_v(v)
-        
+
         if detect_target().name() == "cuda":
             query = ops.permute()(
-                ops.reshape()(query, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+                ops.reshape()(query, [batch, -1, self.num_heads, head_dim]),
+                [0, 2, 1, 3],
             )
             key = ops.permute()(
                 ops.reshape()(key, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
@@ -391,7 +392,7 @@ class CrossAttention(Module):
             scale=head_dim**-0.5,
             causal=self.causal,
         )
-        return OP(query, key, value)  
+        return OP(query, key, value)
 
     def forward(self, *args, seqlens=None):
         """forward pass for calling mha module"""

@@ -324,7 +324,11 @@ class group_norm(Operator):
 
         if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " f"{self._attrs['op']}" f"{exec_key}" " failed. " f"Results: {result}."
+                "Profile workload: "
+                f"{self._attrs['op']}"
+                f"{exec_key}"
+                " failed. "
+                f"Results: {result}."
             )
 
         out = min(result, key=lambda x: x[1].duration)

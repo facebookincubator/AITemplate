@@ -346,7 +346,7 @@ def mem_eff_attention_gen_function_call(func_attrs, indent="  "):
     num_heads = q._attrs["shape"][1]._attrs["values"][0]
     max_seqlen = q._attrs["shape"][0].upper_bound() // 16
     head_dim = q._attrs["shape"][3]._attrs["values"][0]
-    
+
     softmax_scale = head_dim ** (-0.5)
 
     return FUNC_CALL_TEMPLATE.render(

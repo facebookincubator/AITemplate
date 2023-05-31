@@ -21,9 +21,9 @@ from aitemplate.compiler.base import IntImm, Operator, Tensor
 from aitemplate.compiler.ops import gemm_rcr_permute
 from aitemplate.compiler.transform import transform_utils
 from aitemplate.compiler.transform.toposort import toposort
+from aitemplate.testing import detect_target
 
 from aitemplate.utils import graph_utils
-from aitemplate.testing import detect_target
 
 
 def _check_reshape(op: Operator) -> bool:
@@ -193,7 +193,7 @@ def fuse_mm_reshape_permute(
         ]
     else:
         funcs = []
-        
+
     for func in funcs:
         sorted_graph = func(sorted_graph)
     return sorted_graph
