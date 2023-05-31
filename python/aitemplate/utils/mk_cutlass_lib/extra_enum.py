@@ -166,6 +166,8 @@ class EpilogueScheduleType(enum.Enum):
   TmaWarpSpecializedCooperativeElementwiseGELU = enum_auto()
   TmaWarpSpecializedElementwiseFastGELU = enum_auto()
   TmaWarpSpecializedCooperativeElementwiseFastGELU = enum_auto()
+  TmaWarpSpecializedBiasElementwise = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwise = enum_auto()
 
 EpilogueScheduleTag = {
   EpilogueScheduleType.ScheduleAuto: 'cutlass::epilogue::collective::EpilogueScheduleAuto',
@@ -187,6 +189,8 @@ EpilogueScheduleTag = {
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::GELU>',
   EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::GELU_taylor>',
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::GELU_taylor>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwise: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::Identity, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwise: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::Identity, elem_input_type, cutlass::plus, false, elem_input_type>',
 }
 
 EpilogueScheduleSuffixes = {
@@ -209,6 +213,8 @@ EpilogueScheduleSuffixes = {
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU: '_epi_tma_gelu',
   EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU: '_epi_tma_fast_gelu',
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU: '_epi_tma_fast_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwise: '_epi_tma_bias',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwise: '_epi_tma_bias',
 }
 
 EpilogueScheduleMapping = {
