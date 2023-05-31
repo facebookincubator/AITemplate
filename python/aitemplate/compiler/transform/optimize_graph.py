@@ -22,6 +22,7 @@ from aitemplate.compiler.transform.apply_padding import apply_padding
 from aitemplate.compiler.transform.dedup_make_jagged_ops import dedup_make_jagged_ops
 from aitemplate.compiler.transform.fuse_bmm_permute import fuse_bmm_permute
 from aitemplate.compiler.transform.fuse_conv_elementwise import fuse_conv_elementwise
+from aitemplate.compiler.transform.fuse_expand_bmm import fuse_expand_bmm
 from aitemplate.compiler.transform.fuse_group_ops import fuse_group_ops
 from aitemplate.compiler.transform.fuse_mm_elementwise import fuse_mm_elementwise
 from aitemplate.compiler.transform.fuse_mm_reshape_permute import (
@@ -37,6 +38,7 @@ from aitemplate.compiler.transform.fuse_permute_bmm_and_gemm import (
     fuse_permute_bmm_and_gemm,
 )
 from aitemplate.compiler.transform.move_view_ops import move_view_op_before_concat
+from aitemplate.compiler.transform.remove_id_ops import remove_id_ops
 from aitemplate.compiler.transform.split_large_concat_ops import split_large_concat_ops
 from aitemplate.compiler.transform.split_large_slice_scatter_ops import (
     split_large_slice_scatter_ops,
@@ -88,9 +90,11 @@ def optimize_graph(
     """
 
     funcs = [
+        remove_id_ops,
         dedup_make_jagged_ops,
         fuse_permute_bmm_and_gemm,
         fuse_bmm_permute,
+        fuse_expand_bmm,
         transform_odd_alignment,
         fuse_conv_elementwise,
         fuse_mm_elementwise,

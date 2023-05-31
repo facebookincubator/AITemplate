@@ -31,13 +31,21 @@ from aitemplate.backend.target import Target
 
 FUNC_TEMPLATE = jinja2.Template(
     """
+#include <cuda.h>
 #include <cuda_fp16.h>
 #include <cuda_bf16.h>
+#include <cuda_runtime.h>
+
+#include <cub/cub.cuh>
+#include "cutlass/arch/memory_sm80.h"
 #include "cutlass/cutlass.h"
 #include "cutlass/fast_math.h"
 #include "logging.h"
+#include <math_constants.h>
+#include <assert.h>
 
 using bfloat16 = __nv_bfloat16;
+using bfloat16_2 = __nv_bfloat162;
 
 {{gamma_beta_const_defs}}
 
@@ -94,6 +102,30 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
+def _get_custom_libs():
+    target = Target.current()
+    if target._kwargs.get("layernorm_use_welford_algorithm", False):
+        custom_libs = "\n\n".join(
+            [
+                target.get_custom_libs(
+                    absolute_dir=os.path.dirname(__file__),
+                    filename="layer_norm.cuh",
+                ),
+                target.get_custom_libs(
+                    absolute_dir=os.path.dirname(__file__),
+                    filename="layernorm_welford.cuh",
+                ),
+            ]
+        )
+    else:
+        custom_libs = target.get_custom_libs(
+            absolute_dir=os.path.dirname(__file__),
+            filename="layernorm_sigmoid_mul_kernel.cuh",
+        )
+
+    return custom_libs
+
+
 @registry.reg("cuda.layernorm.gen_function")
 def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     gamma_beta_const_defs = layernorm_common.gamma_beta_const_defs(func_attrs)
@@ -101,10 +133,9 @@ def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     elem_input_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][0]._attrs["dtype"]
     )
+
     return FUNC_TEMPLATE.render(
-        custom_libs=Target.current().get_custom_libs(
-            os.path.dirname(__file__), "layernorm_sigmoid_mul_kernel.cuh"
-        ),
+        custom_libs=_get_custom_libs(),
         tensor_accessor_libs=tensor_accessor_codegen.get_libs(),
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
         elem_input_type=elem_input_type,
@@ -127,9 +158,7 @@ def layernorm_sigmoid_mul_gen_function(func_attrs: Dict[str, Any]) -> str:
         func_attrs["inputs"][0]._attrs["dtype"]
     )
     return FUNC_TEMPLATE.render(
-        custom_libs=Target.current().get_custom_libs(
-            os.path.dirname(__file__), "layernorm_sigmoid_mul_kernel.cuh"
-        ),
+        custom_libs=_get_custom_libs(),
         tensor_accessor_libs=tensor_accessor_codegen.get_libs(),
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]),
         elem_input_type=elem_input_type,

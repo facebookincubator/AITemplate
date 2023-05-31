@@ -24,6 +24,9 @@ from ..modeling.unet_2d_condition import (
 from .util import mark_output
 
 
+USE_CUDA = detect_target().name() == "cuda"
+
+
 def map_unet_params(pt_mod, dim):
     pt_params = dict(pt_mod.named_parameters())
     params_ait = {}
@@ -73,11 +76,11 @@ def compile_unet(
     pt_mod = pt_mod.eval()
     params_ait = map_unet_params(pt_mod, dim)
     # batch_size = IntVar(values=[1, 8], name="batch_size")
-    height_d = IntVar(values=[32, 64], name="height")
-    width_d = IntVar(values=[32, 64], name="width")
+    height = IntVar(values=[32, 64], name="height") if USE_CUDA else height
+    width = IntVar(values=[32, 64], name="width") if USE_CUDA else width
 
     latent_model_input_ait = Tensor(
-        [batch_size, height_d, width_d, 4], name="input0", is_input=True
+        [batch_size, height, width, 4], name="input0", is_input=True
     )
     timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
     text_embeddings_pt_ait = Tensor(

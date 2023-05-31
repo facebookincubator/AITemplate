@@ -16,6 +16,7 @@
 Frontend for attention module
 """
 from aitemplate.compiler import ops
+from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops import flash_attention
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -251,7 +252,7 @@ class MultiheadAttention(Module):
                 )
             return out
 
-    def forward(self, *args):
+    def forward(self, *args, seqlens=None):
         """forward pass for calling mha module"""
         assert len(args) >= 1
         x = args[0]
@@ -350,32 +351,54 @@ class CrossAttention(Module):
         self.proj = Linear(dim, dim, specialization="add" if has_residual else None)
         self.proj_drop = Dropout(proj_drop)
 
-    def attention(self, q, k, v):
+    def attention(self, q, k, v, seqlens=None):
         batch = q.shape()[0]
         head_dim = self.dim // self.num_heads
 
         query = self.proj_q(q)
         key = self.proj_k(k)
         value = self.proj_v(v)
+        
+        if detect_target().name() == "cuda":
+            query = ops.permute()(
+                ops.reshape()(query, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+            )
+            key = ops.permute()(
+                ops.reshape()(key, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+            )
+            value = ops.permute()(
+                ops.reshape()(value, [batch, -1, self.num_heads, head_dim]),
+                [0, 2, 1, 3],
+            )
+            return self.op(query, key, value)
+        elif seqlens:
+            query = ops.reshape()(query, [batch, self.num_heads, -1, head_dim])
+            key = ops.reshape()(key, [batch, self.num_heads, -1, head_dim])
+            value = ops.reshape()(value, [batch, self.num_heads, -1, head_dim])
+            return self.op(query, key, value, seqlens)
 
-        query = ops.permute()(
-            ops.reshape()(query, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
+        query = ops.reshape()(query, [batch, -1, self.num_heads, head_dim])
+        query = ops.transpose()(query, 1, 2)
+        query = ops.reshape()(query, [-1, query.shape()[2], head_dim])
+        key = ops.reshape()(key, [batch, -1, self.num_heads, head_dim])
+        key = ops.transpose()(key, 1, 2)
+        key = ops.reshape()(key, [-1, key.shape()[2], head_dim])
+        value = ops.reshape()(value, [batch, -1, self.num_heads, head_dim])
+        value = ops.transpose()(value, 1, 2)
+        value = ops.reshape()(value, [-1, value.shape()[2], head_dim])
+        OP = ops.bmm_softmax_bmm_permute(
+            shape=(self.num_heads,),
+            scale=head_dim**-0.5,
+            causal=self.causal,
         )
-        key = ops.permute()(
-            ops.reshape()(key, [batch, -1, self.num_heads, head_dim]), [0, 2, 1, 3]
-        )
-        value = ops.permute()(
-            ops.reshape()(value, [batch, -1, self.num_heads, head_dim]),
-            [0, 2, 1, 3],
-        )
-        return self.op(query, key, value)
+        return OP(query, key, value)  
 
-    def forward(self, *args):
+    def forward(self, *args, seqlens=None):
         """forward pass for calling mha module"""
         assert len(args) >= 3
         x = args[0]
         batch = x.shape()[0]
-        attn_output = self.attention(args[0], args[1], args[2])
+        attn_output = self.attention(args[0], args[1], args[2], seqlens=seqlens)
         attn_output = ops.reshape()(attn_output, [batch, -1, self.dim])
 
         if self.has_residual:
@@ -384,7 +407,8 @@ class CrossAttention(Module):
         else:
             x = self.proj(attn_output)
         x = self.proj_drop(x)
-        x = ops.reshape()(x, [batch, -1, self.dim])
+        if not isinstance(batch, IntVar):
+            x = ops.reshape()(x, [batch, -1, self.dim])
         return x
 
 

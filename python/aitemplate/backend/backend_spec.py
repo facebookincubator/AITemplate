@@ -91,7 +91,11 @@ class GPUBackendSpec(BackendSpec):
     backend_datatype_convertors: Dict[str, Dict[str, str]] = field(
         default_factory=lambda: {
             "half": {"float": "__half2float"},
-            "float": {"half": "__float2half_rn"},
+            "bfloat16": {"float": "__bfloat162float"},
+            "float": {
+                "half": "__float2half_rn",
+                "bfloat16": "__float2bfloat16_rn",
+            },
         }
     )
 
@@ -404,6 +408,7 @@ class ROCMSpec(GPUBackendSpec):
     prefix = "hip"
     stream = "stream"
     cub = "hipcub"
+    tile_size = 64
 
     cast_to_ptr_template = jinja2.Template("reinterpret_cast<{{dtype}}*>({{name}})")
     cast_to_half_ptr_template = jinja2.Template("reinterpret_cast<half*>({{name}})")
@@ -442,6 +447,7 @@ class CUDASpec(GPUBackendSpec):
     prefix = "cuda"
     stream = "stream"
     cub = "cub"
+    tile_size = 32
 
     cast_to_ptr_template = jinja2.Template("reinterpret_cast<{{dtype}}*>({{name}})")
     cast_to_half_ptr_template = jinja2.Template("reinterpret_cast<half*>({{name}})")

@@ -18,9 +18,33 @@ c[m, n] = a[m, k] * b[n, k] + bias[n]
 This is used for `torch.nn.functional.linear`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
+import jinja2
+
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.gemm import common, permute_common
 from aitemplate.backend.rocm.gemm.layout import RCR
+
+
+ARGS_PARSER_TEMPLATE = jinja2.Template(
+    """
+  int64_t M = std::stoi(argv[1]);
+  int64_t N = std::stoi(argv[2]);
+  int64_t K = std::stoi(argv[3]);
+  int64_t split_k = std::atoi(argv[4]);
+  int64_t G1 = std::atoi(argv[5]);
+  int64_t G2 = std::atoi(argv[6]);
+  int64_t G3 = std::atoi(argv[7]);
+  int64_t a_dim0 = M;
+  int64_t a_dim1 = K;
+  int64_t b_dim0 = N;
+  int64_t b_dim1 = K;
+  int64_t c_dim0 = M;
+  int64_t c_dim1 = N;
+  int64_t p_dim0 = G1;
+  int64_t p_dim1 = G2;
+  int64_t p_dim2 = G3;
+"""
+)
 
 
 @registry.reg("rocm.gemm_rcr_bias_permute.config")
@@ -64,7 +88,7 @@ def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
         func_attrs=func_attrs,
         workdir=workdir,
         dim_info_dict=dim_info_dict,
-        args_parse=RCR.args_parse,
+        args_parse=ARGS_PARSER_TEMPLATE.render(),
         gemm_flag="bias_permute",
         extra_code="const int G1={}, G2={}, G3={};".format(
             func_attrs["shape"][0],

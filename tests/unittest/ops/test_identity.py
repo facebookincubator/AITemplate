@@ -50,7 +50,7 @@ class TestIdentity(unittest.TestCase):
 
         target = detect_target()
         module = compile_model(Y, target, "./tmp", f"{test_name}_{self._test_id}")
-        self.assertEqual(len(module.debug_sorted_graph), 3 if elementwise else 2)
+        self.assertEqual(len(module.debug_sorted_graph), 2)
         self._test_id += 1
 
         x_pt = get_random_torch_tensor(shape, dtype=dtype)

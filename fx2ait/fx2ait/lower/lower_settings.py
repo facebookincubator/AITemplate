@@ -69,6 +69,7 @@ class LowerSettings:
     # If None, infer the dtypes from the sample inputs.
     precision: Optional[LowerPrecision] = LowerPrecision.FP16
     use_fp16_acc: bool = True  # only valid for precision == FP16
+    use_fast_math: bool = True  # Whether to use fast math in CUDA kernels
     allow_int_inputs: bool = False  # If AIT acc subgraph accept integer inputs
     ast_rewriter_allow_list: Optional[Set[Type[nn.Module]]] = None
     leaf_module_list: Optional[Set[Type[nn.Module]]] = None

@@ -38,6 +38,31 @@ python3 scripts/compile.py
 ```
 It generates three folders: `./tmp/CLIPTextModel`, `./tmp/UNet2DConditionModel`, `./tmp/AutoencoderKL`. In each folder, there is a `test.so` file which is the generated AIT module for the model.
 
+#### Alternative build script
+
+```
+python3 scripts/compile_alt.py --width 64 1536 --height 64 1536 --batch-size 1 4 --clip-chunks 6
+```
+This compiles modules with dynamic shape. In the example, modules will work with width in range 64-1536px, batch sizes 1-4. Clip chunks refers to the number of tokens accepted by UNet in multiples of 77, 1 chunk = 77 tokens, 3 chunks = 231 tokens.
+By default, `compile_alt.py` does not include model weights (constants) with the compiled module, to include the model weights in the compiled module use `--include-consants True`.
+
+#### Alternative pipeline
+
+The original pipeline requires a diffusers model local dir, and relies directly on `StableDiffusionPipeline`. This pipeline builds similar functionality without directly using `StableDiffusionPipeline`, and is capable of loading model weights from either diffusers or compvis models to compiled aitemplate modules.
+
+* AITemplate modules are created
+* Model weights are loaded, converted/mapped, then applied to AITemplate module
+* Tokenizer is created from `openai/clip-vit-large-patch14`.
+* Scheduler is created from `hf-hub-or-path`.
+* Loading CLIPTextModel from `ckpt` requires the appropriate `hf-hub-or-path` to be specified i.e. `runwayml/stable-diffusion-v1-5` for SD1.x checkpoints, `stabilityai/stable-diffusion-2-1` for SD2.x checkpoints.
+
+```
+python3 scripts/demo.py --hf-hub-or-path runwayml/stable-diffusion-v1-5 --ckpt v1-5-pruned-emaonly.ckpt
+python3 scripts/demo.py --hf-hub-or-path stabilityai/stable-diffusion-2-1 --ckpt v2-1_768-ema-pruned.ckpt
+```
+
+`--ckpt` takes preference over `--hf-hub-or-path` if both are specified
+
 #### Multi-GPU profiling
 AIT needs to do profiling to select the best algorithms for CUTLASS and CK.
 To enable multiple GPUs for profiling, use the environment variable `CUDA_VISIBLE_DEVICES` on NVIDIA platform and `HIP_VISIBLE_DEVICES` on AMD platform.

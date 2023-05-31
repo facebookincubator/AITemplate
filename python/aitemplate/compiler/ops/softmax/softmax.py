@@ -391,3 +391,6 @@ class softmax(Operator):
         self._attrs["exec_cond_template"] = EXEC_COND_TEMPLATE
         func = registry.get(func_key)
         return func(self._attrs)
+
+    def _args_for_pseudo_code(self):
+        return {"dim": self._attrs["dim"]}

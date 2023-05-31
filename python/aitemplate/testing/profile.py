@@ -59,6 +59,9 @@ def profile_callable(
     """
     if n_iter <= 0:
         return [], []
+    # warmup
+    for _ in range(5):
+        func()
     with torch.profiler.profile(
         activities=[torch.profiler.ProfilerActivity.CUDA],
         record_shapes=True,
@@ -69,7 +72,7 @@ def profile_callable(
     # log the invoked kernels
     results = prof.key_averages().table(
         sort_by="self_cuda_time_total",
-        max_name_column_width=None,
+        max_name_column_width=120,
         row_limit=-1,
     )
     logger.info(results)

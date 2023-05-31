@@ -24,8 +24,8 @@ from aitemplate.compiler import compile_model, Model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
-from modeling.bert import BertBaseEncodersOnly, BertBaseUncased
-from modeling.torch_model import BertBaseUncased as BertPt
+from .modeling.bert import BertBaseEncodersOnly, BertBaseUncased
+from .modeling.torch_model import BertBaseUncased as BertPt
 
 
 def mark_output(y: Tensor) -> None:

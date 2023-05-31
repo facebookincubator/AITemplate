@@ -1443,7 +1443,6 @@ class MoveViewOpsTestCase(unittest.TestCase):
             test_name="test_move_strided_reshape_cat_8",
             dtype="float16",
         )
-        return
         self._test_move_strided_reshape_cat_8(
             M0=4,
             M1=4,
@@ -1613,6 +1612,161 @@ class MoveViewOpsTestCase(unittest.TestCase):
             M7=8,
             N=4,
             test_name="test_move_strided_reshape_cat_9",
+            dtype="float16",
+        )
+
+    def _test_move_strided_reshape_cat_10(
+        self, M0, M1, M2, M3, N, test_name, dtype="float16"
+    ):
+        # make a graph like below:
+        # add_0 = add(x0, x1)  # 2d
+        # concat_1 = concatenate(add_0, x2) # 2d
+        # reshape_2 = reshape(concat_1) # 3d
+        # bmm_rrr_add_3 = bmm_rrr_add(reshape_2, x4, x5) # 3d
+        # concat_4 = concatenate(x3, reshape_2, x3) # 3d
+        # reshape_5 = reshape(concat_4) # 2d
+        # add_6 = add(reshape_5, x6) # 2d
+        # concat_7 = concatenate(x0, reshape_5, x0)
+        # reshape_8 = reshape(bmm_rrr_add_3) # 2d
+        # reduce_9 = reduce_sum(reshape_8)
+        # reduce_10 = reduce_sum(add_6)
+        # reduce_11 = reduce_sum(concat_7)
+        # add_12 = add(reduce_9, reduce_10)
+        # y = add(add_12, reduce_11)
+        assert M0 == M1, f"expected {M0=} to be equal to {M1=}"
+        batch_sizes = [1, self.BATCH_SIZE]
+        batch_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_0")
+        X0 = Tensor(
+            shape=[batch_dim, IntImm(M0 * N)],
+            dtype=dtype,
+            name="x0",
+            is_input=True,
+        )
+        X1 = Tensor(
+            shape=[batch_dim, IntImm(M1 * N)],
+            dtype=dtype,
+            name="x1",
+            is_input=True,
+        )
+        X2 = Tensor(
+            shape=[batch_dim, IntImm(M2 * N)],
+            dtype=dtype,
+            name="x2",
+            is_input=True,
+        )
+        X3 = Tensor(
+            shape=[batch_dim, IntImm(M3), IntImm(N)],
+            dtype=dtype,
+            name="x3",
+            is_input=True,
+        )
+        M4 = M0 + M2
+        X4 = Tensor(
+            shape=[IntImm(M4), IntImm(N)],
+            dtype=dtype,
+            name="x4",
+            is_input=True,
+        )
+        X5 = Tensor(
+            shape=[IntImm(N)],
+            dtype=dtype,
+            name="x5",
+            is_input=True,
+        )
+        cat_dim = 1
+        add_0 = ops.elementwise(FuncEnum.ADD)(X0, X1)
+        concat_1 = ops.concatenate()([add_0, X2], dim=cat_dim)
+        bmm_K = M0 + M2
+        reshape_2 = ops.reshape()(concat_1, [-1, bmm_K, N])
+        # bmm_rrr_add_3[batch, N, N] = bmm_rrr_add(
+        #     reshape_2[batch, bmm_K, N], X4[bmm_K, N], X5[N]
+        # )
+        bmm_rrr_add_3 = ops.bmm_rrr_add()(reshape_2, X4, X5)
+        concat_4 = ops.concatenate()([X3, reshape_2, X3], dim=cat_dim)  # 3d
+        reshape_to_shape_5 = (
+            sum([t.shape()[cat_dim].value() for t in [X3, reshape_2, X3]]) * N
+        )
+        reshape_5 = ops.reshape()(concat_4, [-1, reshape_to_shape_5])  # 2d
+        X6 = Tensor(
+            shape=[batch_dim, IntImm(reshape_to_shape_5)],
+            dtype=dtype,
+            name="x6",
+            is_input=True,
+        )
+        add_6 = ops.elementwise(FuncEnum.ADD)(reshape_5, X6)
+        concat_7 = ops.concatenate()([X0, reshape_5, X0], dim=cat_dim)  # 2d
+        reshape_8 = ops.reshape()(bmm_rrr_add_3, [-1, N * N])  # 2d
+        reduce_dim = cat_dim
+        reduce_9 = ops.reduce_sum(reduce_dim)(reshape_8)
+        reduce_10 = ops.reduce_sum(reduce_dim)(add_6)
+        reduce_11 = ops.reduce_sum(reduce_dim)(concat_7)
+        add_12 = ops.elementwise(FuncEnum.ADD)(reduce_9, reduce_10)
+        Y = ops.elementwise(FuncEnum.ADD)(add_12, reduce_11)
+        Y._attrs["name"] = "output0"
+        Y._attrs["is_output"] = True
+
+        # Gen module.
+        target = detect_target()
+        dll_name = f"test_{self.test_count}.so"
+        module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
+        self.test_count += 1
+        sorted_graph = module.debug_sorted_graph
+        sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
+        # dynamic_slice + bmm cannot be fused because we can't generate
+        # any valid strided access
+        self.assertEqual(len(sorted_ops), 9)
+        concat_cnt = 0
+        for sorted_op in sorted_ops:
+            op_type = sorted_op._attrs["op"]
+            if op_type == "concatenate":
+                concat_cnt += 1
+        self.assertEqual(concat_cnt, 1)
+
+        for batch in [1, self.BATCH_SIZE]:
+            x0_pt = get_random_torch_tensor([batch, M0 * N], dtype)
+            x1_pt = get_random_torch_tensor([batch, M1 * N], dtype)
+            x2_pt = get_random_torch_tensor([batch, M2 * N], dtype)
+            x3_pt = get_random_torch_tensor([batch, M3, N], dtype)
+            x4_pt = get_random_torch_tensor([M4, N], dtype)
+            x5_pt = get_random_torch_tensor([N], dtype)
+            x6_pt = get_random_torch_tensor([batch, reshape_to_shape_5], dtype)
+            add_0_pt = x0_pt + x1_pt
+            concat_1_pt = torch.cat([add_0_pt, x2_pt], dim=cat_dim)
+            reshape_2_pt = torch.reshape(concat_1_pt, [-1, bmm_K, N])
+            bmm_rrr_add_3_pt = torch.matmul(reshape_2_pt, x4_pt) + x5_pt
+            concat_4_pt = torch.cat([x3_pt, reshape_2_pt, x3_pt], dim=cat_dim)
+            reshape_5_pt = torch.reshape(concat_4_pt, [-1, reshape_to_shape_5])
+            add_6_pt = reshape_5_pt + x6_pt
+            concat_7_pt = torch.cat([x0_pt, reshape_5_pt, x0_pt], dim=cat_dim)
+            reshape_8_pt = torch.reshape(bmm_rrr_add_3_pt, [-1, N * N])
+            reduce_9_pt = torch.sum(reshape_8_pt, reduce_dim)
+            reduce_10_pt = torch.sum(add_6_pt, reduce_dim)
+            reduce_11_pt = torch.sum(concat_7_pt, reduce_dim)
+            add_12_pt = reduce_9_pt + reduce_10_pt
+            y_pt = add_12_pt + reduce_11_pt
+
+            y = get_torch_empty_tensor(y_pt.size(), dtype)
+            inputs = {
+                "x0": x0_pt,
+                "x1": x1_pt,
+                "x2": x2_pt,
+                "x3": x3_pt,
+                "x4": x4_pt,
+                "x5": x5_pt,
+                "x6": x6_pt,
+            }
+            module.run_with_tensors(inputs, [y])
+            torch.testing.assert_close(y_pt, y, atol=0.1, rtol=0.1)
+
+    def test_move_strided_reshape_cat_10(self):
+        self._test_move_strided_reshape_cat_9(
+            M0=4,
+            M1=4,
+            M2=6,
+            M3=4,
+            M7=8,
+            N=4,
+            test_name="test_move_strided_reshape_cat_10",
             dtype="float16",
         )
 

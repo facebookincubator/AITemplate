@@ -21,6 +21,7 @@ from aitemplate.backend.rocm.tensor import (  # noqa
     concatenate,
     concatenate_tanh,
     dynamic_slice,
+    full,
     identity,
     permute021,
     permute0213,
@@ -30,4 +31,6 @@ from aitemplate.backend.rocm.tensor import (  # noqa
     slice_scatter,
     split,
     topk,
+    expand,
+    expand_static_shape,
 )

@@ -175,14 +175,13 @@ class bmm_softmax_bmm_permute(bmm):
         if self._attrs["layout"] == "Permute4DBMM_0213":
             b, m, o = output_shape
             d1 = self._attrs["shape"][0]
-            output_shape = [b.value() // d1, m, d1, o]
+            output_shape = [-1, m, d1, o]
             self._extract_epilogue_alignment(output_shape)
             return reshape()(output, output_shape)
         else:
             raise NotImplementedError(
                 "{} is not implemented!".format(self._attrs["layout"])
             )
-        return output
 
     def _get_op_attributes(self):
         return {

@@ -16,6 +16,7 @@
 from aitemplate.compiler.transform.bind_constants import bind_constants
 from aitemplate.compiler.transform.constant_folding import constant_folding
 from aitemplate.compiler.transform.fuse_conv_elementwise import fuse_conv_elementwise
+from aitemplate.compiler.transform.fuse_expand_bmm import fuse_expand_bmm
 from aitemplate.compiler.transform.fuse_group_ops import (
     fuse_group_gemm_ops,
     fuse_group_layernorm_ops,
@@ -36,6 +37,7 @@ from aitemplate.compiler.transform.name_graph import dedup_symbolic_name, name_g
 from aitemplate.compiler.transform.optimize_graph import optimize_graph
 from aitemplate.compiler.transform.profile import profile
 from aitemplate.compiler.transform.refine_graph import refine_graph
+from aitemplate.compiler.transform.remove_id_ops import remove_id_ops
 from aitemplate.compiler.transform.remove_no_ops import remove_no_ops
 from aitemplate.compiler.transform.remove_unused_ops import remove_unused_ops
 from aitemplate.compiler.transform.split_large_concat_ops import split_large_concat_ops

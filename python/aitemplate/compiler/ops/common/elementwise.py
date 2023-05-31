@@ -271,7 +271,7 @@ class elementwise(Operator):
         ]
 
     def _args_for_pseudo_code(self):
-        return [self._attrs["func"]]
+        return [f"func={self._attrs['func']}"]
 
 
 # TODO: move it to math.py and update it to a function.

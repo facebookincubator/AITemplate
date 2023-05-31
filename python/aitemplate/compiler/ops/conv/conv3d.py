@@ -363,10 +363,11 @@ class conv3d(Operator):
                     1 if self._attrs["split_k"] is None else self._attrs["split_k"]
                 )
                 query = Conv3dQueryEntry(
-                    dtype_a=tmp_op.A.element.value,
-                    dtype_b=tmp_op.B.element.value,
-                    dtype_c=tmp_op.C.element.value,
-                    dtype_acc=tmp_op.tile_description.math_instruction.element_accumulator.value,
+                    dtype_a=tmp_op.A.element.value - 1,
+                    dtype_b=tmp_op.B.element.value - 1,
+                    dtype_c=tmp_op.C.element.value - 1,
+                    dtype_acc=tmp_op.tile_description.math_instruction.element_accumulator.value
+                    - 1,
                     major_a=tmp_op.A.layout.value,
                     major_b=tmp_op.B.layout.value,
                     major_c=tmp_op.C.layout.value,
@@ -475,10 +476,11 @@ class conv3d(Operator):
         exec_entry_sha1 = sha1(exec_key.encode("utf-8")).hexdigest()
         split_k = 1 if self._attrs["split_k"] is None else self._attrs["split_k"]
         query = Conv3dQueryEntry(
-            dtype_a=tmp_op.A.element.value,
-            dtype_b=tmp_op.B.element.value,
-            dtype_c=tmp_op.C.element.value,
-            dtype_acc=tmp_op.tile_description.math_instruction.element_accumulator.value,
+            dtype_a=tmp_op.A.element.value - 1,
+            dtype_b=tmp_op.B.element.value - 1,
+            dtype_c=tmp_op.C.element.value - 1,
+            dtype_acc=tmp_op.tile_description.math_instruction.element_accumulator.value
+            - 1,
             major_a=tmp_op.A.layout.value,
             major_b=tmp_op.B.layout.value,
             major_c=tmp_op.C.layout.value,
@@ -555,10 +557,11 @@ class conv3d(Operator):
         cache_record = Conv3dRecordEntry(
             exec_entry=exec_key,
             exec_entry_sha1=exec_entry_sha1,
-            dtype_a=tmp_op.A.element.value,
-            dtype_b=tmp_op.B.element.value,
-            dtype_c=tmp_op.C.element.value,
-            dtype_acc=tmp_op.tile_description.math_instruction.element_accumulator.value,
+            dtype_a=tmp_op.A.element.value - 1,
+            dtype_b=tmp_op.B.element.value - 1,
+            dtype_c=tmp_op.C.element.value - 1,
+            dtype_acc=tmp_op.tile_description.math_instruction.element_accumulator.value
+            - 1,
             major_a=tmp_op.A.layout.value,
             major_b=tmp_op.B.layout.value,
             major_c=tmp_op.C.layout.value,

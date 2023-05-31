@@ -119,7 +119,15 @@ class FusedElementwiseTestCase(unittest.TestCase):
     def test_fused_elementwise_constructor(self, ait_dtype):
         self._test_fused_elementwise_constructor(ait_dtype)
 
-    def _test_fused_elementwise_e2e(self, batch_sizes, ms, ks, test_name, ait_dtype):
+    def _test_fused_elementwise_e2e(
+        self,
+        batch_sizes,
+        ms,
+        ks,
+        test_name,
+        ait_dtype,
+        use_fp32_acc=False,
+    ):
         torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=[
@@ -143,12 +151,12 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X4._attrs["name"] = "output0"
         X4._attrs["is_output"] = True
 
-        target = detect_target()
+        target = detect_target(elementwise_use_fp32_acc=use_fp32_acc)
         module = compile_model(
             X4,
             target,
             "./tmp",
-            "fused_elementwise_{}".format(test_name),
+            f"fused_elementwise_{test_name}_{use_fp32_acc}",
         )
 
         for batch_size in batch_sizes:
@@ -199,15 +207,21 @@ class FusedElementwiseTestCase(unittest.TestCase):
             test_name=f"dynamic_k_{ait_dtype}",
             ait_dtype=ait_dtype,
         )
-        self._test_fused_elementwise_e2e(
-            batch_sizes=[700, 80, 1024],
-            ms=[23, 78, 256],
-            ks=[10, 30, 128],
-            test_name=f"dynamic_all_{ait_dtype}",
-            ait_dtype=ait_dtype,
-        )
+        for use_fp32_acc in (False, True):
+            self._test_fused_elementwise_e2e(
+                batch_sizes=[700, 80, 1024],
+                ms=[23, 78, 256],
+                ks=[10, 30, 128],
+                test_name=f"dynamic_all_{ait_dtype}",
+                ait_dtype=ait_dtype,
+                use_fp32_acc=use_fp32_acc,
+            )
 
-    def _test_fused_elementwise_kernel1(self, ait_dtype):
+    def _test_fused_elementwise_kernel1(
+        self,
+        ait_dtype,
+        use_fp32_acc=False,
+    ):
         BATCH_SIZE = 1024
         M = 1496
         X1 = Tensor(
@@ -237,9 +251,12 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X9._attrs["is_output"] = True
         X9._attrs["name"] = "output0"
 
-        target = detect_target()
+        target = detect_target(elementwise_use_fp32_acc=use_fp32_acc)
         module = compile_model(
-            X9, target, "./tmp", f"fused_elementwise_kernel1_{ait_dtype}"
+            X9,
+            target,
+            "./tmp",
+            f"fused_elementwise_kernel1_{ait_dtype}_{use_fp32_acc}",
         )
 
         x1_pt = get_random_torch_tensor((BATCH_SIZE, 2, M), ait_dtype)
@@ -261,9 +278,13 @@ class FusedElementwiseTestCase(unittest.TestCase):
         )
     )
     def test_fused_elementwise_kernel1(self, ait_dtype):
-        self._test_fused_elementwise_kernel1(ait_dtype)
+        for use_fp32_acc in (False, True):
+            self._test_fused_elementwise_kernel1(
+                ait_dtype=ait_dtype,
+                use_fp32_acc=use_fp32_acc,
+            )
 
-    def _test_sigmoid(self, input_size, test_name, ait_dtype):
+    def _test_sigmoid(self, input_size, test_name, ait_dtype, use_fast_math=True):
         torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
             shape=[IntImm(input_size[0]), IntImm(input_size[1])],
@@ -275,7 +296,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["is_output"] = True
         X2._attrs["name"] = "output0"
 
-        target = detect_target()
+        target = detect_target(use_fast_math=use_fast_math)
         module = compile_model(X2, target, "./tmp", test_name)
 
         x1_pt = (
@@ -285,7 +306,10 @@ class FusedElementwiseTestCase(unittest.TestCase):
 
         x2 = torch.empty_like(x2_pt)
         module.run_with_tensors([x1_pt], [x2])
-        self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+        if use_fast_math:
+            self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+        else:
+            self.assertTrue(torch.equal(x2, x2_pt), f"{x2=}\n{x2_pt=}")
         # sanity checks
         self.assertEqual(torch.sum(x2 < 0), 0)
         self.assertEqual(torch.sum(x2 > 1), 0)
@@ -303,8 +327,15 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self._test_sigmoid([1024, 2 * 1496], f"sigmoid_1_{ait_dtype}", ait_dtype)
         self._test_sigmoid([1024, 23744], f"sigmoid_2_{ait_dtype}", ait_dtype)
         self._test_sigmoid([1024, 70144], f"sigmoid_3_{ait_dtype}", ait_dtype)
+        # use_fast_math = False
+        self._test_sigmoid(
+            [1024, 70144],
+            f"sigmoid_no_fast_math_{ait_dtype}",
+            ait_dtype,
+            use_fast_math=False,
+        )
 
-    def _test_tanh(self, input_size, test_name, ait_dtype):
+    def _test_tanh(self, input_size, test_name, ait_dtype, use_fast_math=True):
         assert len(input_size) == 2
         torch_dtype = _AIT_DTYPE_TO_PYTORCH_DTYPE[ait_dtype]
         X1 = Tensor(
@@ -317,7 +348,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         X2._attrs["is_output"] = True
         X2._attrs["name"] = "output0"
 
-        target = detect_target()
+        target = detect_target(use_fast_math=use_fast_math)
         module = compile_model(X2, target, "./tmp", test_name)
 
         x1_pt = torch.randn(input_size).cuda().to(dtype=torch_dtype)
@@ -325,7 +356,10 @@ class FusedElementwiseTestCase(unittest.TestCase):
 
         x2 = torch.empty(input_size).cuda().to(dtype=torch_dtype)
         module.run_with_tensors([x1_pt], [x2])
-        self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+        if use_fast_math:
+            self.assertTrue(torch.allclose(x2, x2_pt, atol=1e-2, rtol=1e-2))
+        else:
+            self.assertTrue(torch.equal(x2, x2_pt))
 
     @parameterized.expand(
         **filter_test_cases_by_params(
@@ -341,6 +375,13 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self._test_tanh([1024, 22400], f"tanh_1_{ait_dtype}", ait_dtype)
         self._test_tanh([1024, 70144], f"tanh_2_{ait_dtype}", ait_dtype)
         self._test_tanh([1024, 23744], f"tanh_3_{ait_dtype}", ait_dtype)
+        # use_fast_math = False
+        self._test_tanh(
+            [1024, 23744],
+            f"tanh_no_fast_math_{ait_dtype}",
+            ait_dtype,
+            use_fast_math=False,
+        )
 
     def _test_gelu(self, input_size, test_name, ait_dtype, fast_gelu=False):
         assert len(input_size) == 2

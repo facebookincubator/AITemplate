@@ -22,6 +22,9 @@ from ..modeling.vae import AutoencoderKL as ait_AutoencoderKL
 from .util import mark_output
 
 
+USE_CUDA = detect_target().name() == "cuda"
+
+
 def map_vae_params(ait_module, pt_module, batch_size, seq_len):
     pt_params = dict(pt_module.named_parameters())
     mapped_pt_params = {}
@@ -124,11 +127,11 @@ def compile_vae(
         sample_size=sample_size,
     )
     # batch_size = IntVar(values=[1, 8], name="batch_size")
-    height_d = IntVar(values=[32, 64], name="height")
-    width_d = IntVar(values=[32, 64], name="width")
+    height = IntVar(values=[32, 64], name="height") if USE_CUDA else height
+    width = IntVar(values=[32, 64], name="width") if USE_CUDA else width
 
     ait_input = Tensor(
-        shape=[batch_size, height_d, width_d, latent_channels],
+        shape=[batch_size, height, width, latent_channels],
         name="vae_input",
         is_input=True,
     )

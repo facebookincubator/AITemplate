@@ -670,8 +670,9 @@ class MultiScaleBlock(Module):
         super().__init__()
         self.dim = dim
         self.dim_out = dim_out
-        self.norm1 = norm_layer(dim, permute_input_output=True)
+        self.norm1 = norm_layer(dim)
         self.norm1_is_batchnorm_1d = isinstance(self.norm1, BatchNorm1d)
+        self.norm1.permute_input_output = True if self.norm1_is_batchnorm_1d else False
         kernel_skip = [s + 1 if s > 1 else s for s in stride_q]
         stride_skip = stride_q
         padding_skip = [int(skip // 2) for skip in kernel_skip]
@@ -695,8 +696,9 @@ class MultiScaleBlock(Module):
             max_seq_len=seq_len,
         )
         self.drop_path = DropPath(droppath_rate) if droppath_rate > 0.0 else Identity()
-        self.norm2 = norm_layer(dim, permute_input_output=True)
+        self.norm2 = norm_layer(dim)
         self.norm2_is_batchnorm_1d = isinstance(self.norm2, BatchNorm1d)
+        self.norm2.permute_input_output = True if self.norm2_is_batchnorm_1d else False
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.has_cls_embed = has_cls_embed
         self.mlp = Mlp(

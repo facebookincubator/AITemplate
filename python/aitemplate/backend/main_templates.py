@@ -249,7 +249,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
           CreateEvent(&call_start);
           CreateEvent(&call_end);
         }
-        for (auto& [call_start, call_end]: call_events) {
+        for (auto& [call_start, call_end] : call_events) {
           DeviceMemset(L2CacheSlab, 0x73, L2SizeInBytes);
           EventRecord(call_start, stream);
             {{ func }}
@@ -271,7 +271,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
            << ", \\"input_sizes\\": " << "{{ input_sizes | replace("'", '\\\\"') }}"
            << ", \\"output_sizes\\": " << "{{ output_sizes | replace("'", '\\\\"') }}"
         {% for prop_name, prop_value in func_properties.items() %}
-          << ", \\"{{ prop_name }}\\": " << "{{ prop_value }}"
+          << ", \\"{{ prop_name }}\\": " << "\\"{{ prop_value }}\\""
         {% endfor %}
            << " } ";
         {% if loop.last %}

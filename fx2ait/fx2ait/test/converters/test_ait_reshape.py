@@ -176,3 +176,27 @@ class TestReshapeConverter(AITTestCase):
             inputs_spec,
             expected_ops={acc_ops.reshape, acc_ops.size, acc_ops.getitem},
         )
+
+    def test_fx2ait_lower_shapes_duped(self):
+        class TestMod(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+
+            def forward(self, x):
+                concat = torch.concat((x, x, x))
+                reshape_0 = concat.reshape((-1, 3))
+                a = x.size(0) * 3
+                reshape = concat.reshape(-1, a)
+                reshape_0 = reshape_0.reshape(-1, a)
+                return reshape + reshape_0
+
+        inputs_spec = TensorSpec.from_input_list_with_batch_size(
+            inputs=[torch.randn(3, 4).half()], max_batch_size=8
+        )
+        model = TestMod().cuda().half()
+
+        self.run_test_with_dynamic_shape(
+            model,
+            inputs_spec,
+            expected_ops={},
+        )
