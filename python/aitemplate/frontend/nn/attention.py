@@ -399,8 +399,7 @@ class CrossAttention(Module):
         x = args[0]
         batch = x.shape()[0]
         attn_output = self.attention(args[0], args[1], args[2], seqlens=seqlens)
-                
-        attn_output = ops.reshape()(attn_output, [-1, self.dim])
+        attn_output = ops.reshape()(attn_output, [batch, -1, self.dim])
 
         if self.has_residual:
             assert len(args) == 4

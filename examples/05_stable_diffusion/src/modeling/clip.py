@@ -73,21 +73,32 @@ class CrossAttention(nn.Module):
         k = self.to_k(context)
         v = self.to_v(context)
 
-        bs = q.shape()[0]
+        bs = x.shape()[0]
 
-        q = ops.reshape()(q, [bs, -1, self.heads, self.dim_head])
-        k = ops.reshape()(k, [bs, -1, self.heads, self.dim_head])
-        v = ops.reshape()(v, [bs, -1, self.heads, self.dim_head])
+        q = ops.reshape()(q, [bs, -1, nheads, d])
+        k = ops.reshape()(k, [bs, -1, nheads, d])
+        v = ops.reshape()(v, [bs, -1, nheads, d])
         q = ops.permute()(q, [0, 2, 1, 3])
         k = ops.permute()(k, [0, 2, 1, 3])
         v = ops.permute()(v, [0, 2, 1, 3])
-
-        attn_op = ops.mem_eff_attention(causal=False)
-        out = attn_op(
-            (ops.reshape()(q, [bs, nheads, -1, d])),
-            (ops.reshape()(k, [bs, nheads, -1, d])),
-            (ops.reshape()(v, [bs, nheads, -1, d])),
-        )
+        if USE_CUDA:
+            attn_op = ops.mem_eff_attention(causal=False)
+            out = attn_op(
+                (ops.reshape()(q, [bs, nheads, -1, d])),
+                (ops.reshape()(k, [bs, nheads, -1, d])),
+                (ops.reshape()(v, [bs, nheads, -1, d])),
+            )
+        else:
+            attn_op = ops.bmm_softmax_bmm_permute(
+                shape=(nheads,),
+                scale=d**-0.5,
+                causal=False,
+            )
+            out = attn_op(
+                ops.reshape()(q, [bs * nheads, -1, d]),
+                ops.reshape()(k, [bs * nheads, -1, d]),
+                ops.reshape()(v, [bs * nheads, -1, d])
+            )
         out = ops.reshape()(out, [bs, -1, nheads * d])
         proj = self.to_out(out)
         proj = ops.reshape()(proj, [bs, -1, nheads * d])
@@ -381,14 +392,24 @@ class CLIPEncoderLayer(nn.Module):
     ):
         super().__init__()
         self.embed_dim = hidden_size
-        self.self_attn = nn.CrossAttention(
-            hidden_size,
-            seq_len,
-            seq_len,
-            num_attention_heads,
-            qkv_bias=True,
-            causal=causal,
-        )
+        if USE_CUDA:
+            self.self_attn = nn.CrossAttention(
+                hidden_size,
+                seq_len,
+                seq_len,
+                num_attention_heads,
+                qkv_bias=True,
+                causal=causal,
+            )
+        else:
+            self.self_attn = nn.MultiheadAttention(
+                hidden_size,
+                batch_size,
+                seq_len,
+                num_attention_heads,
+                qkv_bias=True,
+                causal=causal,
+            )
 
         self.layer_norm1 = nn.LayerNorm(self.embed_dim)
         self.mlp = self.ACT_LAYER_TO_CLIP_MLP_MAP[act_layer](
@@ -414,9 +435,14 @@ class CLIPEncoderLayer(nn.Module):
         residual = hidden_states
 
         hidden_states = self.layer_norm1(hidden_states)
-        hidden_states = self.self_attn(
-            hidden_states, hidden_states, hidden_states, residual
-        )
+        if USE_CUDA:
+            hidden_states = self.self_attn(
+                hidden_states, hidden_states, hidden_states, residual
+            )
+        else:
+            hidden_states = self.self_attn(
+                hidden_states, residual
+            )
 
         residual = hidden_states
         hidden_states = self.layer_norm2(hidden_states)

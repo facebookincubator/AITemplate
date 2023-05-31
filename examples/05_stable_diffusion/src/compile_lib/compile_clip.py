@@ -19,6 +19,10 @@ from aitemplate.testing import detect_target
 
 from ..modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
 from .util import mark_output
+import torch
+
+
+USE_CUDA = detect_target().name() == "cuda"
 
 
 def map_clip_params(pt_mod, batch_size, seqlen, depth):
@@ -31,12 +35,40 @@ def map_clip_params(pt_mod, batch_size, seqlen, depth):
             ait_name = ait_name.replace("out_proj", "proj")
         elif name.endswith("out_proj.bias"):
             ait_name = ait_name.replace("out_proj", "proj")
-        elif "q_proj" in name:
-            ait_name = ait_name.replace("q_proj", "proj_q")
-        elif "k_proj" in name:
-            ait_name = ait_name.replace("k_proj", "proj_k")
-        elif "v_proj" in name:
-            ait_name = ait_name.replace("v_proj", "proj_v")
+        elif USE_CUDA:
+            if "q_proj" in name:
+                ait_name = ait_name.replace("q_proj", "proj_q")
+            elif "k_proj" in name:
+                ait_name = ait_name.replace("k_proj", "proj_k")
+            elif "v_proj" in name:
+                ait_name = ait_name.replace("v_proj", "proj_v")
+        else:
+            if name.endswith("q_proj.weight"):
+                ait_name = ait_name.replace("q_proj", "qkv")
+                prefix = key[: -len("q_proj.weight")]
+                q = pt_params[prefix + "q_proj.weight"]
+                k = pt_params[prefix + "k_proj.weight"]
+                v = pt_params[prefix + "v_proj.weight"]
+                qkv_weight = torch.cat([q, k, v], dim=0)
+                params_ait[ait_name] = qkv_weight
+                continue
+            elif name.endswith("q_proj.bias"):
+                ait_name = ait_name.replace("q_proj", "qkv")
+                prefix = key[: -len("q_proj.bias")]
+                q = pt_params[prefix + "q_proj.bias"]
+                k = pt_params[prefix + "k_proj.bias"]
+                v = pt_params[prefix + "v_proj.bias"]
+                qkv_bias = torch.cat([q, k, v], dim=0)
+                params_ait[ait_name] = qkv_bias
+                continue
+            elif name.endswith("k_proj.weight"):
+                continue
+            elif name.endswith("k_proj.bias"):
+                continue
+            elif name.endswith("v_proj.weight"):
+                continue
+            elif name.endswith("v_proj.bias"):
+                continue
         params_ait[ait_name] = arr
 
     return params_ait
@@ -70,7 +102,7 @@ def compile_clip(
 
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)
-    batch_size = IntVar(values=[1, 8], name="batch_size")
+    batch_size = IntVar(values=[1, 8], name="batch_size") if USE_CUDA else batch_size
 
     input_ids_ait = Tensor(
         [batch_size, seqlen], name="input0", dtype="int64", is_input=True
