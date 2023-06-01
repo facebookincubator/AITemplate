@@ -41,6 +41,7 @@
 
 #include "cutlass/aligned_buffer.h"
 #include "cutlass/arch/memory.h"
+#include "cutlass/arch/memory_sm80.h"
 #include "cutlass/array.h"
 #include "cutlass/cutlass.h"
 #include "cutlass/gemm/gemm.h"
@@ -52,7 +53,6 @@
 #include "grouped_classic_b2b_bmm/threadblock/b2b_mma_base.h"
 #include "grouped_classic_b2b_bmm/threadblock/default_gmem_to_accum_loader_tensor_op.h"
 #include "grouped_classic_b2b_bmm/warp/triu_mma_tensor_op_fragment_iterator.h"
-
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace cutlass {
@@ -279,6 +279,14 @@ public:
 
   GmemToAccumLoader gmem_to_accum_loader;
 
+  int const jagged_sequence_length;
+
+  /// Base address of B1 matrix in memory
+  typename IteratorB0::Element *B1_base_matrix_ptr;
+
+  /// Stride from one B1 sequence element to the next ( B1 is row-major )
+  int const seq_stride_B1;
+
 public:
 
   /// Construct from tensor references
@@ -294,13 +302,19 @@ public:
       ///< ID of each thread within a warp
       int lane_idx,
       ///< GEMM0 N is used for accumulator extent
-      int problem_size_0_n
+      int jagged_sequence_length_,
+      // extra params
+      typename IteratorB1::Element *B1_base_matrix_ptr_,
+      int seq_stride_B1_
     ):
       Base(shared_storage, thread_idx, warp_idx, lane_idx),
       smem_iterator_A0_(shared_storage.shared_storage0.operand_A_ref(), thread_idx),
       smem_iterator_B0_(shared_storage.shared_storage0.operand_B_ref(), thread_idx),
       smem_iterator_B1_(shared_storage.shared_storage1.operand_B_ref(), thread_idx),
-      gmem_to_accum_loader(bias_add_shared_storage, thread_idx, warp_idx, lane_idx)
+      gmem_to_accum_loader(bias_add_shared_storage, thread_idx, warp_idx, lane_idx),
+      jagged_sequence_length(jagged_sequence_length_),
+      B1_base_matrix_ptr(B1_base_matrix_ptr_),
+      seq_stride_B1(seq_stride_B1_)
   {
     // Compute warp location within threadblock tile by mapping the warp_id to
     // three coordinates:
@@ -325,11 +339,10 @@ public:
 
   CUTLASS_DEVICE
   void copy_tiles_and_advance_0(IteratorA0 &iterator_A0, IteratorB0 &iterator_B0,
-                              int group_start_A0 = 0, int group_start_B0 = 0) {
+                             int const group_start_A0 = 0,  int const group_start_B0 = 0) {
     iterator_A0.set_iteration_index(group_start_A0 *
                                    IteratorA0::kAccessesPerVector);
     this->smem_iterator_A0_.set_iteration_index(group_start_A0);
-
     // LDGSTS for operand A
     CUTLASS_PRAGMA_UNROLL
     for (int j = 0; j < Detail::kAccessesPerGroupA0; ++j) {
@@ -338,19 +351,19 @@ public:
             reinterpret_cast<typename IteratorA0::AccessType *>(
                 this->smem_iterator_A0_.get());
 
-        int const kSrcBytes = sizeof_bits<typename IteratorA0::Element>::value *
+        constexpr int kSrcBytes = sizeof_bits<typename IteratorA0::Element>::value *
                               IteratorA0::ThreadMap::kElementsPerAccess /
                               IteratorA0::kAccessesPerVector / 8;
 
         CUTLASS_PRAGMA_UNROLL
         for (int v = 0; v < IteratorA0::kAccessesPerVector; ++v) {
-          auto gmem_ptr = iterator_A0.get();
-
-          cutlass::arch::cp_async<kSrcBytes, kCacheOpA0>(
-              dst_ptr + v, gmem_ptr, iterator_A0.valid());
+          cutlass::arch::cp_async_zfill<kSrcBytes, kCacheOpA0>(
+              dst_ptr + v, iterator_A0.get(), iterator_A0.valid());
 
           ++iterator_A0;
         }
+
+
 
         ++this->smem_iterator_A0_;
       }
@@ -359,7 +372,6 @@ public:
     iterator_B0.set_iteration_index(group_start_B0 *
                                    IteratorB0::kAccessesPerVector);
     this->smem_iterator_B0_.set_iteration_index(group_start_B0);
-
     // LDGSTS for operand B
     CUTLASS_PRAGMA_UNROLL
     for (int j = 0; j < Detail::kAccessesPerGroupB0; ++j) {
@@ -368,17 +380,14 @@ public:
             reinterpret_cast<typename IteratorB0::AccessType *>(
                 this->smem_iterator_B0_.get());
 
-        int const kSrcBytes = sizeof_bits<typename IteratorB0::Element>::value *
+        constexpr int kSrcBytes = sizeof_bits<typename IteratorB0::Element>::value *
                               IteratorB0::ThreadMap::kElementsPerAccess /
                               IteratorB0::kAccessesPerVector / 8;
 
         CUTLASS_PRAGMA_UNROLL
         for (int v = 0; v < IteratorB0::kAccessesPerVector; ++v) {
-          auto gmem_ptr = iterator_B0.get();
-
-          cutlass::arch::cp_async<kSrcBytes, kCacheOpB0>(
-              dst_ptr + v, gmem_ptr, iterator_B0.valid());
-
+          cutlass::arch::cp_async_zfill<kSrcBytes, kCacheOpB0>(
+              dst_ptr + v, iterator_B0.get(), iterator_B0.valid());
           ++iterator_B0;
         }
         ++this->smem_iterator_B0_;
@@ -388,11 +397,10 @@ public:
 
   CUTLASS_DEVICE
   void copy_tiles_and_advance_1(IteratorB1 &iterator_B1,
-                              int group_start_B1 = 0) {
+                              int const group_start_B1 = 0) {
     iterator_B1.set_iteration_index(group_start_B1 *
                                    IteratorB1::kAccessesPerVector);
     this->smem_iterator_B1_.set_iteration_index(group_start_B1);
-
     // LDGSTS for operand B
     CUTLASS_PRAGMA_UNROLL
     for (int j = 0; j < Detail::kAccessesPerGroupB1; ++j) {
@@ -401,17 +409,18 @@ public:
             reinterpret_cast<typename IteratorB1::AccessType *>(
                 this->smem_iterator_B1_.get());
 
-        int const kSrcBytes = sizeof_bits<typename IteratorB1::Element>::value *
+        constexpr int kSrcBytes = sizeof_bits<typename IteratorB1::Element>::value *
                               IteratorB1::ThreadMap::kElementsPerAccess /
                               IteratorB1::kAccessesPerVector / 8;
 
         CUTLASS_PRAGMA_UNROLL
         for (int v = 0; v < IteratorB1::kAccessesPerVector; ++v) {
-          auto gmem_ptr = iterator_B1.get();
-
-          cutlass::arch::cp_async<kSrcBytes, kCacheOpB1>(
-              dst_ptr + v, gmem_ptr, iterator_B1.valid());
-
+          auto const gmem_ptr = iterator_B1.get();
+          int64_t const offset = reinterpret_cast<decltype(B1_base_matrix_ptr)>(gmem_ptr)-B1_base_matrix_ptr;
+          int64_t const outer_offset = offset / seq_stride_B1;
+          bool const iterB1valid = (outer_offset<jagged_sequence_length);
+          cutlass::arch::cp_async_zfill<kSrcBytes, kCacheOpB1>(
+              dst_ptr + v, gmem_ptr, iterB1valid);
           ++iterator_B1;
         }
         ++this->smem_iterator_B1_;
@@ -450,7 +459,6 @@ public:
 
       iterator_A0.clear_mask(gemm_k_iterations_0 == 0);
       iterator_B0.clear_mask(gemm_k_iterations_0 == 0);
-
       iterator_A0.set_iteration_index(0);
       this->smem_iterator_A0_.set_iteration_index(0);
 
@@ -460,19 +468,16 @@ public:
         typename IteratorA0::AccessType *dst_ptr =
             reinterpret_cast<typename IteratorA0::AccessType *>(
                 this->smem_iterator_A0_.get());
-
-        CUTLASS_PRAGMA_UNROLL
-        for (int v = 0; v < IteratorA0::kAccessesPerVector; ++v) {
-          int const kSrcBytes =
+        constexpr int kSrcBytes =
               sizeof_bits<typename IteratorA0::Element>::value *
               IteratorA0::ThreadMap::kElementsPerAccess /
               IteratorA0::kAccessesPerVector / 8;
 
-          int src_bytes = (iterator_A0.valid() ? kSrcBytes : 0);
-
+        CUTLASS_PRAGMA_UNROLL
+        for (int v = 0; v < IteratorA0::kAccessesPerVector; ++v) {
+          // zfill used here also in original code
           cutlass::arch::cp_async_zfill<kSrcBytes, kCacheOpA0>(
               dst_ptr + v, iterator_A0.get(), iterator_A0.valid());
-
           ++iterator_A0;
         }
 
@@ -491,11 +496,10 @@ public:
 
         CUTLASS_PRAGMA_UNROLL
         for (int v = 0; v < IteratorB0::kAccessesPerVector; ++v) {
-          int const kSrcBytes =
+          constexpr int kSrcBytes =
               sizeof_bits<typename IteratorB0::Element>::value *
               IteratorB0::ThreadMap::kElementsPerAccess /
               IteratorB0::kAccessesPerVector / 8;
-
           cutlass::arch::cp_async_zfill<kSrcBytes, kCacheOpB0>(
               dst_ptr + v, iterator_B0.get(), iterator_B0.valid());
 
@@ -540,10 +544,8 @@ public:
 
     ++this->warp_tile_iterator_A0_;
     ++this->warp_tile_iterator_B0_;
-
     iterator_A0.clear_mask(gemm_k_iterations_0 == 0);
     iterator_B0.clear_mask(gemm_k_iterations_0 == 0);
-
     int smem_write_stage_idx = Base::kStages - 1;
     int smem_read_stage_idx = 0;
 
@@ -681,14 +683,11 @@ public:
     // Prologue
     //
     int gemm_k_iterations_1 = (FragmentIteratorA1::Policy::kIterations + Base::kWarpGemmIterations1 - 1) / Base::kWarpGemmIterations1;
-
     // Issue several complete stages
     CUTLASS_PRAGMA_UNROLL
     for (int stage = 0; stage < Base::kStages - 1;
          ++stage, --gemm_k_iterations_1) {
-
       iterator_B1.clear_mask(gemm_k_iterations_1 == 0);
-
       iterator_B1.set_iteration_index(0);
       this->smem_iterator_B1_.set_iteration_index(0);
 
@@ -701,13 +700,17 @@ public:
 
         CUTLASS_PRAGMA_UNROLL
         for (int v = 0; v < IteratorB1::kAccessesPerVector; ++v) {
-          int const kSrcBytes =
+          constexpr int kSrcBytes =
               sizeof_bits<typename IteratorB1::Element>::value *
               IteratorB1::ThreadMap::kElementsPerAccess /
               IteratorB1::kAccessesPerVector / 8;
-
+          auto const gmem_ptr = iterator_B1.get();
+          int64_t const offset = reinterpret_cast<decltype(B1_base_matrix_ptr)>(gmem_ptr)-B1_base_matrix_ptr;
+          int64_t const outer_offset = offset / seq_stride_B1;
+          bool const iterB1valid = (outer_offset<jagged_sequence_length);
+          // zfill also used in original code
           cutlass::arch::cp_async_zfill<kSrcBytes, kCacheOpB1>(
-              dst_ptr + v, iterator_B1.get(), iterator_B1.valid());
+              dst_ptr + v, gmem_ptr, iterB1valid);
 
           ++iterator_B1;
         }
@@ -747,9 +750,7 @@ public:
     this->warp_tile_iterator_B1_.set_kgroup_index(0);
     this->warp_tile_iterator_B1_.load(warp_loaded_frag_B1[0]);
     ++this->warp_tile_iterator_B1_;
-
     iterator_B1.clear_mask(gemm_k_iterations_1 == 0);
-
     smem_write_stage_idx = Base::kStages - 1;
     smem_read_stage_idx = 0;
 
@@ -759,7 +760,6 @@ public:
     //
     // Mainloop
     //
-
     gemm_k_iterations_1 = (FragmentIteratorA1::Policy::kIterations + Base::kWarpGemmIterations1 - 1) / Base::kWarpGemmIterations1 - (Base::kStages - 1);
     CUTLASS_PRAGMA_UNROLL
     for (; gemm_k_iterations_1 > (-Base::kStages + 1); gemm_k_iterations_1--) {
@@ -849,7 +849,6 @@ public:
           } else {
             ++smem_read_stage_idx;
           }
-
           iterator_B1.clear_mask(gemm_k_iterations_1 == 1);
         }
 

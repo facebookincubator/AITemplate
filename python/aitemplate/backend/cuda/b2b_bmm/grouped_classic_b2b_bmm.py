@@ -53,17 +53,16 @@ constexpr int InstructionK = 16;
 // gemm 0 and see what the perf result is.
 constexpr int WarpM = 16;
 
-constexpr int N0 = {{n0}};
-constexpr int N1 = {{n1}};
+constexpr int N0 = {{max_seq_len}};
+constexpr int N1 = {{n1}}; // embedding size of value
 
-void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::string& message) {
+void check_status(cutlass::Status status, int64_t max_seq_len, int64_t k0, const std::string& message) {
   if (status != cutlass::Status::kSuccess) {
       throw std::runtime_error(
         message +
         "Function: {{function_name}}. "
-        "m0: " + std::to_string(m0) +
+        "max_seq_len: " + std::to_string(max_seq_len) +
         ", k0: " + std::to_string(k0) +
-        ", n0: " + std::to_string({{n0}}) +
         ", n1: " + std::to_string({{n1}}) + "."
       );
   }
@@ -81,7 +80,7 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
   ElementCompute beta0 = ElementCompute(1);
   ElementCompute activation_alpha = ElementCompute({{alpha1}});
   {% if alpha1_divide_by_seq_len %}
-  activation_alpha = activation_alpha / (ElementCompute)(static_cast<int32_t>(m0));
+  activation_alpha = activation_alpha / (ElementCompute)(static_cast<int32_t>(max_seq_len));
   {% endif %}
   ElementCompute alpha1 = ElementCompute(1);
   ElementCompute beta1 = ElementCompute(0);
@@ -132,11 +131,13 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
     EpilogueOutputOp1,
     cutlass::gemm::threadblock::GemmBatchedIdentityThreadblockSwizzle,
     3,
-    {{has_causal}} // enable causal mask after gemm0
+    {{has_causal}}, // enable causal mask after gemm0
+    false, // stage accumulator in shared memory
+    {{offset_type}}
   >;
 
-  cutlass::gemm::GemmCoord problem_size_0(m0, {{n0}}, k0);
-  cutlass::gemm::GemmCoord problem_size_1(m0, {{n1}}, {{n0}});
+  cutlass::gemm::GemmCoord problem_size_0({{max_seq_len}}, {{max_seq_len}}, k0);
+  cutlass::gemm::GemmCoord problem_size_1({{max_seq_len}}, {{n1}}, {{max_seq_len}});
 
   // Assuming BMHD dim ordering for inputs and outputs, like in FHMA style op
   // B = batch size
@@ -145,17 +146,19 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
   // D = embedding dims per head
   // --- Tensor shapes:
   // GEMM PROBLEM 0:
-  // A=query : [ batch_size, M0, num_heads, K0 ]
-  // B=key : [ batch_size, N0, num_heads, K0 ]
-  // C0=bias : [ batch_size, num_heads, M0, N0 ] # Where the batch size, head and M0 dimension may be broadcasted over
-  // GEMM PROBLEM 1:
-  // B1=value : [ batch_size, K1==N0, num_heads, N1 ]
-  // C1=unused:  [ N1 ]
-  // D1=output : [ batch_size, M1==M0, num_heads, N1 ]
+  // jagged dims seq_len is in extra <...> brackets with the batch size
 
-  // Required equalities for B2B gemm:
-  // M1 = M0;
-  // K1 = N0;
+  // A=query : [ <batch_size, M0=jagged_seq_len>, num_heads, K0 ]
+  // B=key : [ <batch_size, N0=jagged_seq_len>, num_heads, K0 ]
+  // C0=bias : [ batch_size, num_heads, max_seq_len, N0 ] # Where the batch size, head and M0 dimension may be broadcasted over
+  // GEMM PROBLEM 1:
+  // B1=value : [ <batch_size, K1=jagged_seq_len>, num_heads, N1 ]
+  // C1=unused:  [ N1 ]
+  // D1=output : [ <batch_size, M1=jagged_seq_len>, num_heads, N1 ]
+
+  // Required equalities for grouped / jagged B2B gemm:
+  // seq_len = M1 = M0 = N0 = K1;
+
 
   typename GroupedB2bGemmBatched::Arguments arguments{
     problem_size_0, // = GemmCoord problem_size_0;
@@ -180,6 +183,7 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
     num_heads * problem_size_1.m() * problem_size_1.n(),                                                                // int64_t batch_stride_output;
     batch_size,                                                                                                         // int batch_count;
     num_heads,                                                                                                          // int num_heads
+    static_cast<const {{offset_type}}*>(offsets),                                                                                       // const offset_t *
     {alpha0, beta0, activation_alpha},                                                                                  // typename EpilogueOutputOp0::Params epilogue0;
     {alpha1, beta1},                                                                                                    // typename EpilogueOutputOp1::Params epilogue1;
   };
@@ -187,17 +191,17 @@ void check_status(cutlass::Status status, int64_t m0, int64_t k0, const std::str
   GroupedB2bGemmBatched b2b_gemm_op;
   check_status(
     b2b_gemm_op.can_implement(arguments),
-    m0, k0,
+    {{max_seq_len}}, k0,
     "Problem sizes are not supported."
   );
   check_status(
     b2b_gemm_op.initialize(arguments),
-    m0, k0,
+    {{max_seq_len}}, k0,
     "classic_b2b_bmm initialization failed!"
   );
   check_status(
     b2b_gemm_op(stream),
-    m0, k0,
+    {{max_seq_len}}, k0,
     "classic_b2b_bmm failed to execute!"
   );
 }
@@ -214,8 +218,9 @@ void {{func_name}}(void* output,
                    void* bias,
                    int64_t batch_size,
                    int64_t num_heads,
-                   int64_t m0,
+                   int64_t max_seq_len,
                    int64_t k0,
+                   const void *offsets,
                    cudaStream_t stream)
     """
 )
@@ -233,8 +238,9 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}    {{query}}, {{key}}, {{value}}, {{bias}},
 {{indent}}    {{batch_size}},
 {{indent}}    {{num_heads}},
-{{indent}}    {{m0}},
+{{indent}}    {{max_seq_len}},
 {{indent}}    {{k0}},
+{{indent}}    {{offsets}},
 {{indent}}    stream /* default stream */
 {{indent}});
     """
@@ -245,13 +251,11 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
     """the function for generating attention kernel"""
     q, k, v, bias = func_attrs["inputs"]
-    seq_len_dim = 1
-    n0 = k._attrs["shape"][seq_len_dim]
+    max_seq_len = func_attrs["max_seq_len"]
     n1 = v._attrs["shape"][-1]
-    if not isinstance(n0, IntImm) or not isinstance(n1, IntImm):
-        raise RuntimeError(
-            f"n0 and n1 must be static dims. {func_attrs['name']=}, {n0=}, {n1=}"
-        )
+    jagged_intvar = q._attrs["shape"][0]
+    if not isinstance(n1, IntImm):
+        raise RuntimeError(f"n1 must be static dim. {func_attrs['name']=}, {n1=}")
     backend_spec = CUDASpec()
     if func_attrs["inputs"][0]._attrs["dtype"] != "float16":
         raise NotImplementedError(
@@ -314,7 +318,7 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         elem_input_type=elem_input_type,
         elem_output_type=elem_output_type,
         elem_accum_type=elem_accum_type,
-        n0=str(n0.value()),
+        max_seq_len=str(max_seq_len),
         n1=str(n1.value()),
         has_causal=(
             "true" if func_attrs["causal_type"] != CausalType.NO_CAUSAL else "false"
@@ -328,6 +332,7 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         bias_stride_n=bias_stride_n,
         bias_stride_mn=bias_stride_mn,
         bias_stride_hmn=bias_stride_hmn,
+        offset_type=jagged_intvar.offsets_type(),
     )
 
 
@@ -349,21 +354,25 @@ def classic_b2b_bmm_gen_function_call(func_attrs, indent="  "):
     k_name = func_attrs["inputs"][1]._attrs["name"]
     v_name = func_attrs["inputs"][2]._attrs["name"]
     bias_name = func_attrs["inputs"][3]._attrs["name"]
-
     q_shape = func_attrs["inputs"][0]._attrs["shape"]
 
-    batch_size = q_shape[0]._attrs["name"]
-    seq_len_dim = 1
-    head_dim = -2
-    m0 = q_shape[seq_len_dim]._attrs["name"]
+    k0 = q_shape[2]._attrs["name"]
 
-    if len(q_shape) == 3:
-        # single head case
-        k0 = q_shape[2]._attrs["name"]
-        num_heads = "1"
-    elif len(q_shape) == 4:
-        k0 = q_shape[3]._attrs["name"]
-        num_heads = q_shape[head_dim]._attrs["name"]
+    jagged_intvar = q_shape[0]
+    batch_size_var = jagged_intvar.batch_dim()._attrs["name"]
+    if len(jagged_intvar.jagged_dims()) != 1:
+        raise RuntimeError(
+            "Only support 1 jagged dim in grouped_classic_b2b_bmm for now! "
+            f"Current jagged intvar: {jagged_intvar}"
+        )
+    max_seq_len_dim = jagged_intvar.jagged_dims()[0].max_value()
+    max_seq_len_var = (
+        str(max_seq_len_dim.value())
+        if isinstance(max_seq_len_dim, IntImm)
+        else max_seq_len_dim._attrs["name"]
+    )
+    num_heads_var = q_shape[1]._attrs["name"]
+    offsets_var_name = f"{jagged_intvar.offsets_var_name()}.data[0]"
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         output=output_name,
@@ -371,9 +380,11 @@ def classic_b2b_bmm_gen_function_call(func_attrs, indent="  "):
         key=k_name,
         value=v_name,
         bias=bias_name,
-        batch_size=batch_size,
-        num_heads=num_heads,
-        m0=m0,
+        batch_size=batch_size_var,
+        num_heads=num_heads_var,
+        max_seq_len=max_seq_len_var,
         k0=k0,
         indent=indent,
+        offsets=offsets_var_name,
+        offset_type=jagged_intvar.offsets_type(),
     )

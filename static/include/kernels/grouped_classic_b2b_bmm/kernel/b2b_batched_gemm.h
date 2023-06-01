@@ -38,12 +38,12 @@
 
 #pragma once
 
+#include <cstddef>
 #include "cutlass/cutlass.h"
 
 #include "cutlass/gemm/gemm.h"
 #include "cutlass/matrix_coord.h"
 #include "cutlass/semaphore.h"
-
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace cutlass {
@@ -56,7 +56,8 @@ template <
   typename B2bMma_,               ///! Threadblock-scoped matrix multiply-accumulate
   typename Epilogue_,             ///! Epilogue
   typename ThreadblockSwizzle_,   ///! Threadblock swizzling function
-  typename GmemToAccumLoader_
+  typename GmemToAccumLoader_,
+  typename offset_t_
 >
 struct GroupedB2bGemmBatched {
 
@@ -66,6 +67,7 @@ struct GroupedB2bGemmBatched {
   using OutputOp0 = typename B2bMma::OutputOp;
   using OutputOp1 = typename Epilogue::OutputOp;
   using ThreadblockSwizzle = ThreadblockSwizzle_;
+  using offset_t = offset_t_;
 
   /// Warp count (concept: GemmShape)
   using WarpCount0 = typename B2bMma::WarpCount0;
@@ -108,6 +110,10 @@ struct GroupedB2bGemmBatched {
     int gemm_k_iterations_0;
     int gemm_k_iterations_1;
 
+    // array of jagged dim offsets
+    // of size batch_count + 1
+    const offset_t *offsets;
+
     //
     // Methods
     //
@@ -140,6 +146,7 @@ struct GroupedB2bGemmBatched {
       int64_t batch_stride_D1,
       int batch_count,
       int num_heads,
+      const offset_t *offsets_,
       typename OutputOp0::Params output_op_0 = typename OutputOp0::Params(),
       typename OutputOp1::Params output_op_1 = typename OutputOp1::Params()
     ):
@@ -175,6 +182,7 @@ struct GroupedB2bGemmBatched {
       output_op_1(output_op_1),
       batch_count(batch_count),
       num_heads(num_heads),
+      offsets{offsets_},
       gemm_k_iterations_0((problem_size_0.k() + B2bMma::Shape0::kK - 1) / B2bMma::Shape0::kK),
       gemm_k_iterations_1((problem_size_1.k() + B2bMma::Shape1::kK - 1) / B2bMma::Shape1::kK) {}
   };
@@ -264,7 +272,6 @@ struct GroupedB2bGemmBatched {
 
     // Compute threadblock location
     ThreadblockSwizzle threadblock_swizzle;
-
     cutlass::gemm::GemmCoord threadblock_tile_offset =
         threadblock_swizzle.get_tile_offset(params.swizzle_log_tile);
 
@@ -275,9 +282,25 @@ struct GroupedB2bGemmBatched {
       return;
     }
 
+
     // Each CTA handles multiple batch indices to accommodate limited range of CUDA grid's Z dimension
     for (int batch_head_idx = threadblock_swizzle.get_batch_idx(); batch_head_idx < params.batch_count * params.num_heads; batch_head_idx += gridDim.z) {
 
+
+      // Compute position within threadblock
+      int thread_idx = threadIdx.x;
+
+      // Convert blockIdx.z into (batch_idx, head_idx).
+      int batch_idx = batch_head_idx / params.num_heads;
+      int head_idx = batch_head_idx % params.num_heads;
+
+      offset_t jagged_offset_start = params.offsets[batch_idx];
+      offset_t jagged_seq_len = params.offsets[batch_idx+1] - jagged_offset_start;
+
+      // early exit
+      if ((threadblock_tile_offset.m() * B2bMma::Shape0::kM >= jagged_seq_len) or (threadblock_tile_offset.n() * B2bMma::Shape0::kN >= jagged_seq_len)) {
+          return;
+      }
       // Compute initial location in logical coordinates
       cutlass::MatrixCoord tb_offset_A0{
         threadblock_tile_offset.m() * B2bMma::Shape0::kM,
@@ -294,31 +317,24 @@ struct GroupedB2bGemmBatched {
         threadblock_tile_offset.n() * B2bMma::Shape1::kN
       };
 
-      // Compute position within threadblock
-      int thread_idx = threadIdx.x;
-
-      // Convert blockIdx.z into (batch_idx, head_idx).
-      int batch_idx = batch_head_idx / params.num_heads;
-      int head_idx = batch_head_idx % params.num_heads;
-
       // Construct iterators to A and B operands
       typename B2bMma::IteratorA0 iterator_A0(
         params.params_A0,
         params.ref_A0.data(),
-        params.problem_size_0.mk(),
+        { jagged_seq_len, params.problem_size_0.k() }, // A0 matrix size
         thread_idx,
         tb_offset_A0);
 
-      iterator_A0.add_pointer_offset(params.batch_stride_A0 * batch_idx + params.head_stride_A0 * head_idx);
+      iterator_A0.add_pointer_offset(params.ref_A0.stride(0) * jagged_offset_start + params.head_stride_A0 * head_idx);
 
       typename B2bMma::IteratorB0 iterator_B0(
         params.params_B0,
         params.ref_B0.data(),
-        params.problem_size_0.kn(),
+        { params.problem_size_0.k(), jagged_seq_len }, // B0 matrix size
         thread_idx,
         tb_offset_B0);
 
-      iterator_B0.add_pointer_offset(params.batch_stride_B0 * batch_idx + params.head_stride_B0 * head_idx);
+      iterator_B0.add_pointer_offset(params.ref_B0.stride(0) * jagged_offset_start + params.head_stride_B0 * head_idx);
 
       typename B2bMma::IteratorB1 iterator_B1(
         params.params_B1,
@@ -326,8 +342,9 @@ struct GroupedB2bGemmBatched {
         params.problem_size_1.kn(),
         thread_idx,
         tb_offset_B1);
-
-      iterator_B1.add_pointer_offset(params.batch_stride_B1 * batch_idx + params.head_stride_B1 * head_idx);
+      auto const B1_ptr_offset = params.ref_B1.stride(0) * jagged_offset_start +  params.head_stride_B1 * head_idx;
+      iterator_B1.add_pointer_offset(B1_ptr_offset);
+      typename B2bMma::IteratorB1::Element *B1_tile_base_ptr  =  params.ref_B1.data() + B1_ptr_offset;
 
 
       // Broadcast the warp_id computed by lane 0 to ensure dependent code
@@ -345,7 +362,7 @@ struct GroupedB2bGemmBatched {
       typename GmemToAccumLoader::OutputTileIterator iterator_C0(
         params.params_C0,
         params.ref_C0.data(),
-        params.problem_size_0.mn(),
+        make_Coord(jagged_seq_len, jagged_seq_len),
         thread_idx,
         tb_offset_C0
       );
@@ -359,7 +376,11 @@ struct GroupedB2bGemmBatched {
       OutputOp0 output_op_0(params.output_op_0);
 
       // Construct thread-scoped matrix multiply
-      B2bMma b2bMma(shared_storage.main_loop, shared_storage.gmem_to_accum_loader, thread_idx, warp_idx, lane_idx, params.problem_size_0.n());
+      B2bMma b2bMma(shared_storage.main_loop, shared_storage.gmem_to_accum_loader, thread_idx, warp_idx, lane_idx,
+            jagged_seq_len,
+            B1_tile_base_ptr,
+            static_cast<int>(params.ref_B1.stride(0))
+      );
 
       typename B2bMma::FragmentC0 src_accum;
       typename B2bMma::FragmentC1 accumulators;
@@ -368,8 +389,15 @@ struct GroupedB2bGemmBatched {
       accumulators.clear();
 
       // Compute threadblock-scoped matrix multiply-add
-      b2bMma(params.gemm_k_iterations_0, accumulators, iterator_A0, iterator_B0, iterator_C0,
-        iterator_B1, src_accum, output_op_0);
+      b2bMma(
+        params.gemm_k_iterations_0,
+        accumulators,
+        iterator_A0,
+        iterator_B0,
+        iterator_C0,
+        iterator_B1,
+        src_accum,
+        output_op_0);
 
       //
       // Epilogue
@@ -405,12 +433,12 @@ struct GroupedB2bGemmBatched {
       typename Epilogue::OutputTileIterator iterator_D1(
         params.params_D1,
         params.ref_D1.data(),
-        params.problem_size_1.mn(),
+        make_Coord(jagged_seq_len, params.problem_size_1.n()),
         thread_idx,
         threadblock_offset
       );
 
-      iterator_D1.add_pointer_offset(params.batch_stride_D1 * batch_idx + params.head_stride_D1 * head_idx);
+      iterator_D1.add_pointer_offset(params.ref_D1.stride(0) * jagged_offset_start + params.head_stride_D1 * head_idx);
 
       Epilogue epilogue(
         shared_storage.epilogue,

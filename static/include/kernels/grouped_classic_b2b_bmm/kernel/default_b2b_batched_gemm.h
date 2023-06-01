@@ -127,10 +127,11 @@ template <
   /// Apply upper triangular causal mask after first gemm
   bool CausalMaskAfterGemm0 = false,
   /// Stage accumulator in shared memory
-  bool SmemAccumulator = false
+  bool SmemAccumulator = false,
+  /// Element type for offsets / array indices
+  typename offset_t_ = int
 >
 struct DefaultGroupedB2bGemmBatched;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 /// Partial specialization for Ampere Architecture
@@ -174,13 +175,15 @@ template <
     /// Operation performed by GEMM
     typename Operator,
     /// Apply upper triangular causal mask after first gemm
-    bool CausalMaskAfterGemm0>
+    bool CausalMaskAfterGemm0,
+    /// Element type for offsets / array indices
+    typename offset_t_>
 struct DefaultGroupedB2bGemmBatched<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB, kAlignmentB, LayoutB1, ElementC,
                    layout::RowMajor, ElementAccumulator, arch::OpClassTensorOp,
                    arch::Sm80, ThreadblockShape0, ThreadblockShape1,
                    WarpShape0, WarpShape1, InstructionShape,
                    EpilogueOutputOp0, EpilogueOutputOp1, ThreadblockSwizzle, Stages,
-                   Operator, CausalMaskAfterGemm0> {
+                   Operator, CausalMaskAfterGemm0, false, offset_t_> {
 
   // TODO: Make pipelined (i.e. stages == 2) work.
   static_assert((Stages >= 3), "Currently, only multistage is supported (not pipelined).");
@@ -210,7 +213,7 @@ struct DefaultGroupedB2bGemmBatched<ElementA, LayoutA, kAlignmentA, ElementB, La
           EpilogueOutputOp1::kCount>::Epilogue;
 
   /// Define the kernel-level GEMM operator.
-  using B2bGemmBatchedKernel = kernel::GroupedB2bGemmBatched<B2bMma, Epilogue, ThreadblockSwizzle, typename B2bMma::GmemToAccumLoader>;
+  using GroupedB2bGemmBatchedKernel = kernel::GroupedB2bGemmBatched<B2bMma, Epilogue, ThreadblockSwizzle, typename B2bMma::GmemToAccumLoader, offset_t_>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
