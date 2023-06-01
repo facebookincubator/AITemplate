@@ -125,7 +125,7 @@ class AITTestCase(TestCase):
         for p in passes:
             mod = p(mod, inputs)
 
-        logger.info(f"{mod.graph=}")
+        logger.info(f"{mod.graph}")
 
         original_inputs = copy.deepcopy(inputs)
         if permute_inputs:
@@ -264,7 +264,7 @@ class AITTestCase(TestCase):
         )
         for p in passes:
             mod = p(mod, inputs_min)
-        logger.info(f"{mod.graph=}")
+        logger.info(f"{mod.graph}")
 
         original_inputs = inputs_min
         # Trace and test with inputs_min
