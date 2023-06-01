@@ -16,12 +16,21 @@
 """
 Common codegen functions for gemm_bias_activation.
 """
+import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.gemm_universal import common, common_bias, gemm_rcr
 from aitemplate.backend.cuda.gemm_universal.layout import RCR
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703
+
+
+EXTRA_CODE_HEADER = jinja2.Template(
+    """
+using elem_input_type = {{elem_input_type}};
+using elem_output_type = {{elem_output_type}};
+"""
+)
 
 
 def gemm_rcr_config(
@@ -35,6 +44,24 @@ def gemm_rcr_config(
         include_cutlass_3x_ops=include_cutlass_3x_ops,
     )
 
+    import cutlass_lib
+
+    for op in func_attrs["op_instance"].values():
+        if common.has_tma_epilogue(op):
+            # disable residual to leave more SMEM for the mainloop
+            op.C.element = cutlass_lib.library.DataType.void
+
+            # swap the output layout to the transposed problem
+            op.C.layout = cutlass_lib.library.LayoutType.ColumnMajor
+            op.D.layout = cutlass_lib.library.LayoutType.ColumnMajor
+
+            # switch to a TMA epilogue with bias
+            op.epilogue_schedule = (
+                cutlass_lib.library.EpilogueScheduleBiasElementwiseMapping[
+                    op.epilogue_schedule
+                ]
+            )
+
 
 def gen_profiler(
     func_attrs,
@@ -45,6 +72,17 @@ def gen_profiler(
     problem_args_template_cutlass_3x=None,
     extra_code="",
 ):
+    backend_spec = CUDASpec()
+    elem_input_type = backend_spec.dtype_to_lib_type(
+        func_attrs["inputs"][0]._attrs["dtype"]
+    )
+    elem_output_type = backend_spec.dtype_to_lib_type(
+        func_attrs["outputs"][0]._attrs["dtype"]
+    )
+    extra_code_header = EXTRA_CODE_HEADER.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+    )
     return gemm_rcr.common_gen_profiler(
         func_attrs=func_attrs,
         workdir=workdir,
@@ -54,7 +92,7 @@ def gen_profiler(
         problem_args_template=problem_args_template,
         problem_args_template_cutlass_3x=problem_args_template_cutlass_3x,
         bias_ptr_arg="memory_pool->RequestTensorByIdx(3)",
-        extra_code=extra_code,
+        extra_code="\n\n".join([extra_code_header, extra_code]),
     )
 
 
@@ -86,6 +124,10 @@ def gen_function(
             elem_input_type=elem_input_type,
             elem_output_type=elem_output_type,
         )
+    extra_code_header = EXTRA_CODE_HEADER.render(
+        elem_input_type=elem_input_type,
+        elem_output_type=elem_output_type,
+    )
     return common.gen_function(
         func_attrs=func_attrs,
         src_template=common_bias.SRC_TEMPLATE,
@@ -101,7 +143,7 @@ def gen_function(
             stride_dim="N",
             output_accessor=func_attrs["output_accessors"][0],
         ),
-        extra_code=extra_code,
+        extra_code="\n\n".join([extra_code_header, extra_code]),
     )
 
 

@@ -166,6 +166,22 @@ class EpilogueScheduleType(enum.Enum):
   TmaWarpSpecializedCooperativeElementwiseGELU = enum_auto()
   TmaWarpSpecializedElementwiseFastGELU = enum_auto()
   TmaWarpSpecializedCooperativeElementwiseFastGELU = enum_auto()
+  TmaWarpSpecializedBiasElementwise = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwise = enum_auto()
+  TmaWarpSpecializedBiasElementwiseRelu = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwiseRelu = enum_auto()
+  TmaWarpSpecializedBiasElementwiseSigmoid = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwiseSigmoid = enum_auto()
+  TmaWarpSpecializedBiasElementwiseSiLu = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwiseSiLu = enum_auto()
+  TmaWarpSpecializedBiasElementwiseTanh = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwiseTanh = enum_auto()
+  TmaWarpSpecializedBiasElementwiseHardSwish = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwiseHardSwish = enum_auto()
+  TmaWarpSpecializedBiasElementwiseGELU = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwiseGELU = enum_auto()
+  TmaWarpSpecializedBiasElementwiseFastGELU = enum_auto()
+  TmaWarpSpecializedCooperativeBiasElementwiseFastGELU = enum_auto()
 
 EpilogueScheduleTag = {
   EpilogueScheduleType.ScheduleAuto: 'cutlass::epilogue::collective::EpilogueScheduleAuto',
@@ -187,6 +203,22 @@ EpilogueScheduleTag = {
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::GELU>',
   EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedElementwise<cutlass::epilogue::thread::GELU_taylor>',
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeElementwise<cutlass::epilogue::thread::GELU_taylor>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwise: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::Identity, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwise: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::Identity, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseRelu: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::ReLu, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseRelu: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::ReLu, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseSigmoid: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::Sigmoid, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseSigmoid: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::Sigmoid, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseSiLu: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::SiLu, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseSiLu: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::SiLu, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseTanh: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::Tanh, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseTanh: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::Tanh, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseHardSwish: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::HardSwish, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseHardSwish: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::HardSwish, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseGELU: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::GELU, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::GELU, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedBiasElementwise<cutlass::epilogue::thread::GELU_taylor, elem_input_type, cutlass::plus, false, elem_input_type>',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseFastGELU: 'cutlass::epilogue::TmaWarpSpecializedCooperativeBiasElementwise<cutlass::epilogue::thread::GELU_taylor, elem_input_type, cutlass::plus, false, elem_input_type>',
 }
 
 EpilogueScheduleSuffixes = {
@@ -209,6 +241,22 @@ EpilogueScheduleSuffixes = {
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU: '_epi_tma_gelu',
   EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU: '_epi_tma_fast_gelu',
   EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU: '_epi_tma_fast_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwise: '_epi_tma_bias',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwise: '_epi_tma_bias',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseRelu: '_epi_tma_bias_relu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseRelu: '_epi_tma_bias_relu',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseSigmoid: '_epi_tma_bias_sigmoid',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseSigmoid: '_epi_tma_bias_sigmoid',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseSiLu: '_epi_tma_bias_silu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseSiLu: '_epi_tma_bias_silu',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseTanh: '_epi_tma_bias_tanh',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseTanh: '_epi_tma_bias_tanh',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseHardSwish: '_epi_tma_bias_hardswish',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseHardSwish: '_epi_tma_bias_hardswish',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseGELU: '_epi_tma_bias_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseGELU: '_epi_tma_bias_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseFastGELU: '_epi_tma_bias_fast_gelu',
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseFastGELU: '_epi_tma_bias_fast_gelu',
 }
 
 EpilogueScheduleMapping = {
@@ -232,6 +280,25 @@ EpilogueScheduleMapping = {
     EpilogueFunctor.LinearCombinationFastGELU: EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU,
     EpilogueFunctor.LinearCombinationResidualBlock: EpilogueScheduleType.TmaWarpSpecializedCooperative,
   },
+}
+
+EpilogueScheduleBiasElementwiseMapping = {
+  EpilogueScheduleType.TmaWarpSpecialized: EpilogueScheduleType.TmaWarpSpecializedBiasElementwise,
+  EpilogueScheduleType.TmaWarpSpecializedCooperative: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwise,
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseRelu: EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseRelu,
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseRelu: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseRelu,
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseSigmoid: EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseSigmoid,
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSigmoid: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseSigmoid,
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseSiLu: EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseSiLu,
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseSiLu: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseSiLu,
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseTanh: EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseTanh,
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseTanh: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseTanh,
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseHardSwish: EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseHardSwish,
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseHardSwish: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseHardSwish,
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseGELU: EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseGELU,
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseGELU: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseGELU,
+  EpilogueScheduleType.TmaWarpSpecializedElementwiseFastGELU: EpilogueScheduleType.TmaWarpSpecializedBiasElementwiseFastGELU,
+  EpilogueScheduleType.TmaWarpSpecializedCooperativeElementwiseFastGELU: EpilogueScheduleType.TmaWarpSpecializedCooperativeBiasElementwiseFastGELU,
 }
 
 """

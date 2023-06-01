@@ -86,25 +86,28 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 )
 
 
+# as the epilouge schedule is always TMA, always use the transposed problem to pass
+# the column-major bias vector through the bias + elementwise epilogue (not residual)
 PROBLEM_ARGS_TEMPLATE_CUTLASS_3X = jinja2.Template(
     """
     cutlass::gemm::GemmUniversalMode::kGemm,                     // GemmUniversalMode mode
     {
-        static_cast<coord_t>(M),
         static_cast<coord_t>(N),
+        static_cast<coord_t>(M),
         static_cast<coord_t>(K),
         static_cast<coord_t>(1)
     },                                                           // ProblemShape problem_shape
-    ({{elem_input_type}}*)(a_ptr),                               // ElementA const* ptr_A
+    ({{elem_input_type}}*)(b_ptr),                               // ElementA const* ptr_A
     {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideA dA
-    ({{elem_input_type}}*)(b_ptr),                               // ElementB const* ptr_B
+    ({{elem_input_type}}*)(a_ptr),                               // ElementB const* ptr_B
     {K, cute::Int<1>{}, cute::Int<0>{}},                         // StrideB dB
     {
-        {ElementComputeEpilogue(1), ElementComputeEpilogue(1)},  // typename ThreadEpilogueOp::Params thread
-        ({{elem_input_type}}*)(bias_ptr),                        // ElementC const* ptr_C
-        {cute::Int<0>{}, cute::Int<1>{}, cute::Int<0>{}},        // StrideC dC
+        {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},  // typename ThreadEpilogueOp::Params thread
+        nullptr,                                                 // ElementC const* ptr_C
+        {cute::Int<1>{}, cute::Int<0>{}, cute::Int<0>{}},        // StrideC dC
         ({{elem_output_type}}*)(c_ptr) + output_offset,          // ElementD const* ptr_D
-        {output_stride, cute::Int<1>{}, cute::Int<0>{}},         // StrideD dD
+        {cute::Int<1>{}, output_stride, cute::Int<0>{}},         // StrideD dD
+        ({{elem_input_type}}*)(bias_ptr),                        // ElementBias const* ptr_Bias
     },                                                           // EpilogueArguments epilogue
 """
 )
