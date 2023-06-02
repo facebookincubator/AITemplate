@@ -28,7 +28,7 @@
 
 namespace ait {
 
-inline thread_local bool target_has_graph_mode = false;
+inline thread_local bool target_has_graph_mode = true;
 
 using DeviceError = hipError_t;
 using DevicePropertyType = hipDeviceProp_t;
