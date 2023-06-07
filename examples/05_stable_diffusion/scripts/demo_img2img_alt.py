@@ -39,9 +39,9 @@ from src.pipeline_stable_diffusion_ait_alt import StableDiffusionAITPipeline
 @click.option("--batch", default=1, help="Batch size of generated image")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option("--negative_prompt", default="", help="prompt")
-@click.option("--steps", default=30, help="Number of inference steps")
+@click.option("--steps", default=50, help="Number of inference steps")
 @click.option("--cfg", default=7.5, help="Guidance scale")
-@click.option("--strength", default=0.5, help="Guidance scale")
+@click.option("--strength", default=0.8, help="Guidance scale")
 @click.option("--workdir", default="v15", help="Workdir")
 def run(
         hf_hub_or_path, ckpt, width, height, batch, prompt, negative_prompt, steps, cfg, strength, workdir
