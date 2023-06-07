@@ -12,10 +12,13 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+from io import BytesIO
 
 import click
 import torch
+import requests
 
+from PIL import Image
 from aitemplate.utils.import_path import import_parent
 
 if __name__ == "__main__":
@@ -36,11 +39,12 @@ from src.pipeline_stable_diffusion_ait_alt import StableDiffusionAITPipeline
 @click.option("--batch", default=1, help="Batch size of generated image")
 @click.option("--prompt", default="A vision of paradise, Unreal Engine", help="prompt")
 @click.option("--negative_prompt", default="", help="prompt")
-@click.option("--steps", default=50, help="Number of inference steps")
+@click.option("--steps", default=30, help="Number of inference steps")
 @click.option("--cfg", default=7.5, help="Guidance scale")
-@click.option("--workdir", default="v21", help="Workdir")
+@click.option("--strength", default=0.5, help="Guidance scale")
+@click.option("--workdir", default="v15", help="Workdir")
 def run(
-    hf_hub_or_path, ckpt, width, height, batch, prompt, negative_prompt, steps, cfg, workdir
+        hf_hub_or_path, ckpt, width, height, batch, prompt, negative_prompt, steps, cfg, strength, workdir
 ):
     pipe = StableDiffusionAITPipeline(
         workdir=workdir,
@@ -50,14 +54,23 @@ def run(
 
     prompt = [prompt] * batch
     negative_prompt = [negative_prompt] * batch
+
+    url = "https://raw.githubusercontent.com/CompVis/stable-diffusion/main/assets/stable-samples/img2img/sketch-mountains-input.jpg"
+
+    response = requests.get(url)
+    init_image = Image.open(BytesIO(response.content)).convert("RGB")
+    init_image = init_image.resize((height, width))
+
     with torch.autocast("cuda"):
         image = pipe(
             prompt=prompt,
+            init_image=init_image,
             height=height,
             width=width,
             negative_prompt=negative_prompt,
             num_inference_steps=steps,
             guidance_scale=cfg,
+            strength=strength,
         ).images[0]
     image.save("example_ait.png")
 
