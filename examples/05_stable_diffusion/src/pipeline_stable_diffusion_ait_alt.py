@@ -795,8 +795,7 @@ class StableDiffusionAITPipeline:
             init_image = preprocess(init_image, width=width, height=height)
 
         # encode the init image into latents and scale the latents
-        init_latent_dist = self.vae.encode(init_image.to(self.device)).latent_dist
-        init_latents = init_latent_dist.sample(generator=generator)
+        init_latents = self.vae.encode(init_image.to(self.device)).latent_dist.sample(generator=generator)
         init_latents = 0.18215 * init_latents
 
         # expand init_latents for batch_size
@@ -857,7 +856,7 @@ class StableDiffusionAITPipeline:
 
         latents = init_latents
 
-        for i, t in enumerate(tqdm(self.scheduler.timesteps)):
+        for i, t in enumerate(tqdm(timesteps)):
             t_index = i
 
             # expand the latents if we are doing classifier free guidance
