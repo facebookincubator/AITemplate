@@ -15,7 +15,7 @@
 import torch
 
 from aitemplate.compiler import compile_model
-from aitemplate.frontend import IntVar, Tensor
+from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.unet_2d_condition import (
@@ -72,12 +72,9 @@ def compile_unet(
     # set AIT parameters
     pt_mod = pt_mod.eval()
     params_ait = map_unet_params(pt_mod, dim)
-    # batch_size = IntVar(values=[1, 8], name="batch_size")
-    height_d = IntVar(values=[32, 64], name="height")
-    width_d = IntVar(values=[32, 64], name="width")
 
     latent_model_input_ait = Tensor(
-        [batch_size, height_d, width_d, 4], name="input0", is_input=True
+        [batch_size, height, width, 4], name="input0", is_input=True
     )
     timesteps_ait = Tensor([batch_size], name="input1", is_input=True)
     text_embeddings_pt_ait = Tensor(
