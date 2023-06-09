@@ -22,8 +22,6 @@ or into a target tensor.
 Used by expand_static_shape.py ( expand operator )
 
 */
-
-#include "hip/hip_runtime.h"
 /**
  * CUDA Kernel to copy elements repeatedly from a source memory
  * region to a target memory region.

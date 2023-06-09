@@ -160,6 +160,7 @@ setup(
     packages=find_packages(),
     package_data={
         "aitemplate": [
+            "backend/cuda/elementwise/custom_math.cuh",
             "backend/cuda/layernorm_sigmoid_mul/layernorm_sigmoid_mul_kernel.cuh",
             "backend/cuda/groupnorm/groupnorm_kernel.cuh",
             "backend/cuda/groupnorm/layer_norm.cuh",

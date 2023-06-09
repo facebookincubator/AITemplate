@@ -74,7 +74,7 @@ using bfloat16 = hip_bfloat16;
 // (used within repeat.cuh, included below )
 // Note: 44kb is sufficient in this case to fully utilize the GPU parallelism
 #define SHM_MAX 1024 * 44
-
+namespace{
 {{custom_libs}}
 
 /**
@@ -150,7 +150,7 @@ __global__ void expand_strided_copy(
     }
 
 }
-
+}
 /**
  * Expand Operator entry point, optimized for static shapes. Only the head dimension may be dynamic.
  */
