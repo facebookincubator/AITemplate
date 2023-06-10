@@ -182,7 +182,9 @@ class MultiheadAttention(Module):
             )
 
         self.attn_drop = Dropout(attn_drop, dtype=dtype)
-        self.proj = Linear(dim, dim, specialization="add" if has_residual else None, dtype=dtype)
+        self.proj = Linear(
+            dim, dim, specialization="add" if has_residual else None, dtype=dtype
+        )
         self.proj_drop = Dropout(proj_drop, dtype=dtype)
 
     def get_shape(self, x):
@@ -321,7 +323,7 @@ class CrossAttention(Module):
         proj_drop=0.0,
         has_residual=True,
         causal=False,
-        dtype="float16"
+        dtype="float16",
     ):
         super().__init__()
         assert (
@@ -354,7 +356,9 @@ class CrossAttention(Module):
         )
 
         self.attn_drop = Dropout(attn_drop, dtype=dtype)
-        self.proj = Linear(dim, dim, specialization="add" if has_residual else None, dtype=dtype)
+        self.proj = Linear(
+            dim, dim, specialization="add" if has_residual else None, dtype=dtype
+        )
         self.proj_drop = Dropout(proj_drop, dtype=dtype)
 
     def attention(self, q, k, v):
