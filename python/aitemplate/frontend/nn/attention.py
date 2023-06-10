@@ -318,6 +318,7 @@ class CrossAttention(Module):
         proj_drop=0.0,
         has_residual=True,
         causal=False,
+        dtype="float16"
     ):
         super().__init__()
         assert (
@@ -334,21 +335,24 @@ class CrossAttention(Module):
             dim,
             dim,
             bias=qkv_bias,
+            dtype=dtype,
         )
         self.proj_k = Linear(
             dim,
             dim,
             bias=qkv_bias,
+            dtype=dtype,
         )
         self.proj_v = Linear(
             dim,
             dim,
             bias=qkv_bias,
+            dtype=dtype,
         )
 
-        self.attn_drop = Dropout(attn_drop)
-        self.proj = Linear(dim, dim, specialization="add" if has_residual else None)
-        self.proj_drop = Dropout(proj_drop)
+        self.attn_drop = Dropout(attn_drop, dtype=dtype)
+        self.proj = Linear(dim, dim, specialization="add" if has_residual else None, dtype=dtype)
+        self.proj_drop = Dropout(proj_drop, dtype=dtype)
 
     def attention(self, q, k, v):
         batch = q.shape()[0]
