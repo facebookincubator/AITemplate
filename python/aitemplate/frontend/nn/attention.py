@@ -105,6 +105,7 @@ class MultiheadAttention(Module):
         causal=False,
         mask_seq=0,
         use_mem_eff=False,
+        dtype="float16",
     ):
         super().__init__()
         assert (
@@ -146,7 +147,7 @@ class MultiheadAttention(Module):
         self.cu_length = Parameter(shape=[batch_size + 1], dtype="int32")
         if self.mask_seq:
             self.output_mask = Parameter(
-                shape=[mask_seq, num_heads, head_dim], dtype="float16"
+                shape=[mask_seq, num_heads, head_dim], dtype=dtype
             )
 
         if self.USE_CUDA:
@@ -155,13 +156,14 @@ class MultiheadAttention(Module):
             # input: (B, S, H)
             # output: (B*S, 3, num_heads, head_dim)
             if self.use_flash:
-                self.qkv = Linear(dim, dim * 3, bias=qkv_bias)
+                self.qkv = Linear(dim, dim * 3, bias=qkv_bias, dtype=dtype)
             else:
                 self.qkv = Linear(
                     dim,
                     dim * 3,
                     specialization="permute",
                     shape=(seq_len, 3, self.num_heads),
+                    dtype=dtype,
                 )
         else:
             # on ROCM ck attention (bmm_softmax_bmm) takes three inputs (Q, K, V)
@@ -176,11 +178,12 @@ class MultiheadAttention(Module):
                 specialization="permute",
                 shape=(seq_len, 3, self.num_heads),
                 layout="m2n3",
+                dtype=dtype,
             )
 
-        self.attn_drop = Dropout(attn_drop)
-        self.proj = Linear(dim, dim, specialization="add" if has_residual else None)
-        self.proj_drop = Dropout(proj_drop)
+        self.attn_drop = Dropout(attn_drop, dtype=dtype)
+        self.proj = Linear(dim, dim, specialization="add" if has_residual else None, dtype=dtype)
+        self.proj_drop = Dropout(proj_drop, dtype=dtype)
 
     def get_shape(self, x):
         shape = [it.value() for it in x._attrs["shape"]]
