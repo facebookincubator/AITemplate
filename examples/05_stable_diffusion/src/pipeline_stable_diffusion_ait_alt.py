@@ -30,7 +30,6 @@ from tqdm import tqdm
 from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 
 from .compile_lib.compile_vae_alt import map_vae
-from .modeling.vae import AutoencoderKL as ait_AutoencoderKL
 
 
 def shave_segments(path, n_shave_prefix_segments=1):
