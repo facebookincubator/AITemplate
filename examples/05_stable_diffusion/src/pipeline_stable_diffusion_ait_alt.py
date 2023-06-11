@@ -29,7 +29,7 @@ from tqdm import tqdm
 
 from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 
-from .compile_lib.compile_vae_alt import map_vae_params
+from .compile_lib.compile_vae_alt import map_vae
 from .modeling.vae import AutoencoderKL as ait_AutoencoderKL
 
 
@@ -754,49 +754,15 @@ class StableDiffusionAITPipeline:
             ).cuda()
         else:
             self.vae_pt = dict(vae_state_dict)
-        in_channels = 3
-        out_channels = 3
-        down_block_types = [
-            "DownEncoderBlock2D",
-            "DownEncoderBlock2D",
-            "DownEncoderBlock2D",
-            "DownEncoderBlock2D",
-        ]
-        up_block_types = [
-            "UpDecoderBlock2D",
-            "UpDecoderBlock2D",
-            "UpDecoderBlock2D",
-            "UpDecoderBlock2D",
-        ]
-        block_out_channels = [128, 256, 512, 512]
-        layers_per_block = 2
-        act_fn = "silu"
-        latent_channels = 4
-        sample_size = 512
 
-        ait_vae = ait_AutoencoderKL(
-            1,
-            64,
-            64,
-            in_channels=in_channels,
-            out_channels=out_channels,
-            down_block_types=down_block_types,
-            up_block_types=up_block_types,
-            block_out_channels=block_out_channels,
-            layers_per_block=layers_per_block,
-            act_fn=act_fn,
-            latent_channels=latent_channels,
-            sample_size=sample_size,
-        )
         print("Mapping parameters...")
-        vae_params_ait = map_vae_params(ait_vae, self.vae_pt)
+        vae_params_ait = map_vae(self.vae_pt)
         print("Setting constants")
         self.vae_ait_exe.set_many_constants_with_tensors(vae_params_ait)
         print("Folding constants")
         self.vae_ait_exe.fold_constants()
         # cleanup
         self.vae_pt = None
-        ait_vae = None
         vae_params_ait = None
 
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
