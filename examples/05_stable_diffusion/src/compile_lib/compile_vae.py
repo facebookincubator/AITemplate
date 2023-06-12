@@ -23,13 +23,8 @@ from .util import mark_output
 
 
 def torch_dtype_from_str(dtype: str):
-    if dtype == "float16":
-        torch_dtype = torch.float16
-    elif dtype == "float32":
-        torch_dtype = torch.float32
-    else:
-        raise ValueError("dtype not supported yet!")
-    return torch_dtype
+    return torch.__dict__.get(dtype, None)
+
 
 def map_vae(pt_module, device="cuda", dtype="float16"):
     if not isinstance(pt_module, dict):
