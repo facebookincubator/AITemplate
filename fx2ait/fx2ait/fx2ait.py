@@ -18,7 +18,7 @@ import os
 import tempfile
 import warnings
 from datetime import datetime
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Union
 
 import fx2ait.cache as cache
 
@@ -26,6 +26,7 @@ import torch
 
 # @manual=//aitemplate/AITemplate/python/aitemplate:aitemplate
 from aitemplate.testing import detect_target
+from fx2ait.ait_module import ARG_SPLITTER_KEYWORD
 from .converters.ait_converters import *  # isort:skip # noqa: F401 F403
 from .converters.aten2ait_converters import *  # isort:skip # noqa: F401 F403
 from aitemplate.compiler import compile_model
@@ -54,7 +55,7 @@ class AITInterpreter(torch.fx.Interpreter):
     def __init__(
         self,
         module: torch.fx.GraphModule,
-        input_specs: List[TensorSpec],
+        input_specs: List[Union[TensorSpec, List[TensorSpec]]],
         workdir: str,
         name: str,
         dll_name: str = "test.so",
@@ -269,16 +270,45 @@ class AITInterpreter(torch.fx.Interpreter):
         return super().run_node(n)
 
     def placeholder(self, target, args, kwargs):
-        self._fx_input_names.append(target)
         input_spec = self.input_specs[self.input_specs_iter]
         self.input_specs_iter += 1
+        if isinstance(input_spec, List):
+            """
+            List[Tensor] inputs are flattened in the compiled AIT engine.
+            Pytorch module original forward:
+                def forward(self, a : Tensor, b: List[Tensor])
+                    mod.forward(a, b)
 
-        return AITTensor(
-            shape=input_spec.shape,
-            dtype=dtype_to_str(input_spec.dtype),
-            name=target,
-            is_input=True,
-        )
+            Ait compiled engine forward:
+                engine.forward(a, b##ARG_SPLITTER_KEYWORD##0, b##ARG_SPLITTER_KEYWORD##1)
+            AITModule restores calling of the original forward:
+                ait_mod.forward(a, b)
+            """
+            ait_tensors = []
+            for i, inp_spec in enumerate(input_spec):
+                target_name = f"{target}{ARG_SPLITTER_KEYWORD}{i}"
+                self._fx_input_names.append(target_name)
+                ait_tensors.append(
+                    AITTensor(
+                        shape=inp_spec.shape,
+                        dtype=dtype_to_str(inp_spec.dtype),
+                        name=target_name,
+                        is_input=True,
+                    )
+                )
+            return ait_tensors
+        elif isinstance(input_spec, TensorSpec) or isinstance(input_spec, torch.Tensor):
+            self._fx_input_names.append(target)
+            return AITTensor(
+                shape=input_spec.shape,
+                dtype=dtype_to_str(input_spec.dtype),
+                name=target,
+                is_input=True,
+            )
+        else:
+            raise AssertionError(
+                "Input spec must be a Tensor(Spec) or List of Tensor(Spec)."
+            )
 
     def get_attr(self, target, args, kwargs):
         attr_val = getattr_recursive(self.module, target)

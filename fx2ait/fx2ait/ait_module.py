@@ -16,6 +16,8 @@ from typing import List
 
 import torch
 
+ARG_SPLITTER_KEYWORD = "a1T_ARg_SpliTTERKeyword"
+
 
 class AITModule(torch.nn.Module):
     def __init__(
@@ -25,24 +27,39 @@ class AITModule(torch.nn.Module):
     ):
         super(AITModule, self).__init__()
         self.engine = engine
+
         self.interp_result = interp_result
+        self.ait_arg_names = interp_result.input_names if interp_result else None
+        self.fx_arg_names = interp_result.fx_input_names if interp_result else None
 
-    def forward(self, *inputs, **kwargs):
-        python_inputs = []
+    def forward(self, *args, **kwargs):
+        ait_args = []
         if self.interp_result:
-            inputs = list(inputs)
-            for name, inp in zip(self.interp_result.fx_input_names, inputs):
-                if name in self.interp_result.input_names:
-                    python_inputs.append(inp)
-            for name in self.interp_result.input_names:
-                if name in kwargs:
-                    python_inputs.append(kwargs[name])
-            assert len(python_inputs) == len(self.interp_result.input_names)
-        else:
-            python_inputs = list(inputs)
-            python_inputs.extend(kwargs.values())
+            offset = 0
+            for idx, fx_arg_name in enumerate(self.fx_arg_names):
+                arg_name, *arg_idx = fx_arg_name.split(ARG_SPLITTER_KEYWORD)
+                arg_idx = int(arg_idx[0]) if arg_idx else -1
+                # Offset for List[List[Tensor]]
+                offset += 1 if arg_idx > 0 else 0
+                if fx_arg_name in self.ait_arg_names:
+                    # Locate input from args.
+                    if idx - offset < len(args):
+                        arg_ref = args[idx - offset]
+                    # Locate input from kwargs.
+                    elif arg_name in kwargs:
+                        arg_ref = kwargs[arg_name]
+                    else:
+                        raise RuntimeError(f"Required input {fx_arg_name} not found")
+                    ait_args.append(arg_ref[arg_idx] if arg_idx > -1 else arg_ref)
 
-        outputs = self.engine.forward(python_inputs)
+            assert len(ait_args) == len(self.ait_arg_names)
+        else:
+            # Flatten args and kwargs from List[Tensor or List[Tensor]] to List[Tensor]
+            all_args = list(args) + list(kwargs.values())
+            for arg in all_args:
+                ait_args.extend(arg if isinstance(arg, list) else [arg])
+
+        outputs = self.engine.forward(ait_args)
         if len(outputs) == 1:
             return outputs[0]
         return tuple(outputs)
