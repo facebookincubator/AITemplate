@@ -15,14 +15,14 @@
 
 import torch
 from aitemplate.compiler import compile_model
-from aitemplate.frontend import IntVar, Tensor
+from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.vae import AutoencoderKL as ait_AutoencoderKL
 from .util import mark_output
 
 
-def map_vae_params(ait_module, pt_module, batch_size, seq_len):
+def map_vae_params(ait_module, pt_module):
     pt_params = dict(pt_module.named_parameters())
     mapped_pt_params = {}
     for name, _ in ait_module.named_parameters():
@@ -123,19 +123,16 @@ def compile_vae(
         latent_channels=latent_channels,
         sample_size=sample_size,
     )
-    # batch_size = IntVar(values=[1, 8], name="batch_size")
-    height_d = IntVar(values=[32, 64], name="height")
-    width_d = IntVar(values=[32, 64], name="width")
 
     ait_input = Tensor(
-        shape=[batch_size, height_d, width_d, latent_channels],
+        shape=[batch_size, height, width, latent_channels],
         name="vae_input",
         is_input=True,
     )
     ait_vae.name_parameter_tensor()
 
     pt_mod = pt_mod.eval()
-    params_ait = map_vae_params(ait_vae, pt_mod, batch_size, height * width)
+    params_ait = map_vae_params(ait_vae, pt_mod)
 
     Y = ait_vae.decode(ait_input)
     mark_output(Y)

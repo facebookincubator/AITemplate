@@ -24,9 +24,9 @@ from aitemplate.backend.rocm.conv2d import common
 
 EXTRA_CODE = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
 
-#include "data_type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -35,8 +35,7 @@ namespace {
 struct AddSigmoid
 {
     template <typename T>
-    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;
-
+    __host__ __device__ constexpr void operator()(T& y, const T& x0, const T& x1) const;   
     template <>
     __host__ __device__ constexpr void
     operator()<float>(float& y, const float& x0, const float& x1) const
@@ -44,7 +43,6 @@ struct AddSigmoid
         const float a = x0 + x1;
         y             = 1.0f / (1.0f + exp(-a));
     };
-
     template <>
     __host__ __device__ constexpr void
     operator()<double>(double& y, const double& x0, const double& x1) const
@@ -52,7 +50,6 @@ struct AddSigmoid
         const double a = x0 + x1;
         y              = 1.0 / (1.0 + exp(-a));
     };
-
     template <>
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
