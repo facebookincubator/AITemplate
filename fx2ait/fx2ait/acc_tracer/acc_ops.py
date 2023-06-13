@@ -623,6 +623,14 @@ def stack_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
 @register_acc_op_properties(AccOpProperty.pointwise)
 @register_acc_op_mapping(op_and_target=("call_function", torch.clamp))
 @register_acc_op_mapping(op_and_target=("call_function", torch.clip))
+@register_acc_op_mapping(
+    op_and_target=("call_function", nn.functional.hardtanh),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("min_val", "min"),
+        ("max_val", "max"),
+    ],
+)
 @register_acc_op_mapping(op_and_target=("call_method", "clamp"))
 @register_acc_op_mapping(op_and_target=("call_method", "clip"))
 @register_acc_op
@@ -882,15 +890,6 @@ def dropout_mapper(node: torch.fx.Node, mod: nn.Module):
     Remove dropout node and directly map its input to output.
     """
     return node.kwargs["input"]
-
-
-@register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)
-@register_acc_op_mapping(
-    op_and_target=("call_function", nn.functional.hardtanh),
-)
-@register_acc_op
-def hardtanh(*, input, min_val=-1.0, max_val=1.0):
-    return nn.functional.hardtanh(input=input, min_val=min_val, max_val=max_val)
 
 
 @register_acc_op_properties(AccOpProperty.pointwise, AccOpProperty.unary)

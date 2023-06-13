@@ -25,16 +25,24 @@ Verify the library versions. We have tested transformers==4.25, diffusers==0.11[
 ### Download the diffusers pipeline files
 You must first register in Hugging Face Hub to obtain an access token for the Stable Diffusion weights. See [user access tokens](https://huggingface.co/docs/hub/security-tokens) for more info. Your access tokens are listed in your [Hugging Face account settings](https://huggingface.co/settings/tokens).
 
+stable-diffusion model has two variants - base and regular.
+For example:
+- `stabilityai/stable-diffusion-2-1-base` - image resolution 512x512
+- `stabilityai/stable-diffusion-2-1` - image resolution 768x768
+
 ```
-python3 scripts/download_pipeline.py --token ACCESS_TOKEN
+python3 scripts/download_pipeline.py \
+--model-name "stabilityai/stable-diffusion-2-1-base" \
+--token ACCESS_TOKEN
 ```
 
 ### Build AIT modules for CLIP, UNet, VAE
 
 Build the AIT modules by running `compile.py`.
 
+Set correct width and height depending on the model variant
 ```
-python3 scripts/compile.py
+python3 scripts/compile.py --width 512 --height 512
 ```
 It generates three folders: `./tmp/CLIPTextModel`, `./tmp/UNet2DConditionModel`, `./tmp/AutoencoderKL`. In each folder, there is a `test.so` file which is the generated AIT module for the model.
 
@@ -71,6 +79,7 @@ To enable multiple GPUs for profiling, use the environment variable `CUDA_VISIBL
 
 This step is optional. You can run `benchmark.py` to measure throughput for each of the subnets.
 
+Benchmark script supports base model variant only for now - 512x512
 ```
 python3 src/benchmark.py
 ```
@@ -87,14 +96,16 @@ HUGGINGFACE_AUTH_TOKEN=ACCESS_TOKEN python3 -m unittest src/test_correctness.py
 
 Run AIT models with an example image:
 
+Set correct width and height depending on the model variant
 ```
-python3 scripts/demo.py
+python3 scripts/demo.py --width 512 --height 512
 ```
 
 Img2img demo:
 
+Set correct width and height depending on the model variant
 ```
-python3 scripts/demo_img2img.py
+python3 scripts/demo_img2img.py --width 512 --height 512
 ```
 
 Check the resulted image: `example_ait.png`

@@ -1004,6 +1004,18 @@ def add_profiler(file_pairs, workdir, op_type, output_name, code):
         file_pairs.append((src_path, obj_path))
 
 
+def has_tma_epilogue(op):
+    """Check whether the op is CUTLASS 3.x and has a TMA epilogue schedule."""
+    import cutlass_lib
+
+    result = False
+    if op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x:
+        epilogue_schedule_str = str(op.epilogue_schedule).split(".")[-1]
+        result = epilogue_schedule_str.lower().startswith("tma")
+
+    return result
+
+
 def filter_cutlass_3x_ops(op_instance, func_attrs):
     """Filter out CUTLASS 3.x ops with incompatible alignment requirements.
 
@@ -1029,18 +1041,39 @@ def filter_cutlass_3x_ops(op_instance, func_attrs):
         func_attrs
     )
 
-    result = {}
+    result_2x, result_3x = {}, {}
     for op_name, op in op_instance.items():
         if op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x:
             if (
-                op.A.alignment > a_alignment
-                or op.B.alignment > b_alignment
-                or op.C.alignment > epilogue_alignment
+                op.A.alignment <= a_alignment
+                and op.B.alignment <= b_alignment
+                and op.C.alignment <= epilogue_alignment
             ):
-                continue
-        result[op_name] = op
+                result_3x[op_name] = op
+        else:
+            result_2x[op_name] = op
 
-    return result
+    has_ops_with_tma_epilogue = False
+    if result_3x:
+        for op in result_3x.values():
+            if has_tma_epilogue(op):
+                has_ops_with_tma_epilogue = True
+                break
+
+        if has_ops_with_tma_epilogue:
+            # when there are ops with TMA epilogue, keep only those
+            # for better performance / shorter profiler compilation time
+            result_3x = {
+                op_name: op for op_name, op in result_3x.items() if has_tma_epilogue(op)
+            }
+
+    return {
+        # CUTLASS 3.x kernels can cause power throttling:
+        # we want to generate the 2.x kernels first to avoid
+        # performance side effects caused by the 3.x kernels
+        **result_2x,
+        **result_3x,
+    }, has_ops_with_tma_epilogue
 
 
 def gen_profiler(
@@ -1061,7 +1094,7 @@ def gen_profiler(
 
     op_type = func_attrs["op"]
     op_instance = func_attrs["op_instance"]
-    op_instance = filter_cutlass_3x_ops(op_instance, func_attrs)
+    op_instance, op_has_tma_epilogue = filter_cutlass_3x_ops(op_instance, func_attrs)
 
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_lib_type(
@@ -1096,6 +1129,7 @@ def gen_profiler(
             problem_args_template_cutlass_3x.render(
                 elem_input_type=elem_input_type,
                 elem_output_type=elem_output_type,
+                has_tma_epilogue=op_has_tma_epilogue,
             )
             if problem_args_template_cutlass_3x is not None
             else ""
@@ -1343,15 +1377,10 @@ def default_fproc(
                 permute_layout
             ]
 
-        has_tma_epilogue = False
-        if op.gemm_kind == cutlass_lib.library.GemmKind.Universal3x:
-            epilogue_schedule_str = str(op.epilogue_schedule).split(".")[-1]
-            has_tma_epilogue = epilogue_schedule_str.lower().startswith("tma")
-
         # set C and D alignment
         alignments = alignment.get_alignments(dtype)
         for i in alignments:
-            if has_tma_epilogue and i != max(alignments):
+            if has_tma_epilogue(op) and i != max(alignments):
                 # TMA epilogues only support max. output alignment
                 continue
             op = copy.deepcopy(op)
