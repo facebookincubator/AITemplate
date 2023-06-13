@@ -118,6 +118,8 @@ template <
     bool CausalMaskAfterGemm0 = false,
     /// Stage accumulator in shared memory
     bool SmemAccumulator = false,
+    /// Element type for offsets / array indices
+    typename offset_t_ = int32_t,
     /// Access granularity of A matrix in units of elements
     int AlignmentA =
         DefaultGemmConfiguration<OperatorClass_, ArchTag_, ElementA_, ElementB_,
@@ -129,10 +131,11 @@ template <
     /// Operation performed by GEMM
     typename Operator_ = typename DefaultGemmConfiguration<
         OperatorClass_, ArchTag_, ElementA_, ElementB_, ElementC_,
-        ElementAccumulator_>::Operator>
+        ElementAccumulator_>::Operator
+>
 class GroupedB2bGemmBatched {
  public:
-
+  using offset_t = offset_t_;
   using ElementA = ElementA_;
   using LayoutA = LayoutA_;
   using TensorRefA = TensorRef<ElementA const, LayoutA>;
@@ -191,8 +194,9 @@ class GroupedB2bGemmBatched {
     kStages,
     Operator,
     CausalMaskAfterGemm0,
-    SmemAccumulator
-  >::B2bGemmBatchedKernel;
+    SmemAccumulator,
+    offset_t
+  >::GroupedB2bGemmBatchedKernel;
 
   /// Argument structure
   struct Arguments {
@@ -225,6 +229,9 @@ class GroupedB2bGemmBatched {
     int num_heads;
     typename EpilogueOutputOp0::Params epilogue0;
     typename EpilogueOutputOp1::Params epilogue1;
+    // array of jagged dim offsets
+    // of size batch_count + 1
+    const offset_t *offsets;
 
     //
     // Methods
@@ -261,6 +268,7 @@ class GroupedB2bGemmBatched {
       int64_t batch_stride_D1_,
       int batch_count_,
       int num_heads_,
+      const offset_t *offsets_,
       typename EpilogueOutputOp0::Params epilogue0_ =
         typename EpilogueOutputOp0::Params(),
       typename EpilogueOutputOp1::Params epilogue1_ =
@@ -288,9 +296,9 @@ class GroupedB2bGemmBatched {
       batch_stride_D1(batch_stride_D1_),
       batch_count(batch_count_),
       num_heads(num_heads_),
+      offsets(offsets_),
       epilogue0(epilogue0_),
       epilogue1(epilogue1_) {
-
     }
   };
 
@@ -340,7 +348,6 @@ public:
       args.problem_size_0,
       {ThreadblockShape0::kM, ThreadblockShape0::kN, ThreadblockShape0::kK},
       args.batch_count * args.num_heads);
-
     // Initialize the Params structure
     params_ = typename GroupedB2bGemmBatchedKernel::Params{
       args.problem_size_0,
@@ -366,6 +373,7 @@ public:
       args.batch_stride_D1,
       args.batch_count,
       args.num_heads,
+      args.offsets,
       args.epilogue0,
       args.epilogue1
     };
@@ -384,6 +392,7 @@ public:
     params_.ref_D1.reset(args.ref_D1.data());
     params_.output_op_0 = args.epilogue0;
     params_.output_op_1 = args.epilogue1;
+    params_.offsets = args.offsets;
 
     return Status::kSuccess;
   }

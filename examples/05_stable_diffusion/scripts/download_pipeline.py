@@ -18,15 +18,20 @@ from diffusers import StableDiffusionPipeline
 
 
 @click.command()
+@click.option(
+    "--model-name",
+    default="stabilityai/stable-diffusion-2-1-base",
+    help="Pretrained Model name",
+)
 @click.option("--token", default="", help="access token")
 @click.option(
-    "--save_directory",
+    "--save-directory",
     default="./tmp/diffusers-pipeline/stabilityai/stable-diffusion-v2",
     help="pipeline files local directory",
 )
-def download_pipeline_files(token, save_directory) -> None:
+def download_pipeline_files(model_name, token, save_directory) -> None:
     StableDiffusionPipeline.from_pretrained(
-        "stabilityai/stable-diffusion-2",
+        model_name,
         revision="fp16",
         torch_dtype=torch.float16,
         # use provided token or the one generated with `huggingface-cli login``

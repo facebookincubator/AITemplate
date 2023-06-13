@@ -14,7 +14,8 @@
 #
 
 from aitemplate.compiler import compile_model
-from aitemplate.frontend import IntVar, Tensor
+from aitemplate.compiler.base import IntVar
+from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
@@ -25,7 +26,7 @@ import torch
 USE_CUDA = detect_target().name() == "cuda"
 
 
-def map_clip_params(pt_mod, batch_size, seqlen, depth):
+def map_clip_params(pt_mod):
     params_ait = {}
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():
@@ -101,7 +102,7 @@ def compile_clip(
     ait_mod.name_parameter_tensor()
 
     pt_mod = pt_mod.eval()
-    params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)
+    params_ait = map_clip_params(pt_mod)
     batch_size = IntVar(values=[1, 8], name="batch_size") if USE_CUDA else batch_size
 
     input_ids_ait = Tensor(

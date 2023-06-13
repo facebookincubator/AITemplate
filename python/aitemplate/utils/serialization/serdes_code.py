@@ -16,7 +16,9 @@
 Dump/Read sorted_graph to/from python code.
 """
 import copy
+import logging
 import os
+import sys
 
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -26,6 +28,7 @@ from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Ten
 
 from aitemplate.compiler.transform import mark_param_tensor, name_graph, toposort
 
+_LOGGER = logging.getLogger(__name__)
 PROGRAM_TEMPLATE = jinja2.Template(
     """import numpy as np
 
@@ -311,7 +314,16 @@ def dump_program(
     """
     if isinstance(sorted_graph, Tensor):
         sorted_graph = [sorted_graph]
-    sorted_graph = copy.deepcopy(sorted_graph)
+    try:
+        sorted_graph = copy.deepcopy(sorted_graph)
+    except RecursionError:
+        default = sys.getrecursionlimit()
+        new_recursion_limit = default * 10
+        _LOGGER.info(
+            f"Recursion error when copying graph with default recursion limit {default}. Will try again with {new_recursion_limit}"
+        )
+        sys.setrecursionlimit(new_recursion_limit)
+        sorted_graph = copy.deepcopy(sorted_graph)
 
     # Make sure the graph is in correct order and has names and param set correctly.
     sorted_graph = toposort(sorted_graph)

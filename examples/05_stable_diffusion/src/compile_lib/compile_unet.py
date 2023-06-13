@@ -15,7 +15,8 @@
 import torch
 
 from aitemplate.compiler import compile_model
-from aitemplate.frontend import IntVar, Tensor
+from aitemplate.compiler.base import IntVar
+from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.unet_2d_condition import (

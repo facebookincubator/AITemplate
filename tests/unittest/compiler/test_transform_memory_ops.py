@@ -1066,7 +1066,8 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         module = compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
-        self.assertEqual(len(sorted_ops), 3)
+        # fuse_split allows optimizing split+cat to just split, leaving 2 ops
+        self.assertEqual(len(sorted_ops), 2)
 
         for batch in [1, self.BATCH_SIZE]:
             x0_pt = get_random_torch_tensor([batch, M], dtype)
