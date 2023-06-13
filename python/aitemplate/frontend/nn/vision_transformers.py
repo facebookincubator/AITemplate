@@ -18,6 +18,7 @@ from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
 
 import torch
+from pytorchvideo.layers.utils import round_width  # usort:skip
 
 from aitemplate.frontend import Tensor
 from aitemplate.frontend.nn.batch_norm import BatchNorm1d, BatchNorm3d
@@ -35,7 +36,6 @@ from aitemplate.frontend.nn.patch_embed import create_conv_patch_embed
 from aitemplate.frontend.nn.positional_encoding import (
     SpatioTemporalClsPositionalEncoding,
 )
-from pytorchvideo.layers.utils import round_width
 
 
 class MultiscaleVisionTransformers(Module):
