@@ -14,7 +14,7 @@
 #
 
 from aitemplate.compiler import compile_model
-from aitemplate.frontend import Tensor
+from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
@@ -70,12 +70,13 @@ def compile_clip(
 
     pt_mod = pt_mod.eval()
     params_ait = map_clip_params(pt_mod)
+    batch_size_d = IntVar(values=[1, max(8, batch_size)], name="batch_size")
 
     input_ids_ait = Tensor(
-        [batch_size, seqlen], name="input0", dtype="int64", is_input=True
+        [batch_size_d, seqlen], name="input0", dtype="int64", is_input=True
     )
     position_ids_ait = Tensor(
-        [batch_size, seqlen], name="input1", dtype="int64", is_input=True
+        [batch_size_d, seqlen], name="input1", dtype="int64", is_input=True
     )
     Y = ait_mod(input_ids=input_ids_ait, position_ids=position_ids_ait)
     mark_output(Y)
