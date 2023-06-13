@@ -47,8 +47,15 @@ However, N0 and N1 must be <= 512.
 """
 
 from aitemplate.backend import registry, target
-from aitemplate.compiler.base import IntImm, Tensor
+from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import b2b_bmm_base, CausalType
+from aitemplate.utils import shape_utils
+
+
+def _is_power_of_two(n):
+    if n <= 0:
+        return False
+    return (n & (n - 1)) == 0
 
 
 class grouped_classic_b2b_bmm(b2b_bmm_base):
@@ -90,94 +97,85 @@ class grouped_classic_b2b_bmm(b2b_bmm_base):
     def _infer_shapes(self):
         """infer the output shape for grouped_classic_b2b_bmm."""
         q, k, v, bias = self._attrs["inputs"]
+        if not (q.is_jagged() and k.is_jagged() and v.is_jagged()):
+            raise RuntimeError(f"{q=}, {k=}, {v=} must be jagged!")
         q_shape = q._attrs["shape"]
         k_shape = k._attrs["shape"]
         v_shape = v._attrs["shape"]
-        head_dim = 2
-        seq_dim = 1
+        bias_shape = bias._attrs["shape"]
         if len(q_shape) != len(k_shape) or len(q_shape) != len(v_shape):
             raise RuntimeError(
                 f"QKV ranks must be the same! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
             )
-        if len(q_shape) != 3 and len(k_shape) != 4:
+        if len(q_shape) != 3:
             raise RuntimeError(
-                f"QKV must have rank 3 or 4! Current rank: {len(q_shape)}, QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
+                f"QKV must have rank == 3! Current rank: {len(q_shape)}, QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
             )
-
         if q_shape[0] != k_shape[0] or q_shape[0] != v_shape[0]:
             raise RuntimeError(
-                f"QKV must have same batch size! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
+                f"QKV must have same jagged_dim (batch_size and seq_length)! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
+            )
+        if q_shape[1] != k_shape[1] or q_shape[1] != v_shape[1]:
+            raise RuntimeError(
+                f"QKV must have same head size! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
+            )
+
+        if q_shape[2] != k_shape[2]:
+            raise RuntimeError(
+                f"Q and K shapes are not compatible ( inner dimension for Matmul must be identical ) - Q shape: {q_shape=}, K shape: {k_shape=}."
             )
 
         batch_size = q_shape[0]
-        M0 = q_shape[seq_dim]
         K0 = q_shape[-1]
         if K0 != k_shape[-1]:
             raise RuntimeError(
-                f"Q K shapes are not compatible! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
+                f"Q and K shapes are not compatible! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
             )
-        N0 = k_shape[seq_dim]
-        if N0 != v_shape[seq_dim]:
-            raise RuntimeError(
-                f"K V shapes are not compatible! QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}."
-            )
-        N1 = v_shape[-1]
-        if N0.upper_bound() > 512 or N1.upper_bound() > 512:
-            raise RuntimeError(
-                f"classic_b2b_bmm only supports <=512 N0 / N1. Current length: {N0=}, {N1=}"
-            )
-        if not isinstance(N0, IntImm) or not isinstance(N1, IntImm):
-            raise RuntimeError(
-                f"classic_b2b_bmm only supports static N0 / N1. Current {N0=}, {N1=}."
-            )
-        if self._attrs["causal_type"] != CausalType.NO_CAUSAL:
-            if M0 != N0:
-                raise RuntimeError(
-                    f"When causal_type is enabled, M0 must be equal to N0. Current {M0=}, {N0=}."
-                )
-        bias_shape = bias._attrs["shape"]
 
-        is_multihead = len(q_shape) == 4
-        if is_multihead:
-            num_heads = q_shape[head_dim]
+        num_heads = q_shape[1]
+        output_shape = [q_shape[0], num_heads, v_shape[2]]
 
-            output_shape = [batch_size, M0, num_heads, N1]
-            if len(bias_shape) != 4:
+        batch_size = q_shape[0].batch_dim()
+        max_seq_len = q_shape[0].jagged_dims()[0].max_value()
+        if isinstance(max_seq_len, IntVar):
+            if max_seq_len.lower_bound() != max_seq_len.upper_bound():
                 raise RuntimeError(
-                    f"Was expecting 4-dimensional bias based on q dimensionality. {len(bias_shape)=} {len(q_shape)=}"
+                    "Maximum sequence length needs to be a fixed (IntImm) dimension. "
                 )
-            for bias_dim, expected_dim in zip(
-                bias_shape, [batch_size, num_heads, M0, N0]
-            ):
-                if bias_dim != IntImm(1) and bias_dim != expected_dim:
-                    raise RuntimeError(
-                        f"bias shape is not compatible with Q K! "
-                        f"QKV shapes: {q_shape=}, {num_heads=}, {k_shape=}, {v_shape=}, "
-                        f"bias shapes: {bias_shape=}."
-                    )
-            # key sequence length is identical to last shape dim of bias tensor
-            # so if it is also constant 1, it is not a real broadcast and permissible
-            if bias_shape[-1] == IntImm(1) and k_shape[seq_dim] != IntImm(1):
-                raise RuntimeError(
-                    "grouped_classic_b2b_bmm op does not support broadcasting of last dimension of bias tensor (e.g. over sequence length of key and value ). Use the expand op to emulate this broadcast behavior if you need it."
-                )
-        else:
-            num_heads = IntImm(1)
-            self._attrs["num_heads"] = num_heads
-            output_shape = [batch_size, M0, N1]
-            if len(bias_shape) != 3:
-                raise RuntimeError(
-                    f"Was expecting 3-dimensional bias based on q dimensionality. {len(bias_shape)=} {len(q_shape)=}"
-                )
-            for bias_dim, expected_dim in zip(bias_shape, [batch_size, M0, N0]):
-                if bias_dim != IntImm(1) and bias_dim != expected_dim:
-                    raise RuntimeError(
-                        f"bias shape is not compatible with Q K! "
-                        f"QKV shapes: {q_shape=}, {num_heads=}, {k_shape=}, {v_shape=}, "
-                        f"bias shapes: {bias_shape=}."
-                    )
+            max_seq_len = max_seq_len.upper_bound()
 
-        return output_shape
+        # This is a current limitation of the classic op due to grid layout and test results
+        if (
+            (not _is_power_of_two(max_seq_len))
+            or (max_seq_len > 512)
+            or (max_seq_len < 64)
+        ):
+            raise RuntimeError(
+                f"Maximum sequence length needs to be a fixed (IntImm) dimension with a power of two between 64 and 512 for the grouped classic b2b op to work. Actual value: {max_seq_len=}. {type(max_seq_len)=}"
+            )
+        if len(bias_shape) != 4:
+            raise RuntimeError(f"Expected bias rank 4. Current bias rank: {len(bias)}.")
+
+        bias_expected_shape = [
+            batch_size,
+            num_heads,
+            max_seq_len,
+            max_seq_len,
+        ]
+        broadcastable, _ = shape_utils.get_broadcast_max_shape(
+            bias_shape, bias_expected_shape
+        )
+        if not broadcastable:
+            raise RuntimeError(
+                f"bias shape is not compatible with Q K! "
+                f"QKV shapes: {q_shape=}, {k_shape=}, {v_shape=}, "
+                f"bias shapes: {bias_shape=}, {bias_expected_shape=}."
+            )
+        if bias_shape[-1] != bias_expected_shape[-1]:
+            raise RuntimeError(
+                f"Bias last dim is not broadcastable! Expected shape: {bias_expected_shape[-1]}, current bias shape: {bias_shape}"
+            )
+        return output_shape, max_seq_len
 
     def __call__(
         self,
@@ -204,7 +202,7 @@ class grouped_classic_b2b_bmm(b2b_bmm_base):
 
         self._attrs["inputs"] = [q, k, v, bias]
         self._set_depth()
-        output_shape = self._infer_shapes()
+        output_shape, max_seq_len = self._infer_shapes()
         self._check_alignment()
         output = Tensor(
             output_shape,
@@ -212,6 +210,7 @@ class grouped_classic_b2b_bmm(b2b_bmm_base):
             dtype=self._attrs["inputs"][0]._attrs["dtype"],
         )
         self._attrs["outputs"] = [output]
+        self._attrs["max_seq_len"] = max_seq_len
 
         return output
 

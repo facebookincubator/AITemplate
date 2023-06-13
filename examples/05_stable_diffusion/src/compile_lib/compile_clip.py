@@ -21,7 +21,7 @@ from ..modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
 from .util import mark_output
 
 
-def map_clip_params(pt_mod, batch_size, seqlen, depth):
+def map_clip_params(pt_mod):
     params_ait = {}
     pt_params = dict(pt_mod.named_parameters())
     for key, arr in pt_params.items():
@@ -69,14 +69,14 @@ def compile_clip(
     ait_mod.name_parameter_tensor()
 
     pt_mod = pt_mod.eval()
-    params_ait = map_clip_params(pt_mod, batch_size, seqlen, depth)
-    batch_size = IntVar(values=[1, 8], name="batch_size")
+    params_ait = map_clip_params(pt_mod)
+    batch_size_d = IntVar(values=[1, max(8, batch_size)], name="batch_size")
 
     input_ids_ait = Tensor(
-        [batch_size, seqlen], name="input0", dtype="int64", is_input=True
+        [batch_size_d, seqlen], name="input0", dtype="int64", is_input=True
     )
     position_ids_ait = Tensor(
-        [batch_size, seqlen], name="input1", dtype="int64", is_input=True
+        [batch_size_d, seqlen], name="input1", dtype="int64", is_input=True
     )
     Y = ait_mod(input_ids=input_ids_ait, position_ids=position_ids_ait)
     mark_output(Y)

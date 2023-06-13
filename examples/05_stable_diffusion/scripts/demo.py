@@ -52,14 +52,14 @@ def run(local_dir, width, height, batch, prompt, negative_prompt, benchmark):
 
     prompt = [prompt] * batch
     with torch.autocast("cuda"):
-        image = pipe(prompt, height, width).images[0]
+        images = pipe(prompt, height, width).images
         if benchmark:
             t = benchmark_torch_function(10, pipe, prompt, height=height, width=width)
             print(
                 f"sd e2e: width={width}, height={height}, batchsize={batch}, latency={t} ms"
             )
-
-    image.save("example_ait.png")
+    for i, image in enumerate(images):
+        image.save(f"example_ait_{i}.png")
 
 
 if __name__ == "__main__":

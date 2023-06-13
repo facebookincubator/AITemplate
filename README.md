@@ -105,9 +105,9 @@ AITemplate provides the following model templates & reference performance data o
 
 - [01_ResNet-50](examples/01_resnet-50/) with PyTorch Image Models (TIMM)
 - [02_MaskRCNN-FPN](examples/02_detectron2/) with Detectron2
-- [03_BERT](examples/03_bert/) with HuggingFace Transformer
+- [03_BERT](examples/03_bert/) with Hugging Face Transformer
 - [04_Vision Transformer](examples/04_vit/) with PyTorch Image Models (TIMM)
-- [05_Stable Diffusion](examples/05_stable_diffusion/) with HuggingFace Diffusers
+- [05_Stable Diffusion](examples/05_stable_diffusion/) with Hugging Face Diffusers
 
 ## Release
 
