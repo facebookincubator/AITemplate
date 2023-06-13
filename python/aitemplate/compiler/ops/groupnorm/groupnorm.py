@@ -325,7 +325,7 @@ class group_norm(Operator):
         if len(result) == 0:
             raise RuntimeError(
                 "Profile workload: "
-                f"{self._attrs['op']}"
+                f"{self._attrs['op']} "
                 f"{exec_key}"
                 " failed. "
                 f"Results: {result}."
