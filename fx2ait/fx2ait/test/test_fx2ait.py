@@ -118,6 +118,49 @@ class TestAITModule(unittest.TestCase):
     def test_fx2ait_cuda_graph(self):
         self._test_fx2ait_impl(test_cuda_graph=True)
 
+    def test_fx2ait_args(self):
+        class TestModule(torch.nn.Module):
+            def forward(self, a, b, c, d):
+                temp = a + b[0] + b[1] + c[0] + c[1] + d
+                return temp
+
+        mod = TestModule().half().cuda()
+
+        a = torch.randn(5, 3).half().cuda()
+        b = [torch.randn(5, 3).half().cuda(), torch.randn(5, 3).half().cuda()]
+        c = [torch.randn(5, 3).half().cuda(), torch.randn(5, 3).half().cuda()]
+        d = torch.randn(5, 3).half().cuda()
+        ref_output = mod(a, b, c, d)
+
+        traced = acc_tracer.trace(mod, [a, b, c, d])
+
+        ait_dump_dir = tempfile.mkdtemp(prefix="test_fx2ait_", dir="/tmp")
+
+        interp = AITInterpreter(traced, [a, b, c, d], ait_dump_dir, "test")
+        interp_result = interp.run()
+        ait_mod = AITModule(
+            AIT_MODEL_CLASS(
+                interp_result.engine.lib_path,
+                interp_result.input_names,
+                interp_result.output_names,
+                torch.float16,
+                torch.float16,
+                1,  # num_runtimes
+            ),
+            interp_result,
+        )
+        ait_output = ait_mod(a, b, c, d)
+        torch.testing.assert_close(ait_output, ref_output, atol=0.1, rtol=0.1)
+
+        ait_output = ait_mod(a, b, c, d=d)
+        torch.testing.assert_close(ait_output, ref_output, atol=0.1, rtol=0.1)
+
+        ait_output = ait_mod(a, b, c=c, d=d)
+        torch.testing.assert_close(ait_output, ref_output, atol=0.1, rtol=0.1)
+
+        ait_output = ait_mod(a, b=b, c=c, d=d)
+        torch.testing.assert_close(ait_output, ref_output, atol=0.1, rtol=0.1)
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)
