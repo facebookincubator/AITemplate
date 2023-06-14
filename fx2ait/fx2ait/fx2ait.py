@@ -69,6 +69,7 @@ class AITInterpreter(torch.fx.Interpreter):
         save_remote_cache: Optional[bool] = False,
         do_optimize_graph: bool = True,
         use_fast_math: bool = True,
+        profile_timeout: int = 300,
     ):
         """
         Args:
@@ -87,6 +88,7 @@ class AITInterpreter(torch.fx.Interpreter):
             remote_cache_file_path: AITemplate profiling cache location
             save_remote_cache: whether to save the updated cache
             use_fast_math: whether to use fast math in CUDA kernels
+            profile_timeout: timeout in seconds for AIT profilers to complete
         """
         super().__init__(module)
 
@@ -128,6 +130,7 @@ class AITInterpreter(torch.fx.Interpreter):
         self.keep_constants = keep_constants
         self.load_ait_dir = load_ait_dir
         self.do_optimize_graph = do_optimize_graph
+        self.profile_timeout = profile_timeout
 
     def _create_target(self):
         """Detect GPU target"""
@@ -217,6 +220,7 @@ class AITInterpreter(torch.fx.Interpreter):
             "dll_name": self.dll_name,
             "profile_dir": profile_dir,
             "do_optimize_graph": self.do_optimize_graph,
+            "profile_timeout": self.profile_timeout,
         }
         if self.dump_ait_dir:
             dump_ait_path = os.path.join(self.dump_ait_dir, self.name + ".py")

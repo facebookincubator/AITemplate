@@ -160,6 +160,7 @@ def compile_model(
     allocator_kind: Optional[AITemplateAllocatorKind] = None,
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
     do_optimize_graph: bool = True,
+    profile_timeout: int = 300,
 ) -> Model:
     """Compiles a model and generates a .so file.
 
@@ -273,7 +274,11 @@ def compile_model(
                 else:
                     profile_devs = device_env.split(",")
             compiler.transform.profile(
-                graph, profile_dir, profile_devs, dynamic_profiling_strategy
+                graph,
+                profile_dir,
+                profile_devs,
+                dynamic_profiling_strategy,
+                profile_timeout,
             )
             graph_utils.dump_graph_debug_str_to_file(graph, test_dir, "profile")
 
