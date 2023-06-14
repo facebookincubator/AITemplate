@@ -23,7 +23,7 @@ Verify the library versions. We have tested transformers==4.25, diffusers==0.11[
 ```
 
 ### Download the diffusers pipeline files
-You must first register in Hugging Face Hub to obtain an access token for the Stable Diffusion weights. See [user access tokens](https://huggingface.co/docs/hub/security-tokens) for more info. Your access tokens are listed in your [Hugging Face account settings](https://huggingface.co/settings/tokens).
+Optionally, you can use Hugging Face access token. You can register in Hugging Face Hub to obtain an access token for the Stable Diffusion weights. See [user access tokens](https://huggingface.co/docs/hub/security-tokens) for more info. Your access tokens are listed in your [Hugging Face account settings](https://huggingface.co/settings/tokens).
 
 stable-diffusion model has two variants - base and regular.
 For example:
@@ -32,7 +32,9 @@ For example:
 
 ```
 python3 scripts/download_pipeline.py \
---model-name "stabilityai/stable-diffusion-2-1-base" \
+--model-name "stabilityai/stable-diffusion-2-1-base"
+
+# Optionally, you can use access token
 --token ACCESS_TOKEN
 ```
 
