@@ -28,6 +28,7 @@ from fx2ait.acc_tracer.ait_acc_normalizer import update_acc_op_mappers_for_ait
 from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter
 from fx2ait.tensor_spec import TensorSpec
+from torch.fx.node import map_aggregate
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -129,16 +130,18 @@ class AITTestCase(TestCase):
 
         original_inputs = copy.deepcopy(inputs)
         if permute_inputs:
-            inputs = [inp.permute(*permute_inputs).contiguous() for inp in inputs]
+            inputs = map_aggregate(
+                inputs, lambda inp: inp.permute(*permute_inputs).contiguous()
+            )
 
         torch_dtype = lower_precision_to_torch_type(precision)
         mod.to(torch_dtype)
-        inputs = [
-            inp.to(torch_dtype).contiguous()
+        inputs = map_aggregate(
+            inputs,
+            lambda inp: inp.to(torch_dtype).contiguous()
             if inp.dtype not in (torch.bool, torch.int64)
-            else inp.contiguous()
-            for inp in inputs
-        ]
+            else inp.contiguous(),
+        )
         interp = AITInterpreter(
             mod,
             inputs,
@@ -147,9 +150,7 @@ class AITTestCase(TestCase):
             use_fp16_acc=use_fp16_acc,
         )
         with torch.no_grad():
-            cuda_inputs = []
-            for i in inputs:
-                cuda_inputs.append(i.cuda())
+            cuda_inputs = map_aggregate(inputs, lambda inp: inp.cuda())
 
             mod.eval()
             if apply_passes_to_lowered_module_only:
@@ -212,7 +213,9 @@ class AITTestCase(TestCase):
                     ref = torch.tensor([ref])
                 ref = ref.cpu()  # to_dtype test has cases with gpu output
                 if permute_outputs:
-                    out = out.permute(*permute_outputs)
+                    out = map_aggregate(
+                        out, lambda output: output.permute(*permute_outputs)
+                    )
                 torch.testing.assert_close(
                     out.cpu(),
                     ref,
