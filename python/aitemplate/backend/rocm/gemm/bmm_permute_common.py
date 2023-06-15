@@ -19,7 +19,7 @@ import jinja2
 
 EXTRA_HEADER_TEMPLATE = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/device_batched_gemm_e_permute_xdl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_e_permute_xdl.hpp"
 """
 )
 
