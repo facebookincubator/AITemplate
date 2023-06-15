@@ -365,11 +365,11 @@ class CLIPMLPQuickGelu(nn.Module):
         self.fc2 = nn.Linear(hidden_features, out_features, specialization="add")
 
     def forward(self, x, res):
-        # shape = get_shape(x)
+        shape = x.shape()
         x = self.fc1(x)
         x = self.activation_fn(x)
         x = self.fc2(x, res)
-        return ops.reshape()(x, x.shape())
+        return ops.reshape()(x, shape)
 
 
 class CLIPEncoderLayer(nn.Module):
