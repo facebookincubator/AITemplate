@@ -27,7 +27,7 @@ from aitemplate.backend.rocm.gemm.layout import RCR
 
 EXTRA_CODE = jinja2.Template(
     """
-#include "data_type.hpp"
+#include "ck/utility/data_type.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -128,6 +128,13 @@ def gen_function(
         dim_info_dict,
         "bias_add_relu",
         extra_code=EXTRA_CODE.render(),
+        input_addr_calculator=common.INPUT_ADDR_CALCULATOR.render(
+            accessor_a=func_attrs["input_accessors"][0],
+            accessor_b=func_attrs["input_accessors"][1],
+        ),
+        output_addr_calculator=common.OUTPUT_ADDR_CALCULATOR.render(
+            output_accessor=func_attrs["output_accessors"][0]
+        ),
     )
 
 
