@@ -1634,6 +1634,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         # add_12 = add(reduce_9, reduce_10)
         # y = add(add_12, reduce_11)
         assert M0 == M1, f"expected {M0=} to be equal to {M1=}"
+        assert M0 + M2 == N, f"expected {M0=} + {M2=} to be qual to {N=}"
         batch_sizes = [1, self.BATCH_SIZE]
         batch_dim = shape_utils.gen_int_var_min_max(batch_sizes, "batch_0")
         X0 = Tensor(
@@ -1677,9 +1678,9 @@ class MoveViewOpsTestCase(unittest.TestCase):
         add_0 = ops.elementwise(FuncEnum.ADD)(X0, X1)
         concat_1 = ops.concatenate()([add_0, X2], dim=cat_dim)
         bmm_K = M0 + M2
-        reshape_2 = ops.reshape()(concat_1, [-1, bmm_K, N])
+        reshape_2 = ops.reshape()(concat_1, [-1, N, bmm_K])
         # bmm_rrr_add_3[batch, N, N] = bmm_rrr_add(
-        #     reshape_2[batch, bmm_K, N], X4[bmm_K, N], X5[N]
+        #     reshape_2[batch, N, bmm_K], X4[bmm_K, N], X5[N]
         # )
         bmm_rrr_add_3 = ops.bmm_rrr_add()(reshape_2, X4, X5)
         concat_4 = ops.concatenate()([X3, reshape_2, X3], dim=cat_dim)  # 3d
@@ -1759,13 +1760,12 @@ class MoveViewOpsTestCase(unittest.TestCase):
             torch.testing.assert_close(y_pt, y, atol=0.1, rtol=0.1)
 
     def test_move_strided_reshape_cat_10(self):
-        self._test_move_strided_reshape_cat_9(
-            M0=4,
-            M1=4,
-            M2=6,
+        self._test_move_strided_reshape_cat_10(
+            M0=2,
+            M1=2,
+            M2=4,
             M3=4,
-            M7=8,
-            N=4,
+            N=6,
             test_name="test_move_strided_reshape_cat_10",
             dtype="float16",
         )
