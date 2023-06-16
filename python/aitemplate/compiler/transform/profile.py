@@ -56,6 +56,7 @@ def profile(
     workdir="./tmp",
     devices=None,
     dynamic_profiling_strategy=DynamicProfileStrategy.MAX,
+    timeout=300,
 ):
     """Profiles kernels.
 
@@ -110,6 +111,7 @@ def profile(
         devices,
         timeout=timeout,
         postprocessing_delegate=GemmProfilerPostprocessingDelegate(),
+        timeout=timeout,
     )
     for f in gemms:
         f.profile(

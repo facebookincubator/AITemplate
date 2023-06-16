@@ -24,9 +24,12 @@ from aitemplate.backend.common import upsampling2d_common
 
 
 Header_Files = """
+#include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
+
+using bfloat16 = __nv_bfloat16;
 """
 
 

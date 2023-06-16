@@ -210,6 +210,8 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 
 {% if gemm_flag == "bias_permute" %}
 {{indent}}                                static_cast<ck::half_t *>(bias_ptr),
+{% elif gemm_flag == "permute" %}
+{{indent}}                                nullptr,
 {% elif gemm_flag == "bias_permute_m2n3" %}
 {{indent}}                                std::array<const void*, 1>{static_cast<ck::half_t *>(bias_ptr)},
 {% elif gemm_flag == "permute_m2n3" %}
@@ -236,6 +238,9 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {% endif %}
 {% if gemm_flag == "bias_permute" %}
 {{indent}}                                {M0, M1, M2, N0, N1, stride_D_M0, stride_D_M1, stride_D_M2, stride_D_N0, stride_D_N1},
+{{indent}}                                {M0, M1, M2, N0, N1, stride_E_M0, stride_E_M1, stride_E_M2, stride_E_N0, stride_E_N1},
+{% elif gemm_flag == "permute" %}
+{{indent}}                                {},
 {{indent}}                                {M0, M1, M2, N0, N1, stride_E_M0, stride_E_M1, stride_E_M2, stride_E_N0, stride_E_N1},
 {% elif gemm_flag in ["permute_m2n3", "bias_permute_m2n3", "bias_permute_m3n2"]  %}
 {{indent}}                                a_ms_ks_lengths,
@@ -265,7 +270,7 @@ PROBLEM_ARGS_TEMPLATE = jinja2.Template(
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{},
 {% if gemm_flag == "" %}
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{}
-{% elif gemm_flag == "permute_m2n3" %}
+{% elif gemm_flag in ["permute", "permute_m2n3"] %}
 {{indent}}                                ck::tensor_operation::element_wise::PassThrough{}
 {% elif gemm_flag == "bias" or "bias_permute" in gemm_flag %}
 {{indent}}                                ck::tensor_operation::element_wise::Add{}

@@ -18,7 +18,7 @@ from functools import partial
 from typing import Callable, List, Optional, Tuple, Union
 
 import torch
-from pytorchvideo.layers.utils import round_width
+from pytorchvideo.layers.utils import round_width  # usort:skip
 
 from aitemplate.frontend import Tensor
 from aitemplate.frontend.nn.batch_norm import BatchNorm1d, BatchNorm3d
