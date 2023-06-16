@@ -109,7 +109,6 @@ def profile(
     timeout = 2400 if Target.current().name() == "rocm" else 240
     profiler_runner = ProfilerRunner(
         devices,
-        timeout=timeout,
         postprocessing_delegate=GemmProfilerPostprocessingDelegate(),
         timeout=timeout,
     )
