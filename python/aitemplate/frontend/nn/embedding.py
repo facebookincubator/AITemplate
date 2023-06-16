@@ -13,12 +13,10 @@
 #  limitations under the License.
 #
 from aitemplate.compiler import ops
-from aitemplate.compiler.public import FuncEnum
 from aitemplate.frontend.nn.dropout import Dropout
 from aitemplate.frontend.nn.layer_norm import LayerNorm
 from aitemplate.frontend.nn.module import Module
 from aitemplate.frontend.nn.parameter import Parameter
-from aitemplate.testing import detect_target
 
 
 class Embedding(Module):
@@ -61,8 +59,6 @@ class BertEmbeddings(Module):
         dtype="float16",
     ):
         super().__init__()
-        if BertEmbeddings.USE_CUDA is None:
-            BertEmbeddings.USE_CUDA = detect_target().name() == "cuda"
         assert (
             hidden_dropout_prob == 0.0
         ), "Dropout rate larger than 0 is not supported yet."
@@ -85,48 +81,16 @@ class BertEmbeddings(Module):
         token_type_ids,  # [B, S]
         position_ids,  # [B, S]
     ):
-        if self.USE_CUDA:
-            embeddings = ops.bert_embeddings()(
-                input_ids,
-                token_type_ids,
-                position_ids,
-                self.word_embeddings.weight.tensor(),
-                self.token_type_embeddings.weight.tensor(),
-                self.position_embeddings.weight.tensor(),
-                self.LayerNorm.weight.tensor(),
-                self.LayerNorm.bias.tensor(),
-                self.LayerNorm.eps,
-            )
-            embeddings = self.dropout(embeddings)
-            return embeddings
-
-        input_shape = ops.size()(input_ids)
-
-        # [B * S]
-        input_ids = ops.reshape()(input_ids, [-1])
-        token_type_ids = ops.reshape()(token_type_ids, [-1])
-        position_ids = ops.reshape()(position_ids, [-1])
-
-        # [B * S, H]
-        input_embeddings = ops.batch_gather()(self.word_embeddings.tensor(), input_ids)
-        token_type_embeddings = ops.batch_gather()(
-            self.token_type_embeddings.tensor(), token_type_ids
+        embeddings = ops.bert_embeddings()(
+            input_ids,
+            token_type_ids,
+            position_ids,
+            self.word_embeddings.weight.tensor(),
+            self.token_type_embeddings.weight.tensor(),
+            self.position_embeddings.weight.tensor(),
+            self.LayerNorm.weight.tensor(),
+            self.LayerNorm.bias.tensor(),
+            self.LayerNorm.eps,
         )
-        position_embeddings = ops.batch_gather()(
-            self.position_embeddings.tensor(), position_ids
-        )
-
-        # add
-        embeddings = ops.elementwise(FuncEnum.ADD)(
-            input_embeddings, token_type_embeddings
-        )
-
-        embeddings = ops.elementwise(FuncEnum.ADD)(embeddings, position_embeddings)
-
-        # norm
-        embeddings = self.LayerNorm(embeddings)
         embeddings = self.dropout(embeddings)
-
-        embeddings = ops.reshape()(embeddings, input_shape + [-1])
-
         return embeddings

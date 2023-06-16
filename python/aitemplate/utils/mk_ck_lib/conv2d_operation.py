@@ -266,7 +266,6 @@ class Conv2DOperation:
         return library.DataType.f32
 
     def emit(self) -> str:
-
         template = jinja2.Template(
             """
 using {{name}} = {{xdl_op_type}}<
@@ -285,7 +284,7 @@ using {{name}} = {{xdl_op_type}}<
     {{WeiLayout}}, // WeiLayout
     {% if func=="PT" %}
     ck::Tuple<>,
-    {% elif func=="AAR" %}
+    {% elif func in ["AA", "AAR"] %}
     ck::Tuple<{{OutLayout}}, {{OutLayout}}>, // BiasLayout
     {% else %}
 {% if "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1" in xdl_op_type %}
@@ -301,7 +300,7 @@ using {{name}} = {{xdl_op_type}}<
     {{CShuffleDType}}, // CShuffleDataType
     {% if func=="PT" %}
     ck::Tuple<>,
-    {% elif func=="AAR" %}
+    {% elif func in ["AA", "AAR"] %}
     ck::Tuple<{{CDType}}, {{CDType}}>, // BiasLayout
     {% else %}
     ck::Tuple<{{CDType}}>, // BiasDataType
