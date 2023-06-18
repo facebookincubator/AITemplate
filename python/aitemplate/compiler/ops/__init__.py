@@ -22,6 +22,7 @@ from aitemplate.compiler.ops.embedding import *
 from aitemplate.compiler.ops.gemm_special import *
 from aitemplate.compiler.ops.gemm_universal import *
 from aitemplate.compiler.ops.gemm_epilogue_vistor import *
+from aitemplate.compiler.ops.jagged import *
 from aitemplate.compiler.ops.layernorm import *
 from aitemplate.compiler.ops.padding import *
 from aitemplate.compiler.ops.pool import *
