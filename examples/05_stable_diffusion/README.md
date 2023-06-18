@@ -42,7 +42,8 @@ Build the AIT modules by running `compile.py`.
 
 Set correct width and height depending on the model variant
 ```
-python3 scripts/compile.py --width 512 --height 512
+python3 scripts/compile.py --batch-size 1 8 \
+--width 512 --height 512
 ```
 It generates three folders: `./tmp/CLIPTextModel`, `./tmp/UNet2DConditionModel`, `./tmp/AutoencoderKL`. In each folder, there is a `test.so` file which is the generated AIT module for the model.
 
@@ -98,17 +99,25 @@ Run AIT models with an example image:
 
 Set correct width and height depending on the model variant
 ```
-python3 scripts/demo.py --width 512 --height 512
+python3 scripts/demo.py --batch 8 \
+--width 512 --height 512 \
+--prompt "a photo of an astronaut riding a horse on mars"
 ```
+
+Check the resulted images: `example_ait_[0..7].png`
 
 Img2img demo:
 
+Internally img2img demo will download and use [sketch-mountains-input.jpg](https://raw.githubusercontent.com/CompVis/stable-diffusion/main/assets/stable-samples/img2img/sketch-mountains-input.jpg).
+
 Set correct width and height depending on the model variant
 ```
-python3 scripts/demo_img2img.py --width 512 --height 512
+python3 scripts/demo_img2img.py --batch 8 \
+--width 512 --height 512 \
+--prompt "A fantasy landscape, trending on artstation"
 ```
 
-Check the resulted image: `example_ait.png`
+Check the resulted images: `example_ait_[0..7].png`
 
 
 ### Sample outputs
