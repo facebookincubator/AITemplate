@@ -15,7 +15,11 @@
 from aitemplate.compiler.ops.jagged.jagged_lengths_to_offsets import (
     jagged_lengths_to_offsets,
 )
+from aitemplate.compiler.ops.jagged.jagged_lengths_to_presences import (
+    jagged_lengths_to_presences,
+)
 
 __all__ = [
     "jagged_lengths_to_offsets",
+    "jagged_lengths_to_presences",
 ]

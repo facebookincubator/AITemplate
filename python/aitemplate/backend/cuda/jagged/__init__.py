@@ -15,8 +15,12 @@
 """
 CUDA jagged tensor-specific ops module init
 """
-from aitemplate.backend.cuda.jagged import jagged_lengths_to_offsets
+from aitemplate.backend.cuda.jagged import (
+    jagged_lengths_to_offsets,
+    jagged_lengths_to_presences,
+)
 
 __all__ = [
     "jagged_lengths_to_offsets",
+    "jagged_lengths_to_presences",
 ]
