@@ -46,6 +46,7 @@
 #include <cfloat>
 #include <climits>
 #include <cmath>
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio> // for CUDA's builtin printf()
 
