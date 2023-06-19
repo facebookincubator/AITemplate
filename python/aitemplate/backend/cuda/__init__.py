@@ -31,6 +31,7 @@ from aitemplate.backend.cuda.embedding import *
 from aitemplate.backend.cuda.gemm_special import *
 from aitemplate.backend.cuda.gemm_universal import *
 from aitemplate.backend.cuda.gemm_epilogue_vistor import *
+from aitemplate.backend.cuda.jagged import *
 from aitemplate.backend.cuda.layernorm_sigmoid_mul import *
 from aitemplate.backend.cuda.padding import *
 from aitemplate.backend.cuda.pool2d import *
