@@ -39,7 +39,7 @@ FUNC_TEMPLATE = jinja2.Template(
 namespace {
 
 // Hardcode these sizes for now until we get profiling ready.
-constexpr int ThreadblockM = 64;
+constexpr int ThreadblockM = 128; // changed from 64 due to improved performance. More leads to errors.
 constexpr int ThreadblockK = 32;
 constexpr int WarpK = 32;
 constexpr int InstructionM = 16;
@@ -63,6 +63,7 @@ void check_status(cutlass::Status status, int64_t max_seq_len, int64_t k0, const
         "Function: {{function_name}}. "
         "max_seq_len: " + std::to_string(max_seq_len) +
         ", k0: " + std::to_string(k0) +
+        ", n0: " + std::to_string({{max_seq_len}}) +
         ", n1: " + std::to_string({{n1}}) + "."
       );
   }
