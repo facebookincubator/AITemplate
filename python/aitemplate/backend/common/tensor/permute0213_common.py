@@ -185,7 +185,7 @@ SRC_TEMPLATE = jinja2.Template(
     """
 {{header_files}}
 
-#define TILE_SIZE {{tile_size}}
+#define TILE_SIZE {{warp_size}}
 #define ITEMS_PER_THREAD 4
 #define DIRECT_BLOCK_Y 4
 #define DIRECT_BLOCK_Z 2
@@ -421,7 +421,7 @@ def gen_function(
         dtype=backend_spec.dtype_to_backend_type(xdtype),
     )
     return SRC_TEMPLATE.render(
-        tile_size=backend_spec.tile_size,
+        warp_size=backend_spec.warp_size,
         function_name=func_name,
         exec_paths=exec_paths,
         header_files=header_files,
