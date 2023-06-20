@@ -34,11 +34,7 @@ from .pipeline_utils import convert_ldm_unet_checkpoint, convert_ldm_vae_checkpo
 from diffusers import (
     AutoencoderKL,
     UNet2DConditionModel,
-
-    DDIMScheduler,
     LMSDiscreteScheduler,
-    PNDMScheduler,
-    EulerDiscreteScheduler,
     EulerAncestralDiscreteScheduler
 )
 
@@ -787,7 +783,7 @@ class StableDiffusionAITPipeline:
         offset = 0
         if accepts_offset:
             offset = 1
-            extra_set_kwargs["offset"] = 1
+            extra_set_kwargs["offset"] = offset
 
         self.scheduler.set_timesteps(num_inference_steps, **extra_set_kwargs)
 
