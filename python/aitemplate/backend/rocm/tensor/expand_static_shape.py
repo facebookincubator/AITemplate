@@ -14,7 +14,7 @@
 #
 
 """
-Specialized and optimized CUDA kernel declarations for the `expand` operator
+Specialized and optimized ROCM kernel declarations for the `expand` operator
 dealing with the most common case that the input and target shapes are known at compile time,
 with the possible exception of leading dimensions.
 
@@ -352,7 +352,7 @@ def create_template_args(
         "mid_expansion_rate": mid_expansion_rate,  # How many times do we read the input for the middle
         "output_rank": output_rank,  # number of output dimensions
         "dim_types": dim_types,  # list of output dimension types: 2 = keep, 1 = expand, 0 = add
-        "dtype": dtype,  # data type of the input and output tensor elements ( valid CUDA C type like float )
+        "dtype": dtype,  # data type of the input and output tensor elements ( valid ROCM C type like float )
         "indent": indent,  # indentation for the function call template,
         "index_type": index_type,
         "grid_blocks_y": grid_blocks_y,  # number of y grid blocks in the strided copy kernel

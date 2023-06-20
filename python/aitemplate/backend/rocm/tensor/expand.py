@@ -14,7 +14,7 @@
 #
 
 """
-expand op general CUDA implementation with complete dynamic shape support
+expand op general ROCM implementation with complete dynamic shape support
 """
 
 from typing import Any, Dict
@@ -45,7 +45,7 @@ def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
     ), f"ROCM implementation does not support dtype {x.dtype()} (yet)"
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_name,  # name of the function
-        dtype=dtype,  # data type of the input and output tensor elements ( valid CUDA C type like float ))
+        dtype=dtype,  # data type of the input and output tensor elements ( valid ROCM C type like float ))
         index_type=index_type,
     )
 
@@ -200,7 +200,7 @@ void {{func_name}} (
       tail_dim *= output_dims[i];
   }
 
-  // determine CUDA kernel grid layout. Tuning numbers determined experimentally
+  // determine ROCM kernel grid layout. Tuning numbers determined experimentally
   {{index_type}} thread_size_x = INT_MIN(output_numel, MAX_THREADS_PER_BLOCK); // more threads per block maximize L1 cache utilization
   {{index_type}} block_size_x = INT_MIN(INT_CEIL_DIV(output_numel, thread_size_x), 4096l ); //
 
@@ -233,7 +233,7 @@ def create_template_args(
     dtype = rocm_spec.dtype_to_backend_dtype.get(x.dtype(), None)
     assert (
         dtype is not None
-    ), f"CUDA implementation does not support dtype {x.dtype()} (yet)"
+    ), f"ROCM implementation does not support dtype {x.dtype()} (yet)"
 
     xshape = x._attrs["shape"]
     yshape = y._attrs["shape"]
@@ -260,7 +260,7 @@ def create_template_args(
         "input_rank": input_rank,  # number of input dimensions
         "output_rank": output_rank,  # number of output dimensions
         "dim_types": dim_types,  # list of output dimension types: 2 = keep, 1 = expand, 0 = add
-        "dtype": dtype,  # data type of the input and output tensor elements ( valid CUDA C type like float ))
+        "dtype": dtype,  # data type of the input and output tensor elements ( valid ROCM C type like float ))
         "indent": indent,  # indentation for the function call template,
         "index_type": index_type,
     }
