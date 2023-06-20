@@ -19,13 +19,14 @@ import ctypes
 import enum
 import logging
 import math
+import struct
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 
 from aitemplate.compiler.dtype import dtype_str_to_enum
 from aitemplate.utils.misc import is_linux, is_windows
-from aitemplate.utils.torch_utils import torch_dtype_to_string
+from aitemplate.utils.torch_utils import torch_dtype_to_string, write_tensor_binary
 
 # Controls how many runtimes will be used in ModelContainer by default.
 # See the runtime README.md for more information on the Model/ModelContainer
@@ -352,6 +353,43 @@ class Model:
             result[index_map[name]] = tensor
 
         return result
+
+    def _write_tensors_for_standalone_testcase(
+        self,
+        tensor_dict: Dict[str, TorchTensor],
+        file_handle,
+        is_inputs: bool = True,
+    ) -> None:
+        if is_inputs:
+            index_map = self._input_name_to_index
+        else:
+            index_map = self._output_name_to_index
+        result = [None] * len(index_map)
+        for name, tensor in tensor_dict.items():
+            if name not in index_map:
+                raise ValueError(
+                    f"Got unexpected {'input' if is_inputs else 'output'}: {name}"
+                )
+            idx = index_map[name]
+            result[idx] = tensor
+        for tensor in result:
+            write_tensor_binary(tensor, file_handle)
+
+    def write_standalone_testcase_data(
+        self,
+        filename,
+        inputs: Dict[str, TorchTensor],
+        expected_outputs: List[TorchTensor],
+        atol=1e-2,
+        rtol=1e-2,
+    ):
+        with open(filename, "wb") as file_handle:
+            file_handle.write(struct.pack("ff", atol, rtol))
+            self._write_tensors_for_standalone_testcase(
+                tensor_dict=inputs, file_handle=file_handle
+            )
+            for out in expected_outputs:
+                write_tensor_binary(out, file_handle)
 
     def _make_ait_outputs(
         self, outputs: List[AITData], c_output_shapes

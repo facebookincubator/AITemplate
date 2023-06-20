@@ -508,6 +508,16 @@ clean_constants:
             # fix the makefile indentation
             f.write(re.sub("^    ", "\t", makefile_str, flags=re.M))
 
+    def postprocess_build_dir(self, workdir: str, test_name: str) -> None:
+        build_dir = os.path.join(workdir, test_name)
+        current_target = None
+        try:
+            current_target: Target = Target.current()
+        except RuntimeError:
+            pass
+        if current_target is not None:
+            current_target.postprocess_build_dir(build_dir)
+
     @staticmethod
     def _combine_profiler_multi_sources():
         """Whether to combine multiple profiler sources per target."""
@@ -873,6 +883,7 @@ clean:
         allow_cache=True,
     ):
         self.gen_makefile(file_pairs, dll_name, workdir, test_name, debug_settings)
+        self.postprocess_build_dir(workdir, test_name)
 
         # Write compiler version string(s) into build directory, so these can be used as part of cache key
         self._gen_compiler_version_files(os.path.join(workdir, test_name))
