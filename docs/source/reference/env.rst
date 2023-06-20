@@ -26,6 +26,16 @@ Codegen
 
 **AIT_USE_CMAKE_COMPILATION**: (An experimental feature) If set to "1", then `cmake` will used instead of `make`. This allows to build AITemplate using MSVC Compiler + MSBuild on Windows, and it works for linux as well. This builder does not support many features (such as caching) yet. But it allows to generate a cmake project that can be loaded to a modern IDE. Default value is "0".
 
+**AIT_ENABLE_STANDALONE**: Enable standalone test and benchmark executable generation. Default value is "0" (disabled). If set to "1", this will generate a "test" executable that may be used to run standalone tests and benchmarks. This standalone executable is also well suited for running through debuggers and/or profiling tools, as it does not pull in python and pytorch as dependencies, unlike most python unit tests.
+
+**AIT_ENABLE_PTXAS_INFO**: Set this to "1" to enable the generation and logging of verbose ( tuning-relevant ) information about CUDA ptx assembly code produced by the CUDA compiler nvcc. Intermediate ptx files, annotated with C++ source info will be written to the build directory. In addition, this flag enables warnings about CUDA register spilling and resource usage.
+
+**AIT_CUDA_DEBUG_LEVEL**: Configure level of CUDA debug information. Defaults to no debug info. This may either be a string with options passed to nvcc ( for example "-g -G" or "-lineinfo" ) or a CUDA debug level from "0" (default, no debug info), "1" ( "-lineinfo" ) include source code line information. Ideal for profiling with ncu/nsight-compute, "2" full debug information (**warning**: this disables all optimizations, regardless of other settings)
+
+**AIT_ENABLE_CUDA_SOURCE_NAVIGATION_FIX**: (Only supported by FBCUDA target so far): When this flag is enabled by setting it to "1" (it is disabled by default), every *.cu file in build dirs into a corresponding *.cu.h file and create a *.cu file which just includes this file. This fixes code navigation issues in some IDE's which don't treat .cu files as C++ files and disable code navigation.
+
+**AIT_ENABLE_INCLUDE_FROM_SOURCETREE**: (Only supported by FBCUDA target so far) When this flag is enabled by setting it to "1" (it is disabled by default), the target will create an in-place build which tries to directly reference the include paths within the AITemplate source tree. This helps to iterate faster during native Kernel/Operator development and debugging.
+
 Profiling
 ---------
 
