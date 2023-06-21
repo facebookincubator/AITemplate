@@ -15,77 +15,25 @@
 import inspect
 import os
 import re
+from typing import List, Optional, Union
+
 import PIL
 import torch
-
-import numpy as np
-
-from typing import List, Optional, Union
 from aitemplate.compiler import Model
+from diffusers import (
+    AutoencoderKL,
+    UNet2DConditionModel,
+    LMSDiscreteScheduler,
+    EulerAncestralDiscreteScheduler
+)
 from diffusers.pipelines.stable_diffusion import StableDiffusionPipelineOutput
 from diffusers.utils.pil_utils import numpy_to_pil
 from tqdm import tqdm
 from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 
-from .compile_lib.compile_vae_alt import map_vae_params
-from .modeling.vae import AutoencoderKL as ait_AutoencoderKL
-from .pipeline_utils import convert_ldm_unet_checkpoint, convert_ldm_vae_checkpoint
 from .compile_lib.compile_vae_alt import map_vae
-
-
-def shave_segments(path, n_shave_prefix_segments=1):
-    """
-    Removes segments. Positive values shave the first segments, negative shave the last segments.
-    """
-    if n_shave_prefix_segments >= 0:
-        return ".".join(path.split(".")[n_shave_prefix_segments:])
-    else:
-        return ".".join(path.split(".")[:n_shave_prefix_segments])
-
-
-def renew_resnet_paths(old_list, n_shave_prefix_segments=0):
-    """
-    Updates paths inside resnets to the new naming scheme (local renaming)
-    """
-    mapping = []
-    for old_item in old_list:
-        new_item = old_item.replace("in_layers.0", "norm1")
-        new_item = new_item.replace("in_layers.2", "conv1")
-
-        new_item = new_item.replace("out_layers.0", "norm2")
-        new_item = new_item.replace("out_layers.3", "conv2")
-
-        new_item = new_item.replace("emb_layers.1", "time_emb_proj")
-        new_item = new_item.replace("skip_connection", "conv_shortcut")
-
-        new_item = shave_segments(
-            new_item, n_shave_prefix_segments=n_shave_prefix_segments
-        )
-
-        mapping.append({"old": old_item, "new": new_item})
-
-    return mapping
-
-from diffusers import (
-    AutoencoderKL,
-    UNet2DConditionModel,
-
-    DDIMScheduler,
-    LMSDiscreteScheduler,
-    PNDMScheduler,
-    EulerDiscreteScheduler,
-    EulerAncestralDiscreteScheduler
-)
-
-
-def preprocess(image, width=512, height=512):
-    width, height = map(lambda x: x - x % 32, (width, height))  # resize to integer multiple of 32
-    image = image.resize((width, height), resample=PIL.Image.LANCZOS)
-    image = np.array(image).astype(np.float32) / 255.0
-    image = image[None].transpose(0, 3, 1, 2)
-    image = torch.from_numpy(image)
-    return 2.0 * image - 1.0
-
+from .modeling.vae import AutoencoderKL as ait_AutoencoderKL
+from .pipeline_utils import convert_ldm_unet_checkpoint, convert_ldm_vae_checkpoint, preprocess
 
 textenc_conversion_lst = [
     ("positional_embedding", "text_model.embeddings.position_embedding.weight"),
@@ -208,7 +156,6 @@ def map_clip_state_dict(state_dict):
 class StableDiffusionAITPipeline:
     def __init__(self, hf_hub_or_path, ckpt, workdir="tmp/"):
         self.device = torch.device("cuda")
-        state_dict = None
         if ckpt is not None:
             state_dict = torch.load(ckpt, map_location="cpu")
             while "state_dict" in state_dict:
@@ -334,7 +281,7 @@ class StableDiffusionAITPipeline:
             sample_size=sample_size,
         )
         print("Mapping parameters...")
-        vae_params_ait = map_vae_params(ait_vae, self.vae)
+        vae_params_ait = map_vae(ait_vae, self.vae)
         print("Setting constants")
         self.vae_ait_exe.set_many_constants_with_tensors(vae_params_ait)
         print("Folding constants")

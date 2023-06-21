@@ -1,3 +1,8 @@
+import PIL
+import numpy as np
+import torch
+
+
 def shave_segments(path, n_shave_prefix_segments=1):
     """
     Removes segments. Positive values shave the first segments, negative shave the last segments.
@@ -104,7 +109,7 @@ def renew_vae_attention_paths(old_list, n_shave_prefix_segments=0):
 
 
 def assign_to_checkpoint(
-    paths, checkpoint, old_checkpoint, additional_replacements=None
+        paths, checkpoint, old_checkpoint, additional_replacements=None
 ):
     """
     This does the final conversion step: take locally converted weights and apply a global renaming to them. It splits
@@ -505,3 +510,11 @@ def convert_ldm_unet_checkpoint(unet_state_dict, layers_per_block=2):
 
     return new_checkpoint
 
+
+def preprocess(image, width=512, height=512):
+    width, height = map(lambda x: x - x % 32, (width, height))  # resize to integer multiple of 32
+    image = image.resize((width, height), resample=PIL.Image.LANCZOS)
+    image = np.array(image).astype(np.float32) / 255.0
+    image = image[None].transpose(0, 3, 1, 2)
+    image = torch.from_numpy(image)
+    return 2.0 * image - 1.0
