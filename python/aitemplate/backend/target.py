@@ -505,6 +505,13 @@ class Target:
         """
         raise NotImplementedError
 
+    def postprocess_build_dir(self, build_dir: str) -> None:
+        """
+        Postprocess a build directory, allows final modification of the build directory before building.
+
+        """
+        pass
+
 
 def CUDA(template_path: str = CUTLASS_PATH, arch: str = "80", **kwargs):
     """Create a CUDA target."""

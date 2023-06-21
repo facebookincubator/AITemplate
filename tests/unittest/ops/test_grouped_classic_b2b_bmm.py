@@ -67,6 +67,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
         rtol=0.01,
         use_fp16_acc=False,
         random_seed=0,
+        write_standalone_testcase_data: bool = False,
     ):
         if isinstance(random_seed, list):
             random_seeds = random_seed
@@ -162,6 +163,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
         torch_dtype = string_to_torch_dtype(dtype)
         offsets_torch_dtype = string_to_torch_dtype(offsets_dtype)
         y_results = {}
+        written_testcase_idx = 0
         for random_seed in random_seeds:
             torch.manual_seed(random_seed)
             for max_seq_len in sorted(set(max_seq_lens)):
@@ -215,6 +217,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
                     if not has_bias:
                         bias_pt_max *= 0.0
                     results_per_batch = {}
+
                     for batch_size in batch_sizes_sorted:
                         # Initialize inputs
                         # input(f"Attach debugger if you want. {os.getpid()=}. Press Enter to continue.")
@@ -246,6 +249,16 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
                             [total_length, num_head, head_dim_value]
                         )
                         module.run_with_tensors(inputs, [y])
+                        if write_standalone_testcase_data:
+                            written_testcase_idx += 1
+                            os.makedirs(f"./tmp/{test_name}/test_cases", exist_ok=True)
+                            fname = f"./tmp/{test_name}/test_cases/testcase.{written_testcase_idx}.data"
+                            _LOGGER.info(f"Writing standalone testcase data to {fname}")
+                            module.write_standalone_testcase_data(
+                                fname,
+                                inputs,
+                                [y],
+                            )
 
                         y_results[(batch_size, max_seq_len, num_head)] = y
                         assert torch.all(
@@ -585,6 +598,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
                 random_seed=list(range(1)),
                 has_bias=True,
                 bias_broadcast=[True, True, False, False],
+                # write_standalone_testcase_data=True,
             )
 
 

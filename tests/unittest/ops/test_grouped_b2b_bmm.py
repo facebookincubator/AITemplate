@@ -17,6 +17,7 @@ Unittests for grouped b2b bmm Operators.
 """
 import itertools
 import logging
+import os
 import unittest
 from typing import List, Tuple
 
@@ -66,6 +67,7 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
         atol=1e-3,
         rtol=1e-3,
         use_fp16_acc=False,
+        write_standalone_testcase_data: bool = False,
     ):
         # Initialize AIT fmha_style_b2b_bmm operator.
         if isinstance(batch_sizes, int):
@@ -158,6 +160,7 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
         # Run tests.
         torch_dtype = string_to_torch_dtype(dtype)
         offsets_torch_dtype = string_to_torch_dtype(offsets_dtype)
+        written_testcase_idx = 0
         for batch_size, max_seq_len, num_head in itertools.product(
             sorted(set(batch_sizes)), sorted(set(max_seq_lens)), sorted(set(num_heads))
         ):
@@ -201,6 +204,18 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
                 device="cuda",
             )
             module.run_with_tensors(inputs, [y])
+            if write_standalone_testcase_data:
+                written_testcase_idx += 1
+                os.makedirs(f"./tmp/{test_name}/test_cases", exist_ok=True)
+                fname = (
+                    f"./tmp/{test_name}/test_cases/testcase.{written_testcase_idx}.data"
+                )
+                _LOGGER.info(f"Writing standalone testcase data to {fname}")
+                module.write_standalone_testcase_data(
+                    fname,
+                    inputs,
+                    [y],
+                )
 
             # Run PT reference and verify results.
             for row in range(batch_size):
@@ -338,6 +353,30 @@ class GroupedFMHAStyleB2bBmmTestCase(unittest.TestCase):
             # how allow_fp16_reduced_precision_reduction is set.
             atol=1e-2,
         )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_grouped_fmha_b2b_bmm_profile_1(
+        self,
+    ):
+        for max_seq_len in [256]:
+            self._test_grouped_fmha_style_b2b_bmm(
+                test_name=f"grouped_fmha_b2b_bmm_profile_1_seqlen_{max_seq_len}",
+                dtype="float16",
+                batch_sizes=[
+                    4,
+                    8,
+                    16,
+                    32,
+                    64,
+                ],
+                max_seq_lens=max_seq_len,
+                num_heads=[1],
+                epilogue_math_name="SiLu",
+                causal_type=CausalType.LOWER_LEFT_EMPTY,
+                has_bias=True,
+                bias_broadcast=[True, True, False, False],
+                # write_standalone_testcase_data=True,
+            )
 
 
 if __name__ == "__main__":
