@@ -206,9 +206,8 @@ def map_clip_state_dict(state_dict):
 
 
 class StableDiffusionAITPipeline:
-    def __init__(self, hf_hub_or_path, ckpt):
+    def __init__(self, hf_hub_or_path, ckpt, workdir="tmp/"):
         self.device = torch.device("cuda")
-        workdir = "tmp/"
         state_dict = None
         if ckpt is not None:
             state_dict = torch.load(ckpt, map_location="cpu")
