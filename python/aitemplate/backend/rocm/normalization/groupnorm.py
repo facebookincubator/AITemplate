@@ -29,7 +29,7 @@ from aitemplate.compiler.base import IntImm
 
 EXTRA_HEADERS = jinja2.Template(
     """
-#include "include/ck/tensor_operation/gpu/device/device_layernorm_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
 """
 )
 
@@ -127,16 +127,15 @@ EXEC_TEMPLATE = jinja2.Template(
         static_cast<ck::half_t *>(gamma),
         static_cast<ck::half_t *>(beta),
         static_cast<ck::half_t *>(output),
+        nullptr,
+        nullptr,
         YElementOp{}
     );
 
     if(!device_instance.IsSupportedArgument(argument_ptr.get()))
     {
-        throw std::runtime_error(
-            "wrong! device_layernorm with the specified compilation parameters does "
-            "not support this Groupnorm problem");
+        LOG(FATAL) << "wrong! " << device_instance.GetTypeString() << " with the specified compilation parameters does not support this Groupnorm problem.";
     };
-    std::string instance_name = device_instance.GetTypeString();
     auto invoker_ptr = device_instance.MakeInvokerPointer();
     invoker_ptr->Run(argument_ptr.get(), StreamConfig{stream, false});
     return;
