@@ -18,6 +18,7 @@ CUDA tensor ops module init
 from aitemplate.backend.cuda.tensor import (
     argmax,
     batch_gather,
+    cast,
     concatenate,
     concatenate_tanh,
     dynamic_slice,
@@ -42,6 +43,7 @@ from aitemplate.backend.cuda.tensor import (
 __all__ = [
     "argmax",
     "batch_gather",
+    "cast",
     "concatenate",
     "concatenate_tanh",
     "dynamic_slice",
