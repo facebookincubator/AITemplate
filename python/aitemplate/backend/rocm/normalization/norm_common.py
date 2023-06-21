@@ -184,8 +184,9 @@ int main(int argc, char** argv) {
     {{func_call}}
   }
   timer.End();
-  std::cout << "WS:" <<GLOBAL_WORKSPACE_SIZE<<std::endl;
-  std::cout << "TIME:" << timer.GetElapsedTime() << std::endl;
+  std::cout << "OP:" << "{{op_name}}" << ",";
+  std::cout << "TIME:" << timer.GetElapsedTime() << ",";
+  std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;
 }
 """
 )
@@ -199,6 +200,7 @@ FUNC_TEMPLATE = jinja2.Template(
 #include <stdlib.h>
 #include <random>
 #include <rocrand/rocrand.h>
+#include "logging.h"
 #include "include/ck/utility/print.hpp"
 #include "library/include/ck/library/utility/device_memory.hpp"
 #include "library/include/ck/library/utility/host_tensor.hpp"
@@ -339,7 +341,6 @@ def gen_profiler(
     op_instance = func_attrs["op_instance"]
     file_pairs = []
     for op_name, op in op_instance.items():
-
         config = emit_instance(op)
         config_name = extract_config_name(config)
         instances = INSTANCE_TEMPLATE.render(
@@ -381,6 +382,7 @@ def gen_profiler(
             args_parse=args_parse,
             tensor_decl=tensor_decl,
             func_call=func_call,
+            op_name=op_name,
         )
 
         prefix = os.path.join(workdir, "profiler", op_type)
