@@ -518,3 +518,53 @@ def preprocess(image, width=512, height=512):
     image = image[None].transpose(0, 3, 1, 2)
     image = torch.from_numpy(image)
     return 2.0 * image - 1.0
+
+
+def map_clip_state_dict(state_dict):
+    params_ait = {}
+    for key, arr in state_dict.items():
+        arr = arr.to("cuda", dtype=torch.float16)
+        name = key.replace("text_model.", "")
+        ait_name = name.replace(".", "_")
+        if name.endswith("out_proj.weight"):
+            ait_name = ait_name.replace("out_proj", "proj")
+        elif name.endswith("out_proj.bias"):
+            ait_name = ait_name.replace("out_proj", "proj")
+        elif "q_proj" in name:
+            ait_name = ait_name.replace("q_proj", "proj_q")
+        elif "k_proj" in name:
+            ait_name = ait_name.replace("k_proj", "proj_k")
+        elif "v_proj" in name:
+            ait_name = ait_name.replace("v_proj", "proj_v")
+        params_ait[ait_name] = arr
+
+    return params_ait
+
+
+# =========================#
+#    AITemplate mapping   #
+# =========================#
+def map_unet_state_dict(state_dict, dim=320):
+    params_ait = {}
+    for key, arr in state_dict.items():
+        arr = arr.to("cuda", dtype=torch.float16)
+        if len(arr.shape) == 4:
+            arr = arr.permute((0, 2, 3, 1)).contiguous()
+        elif key.endswith("ff.net.0.proj.weight"):
+            # print("ff.net.0.proj.weight")
+            w1, w2 = arr.chunk(2, dim=0)
+            params_ait[key.replace(".", "_")] = w1
+            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
+            continue
+        elif key.endswith("ff.net.0.proj.bias"):
+            # print("ff.net.0.proj.bias")
+            w1, w2 = arr.chunk(2, dim=0)
+            params_ait[key.replace(".", "_")] = w1
+            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
+            continue
+        params_ait[key.replace(".", "_")] = arr
+
+    params_ait["arange"] = (
+        torch.arange(start=0, end=dim // 2, dtype=torch.float32).cuda().half()
+    )
+    return params_ait

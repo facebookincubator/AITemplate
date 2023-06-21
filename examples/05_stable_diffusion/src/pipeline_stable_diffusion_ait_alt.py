@@ -33,7 +33,7 @@ from transformers import CLIPTextConfig, CLIPTextModel, CLIPTokenizer
 
 from .compile_lib.compile_vae_alt import map_vae
 from .modeling.vae import AutoencoderKL as ait_AutoencoderKL
-from .pipeline_utils import convert_ldm_unet_checkpoint, convert_ldm_vae_checkpoint, preprocess
+from .pipeline_utils import convert_ldm_unet_checkpoint, convert_ldm_vae_checkpoint, preprocess, map_clip_state_dict, map_unet_state_dict
 
 textenc_conversion_lst = [
     ("positional_embedding", "text_model.embeddings.position_embedding.weight"),
@@ -103,59 +103,9 @@ def convert_text_enc_state_dict(state_dict):
     return new_state_dict
 
 
-# =========================#
-#    AITemplate mapping   #
-# =========================#
-def map_unet_state_dict(state_dict, dim=320):
-    params_ait = {}
-    for key, arr in state_dict.items():
-        arr = arr.to("cuda", dtype=torch.float16)
-        if len(arr.shape) == 4:
-            arr = arr.permute((0, 2, 3, 1)).contiguous()
-        elif key.endswith("ff.net.0.proj.weight"):
-            # print("ff.net.0.proj.weight")
-            w1, w2 = arr.chunk(2, dim=0)
-            params_ait[key.replace(".", "_")] = w1
-            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
-            continue
-        elif key.endswith("ff.net.0.proj.bias"):
-            # print("ff.net.0.proj.bias")
-            w1, w2 = arr.chunk(2, dim=0)
-            params_ait[key.replace(".", "_")] = w1
-            params_ait[key.replace(".", "_").replace("proj", "gate")] = w2
-            continue
-        params_ait[key.replace(".", "_")] = arr
-
-    params_ait["arange"] = (
-        torch.arange(start=0, end=dim // 2, dtype=torch.float32).cuda().half()
-    )
-    return params_ait
-
-
-def map_clip_state_dict(state_dict):
-    params_ait = {}
-    for key, arr in state_dict.items():
-        arr = arr.to("cuda", dtype=torch.float16)
-        name = key.replace("text_model.", "")
-        ait_name = name.replace(".", "_")
-        if name.endswith("out_proj.weight"):
-            ait_name = ait_name.replace("out_proj", "proj")
-        elif name.endswith("out_proj.bias"):
-            ait_name = ait_name.replace("out_proj", "proj")
-        elif "q_proj" in name:
-            ait_name = ait_name.replace("q_proj", "proj_q")
-        elif "k_proj" in name:
-            ait_name = ait_name.replace("k_proj", "proj_k")
-        elif "v_proj" in name:
-            ait_name = ait_name.replace("v_proj", "proj_v")
-        params_ait[ait_name] = arr
-
-    return params_ait
-
-
 class StableDiffusionAITPipeline:
     def __init__(self, hf_hub_or_path, ckpt, workdir="tmp/"):
-        self.device = torch.device("cuda")
+        self.device = torch.device(0)
         if ckpt is not None:
             state_dict = torch.load(ckpt, map_location="cpu")
             while "state_dict" in state_dict:
@@ -190,7 +140,7 @@ class StableDiffusionAITPipeline:
                 subfolder="text_encoder",
                 revision="fp16",
                 torch_dtype=torch.float16,
-            ).cuda()
+            ).to(self.device)
         else:
             config = CLIPTextConfig.from_pretrained(
                 hf_hub_or_path, subfolder="text_encoder"
@@ -206,8 +156,8 @@ class StableDiffusionAITPipeline:
         print("Folding constants")
         self.clip_ait_exe.fold_constants()
         # cleanup
-        self.clip_pt = None
-        clip_params_ait = None
+        del self.clip_pt
+        del clip_params_ait
 
         self.unet_ait_exe = self.init_ait_module(
             model_name="UNet2DConditionModel", workdir=workdir
@@ -220,7 +170,7 @@ class StableDiffusionAITPipeline:
                 subfolder="unet",
                 revision="fp16",
                 torch_dtype=torch.float16,
-            ).cuda()
+            ).to(self.device)
             self.unet_pt = self.unet_pt.state_dict()
         else:
             self.unet_pt = unet_state_dict
@@ -230,8 +180,8 @@ class StableDiffusionAITPipeline:
         print("Folding constants")
         self.unet_ait_exe.fold_constants()
         # cleanup
-        self.unet_pt = None
-        unet_params_ait = None
+        del self.unet_pt
+        del unet_params_ait
 
         self.vae_ait_exe = self.init_ait_module(
             model_name="AutoencoderKL", workdir=workdir
@@ -243,7 +193,7 @@ class StableDiffusionAITPipeline:
                 subfolder="vae",
                 revision="fp16",
                 torch_dtype=torch.float16,
-            ).cuda()
+            ).to(self.device)
         else:
             self.vae = dict(vae_state_dict)
         in_channels = 3
@@ -315,10 +265,10 @@ class StableDiffusionAITPipeline:
         inputs = {
             "input0": latent_model_input.permute((0, 2, 3, 1))
             .contiguous()
-            .cuda()
+            .to(self.device)
             .half(),
-            "input1": timesteps_pt.cuda().half(),
-            "input2": encoder_hidden_states.cuda().half(),
+            "input1": timesteps_pt.to(self.device).half(),
+            "input2": encoder_hidden_states.to(self.device).half(),
         }
         ys = []
         num_outputs = len(exe_module.get_output_name_to_index_map())
@@ -327,7 +277,7 @@ class StableDiffusionAITPipeline:
             shape[0] = self.batch * 2
             shape[1] = height // 8
             shape[2] = width // 8
-            ys.append(torch.empty(shape).cuda().half())
+            ys.append(torch.empty(shape).to(self.device).half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         noise_pred = ys[0].permute((0, 3, 1, 2)).float()
         return noise_pred
@@ -335,7 +285,7 @@ class StableDiffusionAITPipeline:
     def clip_inference(self, input_ids, seqlen=77):
         exe_module = self.clip_ait_exe
         bs = input_ids.shape[0]
-        position_ids = torch.arange(seqlen).expand((bs, -1)).cuda()
+        position_ids = torch.arange(seqlen).expand((bs, -1)).to(self.device)
         inputs = {
             "input0": input_ids,
             "input1": position_ids,
@@ -345,13 +295,13 @@ class StableDiffusionAITPipeline:
         for i in range(num_outputs):
             shape = exe_module.get_output_maximum_shape(i)
             shape[0] = self.batch
-            ys.append(torch.empty(shape).cuda().half())
+            ys.append(torch.empty(shape).to(self.device).half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         return ys[0].float()
 
     def vae_inference(self, vae_input, height, width):
         exe_module = self.vae_ait_exe
-        inputs = [torch.permute(vae_input, (0, 2, 3, 1)).contiguous().cuda().half()]
+        inputs = [torch.permute(vae_input, (0, 2, 3, 1)).contiguous().to(self.device).half()]
         ys = []
         num_outputs = len(exe_module.get_output_name_to_index_map())
         for i in range(num_outputs):
@@ -359,7 +309,7 @@ class StableDiffusionAITPipeline:
             shape[0] = self.batch
             shape[1] = height
             shape[2] = width
-            ys.append(torch.empty(shape).cuda().half())
+            ys.append(torch.empty(shape).to(self.device).half())
         exe_module.run_with_tensors(inputs, ys, graph_mode=False)
         vae_out = ys[0].permute((0, 3, 1, 2)).float()
         return vae_out
@@ -586,7 +536,7 @@ class StableDiffusionAITPipeline:
             image = numpy_to_pil(image)
 
         if not return_dict:
-            return (image, has_nsfw_concept)
+            return image, has_nsfw_concept
 
         return StableDiffusionPipelineOutput(
             images=image, nsfw_content_detected=has_nsfw_concept
@@ -708,6 +658,8 @@ class StableDiffusionAITPipeline:
         Args:
             prompt (`str` or `List[str]`):
                 The prompt or prompts to guide the image generation.
+            negative_prompt (`str` or `List[str]`):
+                The negative prompt or prompts to guide the image generation.
             init_image (`torch.FloatTensor` or `PIL.Image.Image`):
                 `Image`, or tensor representing an image batch, that will be used as the starting point for the
                 process.
@@ -766,10 +718,9 @@ class StableDiffusionAITPipeline:
             inspect.signature(self.scheduler.set_timesteps).parameters.keys()
         )
         extra_set_kwargs = {}
-        offset = 0
         if accepts_offset:
             offset = 1
-            extra_set_kwargs["offset"] = 1
+            extra_set_kwargs["offset"] = offset
 
         self.scheduler.set_timesteps(num_inference_steps, **extra_set_kwargs)
 
@@ -891,13 +842,13 @@ class StableDiffusionAITPipeline:
             image = numpy_to_pil(image)
 
         if not return_dict:
-            return (image, has_nsfw_concept)
+            return image, has_nsfw_concept
 
         return StableDiffusionPipelineOutput(
             images=image, nsfw_content_detected=has_nsfw_concept
         )
 
-    def get_timesteps(self, num_inference_steps, strength, device):
+    def get_timesteps(self, num_inference_steps, strength, device=torch.device(0)):
         # get the original timestep using init_timestep
         init_timestep = min(int(num_inference_steps * strength), num_inference_steps)
 
