@@ -18,6 +18,7 @@ reduce module init
 """
 from aitemplate.compiler.ops.tensor.argmax import argmax
 from aitemplate.compiler.ops.tensor.batch_gather import batch_gather
+from aitemplate.compiler.ops.tensor.cast import cast
 from aitemplate.compiler.ops.tensor.chunk import chunk
 from aitemplate.compiler.ops.tensor.concatenate import concatenate
 from aitemplate.compiler.ops.tensor.concatenate_tanh import concatenate_tanh
