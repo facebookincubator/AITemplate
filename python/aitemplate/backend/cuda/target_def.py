@@ -390,7 +390,7 @@ class FBCUDA(CUDA):
                 self.nvcc_options_json["args"]
                 + ["-I" + path for path in include_paths]
                 + [
-                    f"-Xcompiler '-Wp\,@{fb_include_path}'",  # noqa: W605
+                    f"-Xcompiler '-Wp\\,@{fb_include_path}'",
                     "-Xcompiler -Wno-strict-aliasing",
                     "-Xcompiler -Wno-narrowing",
                     "-Xcompiler -Wno-error=maybe-uninitialized",
