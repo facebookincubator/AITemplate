@@ -257,7 +257,7 @@ class MultiheadAttention(Module):
                 )
             return out
 
-    def forward(self, *args, seqlens=None):
+    def forward(self, *args):
         """forward pass for calling mha module"""
         assert len(args) >= 1
         x = args[0]
