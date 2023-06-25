@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 """
-bert_embeddings kernel codegen for CUDA.
+bert_embeddings kernel codegen for ROCM.
 """
 
 import math
