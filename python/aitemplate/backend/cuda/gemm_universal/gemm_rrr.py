@@ -106,6 +106,37 @@ def gemm_rrr_config(func_attrs, dtype="float16"):
             # disable residual to leave more SMEM for the mainloop
             op.C.element = cutlass_lib.library.DataType.void
 
+def common_gen_profiler(
+    func_attrs,
+    workdir,
+    profiler_filename,
+    dim_info_dict,
+    src_template,
+    problem_args_template,
+    problem_args_template_cutlass_3x=None,
+    bias_ptr_arg=None,
+    extra_code="",
+):
+    output_addr_calculator = common.DEFAULT_OUTPUT_ADDR_CALCULATOR.render(
+        stride_dim="*b_dim1"
+    )
+    return common.gen_profiler(
+        func_attrs=func_attrs,
+        workdir=workdir,
+        profiler_filename=profiler_filename,
+        dim_info_dict=dim_info_dict,
+        src_template=src_template,
+        problem_args_template=problem_args_template,
+        problem_args_template_cutlass_3x=problem_args_template_cutlass_3x,
+        args_parser_template=ARGS_PARSER_TEMPLATE,
+        support_split_k=True,
+        output_addr_calculator=output_addr_calculator,
+        bias_ptr_arg=bias_ptr_arg,
+        extra_code=extra_code,
+    )
+
+
+
 
 @registry.reg("cuda.gemm_rrr.gen_profiler")
 def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
@@ -124,6 +155,38 @@ def gen_profiler(func_attrs, workdir, profiler_filename, dim_info_dict):
         support_split_k=True,
         output_addr_calculator=output_addr_calculator,
     )
+
+
+def get_input_addr_calculator(func_attrs):
+    input_a_batch_stride_dim = "M * K"
+    input_a_stride_k_dim = "K"
+    input_a_offset = 0
+    input_b_batch_stride_dim = "K * N"
+    input_b_stride_k_dim = "N"
+    input_b_offset = 0
+
+    if "input_accessors" in func_attrs:
+        input_a_accessor = func_attrs["input_accessors"][0]
+        input_b_accessor = func_attrs["input_accessors"][1]
+        if input_a_accessor.is_from_strided_tensor:
+            input_a_offset = input_a_accessor.offset
+            shapes = input_a_accessor.original_shapes
+            input_a_stride_k_dim = input_a_accessor.stride(len(shapes) - 2)
+
+        if input_b_accessor.is_from_strided_tensor:
+            input_b_offset = input_b_accessor.offset
+            shapes = input_b_accessor.original_shapes
+            input_b_stride_k_dim = input_b_accessor.stride(len(shapes) - 2)
+
+    input_addr_calculator = common.INPUT_ADDR_CALCULATOR.render(
+        input_a_batch_stride_dim=input_a_batch_stride_dim,
+        input_a_stride_dim=input_a_stride_k_dim,
+        input_a_offset_val=input_a_offset,
+        input_b_batch_stride_dim=input_b_batch_stride_dim,
+        input_b_stride_dim=input_b_stride_k_dim,
+        input_b_offset_val=input_b_offset,
+    )
+    return input_addr_calculator
 
 
 @registry.reg("cuda.gemm_rrr.gen_function")
