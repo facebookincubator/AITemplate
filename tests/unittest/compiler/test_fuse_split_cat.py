@@ -256,6 +256,65 @@ class FuseSplitCatTestCase(unittest.TestCase):
         model.run_with_tensors({"input0": a, "input1": b}, [y])
         self.assertTrue(torch.allclose(y, y_pt, atol=1e-2, rtol=1e-2))
 
+    def test_fuse_split_cat_interleaved(self):
+        # make a graph like below:
+        # slice_0 = slice(x0)
+        # slice_1 = slice(x0)
+        # split_0_0, split_0_1 = split(slice_0, [10, 10], 1)
+        # split_1_0, split_1_1 = split(slice_1, [10, 10], 1)
+        # y = cat([split_0_0, split_1_0, split_0_1, split_1_1], 1)
+
+        dtype = "float16"
+        M = IntImm(20)
+        N = IntImm(60)
+
+        X0 = Tensor(
+            shape=[M, N],
+            name="x0",
+            is_input=True,
+        )
+        slice_start_indices_0 = [0, 0]
+        slice_end_indices_0 = [None, 20]
+        dynamic_slice_0 = ops.dynamic_slice()(
+            X0, slice_start_indices_0, slice_end_indices_0
+        )
+        slice_start_indices_1 = [0, 20]
+        slice_end_indices_1 = [None, 40]
+        dynamic_slice_1 = ops.dynamic_slice()(
+            X0, slice_start_indices_1, slice_end_indices_1
+        )
+        split_0_0, split_0_1 = ops.split()(dynamic_slice_0, [10, 10], 1)
+        split_1_0, split_1_1 = ops.split()(dynamic_slice_1, [10, 10], 1)
+        Y = ops.concatenate()([split_0_0, split_1_0, split_0_1, split_1_1], 1)
+
+        # Set outputs
+        Y._attrs["name"] = "y"
+        Y._attrs["is_output"] = True
+        # Compile
+        model = compile_model(
+            Y, detect_target(), "./tmp", "test_fuse_split_cat_interleaved"
+        )
+        # Check that split was removed
+        self.assertFalse(graph_has_op(model.debug_sorted_graph, "split"))
+        # Run
+        x0_pt = get_random_torch_tensor((M.value(), N.value()), dtype=dtype)
+
+        # Compare
+        slice_indices_0 = [
+            slice(i, j) for i, j in zip(slice_start_indices_0, slice_end_indices_0)
+        ]
+        dynamic_slice_0_pt = x0_pt[slice_indices_0]
+        slice_indices_1 = [
+            slice(i, j) for i, j in zip(slice_start_indices_1, slice_end_indices_1)
+        ]
+        dynamic_slice_1_pt = x0_pt[slice_indices_1]
+        split_0_0_pt, split_0_1_pt = torch.split(dynamic_slice_0_pt, [10, 10], 1)
+        split_1_0_pt, split_1_1_pt = torch.split(dynamic_slice_1_pt, [10, 10], 1)
+        y_pt = torch.cat([split_0_0_pt, split_1_0_pt, split_0_1_pt, split_1_1_pt], 1)
+        y = torch.empty_like(y_pt)
+        model.run_with_tensors({"x0": x0_pt}, [y])
+        torch.testing.assert_close(y, y_pt, atol=0, rtol=0)
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)

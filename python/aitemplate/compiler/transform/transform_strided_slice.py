@@ -245,6 +245,8 @@ def _process_one_slice_dst(
         if input_tensor is not slice_output_tensor:
             continue
         input_accessors = strided_op._attrs["input_accessors"]
+        if input_accessors[idx].stride_dim is not None:
+            return False
 
         if any(strided_op_name.startswith(n) for n in ("gemm", "group_gemm", "bmm")):
             if not transform_strided_ops_utils.gemm_stride_checker(
