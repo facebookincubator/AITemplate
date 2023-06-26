@@ -35,6 +35,11 @@ class slice_scatter(Operator):
     def is_valid(cat_op: Operator) -> bool:
         if cat_op._attrs["op"] != "concatenate":
             return False
+        if any(
+            input_accessor.stride_dim is not None
+            for input_accessor in cat_op._attrs["input_accessors"]
+        ):
+            return False
         return all(
             x._attrs["src_ops"] is not None
             and len(x._attrs["src_ops"]) == 1
