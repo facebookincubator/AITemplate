@@ -53,6 +53,7 @@ class GPUBackendSpec(BackendSpec):
 
     dtype_to_backend_dtype: Dict[str, str] = field(
         default_factory=lambda: {
+            "bool": "bool",
             "float16": "half",
             "bfloat16": "bfloat16",
             "float32": "float",
@@ -66,6 +67,7 @@ class GPUBackendSpec(BackendSpec):
     # find the size in bytes of a given backend type
     sizeof_types: Dict[str, int] = field(
         default_factory=lambda: {
+            "bool": 1,
             "uint8_t": 1,
             "half": 2,
             "bfloat16": 2,
@@ -74,6 +76,10 @@ class GPUBackendSpec(BackendSpec):
             "int32_t": 4,
             "float": 4,
             "bool": 1,
+            "uint4": 16,
+            "uint2": 8,
+            "uint": 4,
+            "bfloat16": 2,
         }
     )
 
@@ -349,7 +355,7 @@ class GPUBackendSpec(BackendSpec):
         For example, if we're dealing with fp16 and num_elements is divisible by 8,
         we can use uint4.
         """
-        if dtype in ("float", "float32"):
+        if dtype in ("float", "float32", "int32"):
             num_elems_to_backend_type = ((4, "uint4"), (2, "uint2"), (1, "float"))
 
         elif dtype == "float16":
@@ -365,6 +371,11 @@ class GPUBackendSpec(BackendSpec):
                 (4, "uint2"),
                 (2, "uint"),
                 (1, "bfloat16"),
+            )
+        elif dtype == "int64":
+            num_elems_to_backend_type = (
+                (2, "uint4"),
+                (1, "uint2"),
             )
         else:
             raise NotImplementedError("Unsupported dtype {}!".format(dtype))
