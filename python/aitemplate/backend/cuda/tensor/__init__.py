@@ -39,6 +39,7 @@ from aitemplate.backend.cuda.tensor import (
     slice_scatter,
     split,
     topk,
+    where,
 )
 
 __all__ = [
@@ -65,4 +66,5 @@ __all__ = [
     "slice_scatter",
     "split",
     "topk",
+    "where",
 ]
