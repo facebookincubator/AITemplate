@@ -20,6 +20,7 @@ from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import Operator
 from aitemplate.compiler.stable_set import StableSet
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,W0221
 
@@ -62,6 +63,10 @@ class slice_scatter(Operator):
                 input_tensor._attrs["dst_ops"].add(self)
             self._attrs["inputs"].append(input_tensor)
 
+        # The original output of this slice_scatter op is the output of the cat_op.
+        # We set the TensorAccessor, but will only use its offset field in the backend.
+        self._attrs["output_accessors"] = [TensorAccessor(cat_op._attrs["outputs"][0])]
+
         self._attrs["outputs"] = cat_op._attrs["outputs"]
         for y in self._attrs["outputs"]:
             y._attrs["src_ops"] = StableSet({self})
@@ -74,23 +79,27 @@ class slice_scatter(Operator):
             x._attrs["src_ops"] = StableSet()
             x._attrs["dst_ops"] = StableSet()
 
-    def __init__(self, cat_op: Operator) -> None:
+    def __init__(self, scatter_dim: int) -> None:
         super().__init__()
-        assert slice_scatter.is_valid(cat_op)
-
         self._attrs["op"] = "slice_scatter"
         self._attrs["has_profiler"] = False
-        self._attrs["scatter_dim"] = cat_op._attrs["concat_dim"]
+        self._attrs["scatter_dim"] = scatter_dim
+
+    @staticmethod
+    def make_op(cat_op: Operator) -> Operator:
+        assert slice_scatter.is_valid(cat_op)
+        scatter_dim = cat_op._attrs["concat_dim"]
+        new_op = slice_scatter(scatter_dim)
         slice_ops = []
         for x in cat_op._attrs["inputs"]:
             src_ops = x.src_ops()
             assert len(src_ops) == 1
             slice_op = list(src_ops)[0]
             slice_ops.append(slice_op)
-        self._attrs["slice_ops"] = slice_ops
-
-        self._update_inputs_outputs(cat_op)
-        self._set_depth()
+        new_op._attrs["slice_ops"] = slice_ops
+        new_op._update_inputs_outputs(cat_op)
+        new_op._set_depth()
+        return new_op
 
     def __call__(self):
         raise RuntimeError("op {} cannot be called directly".format(self._attrs["op"]))
