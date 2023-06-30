@@ -19,6 +19,8 @@ Debug settings
 from dataclasses import dataclass
 from typing import Optional
 
+from aitemplate.utils import environ
+
 
 @dataclass
 class AITDebugSettings:
@@ -42,4 +44,4 @@ class AITDebugSettings:
     check_all_outputs: bool = False
     gen_profiler_annotation: bool = False
     dump_ait_to_py: Optional[str] = None
-    gen_standalone: bool = False
+    gen_standalone: bool = environ.enable_standalone_exe_generation()

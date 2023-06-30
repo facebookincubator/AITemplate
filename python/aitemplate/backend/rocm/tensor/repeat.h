@@ -16,14 +16,14 @@
 
 -
 
-Functions for repeating parts of a CUDA source tensor onto itself
+Functions for repeating parts of a ROCM source tensor onto itself
 or into a target tensor.
 
 Used by expand_static_shape.py ( expand operator )
 
 */
 /**
- * CUDA Kernel to copy elements repeatedly from a source memory
+ * ROCM Kernel to copy elements repeatedly from a source memory
  * region to a target memory region.
  */
 __global__ void repeat_head_kernel(
@@ -71,7 +71,7 @@ __host__ hipError_t cuda_repeat_head_vectorized(
     size_t head_mem_num_elements, /**< How many 8 byte-sized elements to copy
                                      from src */
     size_t num_repeat_copies, ///< How many times to repeat it all into data
-    hipStream_t stream ///< CUDA stream
+    hipStream_t stream ///< ROCM stream
 ) {
   size_t threads_x = 64;
   size_t threads_y = 1024 / threads_x;
@@ -105,12 +105,12 @@ __host__ hipError_t cuda_repeat_head_vectorized(
  * repeated 1+num_repeat_copies
  */
 __host__ hipError_t cuda_repeat_head(
-    void* data, ///< pointer to CUDA memory of size (at least)
+    void* data, ///< pointer to ROCM memory of size (at least)
                 ///< head_mem_bytes*(num_repeat_copies+1)
     const size_t head_mem_bytes, ///< How many bytes to repeat
     size_t num_repeat_copies, ///< How many times to repeat it (in addition to
                               ///< the existing head data)
-    hipStream_t stream ///< CUDA Stream to use
+    hipStream_t stream ///< ROCM Stream to use
 ) {
   hipError_t res = hipSuccess;
   if (num_repeat_copies == 0)
@@ -172,7 +172,7 @@ __host__ hipError_t cuda_repeat_src(
     const size_t head_mem_bytes, ///< Size of source region to copy
     size_t num_repeat_copies, ///< How many times to copy the data from source
                               ///< into data
-    hipStream_t stream ///< CUDA stream to use
+    hipStream_t stream ///< ROCM stream to use
 ) {
   hipError_t res = hipSuccess;
   if (num_repeat_copies == 0) {

@@ -26,17 +26,24 @@ class TestTensorSpec(unittest.TestCase):
         inputs1 = [
             torch.empty([1, 3, 4], dtype=torch.float16),
             torch.empty([5, 6], dtype=torch.int32),
-            torch.empty([7, 128, 9], dtype=torch.float16),
+            [
+                torch.empty([7, 128, 9], dtype=torch.float16),
+                torch.empty([1, 16], dtype=torch.float16),
+            ],
         ]
         inputs2 = [
             torch.empty([32, 3, 4], dtype=torch.float16),
             torch.empty([5, 6], dtype=torch.int32),
-            torch.empty([7, 1, 9], dtype=torch.float16),
+            [
+                torch.empty([7, 1, 9], dtype=torch.float16),
+                torch.empty([32, 16], dtype=torch.float16),
+            ],
         ]
 
         specs = TensorSpec.from_two_input_lists(inputs1, inputs2)
 
         self.assertEqual(3, len(specs))
+        self.assertEqual(2, len(specs[2]))
         self.assertEqual(
             TensorSpec(
                 [IntVar([1, 32], "dynamic_dim_0"), IntImm(3), IntImm(4)], torch.float16
@@ -48,7 +55,11 @@ class TestTensorSpec(unittest.TestCase):
             TensorSpec(
                 [IntImm(7), IntVar([1, 128], "dynamic_dim_1"), IntImm(9)], torch.float16
             ),
-            specs[2],
+            specs[2][0],
+        )
+        self.assertEqual(
+            TensorSpec([IntVar([1, 32], "dynamic_dim_0"), IntImm(16)], torch.float16),
+            specs[2][1],
         )
 
     @parameterized.expand(

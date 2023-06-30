@@ -21,6 +21,12 @@ The functions in this file may assume that
 `import torch` will work.
 """
 
+import struct
+
+import torch
+
+from aitemplate.compiler.dtype import dtype_str_to_enum, get_dtype_size, normalize_dtype
+
 
 def types_mapping():
     from torch import bfloat16, bool, float16, float32, int32, int64
@@ -56,3 +62,25 @@ def string_to_torch_dtype(string_dtype):
         f"Got unsupported ait dtype {string_dtype}! "
         f"Supported dtypes are: {list(types_mapping())}"
     )
+
+
+def write_tensor_binary(tensor: "torch.Tensor", file_handle) -> None:
+    tensor = tensor.detach().cpu().contiguous()
+    endianness = "@"  # system endianness
+    dtype_str = normalize_dtype(torch_dtype_to_string(tensor.dtype))
+    dtype_int = dtype_str_to_enum(dtype_str)
+    sizeof_dtype = get_dtype_size(dtype_str)
+    num_dims = len(tensor.shape)
+    file_handle.write(struct.pack(endianness + "I", dtype_int))  # unsigned int
+    file_handle.write(struct.pack(endianness + "I", sizeof_dtype))  # unsigned int
+    file_handle.write(struct.pack(endianness + "I", num_dims))  # unsigned int
+    total_size = sizeof_dtype
+    for dim in tensor.shape:
+        file_handle.write(struct.pack(endianness + "N", dim))  # size_t
+        total_size *= dim
+    file_handle.write(struct.pack(endianness + "N", total_size))  # size_t
+    bytedata = tensor.numpy().tobytes()
+    # just as a safety check
+    if len(bytedata) != total_size:
+        raise RuntimeError("Tensor has wrong number of bytes!")
+    file_handle.write(bytedata)

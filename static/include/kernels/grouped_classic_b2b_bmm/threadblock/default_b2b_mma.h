@@ -58,7 +58,7 @@
 
 #include "grouped_classic_b2b_bmm/threadblock/b2b_mma_pipelined.h"
 #include "grouped_classic_b2b_bmm/threadblock/b2b_mma_multistage.h"
-
+#include "non_predicated_tile_access_iterator.h"
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace cutlass {
@@ -300,7 +300,7 @@ struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
   using ThreadMapA0 = typename MmaCore0::IteratorThreadMapA;
   using AccessTypeA0 = cutlass::Array<ElementA, kAlignmentA>;
   using IteratorA0 =
-      cutlass::transform::threadblock::PredicatedTileAccessIterator<
+      cutlass::transform::threadblock::grouped_classic_b2b_bmm::NonPredicatedTileAccessIterator<
           cutlass::MatrixShape<ThreadblockShape0::kM, ThreadblockShape0::kK>,
           ElementA, LayoutA, 1, ThreadMapA0, AccessTypeA0>;
 
@@ -308,7 +308,7 @@ struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
   using ThreadMapB0 = typename MmaCore0::IteratorThreadMapB;
   using AccessTypeB0 = cutlass::Array<ElementB, kAlignmentB>;
   using IteratorB0 =
-      cutlass::transform::threadblock::PredicatedTileAccessIterator<
+      cutlass::transform::threadblock::grouped_classic_b2b_bmm::NonPredicatedTileAccessIterator<
           cutlass::MatrixShape<ThreadblockShape0::kK, ThreadblockShape0::kN>,
           ElementB, LayoutB, 0, ThreadMapB0, AccessTypeB0>;
 
@@ -353,7 +353,7 @@ struct DefaultB2bMma<ElementA, LayoutA, kAlignmentA, ElementB, LayoutB,
   using ThreadMapB1 = typename MmaCore1::IteratorThreadMapB;
   using AccessTypeB1 = cutlass::Array<ElementB, kAlignmentB>;
   using IteratorB1 =
-      cutlass::transform::threadblock::PredicatedTileAccessIterator<
+      cutlass::transform::threadblock::grouped_classic_b2b_bmm::NonPredicatedTileAccessIterator<
           cutlass::MatrixShape<ThreadblockShape1::kK, ThreadblockShape1::kN>,
           ElementB, LayoutB1, 0, ThreadMapB1, AccessTypeB1>;
 

@@ -34,70 +34,78 @@ class SliceScatterLargeInputsTestCase(unittest.TestCase):
     def setUpClass(cls) -> None:
         torch.manual_seed(0)
 
-    def _test_slice_scatter_reshape_float16(
-        self,
-        input0_shape,
-        input1_shape,
-        start_indices,
-        end_indices,
+    def _test_slice_scatter(
+        self, input_shape, start_indices, end_indices, concat_dim, dtype
     ):
-        dtype = "float16"
-
-        input0 = Tensor(shape=input0_shape, dtype=dtype, name="input0", is_input=True)
-        input1 = Tensor(shape=input1_shape, dtype=dtype, name="input1", is_input=True)
-
-        num_slices = 139
+        num_slices = 140
         slice_outputs = [
             ops.dynamic_slice()(
-                input0, start_indices=start_indices, end_indices=end_indices
+                Tensor(
+                    shape=input_shape, dtype=dtype, name=f"input{idx}", is_input=True
+                ),
+                start_indices=start_indices,
+                end_indices=end_indices,
             )
-            for _ in range(num_slices)
+            for idx in range(num_slices)
         ]
 
-        concat_dim = 1
-        concat_2 = ops.concatenate()(slice_outputs, concat_dim)
-        reshape_to = [-1, num_slices, 2]
-        reshape_3 = ops.reshape()(concat_2, reshape_to)
+        Y = ops.concatenate()(slice_outputs, concat_dim)
 
-        Y = ops.concatenate()([reshape_3, input1], concat_dim)
         Y._attrs["name"] = "y"
         Y._attrs["is_output"] = True
 
         target = detect_target()
         dll_name = f"test_{self.test_count}.so"
-        test_name = "slice_scatter_large_inputs"
+        test_name = f"slice_scatter_large_inputs_{self.test_count}"
+
         module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
-        self.test_count += 1
+
         Y_src_ops = list(Y._attrs["src_ops"])
         self.assertEqual(len(Y_src_ops), 5)
-        self.assertTrue(all(op._attrs["op"] == "concatenate" for op in Y_src_ops))
+        self.assertTrue(all(op._attrs["op"] == "slice_scatter" for op in Y_src_ops))
 
-        input0_pt = get_random_torch_tensor(input0_shape, dtype)
-        input1_pt = get_random_torch_tensor(input1_shape, dtype)
+        input_pt = [
+            get_random_torch_tensor(input_shape, dtype) for _ in range(num_slices)
+        ]
         slice_indices = [slice(i, j) for i, j in zip(start_indices, end_indices)]
+        slice_outputs_pt = [input_i[slice_indices] for input_i in input_pt]
+        y_pt = torch.cat(slice_outputs_pt, concat_dim)
 
-        slice_outputs_pt = [input0_pt[slice_indices] for _ in range(num_slices)]
-        concat_2_pt = torch.cat(slice_outputs_pt, concat_dim)
-        reshape_3_pt = torch.reshape(concat_2_pt, reshape_to)
-        y_pt = torch.cat([reshape_3_pt, input1_pt], concat_dim)
-
-        inputs = {"input0": input0_pt, "input1": input1_pt}
+        inputs = {f"input{idx}": input_pt[idx] for idx in range(num_slices)}
         y = get_torch_empty_tensor(y_pt.size(), dtype)
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(y_pt, y, atol=1e-2, rtol=1e-2))
 
-    def test_slice_scatter_reshape_float16(self):
-        self._test_slice_scatter_reshape_float16(
-            input0_shape=[6, 2],
-            input1_shape=[2, 4, 2],
-            start_indices=[1, 0],
-            end_indices=[3, None],
+        self.test_count += 1
+
+    def test_slice_scatter_float(self):
+        self._test_slice_scatter(
+            input_shape=[3, 7, 10],
+            start_indices=[0, 0, 0],
+            end_indices=[2, 1, 4],
+            concat_dim=0,
+            dtype="float",
         )
-        self._test_slice_scatter_reshape_float16(
-            input0_shape=[2, 6],
-            input1_shape=[2, 4, 2],
-            start_indices=[0, 0],
-            end_indices=[None, 2],
+        self._test_slice_scatter(
+            input_shape=[3, 7, 10],
+            start_indices=[0, 0, 0],
+            end_indices=[2, 1, 4],
+            concat_dim=1,
+            dtype="float",
+        )
+        self._test_slice_scatter(
+            input_shape=[3, 7, 10],
+            start_indices=[0, 0, 0],
+            end_indices=[2, 1, 4],
+            concat_dim=2,
+            dtype="float",
+        )
+        self._test_slice_scatter(
+            input_shape=[3, 7, 10],
+            start_indices=[0, 0, 0],
+            end_indices=[2, 1, 4],
+            concat_dim=1,
+            dtype="float16",
         )
 
 

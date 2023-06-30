@@ -135,6 +135,17 @@ class CUDA(Target):
     def get_host_compiler_options(self) -> List[str]:
         return self._build_gnu_host_compiler_options()
 
+    def _get_nvcc_debug_options(self) -> str:
+        CUDA_DEBUG_LEVEL_STRINGS = ["", "-lineinfo", "-g -G"]
+        level = environ.get_cuda_nvcc_debug_level()
+        if level.isdigit():
+            level = int(level)
+            assert (
+                level >= 0 and level < 3
+            ), "Debug level out of range. Must be 0 (no debug info), 1 (lineinfo) or 2 (with debug info, disable opt)"
+            return CUDA_DEBUG_LEVEL_STRINGS[level]
+        return level
+
     def _build_nvcc_compiler_options(self) -> List[str]:
         code = [f"sm_{self._arch}", f"compute_{self._arch}"]
         if environ.enable_cuda_lto():
@@ -148,6 +159,17 @@ class CUDA(Target):
             "-std=c++17",
             "--expt-relaxed-constexpr",
         ]
+        if environ.enable_ptxas_info():
+            options.extend(
+                [
+                    "--keep",  # Keep the intermediate files for debugging (including ptx, sass, cubin etc.)
+                    "--ptxas-options=--warn-on-local-memory-usage",  # warn us if local memory is used in CUDA Kernels
+                    "--ptxas-options=--warn-on-spills",  # warn us if register spilling happens in CUDA Kernels
+                    "--resource-usage",  # Report on CUDA resource usage (shared mem, registers etc.)
+                    "--source-in-ptx",
+                ]
+            ),  # Annotate the ptx file with source information
+        options.append(self._get_nvcc_debug_options())
         if self._ndebug == 1:
             options.append("-DNDEBUG")
         if environ.use_fast_math() and (
@@ -296,7 +318,34 @@ class FBCUDA(CUDA):
             **kwargs,
         )
 
+    def _build_include_directories_from_sourcetree(self) -> List[str]:
+        my_path: Path = Path(os.path.realpath(__file__))  # noqa
+        ait_basepath: Path = my_path.parent.parent.parent.parent.parent.absolute()
+        assert (
+            ait_basepath.name == "AITemplate"
+        ), "AITemplate basepath resolution failed"
+        relative_include_paths = [
+            "fb/3rdparty/cutlass/examples/35_gemm_softmax",
+            "fb/3rdparty/cutlass/examples/41_fused_multi_head_attention",
+            "fb/3rdparty/cutlass/examples/45_dual_gemm",
+            "fb/3rdparty/cutlass/examples/common",
+            "fb/3rdparty/cutlass/include",
+            "fb/3rdparty/cutlass/tools/library/include",
+            "fb/3rdparty/cutlass/tools/library/src",
+            "fb/3rdparty/cutlass/tools/util/include",
+            "python/aitemplate/backend/cuda/attention/src",
+            "python/aitemplate/backend/cuda/attention/src/fmha",
+            "static/include",
+            "static/include/kernels",
+        ]
+        include_paths = [
+            str((ait_basepath / ipath).absolute()) for ipath in relative_include_paths
+        ]
+        return include_paths
+
     def _build_include_directories(self) -> List[str]:
+        if environ.enable_include_from_sourcetree():
+            return self._build_include_directories_from_sourcetree()
         cutlass_path = [
             os.path.join(self._template_path, "include"),
             os.path.join(self._template_path, "tools/util/include"),
@@ -341,7 +390,7 @@ class FBCUDA(CUDA):
                 self.nvcc_options_json["args"]
                 + ["-I" + path for path in include_paths]
                 + [
-                    f"-Xcompiler '-Wp\,@{fb_include_path}'",  # noqa: W605
+                    f"-Xcompiler '-Wp\\,@{fb_include_path}'",
                     "-Xcompiler -Wno-strict-aliasing",
                     "-Xcompiler -Wno-narrowing",
                     "-Xcompiler -Wno-error=maybe-uninitialized",
@@ -358,6 +407,17 @@ class FBCUDA(CUDA):
                     "-std=c++17",
                 ]
             )
+            if environ.enable_ptxas_info():
+                options.extend(
+                    [
+                        "--keep",  # Keep the intermediate files for debugging (including ptx, sass, cubin etc.)
+                        "--ptxas-options=--warn-on-local-memory-usage",  # warn us if local memory is used in CUDA Kernels
+                        "--ptxas-options=--warn-on-spills",  # warn us if register spilling happens in CUDA Kernels
+                        "--resource-usage",  # Report on CUDA resource usage (shared mem, registers etc.)
+                        "--source-in-ptx",  # Annotate the ptx file with source information
+                    ]
+                ),
+            options.append(self._get_nvcc_debug_options())
             if self._ndebug == 1:
                 options.append("-DNDEBUG")
             FBCUDA.static_compile_options_ = options
@@ -427,6 +487,32 @@ class FBCUDA(CUDA):
         return (
             os.environ.get("INSIDE_RE_WORKER", None) == "1" and not self.trick_ci_env()
         )
+
+    def postprocess_build_dir(self, build_dir: str) -> None:
+        # Write a standard TARGETS file to enable standalone exe code navigation
+        from aitemplate.backend import buck_support
+
+        additional_build_dir_contents = {"TARGETS": buck_support.AIT_BUILD_DIR_TARGETS}
+        for filename, content in additional_build_dir_contents.items():
+            filepath = os.path.join(build_dir, filename)
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(content)
+
+        if environ.enable_cuda_source_navigation_fix():
+            # We rename all .cu files to cu.h, and write a .cu
+            # file in their stead that only includes this cu.h file.
+            # The purpose is to enable .cu source navigation for certain IDEs..
+            build_dir_path = Path(build_dir)
+            cu_files = list(build_dir_path.glob("*.cu"))
+            for p in cu_files:
+                corresponding_include_file = p.with_name(p.name + ".h")
+                if corresponding_include_file.exists():
+                    corresponding_include_file.unlink()
+                # rename .cu file to .cu.h
+                p.rename(corresponding_include_file)
+                # write .cu file which just includes the original, now found
+                # under .cu.h
+                p.write_text(f'#include "{corresponding_include_file.name}"\n')
 
     @classmethod
     def remote_logger(cls, record):

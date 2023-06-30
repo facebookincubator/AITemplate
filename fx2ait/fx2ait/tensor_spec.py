@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Union
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
@@ -48,7 +48,9 @@ class TensorSpec:
 
     @classmethod
     def from_two_input_lists(
-        cls, inputs1: List[torch.Tensor], inputs2: List[torch.Tensor]
+        cls,
+        inputs1: List[Union[torch.Tensor, List[torch.Tensor]]],
+        inputs2: List[Union[torch.Tensor, List[torch.Tensor]]],
     ) -> List["TensorSpec"]:
         """
         This function is useful when we expect multiple dynamic dims.
@@ -73,6 +75,9 @@ class TensorSpec:
         result: List[TensorSpec] = []
 
         for t1, t2 in zip(inputs1, inputs2):
+            if isinstance(t1, list):
+                result.append(cls.from_two_input_lists(t1, t2))
+                continue
             if t1.dtype != t2.dtype:
                 raise ValueError(f"Different types: {t1.dtype} vs {t2.dtype}")
             if len(t1.shape) != len(t2.shape):

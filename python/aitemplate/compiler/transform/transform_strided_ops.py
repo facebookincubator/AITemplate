@@ -51,7 +51,7 @@ def _fuse_slices_concat(sorted_graph: List[Tensor]) -> List[Tensor]:
             continue
         concat_op = src_op
         if slice_scatter.is_valid(concat_op):
-            slice_scatter(concat_op)
+            slice_scatter.make_op(concat_op)
 
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 

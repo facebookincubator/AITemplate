@@ -23,7 +23,7 @@ Verify the library versions. We have tested transformers==4.25, diffusers==0.11[
 ```
 
 ### Download the diffusers pipeline files
-You must first register in Hugging Face Hub to obtain an access token for the Stable Diffusion weights. See [user access tokens](https://huggingface.co/docs/hub/security-tokens) for more info. Your access tokens are listed in your [Hugging Face account settings](https://huggingface.co/settings/tokens).
+Optionally, you can use Hugging Face access token. You can register in Hugging Face Hub to obtain an access token for the Stable Diffusion weights. See [user access tokens](https://huggingface.co/docs/hub/security-tokens) for more info. Your access tokens are listed in your [Hugging Face account settings](https://huggingface.co/settings/tokens).
 
 stable-diffusion model has two variants - base and regular.
 For example:
@@ -32,7 +32,9 @@ For example:
 
 ```
 python3 scripts/download_pipeline.py \
---model-name "stabilityai/stable-diffusion-2-1-base" \
+--model-name "stabilityai/stable-diffusion-2-1-base"
+
+# Optionally, you can use access token
 --token ACCESS_TOKEN
 ```
 
@@ -56,7 +58,7 @@ By default, `compile_alt.py` does not include model weights (constants) with the
 
 #### Alternative pipeline
 
-The original pipeline requires a diffusers model local dir, and relies directly on `StableDiffusionPipeline`. This pipeline builds similar functionality without directly using `StableDiffusionPipeline`, and is capable of loading model weights from either diffusers or compvis models to compiled aitemplate modules.
+The original pipeline requires a diffusers model local dir, and relies directly on `StableDiffusionPipeline`. This pipeline builds similar functionality without directly using `StableDiffusionPipeline`, and is capable of loading model weights from either diffusers or [CompVis](https://huggingface.co/CompVis) models to compiled aitemplate modules.
 
 * AITemplate modules are created
 * Model weights are loaded, converted/mapped, then applied to AITemplate module
@@ -65,8 +67,13 @@ The original pipeline requires a diffusers model local dir, and relies directly 
 * Loading CLIPTextModel from `ckpt` requires the appropriate `hf-hub-or-path` to be specified i.e. `runwayml/stable-diffusion-v1-5` for SD1.x checkpoints, `stabilityai/stable-diffusion-2-1` for SD2.x checkpoints.
 
 ```
-python3 scripts/demo.py --hf-hub-or-path runwayml/stable-diffusion-v1-5 --ckpt v1-5-pruned-emaonly.ckpt
-python3 scripts/demo.py --hf-hub-or-path stabilityai/stable-diffusion-2-1 --ckpt v2-1_768-ema-pruned.ckpt
+python3 scripts/demo_alt.py \
+--hf-hub-or-path runwayml/stable-diffusion-v1-5 \
+--ckpt v1-5-pruned-emaonly.ckpt
+
+python3 scripts/demo_alt.py \
+--hf-hub-or-path stabilityai/stable-diffusion-2-1 \
+--ckpt v2-1_768-ema-pruned.ckpt
 ```
 
 `--ckpt` takes preference over `--hf-hub-or-path` if both are specified

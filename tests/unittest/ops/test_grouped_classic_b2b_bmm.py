@@ -16,6 +16,7 @@
 Unittests for grouped b2b bmm Operators.
 """
 import logging
+import os
 
 import unittest
 from typing import List, Tuple
@@ -66,6 +67,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
         rtol=0.01,
         use_fp16_acc=False,
         random_seed=0,
+        write_standalone_testcase_data: bool = False,
     ):
         if isinstance(random_seed, list):
             random_seeds = random_seed
@@ -161,6 +163,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
         torch_dtype = string_to_torch_dtype(dtype)
         offsets_torch_dtype = string_to_torch_dtype(offsets_dtype)
         y_results = {}
+        written_testcase_idx = 0
         for random_seed in random_seeds:
             torch.manual_seed(random_seed)
             for max_seq_len in sorted(set(max_seq_lens)):
@@ -214,6 +217,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
                     if not has_bias:
                         bias_pt_max *= 0.0
                     results_per_batch = {}
+
                     for batch_size in batch_sizes_sorted:
                         # Initialize inputs
                         # input(f"Attach debugger if you want. {os.getpid()=}. Press Enter to continue.")
@@ -245,6 +249,16 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
                             [total_length, num_head, head_dim_value]
                         )
                         module.run_with_tensors(inputs, [y])
+                        if write_standalone_testcase_data:
+                            written_testcase_idx += 1
+                            os.makedirs(f"./tmp/{test_name}/test_cases", exist_ok=True)
+                            fname = f"./tmp/{test_name}/test_cases/testcase.{written_testcase_idx}.data"
+                            _LOGGER.info(f"Writing standalone testcase data to {fname}")
+                            module.write_standalone_testcase_data(
+                                fname,
+                                inputs,
+                                [y],
+                            )
 
                         y_results[(batch_size, max_seq_len, num_head)] = y
                         assert torch.all(
@@ -306,7 +320,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_1(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_1",
+            test_name=f"grouped_classic_b2b_bmm_fp16_1_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=1,
             head_dim=64,
@@ -319,7 +333,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_2(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_2",
+            test_name=f"grouped_classic_b2b_bmm_fp16_2_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=1,
             random_seed=list(range(3)),
@@ -328,7 +342,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_3_batch_a(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_3_batch_a",
+            test_name=f"grouped_classic_b2b_bmm_fp16_3_batch_a_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=4,
             random_seed=list(range(3)),
@@ -337,7 +351,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_3_batch_b(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_3_batch_b",
+            test_name=f"grouped_classic_b2b_bmm_fp16_3_batch_b_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[2, 4],
         )
@@ -345,7 +359,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_3_batch_c(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_3_batch_c",
+            test_name=f"grouped_classic_b2b_bmm_fp16_3_batch_c_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=2,
         )
@@ -353,7 +367,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_3_batch_d(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_3_batch_d",
+            test_name=f"grouped_classic_b2b_bmm_fp16_3_batch_d_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[2, 33],
             random_seed=list(range(3)),
@@ -362,7 +376,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_3_batch_e(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_3_batch_e",
+            test_name=f"grouped_classic_b2b_bmm_fp16_3_batch_e_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[2, 4],
             num_heads=[3, 5],
@@ -371,7 +385,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_3_batch_f_bias(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="test_grouped_classic_b2b_bmm_fp16_3_batch_f_bias",
+            test_name=f"test_grouped_classic_b2b_bmm_fp16_3_batch_f_bias_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[2, 4],
             num_heads=[3, 5],
@@ -381,7 +395,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_3_batch_g_bias(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="test_grouped_classic_b2b_bmm_fp16_3_batch_g_bias",
+            test_name=f"test_grouped_classic_b2b_bmm_fp16_3_batch_g_bias_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[2, 4],
             num_heads=[3, 5],
@@ -392,7 +406,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_acc(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="grouped_classic_b2b_bmm_fp16_acc",
+            test_name=f"grouped_classic_b2b_bmm_fp16_acc_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[7],
             use_fp16_acc=True,
@@ -404,7 +418,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_grouped_classic_b2b_bmm_fp16_causal_lower_left_empty1(self):
         self._test_grouped_classic_b2b_bmm(
-            test_name="test_grouped_classic_b2b_bmm_fp16_causal_lower_left_empty1",
+            test_name=f"test_grouped_classic_b2b_bmm_fp16_causal_lower_left_empty1_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[5],
             num_heads=4,
@@ -430,7 +444,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     def test_grouped_classic_b2b_bmm_fp16_causal_lower_left_empty3_silu(self):
         for max_seq_len in [64, 256, 512]:
             self._test_grouped_classic_b2b_bmm(
-                test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}",
+                test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_pid_{os.getpid()}",
                 dtype="float16",
                 batch_sizes=[1, 5, 33],
                 max_seq_lens=max_seq_len,
@@ -450,7 +464,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     ):
         for max_seq_len in [512]:
             self._test_grouped_classic_b2b_bmm(
-                test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_silu_bias",
+                test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_silu_bias_pid_{os.getpid()}",
                 dtype="float16",
                 batch_sizes=[3, 33],
                 max_seq_lens=max_seq_len,
@@ -470,7 +484,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
         for max_seq_len in [512]:
             for random_seed in range(1):
                 self._test_grouped_classic_b2b_bmm(
-                    test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_seed{random_seed}_bias_broadcast_1",
+                    test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_seed{random_seed}_bias_broadcast_1_pid_{os.getpid()}",
                     dtype="float16",
                     batch_sizes=[3, 33],
                     max_seq_lens=max_seq_len,
@@ -491,7 +505,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
         for max_seq_len in [512]:
             for random_seed in range(1):
                 self._test_grouped_classic_b2b_bmm(
-                    test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_seed{random_seed}_bias_broadcast_2",
+                    test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_seed{random_seed}_bias_broadcast_2_pid_{os.getpid()}",
                     dtype="float16",
                     batch_sizes=[3, 33],
                     max_seq_lens=max_seq_len,
@@ -511,7 +525,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     ):
         for max_seq_len in [512]:
             self._test_grouped_classic_b2b_bmm(
-                test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_bias_broadcast_3",
+                test_name=f"grouped_classic_b2b_bmm_fp16_causal_lower_left_empty_seqlen_{max_seq_len}_bias_broadcast_3_pid_{os.getpid()}",
                 dtype="float16",
                 batch_sizes=[3, 33],
                 max_seq_lens=max_seq_len,
@@ -531,9 +545,9 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
     ):
         for max_seq_len in [64, 256, 512]:
             self._test_grouped_classic_b2b_bmm(
-                test_name=f"test_grouped_classic_b2b_bmm_fp16_large_bias_broadcast_4_seqlen={max_seq_len}",
+                test_name=f"test_grouped_classic_b2b_bmm_fp16_large_bias_broadcast_4_seqlen_{max_seq_len}",
                 dtype="float16",
-                batch_sizes=[3, 33],
+                batch_sizes=[16],
                 max_seq_lens=max_seq_len,
                 num_heads=[
                     2,
@@ -549,7 +563,7 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
         self,
     ):
         self._test_grouped_classic_b2b_bmm(
-            test_name="test_grouped_classic_b2b_bmm_fp16_large_bias_broadcast_5",
+            test_name=f"test_grouped_classic_b2b_bmm_fp16_large_bias_broadcast_5_pid_{os.getpid()}",
             dtype="float16",
             batch_sizes=[3, 33],
             max_seq_lens=256,
@@ -561,6 +575,31 @@ class GroupedClassicB2bBmmTestCase(unittest.TestCase):
             has_bias=True,
             bias_broadcast=[True, False, True, False],
         )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_grouped_classic_b2b_bmm_profile_1(
+        self,
+    ):
+        for max_seq_len in [256]:
+            self._test_grouped_classic_b2b_bmm(
+                test_name=f"test_grouped_classic_b2b_bmm_profile_1_seqlen_{max_seq_len}",
+                dtype="float16",
+                batch_sizes=[
+                    4,
+                    8,
+                    16,
+                    32,
+                    64,
+                ],
+                max_seq_lens=max_seq_len,
+                num_heads=[1],
+                epilogue_math_name="SiLu",
+                causal_type=CausalType.LOWER_LEFT_EMPTY,
+                random_seed=list(range(1)),
+                has_bias=True,
+                bias_broadcast=[True, True, False, False],
+                # write_standalone_testcase_data=True,
+            )
 
 
 if __name__ == "__main__":
