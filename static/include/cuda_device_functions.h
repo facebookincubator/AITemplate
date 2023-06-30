@@ -403,7 +403,7 @@ inline DeviceError QueryEvent(EventType event) {
   return cudaEventQuery(event);
 }
 
-inline const char* GetErrorString(DeviceError err) {
+inline std::string GetErrorString(DeviceError err) {
   return cudaGetErrorString(err);
 }
 
