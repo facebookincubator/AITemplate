@@ -15,11 +15,15 @@
 
 import torch
 from aitemplate.compiler import compile_model
+from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.vae import AutoencoderKL as ait_AutoencoderKL
 from .util import mark_output
+
+
+USE_CUDA = detect_target().name() == "cuda"
 
 
 def torch_dtype_from_str(dtype: str):
@@ -159,6 +163,9 @@ def compile_vae(
         latent_channels=latent_channels,
         sample_size=sample_size,
     )
+    # batch_size = IntVar(values=[1, 8], name="batch_size")
+    height = IntVar(values=[32, 64], name="height") if USE_CUDA else height
+    width = IntVar(values=[32, 64], name="width") if USE_CUDA else width
 
     ait_input = Tensor(
         shape=[batch_size, height, width, latent_channels],

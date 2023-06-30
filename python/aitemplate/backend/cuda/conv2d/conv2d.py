@@ -22,14 +22,11 @@ from aitemplate.backend.cuda.conv2d import common
 
 
 @registry.reg("cuda.conv2d.config")
-def conv2d_config(
-    func_attrs,
-    dtype="float16",
-):
+def conv2d_config(func_attrs):
     """Populates conv2d cutlass configs into 'op_instance' field."""
     func_attrs["op_instance"] = common.extract_config(
         func_attrs=func_attrs,
-        dtype=dtype,
+        dtype=func_attrs["inputs"][0]._attrs["dtype"],
     )
 
 

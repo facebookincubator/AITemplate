@@ -482,8 +482,11 @@ def transform_strided_ops(
     else:
         funcs = [
             # Keep on ROCM
+            _fuse_slices_concat_reshape_concat,
             _fuse_strided_op_and_view_op,
+            _fuse_strided_op_and_cat,
             _fuse_split_and_strided_op,
+            _fuse_slice_and_strided_op,
             _fuse_slices_concat,
         ]
     for func in funcs:

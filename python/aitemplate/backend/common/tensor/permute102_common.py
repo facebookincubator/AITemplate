@@ -193,8 +193,6 @@ SRC_TEMPLATE = jinja2.Template(
 #define DIRECT_BLOCK_Z 2
 
 namespace {
-using bfloat16 = __nv_bfloat16;
-
 template<typename T>
 __global__ void permute102_tiled_kernel(T* output,
                                         const T *input,

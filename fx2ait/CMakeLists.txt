@@ -4,7 +4,7 @@ project(ait_model)
 find_package(Torch REQUIRED)
 
 include_directories(
-   ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/picojson
+  ${CMAKE_CURRENT_SOURCE_DIR}/../3rdparty/picojson
 )
 
 # Define our library target

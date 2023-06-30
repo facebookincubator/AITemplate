@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-
 """
 Base class for conv3d.
 """
@@ -22,7 +21,6 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
-from operator import itemgetter
 from typing import Any, Dict, List
 
 import jinja2
@@ -523,12 +521,22 @@ class conv3d(Operator):
                 f"{op_type} {exec_entry_sha1}.\n",
                 "To bypass, you need to make it available in the db table.",
             )
-
-        profiler_filename = get_profiler_filename(self._attrs, "conv3d")
-        runner = backend.profiler_runner.Runner(devices, self._attrs["name"])
-        x_shape = self._invert_exec_key(exec_key)
-        command = self._gen_profile_cmd(profiler_prefix, profiler_filename, x_shape)
-        runner.push(profiler_filename, command)
+        if target.name() == "rocm":
+            op_type = self._attrs["op"]
+            all_op_names = list(self._attrs["op_instance"].keys())
+            for op_name in all_op_names:
+                runner = backend.profiler_runner.Runner(
+                    devices, self._attrs["name"], timeout=1800
+                )
+                x_shape = self._invert_exec_key(exec_key)
+                command = self._gen_profile_cmd(profiler_prefix, op_name, x_shape)
+                runner.push(op_name, command)
+        else:
+            profiler_filename = get_profiler_filename(self._attrs, "conv3d")
+            runner = backend.profiler_runner.Runner(devices, self._attrs["name"])
+            x_shape = self._invert_exec_key(exec_key)
+            command = self._gen_profile_cmd(profiler_prefix, profiler_filename, x_shape)
+            runner.push(profiler_filename, command)
 
         runner.join()
         result = runner.pull()
@@ -536,8 +544,14 @@ class conv3d(Operator):
             raise RuntimeError(
                 "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
-        out = min(result, key=itemgetter(1))
-        best_algo = out[1].op_config
+        if target.name() == "rocm":
+            out = min(result, key=lambda x: x[1].duration)
+            best_algo = out[0]
+        else:
+            from operator import itemgetter
+
+            out = min(result, key=itemgetter(1))
+            best_algo = out[1].op_config
         workspace = out[1].workspace
         ## cache
         cache_record = Conv3dRecordEntry(

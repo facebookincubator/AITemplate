@@ -67,8 +67,10 @@ from aitemplate.compiler.public import (
     vector_norm,
 )
 
-from fx2ait.acc_tracer import acc_ops, ait_acc_ops
+from aitemplate.testing import detect_target
 from torch.fx.node import Argument, Target
+
+from fx2ait.acc_tracer import acc_ops, ait_acc_ops
 
 from .converter_registry import ait_converter
 
@@ -89,6 +91,8 @@ from .utils import (
     weight_ncdhw2ndhwc,
     weight_nchw2nhwc,
 )
+
+USE_ROCM = detect_target().name() == "rocm"
 
 logger: logging.Logger = logging.getLogger(__name__)
 ConverterOutput = Union[AITTensor, Tuple[AITTensor, ...], List[IntVar], IntVar]
@@ -246,7 +250,11 @@ def acc_ops_linear(
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
-
+    if USE_ROCM:
+        shape = input_val._attrs["shape"]
+        input_val = (
+            input_val if len(shape) == 2 else reshape()(input_val, [-1, shape[-1]])
+        )
     weight = kwargs["weight"]
     assert isinstance(weight, AITTensor)
 
@@ -256,7 +264,12 @@ def acc_ops_linear(
     if bias is not None:
         assert isinstance(bias, AITTensor)
         result = elementwise(FuncEnum.ADD)(result, bias)
-
+    if USE_ROCM:
+        result = (
+            result
+            if len(shape) == 2
+            else reshape()(result, [shape[0], -1, result._attrs["shape"][-1]])
+        )
     return result
 
 
@@ -1188,8 +1201,8 @@ def _choose_conv2d_op(
     dilate: int,
     x: AITTensor,
     weight: AITTensor,
-    bias: [AITTensor],
-    transposed: [bool] = False,
+    bias: AITTensor,
+    transposed: bool = False,
 ) -> ConverterOutput:
     """
     Helper to choose conv2d vs. conv2d_bias op based on existence of bias
@@ -1320,7 +1333,7 @@ def _choose_conv3d_op(
     dilate: int,
     x: AITTensor,
     weight: AITTensor,
-    bias: [AITTensor],
+    bias: AITTensor,
     groups: int = 1,
 ) -> ConverterOutput:
     """

@@ -87,9 +87,9 @@ def _gen_simple_strided_ops(
     return test_cases
 
 
-def _gen_fusible_view_ops_after_strided_op() -> List[
-    Tuple[str, Callable[[Tensor], Tensor], str]
-]:
+def _gen_fusible_view_ops_after_strided_op() -> (
+    List[Tuple[str, Callable[[Tensor], Tensor], str]]
+):
     def reshape_op(input_tensor: Tensor):
         shape = input_tensor._attrs["shape"]
         return ops.reshape()(
@@ -110,9 +110,9 @@ def _gen_fusible_view_ops_after_strided_op() -> List[
     return test_cases
 
 
-def _gen_non_fusible_view_ops_after_strided_op() -> List[
-    Tuple[str, Callable[[Tensor], Tensor], str]
-]:
+def _gen_non_fusible_view_ops_after_strided_op() -> (
+    List[Tuple[str, Callable[[Tensor], Tensor], str]]
+):
     def reshape_op(input_tensor: Tensor):
         n2 = input_tensor._attrs["shape"][2].value()
         return ops.reshape()(input_tensor, [-1, n2])
@@ -130,9 +130,9 @@ def _gen_non_fusible_view_ops_after_strided_op() -> List[
     return test_cases
 
 
-def _gen_multiple_fusible_view_ops_after_strided_op() -> List[
-    Tuple[str, Callable[[Tensor], Tensor], str]
-]:
+def _gen_multiple_fusible_view_ops_after_strided_op() -> (
+    List[Tuple[str, Callable[[Tensor], Tensor], str]]
+):
     def _get_shape(input_tensor: Tensor):
         return (
             input_tensor._attrs["shape"][1].value(),

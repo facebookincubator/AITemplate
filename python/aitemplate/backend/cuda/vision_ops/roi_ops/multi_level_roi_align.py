@@ -58,6 +58,8 @@ def gen_function(
             spatial_scale=func_attrs["spatial_scale"],
             position_sensitive=func_attrs["position_sensitive"],
             continuous_coordinate=func_attrs["continuous_coordinate"],
+            elem_input_type=input_type,
+            elem_output_type=output_type,
         )
         exec_inst = exec_cond_template.render(indent="  ", cond=key, program=program)
         exec_paths += exec_inst

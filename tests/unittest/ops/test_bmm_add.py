@@ -27,7 +27,6 @@ from aitemplate.testing.test_utils import (
 )
 
 
-@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class BMMAddTestCase(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -287,6 +286,7 @@ class BMMAddTestCase(unittest.TestCase):
     def test_rrr(self):
         self._test_rrr(B=32, M=256, K=256, N=512, test_name="bmm_rrr_add")
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_ccr(self):
         self._test_ccr(B=32, M=256, N=256, K=512, test_name="bmm_ccr_add")
         self._test_ccr(B=0, M=256, N=256, K=512, test_name="bmm_ccr_zero_batch")

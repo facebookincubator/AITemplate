@@ -83,7 +83,7 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
             Y, target, "./tmp", f"bmm_{test_name}_permute", dll_name=dll_name
         )
 
-        for (b, m) in itertools.product(bs, ms):
+        for b, m in itertools.product(bs, ms):
             X_pt = torch.randn(b, m, K).cuda().half()  # Q
             W_pt = torch.randn(b, N, K).cuda().half()  # K
             B1_pt = torch.randn(b, N, D).cuda().half()  # V
@@ -156,7 +156,7 @@ class BMMSoftmaxBMMTestCase(unittest.TestCase):
             Y, target, "./tmp", f"bmm_{test_name}_permute", dll_name=dll_name
         )
 
-        for (b, m) in itertools.product(bs, ms):
+        for b, m in itertools.product(bs, ms):
             X_pt = torch.randn(b, m, K).cuda().half()  # Q
             W_pt = torch.randn(b, N, K).cuda().half()  # K
             B1_pt = torch.randn(b, N, D).cuda().half()  # V

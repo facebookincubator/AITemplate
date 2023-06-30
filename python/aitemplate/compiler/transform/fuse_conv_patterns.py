@@ -67,6 +67,13 @@ def get_conv2d_bias_elementwise_patterns():
             ),
             conv2d_bias_sigmoid,
         ),
+        (
+            (
+                conv2d_bias(stride=1, pad=0),
+                elementwise(FuncEnum.ADD),
+            ),
+            conv2d_bias_add,
+        ),
     ]
 
     transposed_conv2d_bias_patterns = [
@@ -114,14 +121,7 @@ def get_cuda_only_conv2d_bias_elementwise_patterns():
                 elementwise(FuncEnum.RELU),
             ),
             conv2d_bias_relu_few_channels,
-        ),
-        (
-            (
-                conv2d_bias(stride=1, pad=0),
-                elementwise(FuncEnum.ADD),
-            ),
-            conv2d_bias_add,
-        ),
+        )
     ]
 
     transposed_conv2d_patterns = [

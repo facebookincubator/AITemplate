@@ -29,13 +29,8 @@ _VIEW_OPS = {"reshape", "flatten", "squeeze", "unsqueeze"}
 
 
 def _is_supported_strided_op(op: Operator) -> bool:
-    from aitemplate.backend.target import Target
-
     op_kind = op._attrs["op"]
-    if Target.current().name() == "rocm":
-        return op_kind == "bmm_softmax_bmm_permute"
-    else:
-        return not op_kind.startswith("group_gemm")
+    return not op_kind.startswith("group_gemm")
 
 
 def _is_supported_view_op(op: Operator, tensor: Tensor) -> bool:

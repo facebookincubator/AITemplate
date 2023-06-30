@@ -17,6 +17,7 @@ Fused transposed_conv2d_bias_relu op.
 """
 from aitemplate.compiler.ops.conv.transposed_conv2d_bias import transposed_conv2d_bias
 
+
 # pylint: disable=C0103
 class transposed_conv2d_bias_relu(transposed_conv2d_bias):
     r"""Transposed conv2d with bias + relu.

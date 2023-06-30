@@ -911,7 +911,7 @@ class ModelContainerGenerator:
     def generate_model(self) -> str:
         # Disable graph mode on ROCM because the updating operations
         # are not supported
-        target_has_graph_mode = "true" if self.target.name() == "cuda" else "false"
+        target_has_graph_mode = "true"
 
         run_impl_mode = multistream_mode()
         if run_impl_mode == 0:

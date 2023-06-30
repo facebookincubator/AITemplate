@@ -17,13 +17,14 @@ from typing import Any, Dict, Iterable, Mapping, Sequence
 import torch
 import torch.fx.passes.operator_support as ops
 import torch.fx.passes.splitter_base as splitter_base
+from torch.fx.passes.operator_support import create_op_support, OperatorSupportBase
+from torch.fx.passes.tools_common import get_acc_ops_name
+
 from fx2ait.acc_tracer import acc_ops
 from fx2ait.ait_module import AITModule
 
 from fx2ait.converters.converter_registry import AIT_CONVERTERS
 from fx2ait.fx2ait import AITInterpreter
-from torch.fx.passes.operator_support import create_op_support, OperatorSupportBase
-from torch.fx.passes.tools_common import get_acc_ops_name
 
 try:
     torch.ops.load_library("//deeplearning/ait:AITModel")

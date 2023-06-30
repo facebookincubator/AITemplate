@@ -158,7 +158,6 @@ class SliceLayerNormTestCase(unittest.TestCase):
         test_name="test_slice_layer_norm",
         use_welford_algorithm=False,
     ):
-
         input_rank = 1 + len(input_nonbatch_shape)
         if 1 == len(start_indices) and len(start_indices) != input_rank:
             start_indices = [start_indices[0]] * input_rank

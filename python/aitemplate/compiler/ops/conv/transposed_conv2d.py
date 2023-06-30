@@ -49,6 +49,7 @@ SHAPE_FUNC_TEMPLATE = jinja2.Template(
 """
 )
 
+
 # pylint: disable=C0103
 class transposed_conv2d(conv2d):
     r"""Transposed conv2d.

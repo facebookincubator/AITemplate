@@ -449,7 +449,7 @@ class conv2d(Operator):
             target=target.name(), op=self._attrs["op"]
         )
         func = registry.get(func_key)
-        func(self._attrs, dtype=self._attrs["inputs"][0]._attrs["dtype"])
+        func(self._attrs)
 
         if self._should_build_profiler():
             x_shapes = [
@@ -532,22 +532,36 @@ class conv2d(Operator):
                 f"{op_type} {exec_entry_sha1}.\n",
                 "Please adjust target.select_minimal_algo function.",
             )
-
-        profiler_filename = get_profiler_filename(self._attrs, "conv")
-        runner = backend.profiler_runner.Runner(
-            devices, self._attrs["name"], timeout=180
-        )
-        x_shape = self._invert_exec_key(exec_key)
-        command = self._gen_profile_cmd(profiler_prefix, profiler_filename, x_shape)
-        runner.push(profiler_filename, command)
+        if target.name() == "rocm":
+            runner = backend.profiler_runner.Runner(
+                devices, self._attrs["name"], timeout=1800
+            )
+            op_type = self._attrs["op"]
+            all_op_names = list(self._attrs["op_instance"].keys())
+            for op_name in all_op_names:
+                x_shape = self._invert_exec_key(exec_key)
+                command = self._gen_profile_cmd(profiler_prefix, op_name, x_shape)
+                runner.push(op_name, command)
+        else:
+            profiler_filename = get_profiler_filename(self._attrs, "conv")
+            runner = backend.profiler_runner.Runner(
+                devices, self._attrs["name"], timeout=180
+            )
+            x_shape = self._invert_exec_key(exec_key)
+            command = self._gen_profile_cmd(profiler_prefix, profiler_filename, x_shape)
+            runner.push(profiler_filename, command)
         runner.join()
         result = runner.pull()
         if len(result) == 0:
             raise RuntimeError(
                 "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
-        out = min(result, key=itemgetter(1))
-        best_algo = out[1].op_config
+        if target.name() == "rocm":
+            out = min(result, key=lambda x: x[1].duration)
+            best_algo = out[0]
+        else:
+            out = min(result, key=itemgetter(1))
+            best_algo = out[1].op_config
         workspace = out[1].workspace
         ## cache
         cache_record = ConvRecordEntry(

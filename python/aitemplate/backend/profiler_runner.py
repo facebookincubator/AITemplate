@@ -96,7 +96,7 @@ def extract_profile_result(
     except Exception:
         result = ProfileResult(
             op_config="",
-            duration=0,
+            duration=float("inf"),
             workspace=0,
         )
         failed = True
@@ -128,6 +128,7 @@ def process_task(task: Task) -> None:
         if not single_file_profiler:
             task._failed = True
             return
+
         _LOGGER.debug(
             "Failed: [{name}][{algo}]\ncmd:\n{cmd}\nstderr:\n{stderr}".format(
                 name=task._name,
@@ -316,10 +317,11 @@ class ProfilerRunner:
             stdout = None
             stderr = None
             try:
+                stdout, stderr = "", ""
                 stdout, stderr = fut.result()
                 profile_result, err = extract_profile_result(stdout)
                 if err:
-                    _LOGGER.error(
+                    _LOGGER.debug(
                         f"Profiler failure!\nProfiler stdout: {stdout}\nProfiler stderr: {stderr}",
                     )
                     raise RuntimeError(f"Failed to extract profiler result for {cmds}")

@@ -28,7 +28,6 @@ from aitemplate.testing.test_utils import (
 from parameterized import parameterized
 
 
-@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class ConvBiasAddTestCase(unittest.TestCase):
     def _test_conv_bias_add(
         self,

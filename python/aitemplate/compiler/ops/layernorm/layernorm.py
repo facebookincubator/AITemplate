@@ -20,7 +20,6 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
-from operator import itemgetter
 from typing import Any, List, Union
 
 import jinja2
@@ -134,7 +133,7 @@ class layernorm(Operator):
         (x_shape, gamma_shape, beta_shape) = layernorm.get_input_shapes(x, gamma, beta)
 
         expected_dtype = x.dtype()
-        for (param, name) in ((gamma, "gamma"), (beta, "beta")):
+        for param, name in ((gamma, "gamma"), (beta, "beta")):
             if param is not None and param.dtype() != expected_dtype:
                 raise NotImplementedError(
                     f"Layernorm doesn't support type promotions; expected {expected_dtype} but got {name} with dtype {param.dtype()}"
@@ -350,7 +349,7 @@ class layernorm(Operator):
                 "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
 
-        out = min(result, key=itemgetter(1))
+        out = min(result, key=lambda x: x[1].duration)
         best_algo = out[0]
         workspace = out[1].workspace
         ## cache

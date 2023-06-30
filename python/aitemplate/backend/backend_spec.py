@@ -421,6 +421,7 @@ class ROCMSpec(GPUBackendSpec):
     prefix = "hip"
     stream = "stream"
     cub = "hipcub"
+    warp_size = 64
 
     cast_to_ptr_template = jinja2.Template("reinterpret_cast<{{dtype}}*>({{name}})")
     cast_to_half_ptr_template = jinja2.Template("reinterpret_cast<half*>({{name}})")
@@ -430,7 +431,11 @@ class ROCMSpec(GPUBackendSpec):
     header_src_template = jinja2.Template(
         """
 #include <hip/hip_fp16.h>
+#include <hip/hip_bfloat16.h>
 #include <hip/hip_runtime.h>
+
+using bfloat16 = hip_bfloat16;
+
 {{extra_header}}
         """
     )
@@ -455,6 +460,7 @@ class CUDASpec(GPUBackendSpec):
     prefix = "cuda"
     stream = "stream"
     cub = "cub"
+    warp_size = 32
 
     cast_to_ptr_template = jinja2.Template("reinterpret_cast<{{dtype}}*>({{name}})")
     cast_to_half_ptr_template = jinja2.Template("reinterpret_cast<half*>({{name}})")

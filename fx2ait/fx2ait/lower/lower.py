@@ -187,7 +187,7 @@ class AitLowerer:
 
         return cls(
             lower_settings=lower_settings,
-            lower_pass=default_lower_pass(create_ait_lower_interpreter),
+            lower_pass=default_lower_pass(interpreter_builder),
         )
 
     def lower_func(

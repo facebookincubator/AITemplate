@@ -13,6 +13,9 @@
 #  limitations under the License.
 #
 import torch
+from torch.fx.passes import operator_support as op_support
+from torch.fx.passes.operator_support import OperatorSupportBase
+
 from fx2ait.acc_tracer import acc_ops, acc_tracer
 from fx2ait.ait_splitter import (  # @manual=//aitemplate/AITemplate/fx2ait/fx2ait:fx2ait
     AITSplitter,
@@ -20,8 +23,6 @@ from fx2ait.ait_splitter import (  # @manual=//aitemplate/AITemplate/fx2ait/fx2a
     create_ait_operator_support,
 )
 from fx2ait.tools.common_fx2ait import AITTestCase
-from torch.fx.passes import operator_support as op_support
-from torch.fx.passes.operator_support import OperatorSupportBase
 
 
 class TestSplit(AITTestCase):

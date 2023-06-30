@@ -20,9 +20,15 @@
 #include <sstream>
 
 #include "ATen/Context.h" // @manual
+#ifdef __HIP_PLATFORM_HCC__
+#include "ATen/hip/HIPContext.h"
+#include "c10/core/CPUAllocator.h"
+#include "c10/hip/HIPStream.h"
+#else
 #include "ATen/cuda/CUDAContext.h"
 #include "c10/core/CPUAllocator.h"
 #include "c10/cuda/CUDAStream.h"
+#endif
 
 #ifdef FBCODE_AIT
 #include "folly/MapUtil.h"
@@ -31,7 +37,9 @@
 namespace torch::aitemplate {
 
 AITemplatePyTorchCachingAllocator::AITemplatePyTorchCachingAllocator() {
+  #ifndef __HIP_PLATFORM_HCC__
   at::globalContext().lazyInitCUDA();
+  #endif
   cuda_allocator_ = at::cuda::getCUDADeviceAllocator();
   TORCH_CHECK(cuda_allocator_ != nullptr);
 }
@@ -152,6 +160,17 @@ AITModelImpl::AITModelImpl(
   // It's not clear what stream we want to use yet. Create a new one.
   // We could alternatively use the default stream, but that could cause extra
   // synchronization.
+#ifdef __HIP_PLATFORM_HCC__
+  hipStream_t creation_stream;
+  TORCH_CHECK(
+      hipStreamCreateWithFlags(&creation_stream, hipStreamNonBlocking) ==
+      hipSuccess);
+
+  using StreamGuard = std::unique_ptr<
+      std::remove_pointer_t<hipStream_t>,
+      decltype(&hipStreamDestroy)>;
+  StreamGuard creation_stream_guard{creation_stream, hipStreamDestroy};
+#else
   cudaStream_t creation_stream;
   TORCH_CHECK(
       cudaStreamCreateWithFlags(&creation_stream, cudaStreamNonBlocking) ==
@@ -161,6 +180,7 @@ AITModelImpl::AITModelImpl(
       std::remove_pointer_t<cudaStream_t>,
       decltype(&cudaStreamDestroy)>;
   StreamGuard creation_stream_guard{creation_stream, cudaStreamDestroy};
+#endif
 
 #define LOAD_SYMBOL(var, name_str)                                       \
   var = reinterpret_cast<decltype(var)>(dlsym(handle_.get(), name_str)); \
@@ -352,7 +372,11 @@ std::vector<torch::Tensor> AITModelImpl::processOutputs(
 
     auto output = at::detail::make_tensor_base<c10::TensorImpl>(
         std::move(output_index_to_output_storage_impl.at(output_idx)),
+        #ifdef __HIP_PLATFORM_HCC__
+        c10::DispatchKeySet(c10::DispatchKey::HIP),
+        #else
         c10::DispatchKeySet(c10::DispatchKey::CUDA),
+        #endif
         scalarTypeToTypeMeta(dtype));
     const auto& size = output_shapes.at(output_idx);
     if (size.size() != 1 || size[0] != 0) {
@@ -430,7 +454,11 @@ std::vector<torch::Tensor> AITModelImpl::forward(
 
   std::vector<torch::Tensor> outputs;
   {
+    #ifdef __HIP_PLATFORM_HCC__
+    const auto& cuda_stream = at::hip::getCurrentHIPStream(device.index());
+    #else
     const auto& cuda_stream = at::cuda::getCurrentCUDAStream(device.index());
+    #endif
     const auto stream_id = cuda_stream.stream();
     // TODO: remove casting after fixing API
     AITemplateStreamHandle stream_handle =
@@ -489,7 +517,11 @@ void AITModelImpl::profile(
       device);
 
   {
+    #ifdef __HIP_PLATFORM_HCC__
+    const auto& cuda_stream = at::hip::getCurrentHIPStream(device.index());
+    #else
     const auto& cuda_stream = at::cuda::getCurrentCUDAStream(device.index());
+    #endif
     const auto stream_id = cuda_stream.stream();
     // TODO: remove casting after fixing API
     AITemplateStreamHandle stream_handle =
@@ -613,6 +645,18 @@ void AITModelImpl::updateConstantsWithWeights(
         "failing this round of weight update");
     constants.emplace_back(torchToAitData(it->second));
   }
+
+#ifdef __HIP_PLATFORM_HCC__
+  hipStream_t constants_stream;
+  TORCH_CHECK(
+      hipStreamCreateWithFlags(&constants_stream, hipStreamNonBlocking) ==
+      hipSuccess);
+
+  using StreamGuard = std::unique_ptr<
+      std::remove_pointer_t<hipStream_t>,
+      decltype(&hipStreamDestroy)>;
+  StreamGuard constants_stream_guard{constants_stream, hipStreamDestroy};
+#else
   cudaStream_t constants_stream;
   TORCH_CHECK(
       cudaStreamCreateWithFlags(&constants_stream, cudaStreamNonBlocking) ==
@@ -622,6 +666,7 @@ void AITModelImpl::updateConstantsWithWeights(
       std::remove_pointer_t<cudaStream_t>,
       decltype(&cudaStreamDestroy)>;
   StreamGuard constants_stream_guard{constants_stream, cudaStreamDestroy};
+#endif
   AIT_CHECK(setManyConstantsDoubleBufferFunc_(
       model_handle_,
       /*stream=*/reinterpret_cast<AITemplateStreamOpaque*>(constants_stream),

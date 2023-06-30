@@ -22,8 +22,7 @@ namespace ait {
 inline void DeviceCheckLastError(const char* file, int line) {
   auto device_error = GetLastError();
   if (device_error != GetDeviceSuccess()) {
-    std::string msg = std::string("Got error: ") +
-        cudaGetErrorString(device_error) +
+    std::string msg = std::string("Got error: ") + GetErrorString(device_error) +
         " enum: " + std::to_string(device_error) + " at " + file + ": " +
         std::to_string(line);
     LOG(ERROR) << msg;
@@ -217,6 +216,29 @@ class ModelBase {
   }
 
   void RunAsGraph(StreamType stream) {
+#ifdef __HIP_PLATFORM_HCC__
+    if (graph_exec_ == nullptr) {
+      DEVICE_CHECK(StreamBeginCapture(graph_capture_stream_, /*global=*/false));
+      try {
+        static_cast<ModelType*>(this)->RunImpl(graph_capture_stream_);
+      } catch (...) {
+        GraphType graph;
+        // No need to DEVICE_CHECK here, we want to see the original exception.
+        EndCapture(&graph);
+        if (graph != nullptr && GraphDestroy(graph) != GetDeviceSuccess()) {
+          LOG(WARNING)
+              << "Graph destruction failed while handling exception! Memory will be leaked.";
+        }
+        throw;
+      }
+      // The following function ends the capture and creates a graph
+      // inside a unique_ptr that cleans up it when it goes out of scope.
+      // Note that it throws an exception if EndCapture fails.
+      auto graph = RAII_EndCaptureAndCreateGraph(
+          [this](GraphType* graph_ptr) { return EndCapture(graph_ptr); });
+      DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
+    }
+#else
     DEVICE_CHECK(StreamBeginCapture(graph_capture_stream_, /*global=*/false));
     try {
       static_cast<ModelType*>(this)->RunImpl(graph_capture_stream_);
@@ -230,13 +252,11 @@ class ModelBase {
       }
       throw;
     }
-
     // The following function ends the capture and creates a graph
     // inside a unique_ptr that cleans up it when it goes out of scope.
     // Note that it throws an exception if EndCapture fails.
     auto graph = RAII_EndCaptureAndCreateGraph(
         [this](GraphType* graph_ptr) { return EndCapture(graph_ptr); });
-
     if (graph_exec_ == nullptr) {
       DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
     } else if (
@@ -247,6 +267,7 @@ class ModelBase {
       DEVICE_CHECK(GraphExecDestroy(graph_exec_));
       DEVICE_CHECK(GraphInstantiate(&graph_exec_, graph.get()));
     }
+#endif
 
     DEVICE_CHECK(GraphExecLaunch(graph_exec_, stream));
   }

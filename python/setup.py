@@ -136,7 +136,11 @@ def gen_utils_file_list():
 
 def gen_backend_common_file_list():
     srcs = ["aitemplate/backend"]
-    f_cond = lambda x: True if x.endswith(".py") or x.endswith(".cuh") else False
+    f_cond = (
+        lambda x: True
+        if x.endswith(".py") or x.endswith(".cuh") or x.endswith(".h")
+        else False
+    )
     return gen_file_list(srcs, f_cond)
 
 
@@ -168,7 +172,6 @@ setup(
             "backend/cuda/vision_ops/nms/batched_nms_kernel.cuh",
             "backend/cuda/vision_ops/nms/nms_kernel.cuh",
             "backend/cuda/vision_ops/roi_ops/multi_level_roi_align.cuh",
-            "backend/rocm/elementwise/custom_math.h",
         ]
         + gen_utils_file_list()
         + gen_cutlass_list()

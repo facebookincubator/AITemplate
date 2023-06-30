@@ -20,7 +20,6 @@ import logging
 import os
 import re
 from collections import OrderedDict
-from operator import itemgetter
 from typing import List
 
 import jinja2
@@ -152,7 +151,7 @@ class argmax(Operator):
                 "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
             )
 
-        out = min(result, key=itemgetter(1))
+        out = min(result, key=lambda x: x[1].duration)
         workspace = out[1].workspace
         return workspace
 

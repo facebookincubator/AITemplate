@@ -33,6 +33,7 @@ MODEL_TEMPLATE = jinja2.Template(
 #include <algorithm>
 #include <deque>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <unordered_map>
@@ -248,7 +249,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
           CreateEvent(&call_start);
           CreateEvent(&call_end);
         }
-        for (auto& [call_start, call_end]: call_events) {
+        for (auto& [call_start, call_end] : call_events) {
           DeviceMemset(L2CacheSlab, 0x73, L2SizeInBytes);
           EventRecord(call_start, stream);
             {{ func }}

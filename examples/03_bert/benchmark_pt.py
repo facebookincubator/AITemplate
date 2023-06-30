@@ -20,7 +20,7 @@ from modeling.torch_model import BertBaseUncased
 
 
 def benchmark_pt(pretrained=True, batchsize=0):
-    bert = BertBaseUncased(pretrained)
+    bert = BertBaseUncased(pretrained=pretrained)
     model = bert._model
     model.eval()
 
@@ -70,7 +70,7 @@ def benchmark_pt(pretrained=True, batchsize=0):
 
 
 def benchmark_pt_encoders_only(pretrained=True, batchsize=0):
-    model = BertBaseUncased(pretrained)
+    model = BertBaseUncased(pretrained=pretrained)
     pt_bert = model._model
     pt_bert.eval()
 

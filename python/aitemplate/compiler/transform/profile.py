@@ -25,6 +25,7 @@ from typing import List
 from aitemplate.backend import builder, codegen
 
 from aitemplate.backend.profiler_runner import ProfilerRunner
+from aitemplate.backend.target import Target
 from aitemplate.compiler.base import DynamicProfileStrategy, Tensor
 
 from aitemplate.compiler.ops.gemm_universal.gemm_common import (
@@ -105,6 +106,7 @@ def profile(
             workdir=profiler_dir,
             devices=devices,
         )
+    timeout = 2400 if Target.current().name() == "rocm" else 240
     profiler_runner = ProfilerRunner(
         devices,
         postprocessing_delegate=GemmProfilerPostprocessingDelegate(),

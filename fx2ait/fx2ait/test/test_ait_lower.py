@@ -15,6 +15,7 @@
 import unittest
 
 import torch
+
 from fx2ait.lower.lower import AitLowerer
 from fx2ait.lower.lower_settings import LowerSettings
 

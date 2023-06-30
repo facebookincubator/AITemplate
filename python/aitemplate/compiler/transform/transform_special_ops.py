@@ -18,6 +18,8 @@ Check each transform function summary for specific pattern to be transformed.
 """
 from typing import Callable, List, Tuple, Type, Union
 
+from aitemplate.backend.target import Target
+
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.ops.gemm_special.gemm_rrr_small_nk import gemm_rrr_small_nk
@@ -279,10 +281,14 @@ def transform_special_ops(
     List[Tensor]
         Transformed graph
     """
-    funcs = [
-        _transform_bmm_rcr_n1,
-        _transform_gemm_rrr_small_nk,
-    ]
+    if Target.current().name() == "rocm":
+        funcs = []
+    else:
+        funcs = [
+            _transform_bmm_rcr_n1,
+            _transform_gemm_rrr_small_nk,
+        ]
+
     for func in funcs:
         sorted_graph = func(sorted_graph)
 
@@ -291,8 +297,6 @@ def transform_special_ops(
     funcs = [
         _transform_1x1_conv_gemm_rcr,
     ]
-
-    from aitemplate.backend.target import Target
 
     if "transform_conv_to_gemm" in Target.current()._kwargs:
         if Target.current()._kwargs["transform_conv_to_gemm"]:

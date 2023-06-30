@@ -26,7 +26,7 @@ from .layout import RCR
 # pylint: disable=C0415,W0613
 
 
-@registry.reg("rocm.gemm_rcr_bias_swish.config")
+@registry.reg("rocm.gemm_rcr_bias_hardswish.config")
 def gemm_config(func_attrs, dtype="float16"):
     """Extract (operation name, operation instance) pair from
     all operation candidates.
@@ -49,7 +49,7 @@ def gemm_config(func_attrs, dtype="float16"):
     common.make_fproc_f16(func_attrs, RCR, op_kind, extra_kind)
 
 
-@registry.reg("rocm.gemm_rcr_bias_swish.gen_profiler")
+@registry.reg("rocm.gemm_rcr_bias_hardswish.gen_profiler")
 def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
     """Generates standalone executables for profiler.
 
@@ -72,7 +72,7 @@ def gemm_gen_profiler(func_attrs, workdir, dim_info_dict):
     )
 
 
-@registry.reg("rocm.gemm_rcr_bias_swish.gen_function")
+@registry.reg("rocm.gemm_rcr_bias_hardswish.gen_function")
 def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
     """Generates function body.
 
@@ -106,7 +106,7 @@ def gemm_gen_function(func_attrs, exec_cond_template, dim_info_dict):
     )
 
 
-@registry.reg("rocm.gemm_rcr_bias_swish.func_decl")
+@registry.reg("rocm.gemm_rcr_bias_hardswish.func_decl")
 def gemm_gen_function_decl(func_attrs):
     """Generates function declarations.
 
@@ -124,7 +124,7 @@ def gemm_gen_function_decl(func_attrs):
     return common.gen_function_decl(func_name=func_name, gemm_flag="bias_hardswish")
 
 
-@registry.reg("rocm.gemm_rcr_bias_swish.func_call")
+@registry.reg("rocm.gemm_rcr_bias_hardswish.func_call")
 def gemm_gen_function_call(func_attrs, indent="  "):
     """Generates function call.
 
@@ -143,7 +143,7 @@ def gemm_gen_function_call(func_attrs, indent="  "):
     return common.gen_function_call(func_attrs, indent, gemm_flag="bias_hardswish")
 
 
-@registry.reg("rocm.gemm_rcr_bias_swish.filter")
+@registry.reg("rocm.gemm_rcr_bias_hardswish.filter")
 def gemm_function_filter(cfg, func_attrs, x_shape):
     """Generates function filter.
 

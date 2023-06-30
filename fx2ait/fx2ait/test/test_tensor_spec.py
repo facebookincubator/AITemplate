@@ -16,8 +16,9 @@ import unittest
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
-from fx2ait.tensor_spec import TensorSpec
 from parameterized import parameterized
+
+from fx2ait.tensor_spec import TensorSpec
 
 
 class TestTensorSpec(unittest.TestCase):

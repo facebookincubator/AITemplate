@@ -21,7 +21,6 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
-from operator import itemgetter
 from typing import Any, List, Union
 
 import jinja2
@@ -325,10 +324,14 @@ class group_norm(Operator):
 
         if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
+                "Profile workload: "
+                f"{self._attrs['op']} "
+                f"{exec_key}"
+                " failed. "
+                f"Results: {result}."
             )
 
-        out = min(result, key=itemgetter(1))
+        out = min(result, key=lambda x: x[1].duration)
         best_algo = out[0]
         workspace = out[1].workspace
         ## cache
@@ -418,7 +421,7 @@ class group_norm(Operator):
             target=target.name(), op=self._attrs["op"]
         )
         func = registry.get(func_key)
-        func(self._attrs, workdir)
+        return func(self._attrs, workdir)
 
     def _extract_exec_path(self, dynamic_profiling_strategy=DynamicProfileStrategy.MAX):
         """Extract execution key, i.e. input arguments for the profiler.

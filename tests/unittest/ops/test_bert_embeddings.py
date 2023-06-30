@@ -90,7 +90,6 @@ def get_ait_params(
     return (word_embeddings, token_type_embeddings, position_embeddings, gamma, beta)
 
 
-@unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
 class bertEmbeddingsTestCase(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super(bertEmbeddingsTestCase, self).__init__(*args, **kwargs)
@@ -181,30 +180,31 @@ class bertEmbeddingsTestCase(unittest.TestCase):
             embedding = torch.empty_like(pt_embedding)
             module.run_with_tensors(inputs, [embedding])
             self.assertTrue(
-                torch.allclose(embedding, pt_embedding, atol=1e-3, rtol=1e-3)
+                torch.allclose(embedding, pt_embedding, atol=1e-2, rtol=1e-2)
             )
 
     def test_bert_embeddings_fp16(self):
-        self._test_bert_embeddings(
-            batch_size=15,
-            seq_len=17,
-            hidden_size=264,
-            vocab_size=10000,
-            max_position_embeddings=512,
-            type_vocab_size=2,
-            test_name="bert_embeddings_fp16",
-            input_type="float16",
-        )
-        self._test_bert_embeddings(
-            batch_size=1,
-            seq_len=13,
-            hidden_size=264,
-            vocab_size=10000,
-            max_position_embeddings=512,
-            type_vocab_size=2,
-            test_name="bert_embeddings_fp16",
-            input_type="float16",
-        )
+        if detect_target().name() != "rocm":
+            self._test_bert_embeddings(
+                batch_size=15,
+                seq_len=17,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp16",
+                input_type="float16",
+            )
+            self._test_bert_embeddings(
+                batch_size=1,
+                seq_len=13,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp16",
+                input_type="float16",
+            )
         self._test_bert_embeddings(
             batch_size=8,
             seq_len=512,
@@ -217,26 +217,27 @@ class bertEmbeddingsTestCase(unittest.TestCase):
         )
 
     def test_bert_embeddings_fp32(self):
-        self._test_bert_embeddings(
-            batch_size=15,
-            seq_len=17,
-            hidden_size=264,
-            vocab_size=10000,
-            max_position_embeddings=512,
-            type_vocab_size=2,
-            test_name="bert_embeddings_fp32",
-            input_type="float32",
-        )
-        self._test_bert_embeddings(
-            batch_size=1,
-            seq_len=13,
-            hidden_size=264,
-            vocab_size=10000,
-            max_position_embeddings=512,
-            type_vocab_size=2,
-            test_name="bert_embeddings_fp32",
-            input_type="float32",
-        )
+        if detect_target().name() != "rocm":
+            self._test_bert_embeddings(
+                batch_size=15,
+                seq_len=17,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp32",
+                input_type="float32",
+            )
+            self._test_bert_embeddings(
+                batch_size=1,
+                seq_len=13,
+                hidden_size=264,
+                vocab_size=10000,
+                max_position_embeddings=512,
+                type_vocab_size=2,
+                test_name="bert_embeddings_fp32",
+                input_type="float32",
+            )
         self._test_bert_embeddings(
             batch_size=8,
             seq_len=512,

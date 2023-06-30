@@ -91,55 +91,8 @@ class ROCM(Target):
         ck_paths = [
             os.path.join(self._template_path),
             os.path.join(self._template_path, "include/"),
-            os.path.join(self._template_path, "include/ck/"),
-            os.path.join(self._template_path, "include/ck/problem_transform/"),
-            os.path.join(self._template_path, "include/ck/tensor/"),
-            os.path.join(self._template_path, "include/ck/tensor_description/"),
-            os.path.join(self._template_path, "include/ck/tensor_operation/"),
-            os.path.join(self._template_path, "include/ck/tensor_operation/gpu/block/"),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/device/"
-            ),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/device/impl/"
-            ),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/element/"
-            ),
-            os.path.join(self._template_path, "include/ck/tensor_operation/gpu/grid/"),
-            os.path.join(
-                self._template_path, "include/ck/tensor_operation/gpu/thread/"
-            ),
-            os.path.join(self._template_path, "include/ck/tensor_operation/gpu/warp/"),
-            os.path.join(self._template_path, "include/ck/utility/"),
-            os.path.join(self._template_path, "include/ck/host_utility"),
             os.path.join(self._template_path, "external/include/half/"),
-            os.path.join(self._template_path, "library/include/ck/library/host/"),
-            os.path.join(
-                self._template_path, "library/include/ck/library/host_tensor/"
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/obselete_driver_offline/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/reference_tensor_operation/cpu/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/reference_tensor_operation/gpu/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/tensor_operation_instance/",
-            ),
-            os.path.join(
-                self._template_path,
-                "library/include/ck/library/tensor_operation_instance/gpu/" + "reduce/",
-            ),
-            os.path.join(self._template_path, "library/include/ck/library/tensor_op/"),
-            os.path.join(self._template_path, "library/include/ck/library/utility/"),
+            os.path.join(self._template_path, "library/include/"),
             os.path.join(self._template_path, "profiler/include/"),
         ]
         return ck_paths
@@ -175,14 +128,15 @@ class ROCM(Target):
         ]
         if self._arch in {"GFX908", "gfx908"}:
             options.append("-DCK_AMD_GPU_GFX908")
-            options.append("--amdgpu-target=gfx908")
+            options.append("--offload-arch=gfx908")
         elif self._arch in {"GFX90a", "gfx90a"}:
             options.append("-DCK_AMD_GPU_GFX90A")
-            options.append("--amdgpu-target=gfx90a")
+            options.append("--offload-arch=gfx90a")
         else:
             raise RuntimeError("Unsupported GPU Arch")
         for path in ck_paths:
             options.append("-I" + path)
+        options.append("-I" + os.path.join(self.static_files_path, "include"))
         rocrand_path = os.path.join(self._pkg_path(), "rocrand/lib/")
         options.append("-L" + rocrand_path)
         options.append("-lrocrand")

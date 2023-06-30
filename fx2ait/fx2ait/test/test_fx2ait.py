@@ -18,6 +18,7 @@ import tempfile
 import unittest
 
 import torch
+
 from fx2ait.acc_tracer import acc_tracer
 from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter

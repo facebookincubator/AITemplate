@@ -709,7 +709,6 @@ clean:
 \trm -f {{targets}}
 """
         )
-
         # normalize the profiler dir: add / at the end
         profiler_dir = os.path.join(profiler_dir, "")
 

@@ -15,6 +15,7 @@
 import torch
 
 from aitemplate.compiler import compile_model
+from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
@@ -22,6 +23,9 @@ from ..modeling.unet_2d_condition import (
     UNet2DConditionModel as ait_UNet2DConditionModel,
 )
 from .util import mark_output
+
+
+USE_CUDA = detect_target().name() == "cuda"
 
 
 def map_unet_params(pt_mod, dim):
@@ -72,6 +76,9 @@ def compile_unet(
     # set AIT parameters
     pt_mod = pt_mod.eval()
     params_ait = map_unet_params(pt_mod, dim)
+    # batch_size = IntVar(values=[1, 8], name="batch_size")
+    height = IntVar(values=[32, 64], name="height") if USE_CUDA else height
+    width = IntVar(values=[32, 64], name="width") if USE_CUDA else width
 
     latent_model_input_ait = Tensor(
         [batch_size, height, width, 4], name="input0", is_input=True
