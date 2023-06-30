@@ -54,10 +54,10 @@ struct AddSwish
     };
     template <>
     __host__ __device__ constexpr void
-    operator()<half_t>(half_t& y, const half_t& x0, const half_t& x1) const
+    operator()<ck::half_t>(ck::half_t& y, const ck::half_t& x0, const ck::half_t& x1) const
     {
-        const half_t a = x0 + x1;
-        y              = a / (type_convert<half_t>(1.0) + type_convert<half_t>(exp(ck::type_convert<float>(-a))));
+        const ck::half_t a = x0 + x1;
+        y                  = a / (ck::type_convert<ck::half_t>(1.0) + ck::type_convert<ck::half_t>(exp(ck::type_convert<float>(-a))));
     };
 };
 } // namespace

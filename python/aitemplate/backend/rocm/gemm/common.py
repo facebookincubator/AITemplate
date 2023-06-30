@@ -94,11 +94,12 @@ EXTRA_HEADER_TEMPLATE = jinja2.Template(
 #include "ck/tensor_operation/gpu/device/impl/device_batched_contraction_multiple_d_xdl_cshuffle.hpp"
 {% elif "bias" in gemm_flag or has_d0 %}
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_multiple_d_xdl_cshuffle.hpp"
-{% elif gemm_flag in ["permute", "bias_permute"] %}
+    {% if gemm_flag == "bias_permute" %}
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_bias_e_permute_xdl.hpp"
-#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
-{% elif gemm_flag in ["bias_permute_m2n3", "bias_permute_m3n2"]  %}
+#include "ck/tensor_operation/gpu/device/impl/gemm_specialization.hpp"
+    {% elif gemm_flag in ["bias_permute_m2n3", "bias_permute_m3n2"]  %}
 #include "ck/tensor_operation/gpu/device/impl/device_batched_contraction_multiple_d_xdl_cshuffle.hpp"
+    {% endif %}
 {% endif %}
 """
 )
