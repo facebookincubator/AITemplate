@@ -375,7 +375,6 @@ class MultiScaleAttention(Module):
         ## TODO: add pool mode support for {"max", "avg"}
 
         elif pool_mode == "conv":
-
             self.pool_q = (
                 Conv3d(
                     head_dim,
