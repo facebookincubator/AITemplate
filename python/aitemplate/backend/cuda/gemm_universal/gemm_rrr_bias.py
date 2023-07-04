@@ -15,7 +15,7 @@
 """
 GEMM Specialization for
 C = GeMM(A, B) + bias
-where A[RowMajor][M, K], B[ColMajor][N, K], bias[RowMajor][N]
+where A[RowMajor][M, K], B[ColMajor][K, N], bias[RowMajor][N]
 """
 import jinja2
 
