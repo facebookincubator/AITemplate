@@ -35,9 +35,11 @@ from aitemplate.compiler.ops.tensor.permute021 import permute021
 from aitemplate.compiler.ops.tensor.permute0213 import permute0213
 from aitemplate.compiler.ops.tensor.permute102 import permute102
 from aitemplate.compiler.ops.tensor.permute210 import permute210
+from aitemplate.compiler.ops.tensor.relational import eq, ge, gt, le, lt, ne
 from aitemplate.compiler.ops.tensor.size import size
 from aitemplate.compiler.ops.tensor.slice_reshape_scatter import slice_reshape_scatter
 from aitemplate.compiler.ops.tensor.slice_scatter import slice_scatter
 from aitemplate.compiler.ops.tensor.split import split
 from aitemplate.compiler.ops.tensor.topk import topk
 from aitemplate.compiler.ops.tensor.transpose import transpose
+from aitemplate.compiler.ops.tensor.where import where

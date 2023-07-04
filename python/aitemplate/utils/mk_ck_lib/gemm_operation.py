@@ -51,6 +51,7 @@ class XdlOpType(enum.Enum):
     DeviceBatchedContractionMultipleD_Xdl_CShuffle = auto()
     DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle = auto()
     DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle = auto()
+    DeviceBatchedGemmMultiD_Xdl = auto()
 
 
 XdlOpTag = {
@@ -62,6 +63,7 @@ XdlOpTag = {
     XdlOpType.DeviceBatchedContractionMultipleD_Xdl_CShuffle: "ck::tensor_operation::device::DeviceBatchedContractionMultipleD_Xdl_CShuffle",
     XdlOpType.DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle: "ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemm_Xdl_CShuffle",
     XdlOpType.DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle: "ck::tensor_operation::device::DeviceBatchedGemmSoftmaxGemmPermute_Xdl_CShuffle",
+    XdlOpType.DeviceBatchedGemmMultiD_Xdl: "ck::tensor_operation::device::DeviceBatchedGemmMultiD_Xdl",
 }
 
 
@@ -247,7 +249,11 @@ class MaskedCBlockTransferDesc:
         _{{n_xdl_per_wave}}
         {{m_n_block_wave_per_xdl|join('_')}}S
         {{scalar_per_vector}}
-        {{causal_mask}}
+        {% if causal_mask == 1 %}
+        ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle // causal_mask
+        {% else %}
+        ck::tensor_operation::device::MaskingSpecialization::MaskDisabled // causal_mask
+        {% endif %}
         """,
             trim_blocks=True,
             lstrip_blocks=True,
@@ -264,7 +270,11 @@ class MaskedCBlockTransferDesc:
     {{n_xdl_per_wave}}, // n_xdl_per_wave
     ck::Sequence<{{m_n_block_wave_per_xdl|join(',')}}>, // m_n_block_wave_per_xdl
     {{scalar_per_vector}}, // scalar_per_vector
-    {{causal_mask}} // causal_mask
+    {% if causal_mask == 1 %}
+    ck::tensor_operation::device::MaskingSpecialization::MaskOutUpperTriangle // causal_mask
+    {% else %}
+    ck::tensor_operation::device::MaskingSpecialization::MaskDisabled // causal_mask
+    {% endif %}
     """,
             trim_blocks=True,
             lstrip_blocks=True,
@@ -392,21 +402,38 @@ using {{name}} = {{xdl_op_type}}<
     ck::Tuple<ck::half_t>,
     {% endif %}
     ck::half_t,
-{% elif xdl_op_type_value in [7, 8] %}
+{% elif xdl_op_type_value == 7 %}
     {{ALayout}},
     {{BLayout}},
     {{CLayout}},
-    {% if xdl_op_type_value == 8 %}
-    ck::Sequence<2,1,1>,
-    {% else %}
     {{CLayout}},
-    {% endif %}
     {{ADType}},
     {{BDType}},
     {{BDType}},
     {{CDType}},
     {{AccDType}},
     float, // CShuffleDType,
+{% elif xdl_op_type_value == 8 %}
+    2, 1, 1, 1, 1,
+    {{ADType}},
+    {{BDType}},
+    {{BDType}},
+    {{CDType}},
+    ck::Tuple<>,
+    ck::Tuple<>,
+    {{AccDType}},
+    float, // CShuffleDType,
+{% elif xdl_op_type_value == 9 %}
+    {{ALayout}},
+    {{BLayout}},
+    ck::Tuple<{{DsLayout}}>, // DsLayout
+    {{CLayout}},
+    {{ADType}},
+    {{BDType}},
+    {{AccDType}},
+    {{CShuffleDType}},
+    ck::Tuple<{{DsDType}}>, // DsType
+    {{EDType}},
 {% endif %}
 {% if xdl_op_type_value in [7, 8] %}
     {{A_elem_op}},
@@ -422,6 +449,11 @@ using {{name}} = {{xdl_op_type}}<
     {% if xdl_op_type_value==6 %}
     ck::tensor_operation::device::TensorSpecialization::Packed,
     ck::tensor_operation::device::TensorSpecialization::Packed,
+    ck::tensor_operation::device::TensorSpecialization::Default,
+    {% elif xdl_op_type_value==8 %}
+    ck::tensor_operation::device::TensorSpecialization::Default,
+    ck::tensor_operation::device::TensorSpecialization::Default,
+    ck::tensor_operation::device::TensorSpecialization::Default,
     ck::tensor_operation::device::TensorSpecialization::Default,
     {% endif %}
     1,

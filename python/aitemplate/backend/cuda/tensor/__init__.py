@@ -34,10 +34,12 @@ from aitemplate.backend.cuda.tensor import (
     permute0213,
     permute102,
     permute210,
+    relational,
     slice_reshape_scatter,
     slice_scatter,
     split,
     topk,
+    where,
 )
 
 __all__ = [
@@ -50,6 +52,7 @@ __all__ = [
     "expand",
     "full",
     "gather",
+    "relational",
     "identity",
     "jagged_to_padded_dense",
     "masked_select",
@@ -63,4 +66,5 @@ __all__ = [
     "slice_scatter",
     "split",
     "topk",
+    "where",
 ]

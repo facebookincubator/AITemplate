@@ -63,8 +63,7 @@ def split_large_slice_scatter_ops(sorted_graph: List[Tensor], _: str) -> List[Te
     """
     sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
     for op in sorted_ops:
-        # TODO: enable slice_scatter later
-        if not op._attrs["op"].startswith("slice_reshape_scatter"):
+        if op._attrs["op"] not in ["slice_reshape_scatter", "slice_scatter"]:
             continue
         slice_scatter_op = op
         # We create InputMeta for inputs that need to copy data.
@@ -96,10 +95,14 @@ def split_large_slice_scatter_ops(sorted_graph: List[Tensor], _: str) -> List[Te
         has_profiler = slice_scatter_op._attrs["has_profiler"]
         local_output_offset = 0
         orig_name = slice_scatter_op._attrs["name"]
-        element_func = slice_scatter_op._attrs["element_func"]
         slice_ops = slice_scatter_op._attrs["slice_ops"]
         for split_idx, new_inputs_size in enumerate(split_sizes):
-            new_slice_scatter_op = ops.slice_reshape_scatter(scatter_dim, element_func)
+            if op._attrs["op"] == "slice_scatter":
+                new_slice_scatter_op = ops.slice_scatter(scatter_dim)
+            elif op._attrs["op"] == "slice_reshape_scatter":
+                new_slice_scatter_op = ops.slice_reshape_scatter(
+                    scatter_dim, slice_scatter_op._attrs["element_func"]
+                )
             new_name = f"{orig_name}_split_{split_idx}"
             new_slice_scatter_op._attrs["name"] = new_name
             new_slice_scatter_op._attrs["original_name"] = new_name
