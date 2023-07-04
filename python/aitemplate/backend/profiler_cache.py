@@ -469,7 +469,7 @@ SELECT name FROM sqlite_master WHERE type='table';
 )
 
 
-__AIT_CACHE_VERSION__ = 3
+__AIT_CACHE_VERSION__ = 4
 
 
 def ait_cache_version() -> int:
