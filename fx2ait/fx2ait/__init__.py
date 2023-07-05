@@ -14,7 +14,7 @@
 #
 import sys
 
-from . import acc_tracer, converters  # noqa
+from . import acc_tracer, converters, extension  # noqa
 
 if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
     PY3STATEMENT = "The minimal Python requirement is Python 3.7"
@@ -24,6 +24,7 @@ __all__ = [
     "acc_tracer",
     "converters",
     "core",
+    "extension",
     "lower",
     "test",
 ]
