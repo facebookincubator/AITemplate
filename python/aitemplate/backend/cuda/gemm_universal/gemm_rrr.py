@@ -106,6 +106,7 @@ def gemm_rrr_config(func_attrs, dtype="float16"):
             # disable residual to leave more SMEM for the mainloop
             op.C.element = cutlass_lib.library.DataType.void
 
+
 def common_gen_profiler(
     func_attrs,
     workdir,
@@ -134,8 +135,6 @@ def common_gen_profiler(
         bias_ptr_arg=bias_ptr_arg,
         extra_code=extra_code,
     )
-
-
 
 
 @registry.reg("cuda.gemm_rrr.gen_profiler")
