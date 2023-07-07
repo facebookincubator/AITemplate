@@ -58,7 +58,7 @@ setup_fx2ait_env: &setup_fx2ait_env
           sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
           python3.8 -m pip install --ignore-installed --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu118
           pushd fx2ait
-          python3.8 setup.py develop
+          python3.8 setup.py develop --user
           popd
           break || sleep 5;
         done
@@ -79,10 +79,8 @@ fx2ait_tests: &fx2ait_tests
       command: |
         source $BASH_ENV
         mkdir -p ~/test-fx2ait-results
-        pushd fx2ait/fx2ait/test
-        TEST_FILES=$(circleci tests glob "test_*.py" "converters/**/test_*.py")
+        TEST_FILES=$(circleci tests glob "fx2ait/fx2ait/test/test_*.py" "fx2ait/fx2ait/test/converters/**/test_*.py")
         python3.8 -m pytest $TEST_FILES -o junit_family=xunit1 --junitxml=~/test-fx2ait-results/junit.xml --verbose --continue-on-collection-errors -rA
-        popd
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
