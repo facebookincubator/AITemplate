@@ -1550,6 +1550,7 @@ def acc_ops_contiguous(
 
 
 @ait_converter(acc_ops.to_dtype)
+@ait_converter(acc_ops.dtype)
 def acc_ops_to_dtype(
     target: Target,
     args: Tuple[Argument, ...],
