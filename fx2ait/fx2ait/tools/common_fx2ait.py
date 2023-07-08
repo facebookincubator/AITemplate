@@ -114,7 +114,10 @@ class AITTestCase(TestCase):
 
         leaf_module_list = []
         if leaf_module:
-            leaf_module_list.append(leaf_module)
+            if isinstance(leaf_module, list):
+                leaf_module_list.extend(leaf_module)
+            else:
+                leaf_module_list.append(leaf_module)
 
         orig_mod = copy.deepcopy(mod)
         orig_mod.eval()
