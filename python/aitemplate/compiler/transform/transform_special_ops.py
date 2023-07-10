@@ -197,12 +197,11 @@ def _transform_1x1_conv_gemm_rcr(sorted_graph: List[Tensor]) -> List[Tensor]:
         if src_op._attrs["op"] not in conv_to_gemm:
             return False
 
-        if (
-            src_op._attrs["pad"] != 0
-            or src_op._attrs["dilate"] != 1
-            or src_op._attrs["group"] != 1
-            or src_op._attrs["stride"] != 1
-        ):
+        valid_pad = src_op._attrs["pad"] == 0 or src_op._attrs["pad"] == (0, 0)
+        valid_dilate = src_op._attrs["dilate"] == 1 or src_op._attrs["dilate"] == (1, 1)
+        valid_stride = src_op._attrs["stride"] == 1 or src_op._attrs["stride"] == (1, 1)
+        valid_group = src_op._attrs["group"] == 1
+        if not valid_pad or not valid_dilate or not valid_stride or not valid_group:
             return False
 
         # Check that the filter is 1x1
@@ -294,8 +293,8 @@ def transform_special_ops(
 
     from aitemplate.backend.target import Target
 
-    if "transform_conv_to_gemm" in Target.current()._kwargs:
-        if Target.current()._kwargs["transform_conv_to_gemm"]:
+    if "convert_conv_to_gemm" in Target.current()._kwargs:
+        if Target.current()._kwargs["convert_conv_to_gemm"]:
             for func in funcs:
                 sorted_graph = func(sorted_graph)
     return sorted_graph

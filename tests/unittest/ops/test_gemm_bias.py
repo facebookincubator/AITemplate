@@ -149,6 +149,73 @@ class GEMMBiasTestCase(unittest.TestCase):
                 dtype="bfloat16",
             )
 
+    def _test_rrr(self, Ms, N, K, test_name, dtype="float16"):
+        target = detect_target()
+        tolerance_limits = _TOLERANCE_LIMITS[dtype]
+        MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
+        X = Tensor(shape=[MDim, IntImm(K)], dtype=dtype, name="input_0", is_input=True)
+        W = Tensor(
+            shape=[IntImm(K), IntImm(N)], dtype=dtype, name="input_1", is_input=True
+        )
+        B = Tensor(shape=[IntImm(N)], dtype=dtype, name="input_2", is_input=True)
+        OP = ops.gemm_rrr_bias()
+        Y = OP(X, W, B)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+        module = compile_model(
+            Y, target, "./tmp", f"gemm_rrr_bias_{test_name}_{self._test_id}"
+        )
+        self._test_id += 1
+
+        for M in Ms:
+            X_pt = get_random_torch_tensor([M, K], dtype)
+            W_pt = get_random_torch_tensor([N, K], dtype)
+            B_pt = get_random_torch_tensor([N], dtype)
+            Y_pt = torch.nn.functional.linear(X_pt, W_pt, bias=B_pt)
+
+            W_transpose_pt = torch.transpose(W_pt, 0, 1).contiguous()
+            y = get_torch_empty_tensor([M, N], dtype)
+            module.run_with_tensors(
+                {"input_0": X_pt, "input_1": W_transpose_pt, "input_2": B_pt},
+                [y],
+            )
+            if X_pt.nelement() == 0 or W_pt.nelement() == 0:
+                pass
+            else:
+                torch.testing.assert_close(Y_pt, y, **tolerance_limits)
+
+    def test_rrr_zero_size(self):
+        target = detect_target()
+        # This test triggered a c10 assertion failure internally
+        # caffe2/c10/util/SmallVector.h:338:
+        # Assertion `idx < size()' failed
+        if type(target).__name__ != "FBCUDA":
+            self._test_rrr([2], N=64, K=0, test_name="zero_k")
+        self._test_rrr([2], N=0, K=4, test_name="zero_n")
+        self._test_rrr([0], N=4, K=4, test_name="zero_m")
+
+    def test_rrr_static(self):
+        self._test_rrr([4096], N=4, K=4, test_name="static")
+        self._test_rrr([1000], N=81, K=1024, test_name="static")
+        self._test_rrr([67200], N=3, K=256, test_name="static")
+
+    def test_rrr_static_rocm(self):
+        self._test_rrr([4096], N=4, K=4, test_name="static")
+        self._test_rrr([1000], N=81, K=1024, test_name="static")
+        self._test_rrr([67200], N=3, K=256, test_name="static")
+
+    def test_rrr_bfloat16_bf16(self):
+        dtype = "bfloat16"
+        self._test_rrr([4], N=2, K=11, test_name=f"static_{dtype}", dtype=dtype)
+        self._test_rrr([128], N=64, K=1024, test_name=f"static_{dtype}", dtype=dtype)
+        self._test_rrr(
+            [1, 7, 64, 127],
+            N=64,
+            K=1024,
+            test_name=f"dynamic_m_{dtype}",
+            dtype=dtype,
+        )
+
 
 filter_test_cases_by_test_env(GEMMBiasTestCase)
 
