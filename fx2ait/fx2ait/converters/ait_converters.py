@@ -67,6 +67,8 @@ from aitemplate.compiler.public import (
     vector_norm,
 )
 
+from aitemplate.frontend.nn import Upsampling2d
+
 from fx2ait.acc_tracer import acc_ops, ait_acc_ops
 from torch.fx.node import Argument, Target
 
@@ -1122,6 +1124,32 @@ def ait_acc_ops_expand(
         )
 
     return expand()(input_val, shape)
+
+
+@ait_converter(acc_ops.interpolate)
+def ait_acc_ops_interpolate(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+
+    if not isinstance(input_val, AITTensor):
+        raise ValueError(f"Non-tensor inputs for {name}: {input_val}")
+
+    scale_factor = kwargs["scale_factor"]
+    if not scale_factor:
+        raise ValueError("scale_factor cannot be empty")
+
+    mode = kwargs["mode"]
+    if not mode:
+        raise ValueError("mode cannot be empty")
+
+    op = Upsampling2d(scale_factor=scale_factor, mode=mode)
+
+    res = op(ait_nchw2nhwc(input_val))
+    return ait_nhwc2nchw(res)
 
 
 @ait_converter(acc_ops.batch_norm)
