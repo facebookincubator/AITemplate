@@ -32,6 +32,7 @@ from aitemplate.backend.cuda.gemm_universal import (
     gemm_rcr_permute,
     gemm_rcr_permute_elup1,
     gemm_rrr,
+    gemm_rrr_bias,
     gemm_rrr_permute,
     group_gemm_rcr,
     group_gemm_rcr_bias,

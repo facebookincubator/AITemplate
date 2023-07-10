@@ -40,6 +40,61 @@ from aitemplate.utils import graph_utils
 from aitemplate.utils.shape_utils import is_singleton_dimension
 
 
+def _remove_no_op_splits(sorted_graph: List[Tensor]) -> List[Tensor]:
+    """
+    Remove any no-op split from the graph where the input tensor is non-jagged.
+    A no-op split is where the input tensor isn't divided into multiple parts.
+    This happens when the split_size_or_sections argument is:
+    1. an integer representing the length of the dimension indicated by dim
+    2. a singleton list containing the length of the dimension indicated by dim.
+
+    x = Tensor([1, 2, 3])
+    y1 = split(x, split_size_or_sections=3, dim=0)  # Case 1
+    y2 = split(x, split_size_or_sections=[3], dim=0)   # Case 2
+
+    xx = Tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
+    yy1 = split(xx, split_size_or_sections=2, dim=0)  # Case 1
+    yy2 = split(xx, split_size_or_sections=4, dim=1)  # Case 1
+    yy3 = split(xx, split_size_or_sections=[2], dim=0)  # Case 2
+    yy4 = split(xx, split_size_or_sections=[4], dim=1)  # Case 2
+    """
+
+    ops = graph_utils.get_sorted_ops(sorted_graph)
+    for op in ops:
+        if op._attrs["op"] != "split":
+            continue
+
+        inputs = op._attrs["inputs"]
+        assert len(inputs) == 1, "split must only have 1 input"
+
+        outputs = op._attrs["outputs"]
+        assert len(inputs) >= 1, "split must have at least 1 output"
+
+        split_dim = op._attrs["split_dim"]
+        split_input, split_output = inputs[0], outputs[0]
+        input_split_dim_len, output_split_dim_len = (
+            split_input._attrs["shape"][split_dim],
+            split_output._attrs["shape"][split_dim],
+        )
+
+        # No-op splits must have one output, and the input and output shapes
+        # must match along split_dim. We ignore no-op splits that are outputs.
+        if (
+            len(outputs) > 1
+            or input_split_dim_len != output_split_dim_len
+            or outputs[0]._attrs["is_output"]
+        ):
+            continue
+
+        # Delete the split output in the graph.
+        for dst_op in list(split_output.dst_ops()):
+            transform_utils.replace_tensor_for_op(dst_op, split_output, split_input)
+
+        transform_utils.remove_tensor_from_sorted_graph(split_output)
+
+    return transform_utils.sanitize_sorted_graph(sorted_graph)
+
+
 def _remove_no_op_expands(sorted_graph: List[Tensor]) -> List[Tensor]:
     """
     Remove no-op expands from the graph. A no-op expand is one
@@ -181,6 +236,7 @@ def remove_no_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
         Graph after remove no-ops
     """
     passes = [
+        _remove_no_op_splits,
         _remove_no_op_expands,
         _fuse_expand_elementwise,
     ]
