@@ -20,17 +20,11 @@ import unittest
 import torch
 from fx2ait.acc_tracer import acc_tracer
 from fx2ait.ait_module import AITModule
+from fx2ait.extension import is_oss_ait_model
 from fx2ait.fx2ait import AITInterpreter
 
-OSS_AIT_MODEL = False
-try:
-    torch.ops.load_library("//deeplearning/ait:AITModel")
-except Exception:
-    torch.ops.load_library("build/libait_model.so")
-    OSS_AIT_MODEL = True
-
 AIT_MODEL_CLASS = (
-    torch.classes.ait.AITModel if OSS_AIT_MODEL else torch.classes.fb.AITModel
+    torch.classes.ait.AITModel if is_oss_ait_model() else torch.classes.fb.AITModel
 )
 
 
@@ -95,7 +89,7 @@ class TestAITModule(unittest.TestCase):
             ait_mod = torch.jit.load(buf)
         ait_output = ait_mod(*inputs)
         torch.testing.assert_close(ait_output, ref_output, atol=0.1, rtol=0.1)
-        if not OSS_AIT_MODEL:
+        if not is_oss_ait_model():
             weights = {
                 "_0_weight": torch.ones(3, 4).cuda().half(),
                 "_0_bias": torch.randn(4).cuda().half(),

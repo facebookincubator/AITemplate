@@ -26,20 +26,12 @@ from aitemplate.testing import detect_target
 from fx2ait.acc_tracer import acc_tracer
 from fx2ait.acc_tracer.ait_acc_normalizer import update_acc_op_mappers_for_ait
 from fx2ait.ait_module import AITModule
+from fx2ait.extension import is_oss_ait_model
 from fx2ait.fx2ait import AITInterpreter
 from fx2ait.tensor_spec import TensorSpec
 from torch.fx.node import map_aggregate
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-OSS_AITModel = False
-try:
-    torch.ops.load_library("//deeplearning/ait:AITModel")
-    logger.info("===Load non-OSS AITModel===")
-except Exception:
-    torch.ops.load_library("build/libait_model.so")
-    logger.info("===Load OSS AITModel===")
-    OSS_AITModel = True
 
 
 class LowerPrecision(Enum):
@@ -168,7 +160,7 @@ class AITTestCase(TestCase):
             interp_result = interp.run()
             sec = time.perf_counter() - start
             logger.info(f"Interpreter run time(s):{sec}")
-            if OSS_AITModel:
+            if is_oss_ait_model():
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
                         interp_result.engine.lib_path,
@@ -294,7 +286,7 @@ class AITTestCase(TestCase):
             interp_result = interp.run()
             sec = time.perf_counter() - start
             logger.info(f"Interpreter run time(s):{sec}")
-            if OSS_AITModel:
+            if is_oss_ait_model():
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
                         interp_result.engine.lib_path,

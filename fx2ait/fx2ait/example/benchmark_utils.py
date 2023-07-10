@@ -24,8 +24,6 @@ from fx2ait.ait_module import AITModule
 
 from fx2ait.fx2ait import AITInterpreter
 
-torch.ops.load_library("build/libait_model.so")
-
 
 def verify_accuracy(
     mod: torch.nn.Module,
