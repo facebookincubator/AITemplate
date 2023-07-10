@@ -37,6 +37,7 @@ unary_ops = [
     (torch.sqrt, acc_ops.sqrt),
     (torch.clone, acc_ops.clone),
     (torch.neg, acc_ops.neg),
+    (torch.exp, acc_ops.exp),
 ]
 
 TestEnvToPrecision: Dict[TestEnv, Set[LowerPrecision]] = {
