@@ -211,8 +211,12 @@ class AITTestCase(TestCase):
                     out = map_aggregate(
                         out, lambda output: output.permute(*permute_outputs)
                     )
+                out = out.cpu()
+                if out.numel() != 0:
+                    max_diff = torch.max(torch.abs(out - ref)).item()
+                    logger.info(f"Max diff = {max_diff}")
                 torch.testing.assert_close(
-                    out.cpu(),
+                    out,
                     ref,
                     rtol=rtol,
                     atol=atol,
