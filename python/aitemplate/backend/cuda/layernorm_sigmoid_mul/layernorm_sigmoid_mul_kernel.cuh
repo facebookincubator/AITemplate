@@ -2142,10 +2142,19 @@ cudaError_t invokeGroupLayernormSigmoidMul(
     return cudaSuccess;
   }
 
+  bool accessors_aligned_to_4 = true;
+  for (size_t i = 0; i < b; ++i) {
+    if (!input_accessors[i].is_valid_alignment(4) ||
+        !output_accessors[i].is_valid_alignment(4)) {
+      accessors_aligned_to_4 = false;
+      break;
+    }
+  }
+
   dim3 grid(m, b);
   // TODO: implement float4 group kernel
   if (std::is_same<T, half>::value && n_is_multiple_of_4 && (min_n >= 128) &&
-      (max_n <= 4096)) {
+      (max_n <= 4096) && accessors_aligned_to_4) {
     dim3 block(min_n);
     // round up to multiples of 32 to make warp shuffles safe
     block.x = (block.x / 4 + 31) / 32 * 32;
