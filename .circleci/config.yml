@@ -57,8 +57,9 @@ setup_fx2ait_env: &setup_fx2ait_env
           sudo cp -P cudnn-*-archive/lib/libcudnn* /usr/local/cuda/lib64
           sudo chmod a+r /usr/local/cuda/include/cudnn*.h /usr/local/cuda/lib64/libcudnn*
           python3.8 -m pip install --ignore-installed --pre torch torchvision torchaudio --index-url https://download.pytorch.org/whl/nightly/cu118
-          python3.8 fx2ait/setup.py install --prefix=/home/circleci/
-          echo 'export PYTHONPATH=$PWD/fx2ait:$PYTHONPATH' >> $BASH_ENV
+          pushd fx2ait
+          python3.8 setup.py develop --user
+          popd
           break || sleep 5;
         done
 
