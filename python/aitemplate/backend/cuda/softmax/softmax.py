@@ -182,10 +182,6 @@ def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
     shapes = func_attrs["inputs"][0]._attrs["shape"]
     rank = len(shapes)
 
-    assert (
-        dim == rank - 1
-    ), f"softmax only supports dim == rank - 1, dim={dim}, rank={rank}"
-
     assert isinstance(
         shapes[dim], IntImm
     ), "softmax requires reduction dim to be static"
