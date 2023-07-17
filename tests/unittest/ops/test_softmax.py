@@ -69,6 +69,7 @@ class SoftmaxTestCase(unittest.TestCase):
                 TestEnv.CUDA_LESS_THAN_SM80: [
                     ("dim_1_fp16", "float16", (1, 1024), (6,), 1),
                     ("tail_shapes_all_1_fp16", "float16", (1, 2), (6, 1, 1), 1),
+                    ("tail_shapes_not_all_1_fp16", "float16", (1, 2), (6, 1, 2), 1),
                     ("odd_small_fp16", "float16", (1, 13), (11,)),
                     ("odd_mid_fp16", "float16", (1, 4096), (33,)),
                     ("odd_large_fp16", "float16", (2, 31), (1409,)),
@@ -102,6 +103,7 @@ class SoftmaxTestCase(unittest.TestCase):
                 TestEnv.CUDA_SM80: [
                     ("dim_1_bf16", "bfloat16", (1, 2), (6,), 1),
                     ("tail_shapes_all_1_bf16", "bfloat16", (1, 2), (6, 1, 1), 1),
+                    ("tail_shapes_not_all_1_bf16", "bfloat16", (1, 2), (6, 1, 2), 1),
                     ("odd_small_bf16", "bfloat16", (1, 2), (11,)),
                     ("odd_mid_bf16", "bfloat16", (1, 2), (33,)),
                     ("odd_large_bf16", "bfloat16", (1, 2), (1409,)),

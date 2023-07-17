@@ -37,6 +37,7 @@ from aitemplate.compiler.base import (
     Tensor,
 )
 from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
+from aitemplate.compiler.ops.tensor.permute import permute
 
 from aitemplate.testing import detect_target
 
@@ -205,10 +206,15 @@ class softmax(Operator):
             )
         dim = wrap_dim(dim, x._rank())
         tail_shapes = x.shape()[dim + 1 :]
+        # The backend only supports reduction over the last non-1 dimension, so if we want
+        # to reduce over other dimensions we have to permute the tensor first.
         if not all(isinstance(s, IntImm) and s.value() == 1 for s in tail_shapes):
-            raise NotImplementedError(
-                f"softmax only supports tensors where all shapes after dim are 1, {dim=}, {x.shape()=}"
-            )
+            perm_shape = list(range(x._rank()))
+            perm_shape[dim] = x._rank() - 1
+            perm_shape[-1] = dim
+            x_perm = permute()(x, perm_shape)
+            x_perm_softmax = softmax()(x_perm, dim=-1)
+            return permute()(x_perm_softmax, perm_shape)
 
         self._attrs["inputs"] = [x]
         self._attrs["dim"] = dim
