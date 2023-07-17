@@ -48,6 +48,7 @@ from aitemplate.compiler.transform.split_large_slice_scatter_ops import (
 )
 from aitemplate.compiler.transform.split_large_split_ops import split_large_split_ops
 from aitemplate.compiler.transform.transform_memory_ops import transform_memory_ops
+from aitemplate.compiler.transform.transform_merge_view_ops import merge_view_ops
 from aitemplate.compiler.transform.transform_odd_alignment import (
     transform_odd_alignment,
 )
@@ -105,6 +106,7 @@ def optimize_graph(
         fuse_mm_reshape_permute,
         # make sure we run move_view_op_before_concat before transform_memory_ops
         move_view_op_before_concat,
+        merge_view_ops,
         transform_memory_ops,
         fuse_ops,
         fuse_elementwise,
