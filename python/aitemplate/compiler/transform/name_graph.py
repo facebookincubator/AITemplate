@@ -98,7 +98,7 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
         else:
             for func in funcs:
                 if func._attrs["name"] is None:
-                    func_name = "{op_kind}_{idx}".format(
+                    func_name = "ait_{op_kind}_{idx}".format(
                         op_kind=func._attrs["op"], idx=func_cnt
                     )
                     func_name = unique_name(func_name)
