@@ -66,7 +66,6 @@ def force_profiler_cache() -> bool:
         assert (
             os.environ.get("FORCE_PROFILE", None) != "1"
         ), "cannot specify both AIT_FORCE_PROFILER_CACHE and FORCE_PROFILE"
-    _LOGGER.info(f"{force_cache=}")
     return force_cache
 
 
