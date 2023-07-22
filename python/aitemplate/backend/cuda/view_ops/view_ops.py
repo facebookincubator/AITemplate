@@ -57,7 +57,7 @@ OUTPUT_ARGS_TEMPLATE = jinja2.Template(
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
-void {{func_name}}(
+void ait_{{func_name}}(
 {% for idx in range(input_ndim + output_ndim - 1) %}
   int64_t*,
 {% endfor %}
@@ -70,7 +70,7 @@ void {{func_name}}(
 
 FUNC_CALL_TEMPLATE = jinja2.Template(
     """
-{{indent}}{{func_name}}(
+{{indent}}ait_{{func_name}}(
 {% for name in input_names %}
 {{indent}}    &{{name}},
 {% endfor %}
