@@ -228,7 +228,10 @@ class BuilderCMake:
 
         device_compiler_options = Target.current().get_device_compiler_options()
         if is_windows():
-            host_compiler_options = ["-Xcompiler=/Zc:__cplusplus", "-D_DISABLE_EXTENDED_ALIGNED_STORAGE"]
+            host_compiler_options = [
+                "-Xcompiler=/Zc:__cplusplus",
+                "-D_DISABLE_EXTENDED_ALIGNED_STORAGE",
+            ]
         else:
             host_compiler_options = [
                 f"-Xcompiler {opt}" if "=" in opt else f"-Xcompiler={opt}"

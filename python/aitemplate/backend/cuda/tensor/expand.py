@@ -28,6 +28,7 @@ from aitemplate.backend.cuda.tensor import expand_static_shape  # noqa: F401
 
 from aitemplate.utils.misc import is_windows
 
+
 @registry.reg("cuda.expand.func_decl")
 def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
     if func_attrs["optimize_fixed_dims"] and func_attrs["non_head_dims_are_fixed"]:
