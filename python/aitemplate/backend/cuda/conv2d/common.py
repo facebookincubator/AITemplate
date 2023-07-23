@@ -28,6 +28,7 @@ from aitemplate.backend.cuda.gemm_universal.common import add_profiler, build_pr
 from aitemplate.backend.target import Target
 
 from aitemplate.utils import alignment
+from aitemplate.utils.misc import is_windows
 
 
 KERNEL_KEY_TEMPLATE = jinja2.Template(
@@ -67,7 +68,11 @@ EXEC_TEMPLATE = jinja2.Template(
 {{indent}}    static_cast<{{dtype}}*>(bias_ptr),                                            // void * ptr_Vector
 {{indent}}    nullptr,                                                                      // void * ptr_Tensor
 {{indent}}    0,                                                                            // typename LayoutC::Stride::Index ldr
+{% if is_windows %}
+{{indent}}    static_cast<int>(*out_ch),                                                    // typename LayoutC::Stride::Index ldt
+{% else %}
 {{indent}}    *out_ch,                                                                      // typename LayoutC::Stride::Index ldt
+{% endif %}
 {% else %}
 {{indent}}    {ElementComputeEpilogue(1), ElementComputeEpilogue(0)},                       // typename EpilogueOutputOp::Params const & output_op
 {% endif %}
@@ -639,6 +644,7 @@ def gen_profiler(
             is_profiler=True,
             is_bias=is_bias,
             is_bias_add=is_bias_add,
+            is_windows=is_windows(),
             instance_name=instance_name,
             dtype=dtype,
         )
