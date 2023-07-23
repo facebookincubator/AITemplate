@@ -257,14 +257,17 @@ class BuilderCMake:
 
         # go ahead
         for source, profiler_binary in file_pairs:
-            test_name = short_str(str(source))
+            if type(source) is not list:
+                source = [source]
+            source = [f"../{s}" if ":" not in s else s for s in source]
+            test_name = short_str(str(source[0]))
 
-            build_dir = Path(source).parent / test_name
+            build_dir = Path(source[0]).parent / test_name
             build_dir.mkdir(exist_ok=True)
 
             rendered = cmake_template.render(
                 CMAKE_PROJECT=test_name,
-                CMAKE_SOURCE_FILES=_files_as_str("../" + str(Path(source).name)),
+                CMAKE_SOURCE_FILES=_files_as_str(source),
                 # # todo: this can be done once we're able to track header files
                 # # properly
                 # CMAKE_HEADER_FILES=_files_as_str(
