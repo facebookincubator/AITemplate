@@ -857,6 +857,7 @@ def gen_function(
         program = EXEC_TEMPLATE.render(
             is_bias=is_bias,
             is_bias_add=is_bias_add,
+            is_windows=is_windows(),
             indent=" " * 4,
             instance_name=fname,
             dtype=dtype,
