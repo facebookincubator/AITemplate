@@ -26,6 +26,7 @@ from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.tensor import expand_static_shape  # noqa: F401
 
+from aitemplate.utils.misc import is_windows
 
 @registry.reg("cuda.expand.func_decl")
 def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
@@ -159,13 +160,21 @@ void {{func_name}} (
     return;
   }
   // Determine stride for each input dimension
+  {% if is_windows %}
+  {{index_type}}* input_strides = ({{index_type}}*) malloc(input_rank * sizeof(int64_t));
+  {% else %}
   {{index_type}} input_strides[input_rank];
+  {% endif %}
   input_strides[input_rank-1] = 1;
   for (i=input_rank-2;i>=0;--i) {
     input_strides[i] = input_strides[i+1]*input_dims[i+1];
   }
   // Determine stride for each output dimension
+  {% if is_windows %}
+  {{index_type}}* output_strides = ({{index_type}}*) malloc(output_rank * sizeof(int64_t));
+  {% else %}
   {{index_type}} output_strides[output_rank];
+  {% endif %}
   output_strides[output_rank-1] = 1;
   for (i=output_rank-2;i>=0;--i) {
     output_strides[i] = output_strides[i+1]*(output_dims[i+1]);
@@ -174,7 +183,11 @@ void {{func_name}} (
   // Determine read strides for each output dimension
   // (0 for expand or add dims, otherwise the stride of
   // of the corresponding input dim)
+  {% if is_windows %}
+  {{index_type}}* read_strides = ({{index_type}}*) malloc(output_rank * sizeof(int64_t));
+  {% else %}
   {{index_type}} read_strides[output_rank];
+  {% endif %}
 
   input_dim_pos = 0;
   for (i = 0; i < output_rank; ++i) {
@@ -262,6 +275,7 @@ def create_template_args(
         "dtype": dtype,  # data type of the input and output tensor elements ( valid CUDA C type like float ))
         "indent": indent,  # indentation for the function call template,
         "index_type": index_type,
+        "is_windows": is_windows(),
     }
 
 
