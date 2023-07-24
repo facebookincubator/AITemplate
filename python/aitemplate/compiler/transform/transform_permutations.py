@@ -115,6 +115,8 @@ def eliminate_permutations(
                     continue
                 p1 = get_permutation(cur_op)
                 p2 = get_permutation(next_op)
+                if len(p1) != len(p2):
+                    continue
                 if not np.all(np.array(p1)[p2] == np.arange(0, len(p1))):
                     continue
                 is_input = cur_op._attrs["inputs"][0]._attrs["is_input"]
