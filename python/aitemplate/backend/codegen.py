@@ -338,6 +338,9 @@ class ModelContainerGenerator:
         self.target = Target.current()
         self.f_var_decl = registry.get(self.target.name() + ".lib.var_decl")
         self.f_ptr_decl = registry.get(self.target.name() + ".lib.void_ptr_decl")
+        self.dtype_to_backend_type = registry.get(
+            self.target.name() + ".lib.dtype_to_backend_type"
+        )
 
         self.constants_data_file = constants_data_file
 
@@ -386,11 +389,9 @@ class ModelContainerGenerator:
         self.graph = graph
 
         self.num_inputs, self.num_outputs = count_inputs_outputs(graph)
-        (self.max_blob_size, self.max_constant_blob_size, self.workspace,) = (
-            max_blob_size,
-            max_constant_blob_size,
-            workspace,
-        )
+        self.max_blob_size = max_blob_size
+        self.max_constant_blob_size = max_constant_blob_size
+        self.workspace = workspace
 
         self.debug_settings = (
             AITDebugSettings() if debug_settings is None else debug_settings
@@ -798,7 +799,11 @@ class ModelContainerGenerator:
         elem_cnt = "*".join([shape.pseudo_code() for shape in node.shape()])
         self.func_name_seq.append("output_check")
 
-        code_text = f'    InvokeOutputsChecker(reinterpret_cast<half*>({tensor_name}), "{tensor_name}", {elem_cnt}, stream);\n'
+        backend_type = self.dtype_to_backend_type(node._attrs["dtype"])
+        code_text = (
+            f"    InvokeOutputsChecker((const {backend_type}*)({tensor_name}), "
+            f'"{tensor_name}", {elem_cnt}, stream);\n'
+        )
         self.func_seq.append(code_text)
         self._rendered_checks_func_code.append(code_text)
 
@@ -870,7 +875,7 @@ class ModelContainerGenerator:
 
         # sort all operators by parallel execution order
         ops_by_order = defaultdict(list)
-        for (op, tracking) in time_stats.op_parallel_trackers.items():
+        for op, tracking in time_stats.op_parallel_trackers.items():
             ops_by_order[tracking.execution_order].append(op)
 
         # convert Dict[int, List[Operator]] into List[List[Operator]]

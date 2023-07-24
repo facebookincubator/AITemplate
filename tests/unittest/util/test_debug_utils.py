@@ -26,6 +26,7 @@ from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils.debug_settings import AITDebugSettings
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 
 
 def _test_inf_and_nan(
@@ -65,11 +66,11 @@ def test_inf_and_nan(capfd):
 
 
 def _test_outputs(
-    check_tensor, check_all, test_name, capfd: pytest.CaptureFixture[str]
+    check_tensor, check_all, test_name, dtype, capfd: pytest.CaptureFixture[str]
 ):
     X1 = Tensor(
         shape=[IntImm(1), IntImm(3)],
-        dtype="float16",
+        dtype=dtype,
         name="input0",
         is_input=True,
     )
@@ -85,7 +86,11 @@ def _test_outputs(
         X2, target, "./tmp", test_name, debug_settings=debug_settings
     )
 
-    x1_pt = torch.Tensor([[1.0, 1.5, 2.0]]).cuda().half()
+    x1_pt = (
+        torch.Tensor([[1.0, 1.5, 2.0]])
+        .to(dtype=string_to_torch_dtype(dtype))
+        .to("cuda")
+    )
     x2 = torch.empty_like(x1_pt)
     module.run_with_tensors([x1_pt], [x2])
 
@@ -106,9 +111,18 @@ def _test_outputs(
 
 
 def test_outputs(capfd):
-    _test_outputs(True, False, "test_outputs_tensor", capfd)
-    _test_outputs(False, True, "test_outputs_all", capfd)
-    _test_outputs(True, True, "test_outputs_both", capfd)
+    _test_outputs(True, False, "test_outputs_tensor", "float16", capfd)
+    _test_outputs(False, True, "test_outputs_all", "float16", capfd)
+    _test_outputs(True, True, "test_outputs_both_float16", "float16", capfd)
+    _test_outputs(True, True, "test_outputs_both_float32", "float32", capfd)
+
+
+@pytest.mark.skipif(
+    detect_target().name == "rocm" or int(detect_target()._arch) < 80,
+    reason="bfloat16 tests requires CUDA sm >= 80",
+)
+def test_outputs_bf16(capfd):
+    _test_outputs(True, True, "test_outputs_both_bfloat16", "bfloat16", capfd)
 
 
 def _test_special_outputs(
