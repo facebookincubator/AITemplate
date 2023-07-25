@@ -26,8 +26,6 @@ from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.tensor import expand_static_shape  # noqa: F401
 
-from aitemplate.utils.misc import is_windows
-
 
 @registry.reg("cuda.expand.func_decl")
 def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
@@ -57,10 +55,8 @@ FUNC_DECL_TEMPLATE = jinja2.Template(
 void {{func_name}}(
   const void* src,
   const {{index_type}}* input_dims,
-  const {{index_type}} input_rank,
   void* dst,
   {{index_type}}* output_dims, // written to ( runtime shape inference )
-  const {{index_type}} output_rank,
   const {{index_type}}* output_dim_types,
   cudaStream_t stream);
 """
@@ -134,17 +130,15 @@ __global__ void {{func_name}}_sequential_write_kernel(
 void {{func_name}} (
   const void* src, // input tensor
   const {{index_type}}* input_dims, // input dimensions ( passed by value )
-  const {{index_type}} input_rank,
   void* dst, // output tensor
   {{index_type}}* output_dims, // output dimensions ( passed by value )
-  const {{index_type}} output_rank,
   const {{index_type}}* output_dim_types, // Output dim types ( length=output_rank ). 2 = keep dimension, 1 = expand dimension, 0 = add dimension
   cudaStream_t stream)
 {
   // Calculate number of input elements
   {{index_type}} input_numel = 1;
   {{index_type}} i;
-  for (i = 0; i < input_rank; ++i) {
+  for (i = 0; i < {{input_rank}}; ++i) {
     input_numel *= input_dims[i];
   }
   if (input_numel==0) {
@@ -154,44 +148,32 @@ void {{func_name}} (
 
   // Calculate number of output dimensions
   {{index_type}} output_numel = 1;
-  for (i = 0; i < output_rank; ++i) {
+  for (i = 0; i < {{output_rank}}; ++i) {
     output_numel *= output_dims[i];
   }
   if (output_numel==0) {
     return;
   }
   // Determine stride for each input dimension
-  {% if is_windows %}
-  {{index_type}}* input_strides = ({{index_type}}*) malloc(input_rank * sizeof(int64_t));
-  {% else %}
-  {{index_type}} input_strides[input_rank];
-  {% endif %}
-  input_strides[input_rank-1] = 1;
-  for (i=input_rank-2;i>=0;--i) {
+  {{index_type}} input_strides[{{input_rank}}];
+  input_strides[{{input_rank}}-1] = 1;
+  for (i={{input_rank}}-2;i>=0;--i) {
     input_strides[i] = input_strides[i+1]*input_dims[i+1];
   }
   // Determine stride for each output dimension
-  {% if is_windows %}
-  {{index_type}}* output_strides = ({{index_type}}*) malloc(output_rank * sizeof(int64_t));
-  {% else %}
-  {{index_type}} output_strides[output_rank];
-  {% endif %}
-  output_strides[output_rank-1] = 1;
-  for (i=output_rank-2;i>=0;--i) {
+  {{index_type}} output_strides[{{output_rank}}];
+  output_strides[{{output_rank}}-1] = 1;
+  for (i={{output_rank}}-2;i>=0;--i) {
     output_strides[i] = output_strides[i+1]*(output_dims[i+1]);
   }
 
   // Determine read strides for each output dimension
   // (0 for expand or add dims, otherwise the stride of
   // of the corresponding input dim)
-  {% if is_windows %}
-  {{index_type}}* read_strides = ({{index_type}}*) malloc(output_rank * sizeof(int64_t));
-  {% else %}
-  {{index_type}} read_strides[output_rank];
-  {% endif %}
+  {{index_type}} read_strides[{{output_rank}}];
 
   input_dim_pos = 0;
-  for (i = 0; i < output_rank; ++i) {
+  for (i = 0; i < {{output_rank}}; ++i) {
     {{index_type}} dim_type =  output_dim_types[i];
     if (dim_type == DIM_TYPE_KEEP ) { // keep
       read_strides[i] = input_strides[input_dim_pos++];
@@ -202,11 +184,11 @@ void {{func_name}} (
       }
     }
   }
-  assert(input_dim_pos==input_rank);
+  assert(input_dim_pos=={{input_rank}});
 
   // Calculating tail dimension in order to determine whether we can do sequential batching
   {{index_type}} tail_dim = 1;
-  for (i = output_rank-1; i >= 0; --i) {
+  for (i = {{output_rank}}-1; i >= 0; --i) {
       if (output_dim_types[i]!=DIM_TYPE_KEEP) {
          break;
       }
@@ -276,7 +258,6 @@ def create_template_args(
         "dtype": dtype,  # data type of the input and output tensor elements ( valid CUDA C type like float ))
         "indent": indent,  # indentation for the function call template,
         "index_type": index_type,
-        "is_windows": is_windows(),
     }
 
 
@@ -311,10 +292,8 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
     {{indent}}{{func_name}}(
     {{indent}}    {{src}},
     {{indent}}    input_dims,
-    {{indent}}    {{input_rank}},
     {{indent}}    {{dst}},
     {{indent}}    output_dims,
-    {{indent}}    {{output_rank}},
     {{indent}}    output_dim_types,
     {{indent}}    stream);
     }
