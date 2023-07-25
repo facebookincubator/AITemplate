@@ -49,7 +49,7 @@ from aitemplate.utils.environ import (
     multistream_mode,
 )
 from aitemplate.utils.graph_utils import split_simple_multistream_parallel_ops
-from aitemplate.utils.misc import is_debug
+from aitemplate.utils.misc import is_debug, is_windows
 
 # pylint: disable=C0103,W0613,C0301
 
@@ -1067,8 +1067,7 @@ class ModelContainerGenerator:
             set_up_constant_folding_inputs="\n".join(
                 self.set_up_constant_folding_inputs
             ),
-            # # todo: enable once this feature is fully available
-            # is_windows=is_windows(),
+            is_windows=is_windows(),
         )
         result[model_container_src_fname] = model_container_base_src
         return result
