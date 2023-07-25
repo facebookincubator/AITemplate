@@ -114,7 +114,7 @@ FUNC_TEMPLATE = jinja2.Template(
 SHAPE_FUNCTIONS = jinja2.Template(
     """
     int64_t M = 1;
-{% for idx in range(input_ndim - 1) %}
+{% for idx in range(reduction_dim) %}
     M *= *in_{{idx}};
 {% endfor %}
     """
@@ -124,7 +124,7 @@ FUNC_SIGNATURE = jinja2.Template(
     """
 void {{func_name}}(void* input,
                void* output,
-{% for idx in range(input_ndim - 1) %}
+{% for idx in range(reduction_dim) %}
                int64_t* in_{{idx}},
 {% endfor %}
                cudaStream_t stream)
@@ -143,7 +143,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}{{func_name}}(
 {{indent}}   {{input}},
 {{indent}}   {{output}},
-{% for name in input_dim_names[:-1] %}
+{% for name in outer_dim_names %}
 {{indent}}   &{{name}},
 {% endfor %}
 {{indent}}   stream
@@ -154,10 +154,9 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 
 def get_func_signature(func_attrs: Dict[str, Any]) -> str:
-    input_ndim = func_attrs["inputs"][0]._rank()
     return FUNC_SIGNATURE.render(
         func_name=func_attrs["name"],
-        input_ndim=input_ndim,
+        reduction_dim=func_attrs["dim"],
     ).strip()
 
 
@@ -180,7 +179,6 @@ def find_tile_size(k: int) -> int:
 def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
     dim = func_attrs["dim"]
     shapes = func_attrs["inputs"][0]._attrs["shape"]
-    rank = len(shapes)
 
     assert isinstance(
         shapes[dim], IntImm
@@ -197,7 +195,7 @@ def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
             os.path.dirname(__file__), "softmax.cuh"
         ),
         func_signature=get_func_signature(func_attrs),
-        shape_functions=SHAPE_FUNCTIONS.render(input_ndim=rank),
+        shape_functions=SHAPE_FUNCTIONS.render(reduction_dim=dim),
         dtype=elem_input_type,
         K=k,
         m=find_tile_size(k),
@@ -217,17 +215,18 @@ def softmax_gen_function_call(func_attrs, indent="  "):
     input_name = func_attrs["inputs"][0]._attrs["name"]
     output_name = func_attrs["outputs"][0]._attrs["name"]
 
-    shapes = func_attrs["inputs"][0]._attrs["shape"]
+    shape = func_attrs["inputs"][0]._attrs["shape"]
     assert (
-        len(shapes) >= 2
-    ), f"Softmax only supports input with rank >= 2, current rank: {len(shapes)}"
+        len(shape) >= 2
+    ), f"Softmax only supports input with rank >= 2, current rank: {len(shape)}"
 
-    input_dim_names = [shape._attrs["name"] for shape in shapes]
+    reduction_dim = func_attrs["dim"]
+    outer_dim_names = [dim._attrs["name"] for dim in shape[:reduction_dim]]
 
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         input=input_name,
         output=output_name,
-        input_dim_names=input_dim_names,
+        outer_dim_names=outer_dim_names,
         indent=indent,
     )
