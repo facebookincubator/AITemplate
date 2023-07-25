@@ -31,7 +31,6 @@ def esrgan_inference(
         max_range = 255
     input_pixels = input_pixels / max_range
     height, width, _ = input_pixels.shape
-    print(input_pixels.shape)
     inputs = {
         "input_pixels": torch.from_numpy(input_pixels)
         .unsqueeze(0)
@@ -39,7 +38,6 @@ def esrgan_inference(
         .cuda()
         .half(),
     }
-    print(inputs["input_pixels"].shape)
     ys = {}
     for name, idx in exe_module.get_output_name_to_index_map().items():
         shape = exe_module.get_output_maximum_shape(idx)
