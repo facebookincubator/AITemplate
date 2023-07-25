@@ -322,12 +322,12 @@ MODEL_CONTAINER_TEMPLATE = jinja2.Template(
 #include "model_container.h"
 #include "owned_constants.h"
 
-namespace ait {
-namespace {
-
 {% if is_windows %}
 #include "windll.h"
 {% endif %}
+
+namespace ait {
+namespace {
 
 // Contains the metadata for each constant.
 constexpr std::array<ConstantInfo, {{ num_constants }}> owned_constants = {
