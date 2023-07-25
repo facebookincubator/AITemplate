@@ -17,6 +17,7 @@ from typing import List
 import numpy as np
 
 from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.compiler.transform import transform_utils
 
 
@@ -60,6 +61,32 @@ def remove_second_permutation_from_graph(
     transform_utils.remove_tensor_from_sorted_graph(output_tensor)
 
 
+def _reshaped_or_strided_input_or_output_accessor(op: Operator) -> bool:
+    def _reshaped_or_strided_tensor_accessor(accessor: TensorAccessor) -> bool:
+        if (
+            accessor.actual_shapes is not None
+            and accessor.actual_shapes != accessor.original_shapes
+        ):
+            return True
+
+        # Is it a strided accessor
+        if hasattr(accessor, "stride_dim") and accessor.stride_dim is not None:
+            return True
+
+        return False
+
+    input_accessors = op._attrs.get("input_accessors", None)
+    output_accessors = op._attrs.get("output_accessors", None)
+
+    return (
+        (input_accessors is not None)
+        and _reshaped_or_strided_tensor_accessor(input_accessors[0])
+    ) or (
+        (output_accessors is not None)
+        and _reshaped_or_strided_tensor_accessor(output_accessors[0])
+    )
+
+
 def eliminate_permutations(
     sorted_graph: List[Tensor], workdir: str = None
 ) -> List[Tensor]:
@@ -73,12 +100,7 @@ def eliminate_permutations(
                 continue
             if not cur_op._attrs["op"].startswith("permute"):
                 continue
-            input_accessors = cur_op._attrs.get("input_accessors", None)
-            if (
-                input_accessors is not None
-                and hasattr(input_accessors[0], "strided_dim")
-                and input_accessors[0].strided_dim is not None
-            ):
+            if _reshaped_or_strided_input_or_output_accessor(cur_op):
                 continue
             curr_op_output = cur_op._attrs["outputs"][0]
             dst_ops = curr_op_output._attrs["dst_ops"]
@@ -89,8 +111,12 @@ def eliminate_permutations(
             for next_op in dst_ops:
                 if not next_op._attrs["op"].startswith("permute"):
                     continue
+                if _reshaped_or_strided_input_or_output_accessor(next_op):
+                    continue
                 p1 = get_permutation(cur_op)
                 p2 = get_permutation(next_op)
+                if len(p1) != len(p2):
+                    continue
                 if not np.all(np.array(p1)[p2] == np.arange(0, len(p1))):
                     continue
                 is_input = cur_op._attrs["inputs"][0]._attrs["is_input"]
