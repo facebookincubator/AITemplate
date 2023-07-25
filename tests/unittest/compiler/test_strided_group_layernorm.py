@@ -18,8 +18,12 @@ from typing import List
 
 import torch
 from aitemplate.compiler import compile_model, ops
-from aitemplate.frontend import Tensor
+from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import shape_utils, torch_utils
 
 
@@ -368,6 +372,144 @@ class SliceGroupLayerNormTestCase(unittest.TestCase):
             fuse_sigmoid_mul=True,
             dtype="float32",
         )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_group_layernorm_no_cuda_illegal_memory_access(self):
+        """
+        This subgraph has led to CUDA illegal memory issues before.
+        Adding it as a unit test to ensure there are no regressions.
+        """
+        batch_size = IntVar(values=[1, 2048], name="batch_size")
+
+        unsqueeze_46_0 = Tensor(
+            shape=[batch_size, 7680, 1],
+            is_input=True,
+            name="unsqueeze_46_0",
+        )
+        unsqueeze_58_0 = Tensor(
+            shape=[batch_size, 7680, 1],
+            is_input=True,
+            name="unsqueeze_58_0",
+        )
+        unsqueeze_70_0 = Tensor(
+            shape=[batch_size, 7680, 1],
+            is_input=True,
+            name="unsqueeze_70_0",
+        )
+        unsqueeze_131_0 = Tensor(
+            shape=[batch_size, 3, 1],
+            is_input=True,
+            name="unsqueeze_131_0",
+        )
+        main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_weight = Tensor(
+            shape=[IntImm(256)],
+            is_input=True,
+            name="main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_weight",
+        )
+        main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_bias = Tensor(
+            shape=[IntImm(256)],
+            is_input=True,
+            name="main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_bias",
+        )
+
+        unsqueeze_83_0 = Tensor(
+            shape=[batch_size, 7680, 1],
+            is_input=True,
+            name="unsqueeze_83_0",
+        )
+        unsqueeze_95_0 = Tensor(
+            shape=[batch_size, 7680, 1],
+            is_input=True,
+            name="unsqueeze_95_0",
+        )
+        unsqueeze_107_0 = Tensor(
+            shape=[batch_size, 7680, 1],
+            is_input=True,
+            name="unsqueeze_107_0",
+        )
+        unsqueeze_358_0 = Tensor(
+            shape=[batch_size, 3, 1],
+            is_input=True,
+            name="unsqueeze_358_0",
+        )
+        main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_weight = Tensor(
+            shape=[IntImm(256)],
+            is_input=True,
+            name="main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_weight",
+        )
+        main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_bias = Tensor(
+            shape=[IntImm(256)],
+            is_input=True,
+            name="main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_bias",
+        )
+
+        concatenate_71_0 = ops.concatenate()(
+            inputs=[unsqueeze_46_0, unsqueeze_58_0, unsqueeze_70_0],
+            dim=2,
+        )
+        bmm_rrr_132_0 = ops.bmm_rrr()(concatenate_71_0, unsqueeze_131_0)
+        reshape_133_0 = ops.reshape()(bmm_rrr_132_0, shape=[-1, 30, 256])
+        layernorm_134_0 = ops.layernorm(normalized_shape=[IntImm(256)])(
+            reshape_133_0,
+            main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_weight,
+            main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_bias,
+        )
+        permute021_136_0 = ops.permute021()(layernorm_134_0)
+
+        concatenate_108_0 = ops.concatenate()(
+            inputs=[unsqueeze_83_0, unsqueeze_95_0, unsqueeze_107_0],
+            dim=2,
+        )
+        bmm_rrr_359_0 = ops.bmm_rrr()(concatenate_108_0, unsqueeze_358_0)
+        reshape_360_0 = ops.reshape()(bmm_rrr_359_0, shape=[-1, 30, 256])
+        layernorm_361_0 = ops.layernorm(normalized_shape=[IntImm(256)])(
+            reshape_360_0,
+            main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_weight,
+            main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_bias,
+        )
+        permute021_363_0 = ops.permute021()(layernorm_361_0)
+
+        outputs = [permute021_136_0, permute021_363_0]
+
+        for i, output in enumerate(outputs):
+            output._attrs["is_output"] = True
+            output._attrs["name"] = f"output_{i}"
+
+        model = compile_model(
+            outputs,
+            detect_target(),
+            "./tmp",
+            "test_group_layernorm_repro",
+        )
+
+        pt_inputs = {
+            "unsqueeze_46_0": get_random_torch_tensor(shape=[1024, 7680, 1]),
+            "unsqueeze_58_0": get_random_torch_tensor(shape=[1024, 7680, 1]),
+            "unsqueeze_70_0": get_random_torch_tensor(shape=[1024, 7680, 1]),
+            "unsqueeze_131_0": get_random_torch_tensor(shape=[1024, 3, 1]),
+            "main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_weight": get_random_torch_tensor(
+                shape=[256]
+            ),
+            "main_module_base_forward_module_over_arch_bottom_arch_list_1_dime_shared_arch_layer_norm__norm_bias": get_random_torch_tensor(
+                shape=[256]
+            ),
+            "unsqueeze_83_0": get_random_torch_tensor(shape=[1024, 7680, 1]),
+            "unsqueeze_95_0": get_random_torch_tensor(shape=[1024, 7680, 1]),
+            "unsqueeze_107_0": get_random_torch_tensor(shape=[1024, 7680, 1]),
+            "unsqueeze_358_0": get_random_torch_tensor(shape=[1024, 3, 1]),
+            "main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_weight": get_random_torch_tensor(
+                shape=[256]
+            ),
+            "main_module_base_forward_module_over_arch_bottom_arch_list_0_dime_shared_arch_layer_norm__norm_bias": get_random_torch_tensor(
+                shape=[256]
+            ),
+        }
+        pt_outputs = {
+            "output_0": get_torch_empty_tensor(shape=[1024, 256, 30]),
+            "output_1": get_torch_empty_tensor(shape=[1024, 256, 30]),
+        }
+
+        model.run_with_tensors(pt_inputs, pt_outputs)
 
 
 if __name__ == "__main__":

@@ -25,11 +25,6 @@ from fx2ait.fx2ait import AITInterpreter
 from torch.fx.passes.operator_support import create_op_support, OperatorSupportBase
 from torch.fx.passes.tools_common import get_acc_ops_name
 
-try:
-    torch.ops.load_library("//deeplearning/ait:AITModel")
-except BaseException:
-    torch.ops.load_library("build/libait_model.so")
-
 
 _VIEW_OPS = frozenset(
     (

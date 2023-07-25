@@ -92,7 +92,7 @@ def _is_intvar(func_attrs):
 @registry.reg("cuda.reshape.gen_function")
 @registry.reg("cuda.flatten.gen_function")
 def reshape_gen_function(func_attrs, shape_eval_template):
-    func_name = func_attrs["name"]
+    func_name = "ait_" + func_attrs["name"]
     unknown_idx = func_attrs["unknown_idx"]
     input_ndim = len(func_attrs["inputs"][0]._attrs["shape"])
     if _is_intvar(func_attrs):
@@ -120,7 +120,7 @@ def reshape_gen_function(func_attrs, shape_eval_template):
 @registry.reg("cuda.reshape.func_decl")
 @registry.reg("cuda.flatten.func_decl")
 def reshape_gen_function_decl(func_attrs):
-    func_name = func_attrs["name"]
+    func_name = "ait_" + func_attrs["name"]
     input_ndim = len(func_attrs["inputs"][0]._attrs["shape"])
     if _is_intvar(func_attrs):
         input_ndim = len(func_attrs["inputs"]) - 1
@@ -134,7 +134,7 @@ def reshape_gen_function_decl(func_attrs):
 @registry.reg("cuda.reshape.func_call")
 @registry.reg("cuda.flatten.func_call")
 def reshape_gen_function_call(func_attrs, indent="  "):
-    func_name = func_attrs["name"]
+    func_name = "ait_" + func_attrs["name"]
     input_names = []
     if _is_intvar(func_attrs):
         for i, inp in enumerate(func_attrs["inputs"]):
@@ -171,7 +171,7 @@ def squeeze_gen_function(func_attrs, shape_eval_template):
     shape_eval_template : jinja2.Template
         The template that implements the logic for writing to dynamic shapes.
     """
-    func_name = func_attrs["name"]
+    func_name = "ait_" + func_attrs["name"]
     out_dim_to_in = func_attrs["out_dim_to_in"]
 
     input_ndim = len(func_attrs["inputs"][0]._attrs["shape"])
@@ -206,7 +206,7 @@ def squeeze_gen_function_decl(func_attrs):
     func_attrs : Dict[str, Any]
         The _attrs dict from the original op.
     """
-    func_name = func_attrs["name"]
+    func_name = "ait_" + func_attrs["name"]
     input_ndim = len(func_attrs["inputs"][0]._attrs["shape"])
     output_ndim = len(func_attrs["outputs"][0]._attrs["shape"])
 
@@ -227,7 +227,7 @@ def squeeze_gen_function_call(func_attrs, indent="  "):
     ident : str
         Sequence to use to generate the indentations in the CUDA code
     """
-    func_name = func_attrs["name"]
+    func_name = "ait_" + func_attrs["name"]
     input_names = [
         shape._attrs["name"] for shape in func_attrs["inputs"][0]._attrs["shape"]
     ]

@@ -18,6 +18,7 @@ Common function templates for CUDA codegen.
 import jinja2
 
 from aitemplate.backend import registry
+from aitemplate.backend.backend_spec import CUDASpec
 
 # pylint: disable=C0301
 
@@ -36,3 +37,9 @@ def void_ptr_decl(name, dtype="float16", indent="  "):
     # FIXME: we keep dtype in void_ptr_decl's param list because rocm needs it.
     # We will remove it once we support general tensor type for rocm
     return PTR_TEMPLATE.render(name=name, dtype="void*", indent=indent)
+
+
+@registry.reg("cuda.lib.dtype_to_backend_type")
+def dtype_to_backend_type(dtype):
+    backend_spec = CUDASpec()
+    return backend_spec.dtype_to_backend_type(dtype)

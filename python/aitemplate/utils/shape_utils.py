@@ -20,6 +20,8 @@ from typing import List, Optional
 
 import sympy
 
+from aitemplate.compiler.base import IntVar, IntVarTensor, Tensor
+
 
 def gen_int_var(
     values: List[int], name: str = None, symbolic_value: Optional[sympy.Basic] = None
@@ -152,6 +154,30 @@ def convert_shape_to_IntVar(shape):
             ret.append(v)
         elif isinstance(v, IntVarTensor):
             ret.append(v._attrs["int_var"])
+    return ret
+
+
+def convert_shape_to_IntVarTensor(tensor: Tensor):
+    """
+    Map IntVars in the tensor's shape to their corresponding IntVarTensors, if any.
+    """
+    shape = tensor._attrs["shape"]
+    if not any(isinstance(v, IntVar) for v in shape):
+        return shape
+
+    intvar_to_tensor = {}
+    for op in tensor.src_ops():
+        for t in op._attrs["inputs"]:
+            if isinstance(t, IntVarTensor):
+                intvar_to_tensor[t._attrs["int_var"]] = t
+
+    ret = []
+    for v in shape:
+        # Using type() instead of isinstance() because we don't want to include IntImms
+        if type(v) is IntVar:
+            ret.append(intvar_to_tensor.get(v, v))
+        else:
+            ret.append(v)
     return ret
 
 

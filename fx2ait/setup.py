@@ -13,98 +13,67 @@
 #  limitations under the License.
 #
 
+import glob
 import os
-import subprocess
-import sys
-from pathlib import Path
 
-from setuptools import Extension, find_packages, setup
-from setuptools.command.build_ext import build_ext
+from setuptools import find_packages, setup
+
+from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 
 
-class CMakeExtension(Extension):
-    def __init__(self, name):
-        Extension.__init__(self, name, sources=[])
+def get_extensions():
+    print("Compiling extensions with following flags:")
+    debug_mode = os.getenv("DEBUG", "0") == "1"
+    print(f"  DEBUG: {debug_mode}")
+    nvcc_flags = os.getenv("NVCC_FLAGS", "")
+    print(f"  NVCC_FLAGS: {nvcc_flags}")
+    if nvcc_flags == "":
+        nvcc_flags = []
+    else:
+        nvcc_flags = nvcc_flags.split(" ")
+    extra_compile_args = {"cxx": [], "nvcc": nvcc_flags}
 
+    if debug_mode:
+        print("Compiling in debug mode")
+        extra_compile_args["cxx"].append("-g")
+        extra_compile_args["cxx"].append("-O0")
+        if "nvcc" in extra_compile_args:
+            # we have to remove "-OX" and "-g" flag if exists and append
+            nvcc_flags = extra_compile_args["nvcc"]
+            extra_compile_args["nvcc"] = [
+                f for f in nvcc_flags if not ("-O" in f or "-g" in f)
+            ]
+            extra_compile_args["nvcc"].append("-O0")
+            extra_compile_args["nvcc"].append("-g")
 
-class CMakeBuild(build_ext):
-    def run(self):
-        try:
-            subprocess.check_output(["cmake", "--version"])
-        except OSError as exc:
-            raise RuntimeError(
-                "CMake must be installed to build the following extensions: "
-                + ", ".join(e.name for e in self.extensions)
-            ) from exc
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    extensions_dir = os.path.join(this_dir, "fx2ait", "csrc")
 
-        try:
-            import torch.utils
+    src = glob.glob(os.path.join(extensions_dir, "*.cpp"))
+    inc = [extensions_dir]
+    inc += [os.path.abspath(os.path.join(this_dir, "../static/include"))]
+    inc += [os.path.abspath(os.path.join(this_dir, "../3rdparty/picojson"))]
+    define_macros = []
 
-            cmake_prefix_path = torch.utils.cmake_prefix_path
-        except ModuleNotFoundError as exc:
-            raise RuntimeError(
-                "Cannot import torch.utils. Check torch installation."
-            ) from exc
-
-        build_directory = os.path.abspath(self.build_temp)
-        cmake_args = [
-            "-DCMAKE_LIBRARY_OUTPUT_DIRECTORY=" + build_directory,
-            "-DPYTHON_EXECUTABLE=" + sys.executable,
-            "-DCMAKE_PREFIX_PATH=" + cmake_prefix_path,
-        ]
-
-        cfg = "Debug" if self.debug else "Release"
-        build_args = ["--config", cfg]
-
-        # cmake_args += ['-DCMAKE_BUILD_TYPE=' + cfg]
-
-        # Assuming Makefiles
-        build_args += ["--", "-j2"]
-
-        self.build_args = build_args
-
-        env = os.environ.copy()
-        env["CXXFLAGS"] = '{} -DVERSION_INFO=\\"{}\\"'.format(
-            env.get("CXXFLAGS", ""), self.distribution.get_version()
+    ext_modules = [
+        CUDAExtension(
+            name="fx2ait.libait_model",
+            sources=src,
+            include_dirs=inc,
+            define_macros=define_macros,
+            extra_compile_args=extra_compile_args,
         )
-        if not os.path.exists(self.build_temp):
-            os.makedirs(self.build_temp)
+    ]
+    return ext_modules
 
-        # CMakeLists.txt is in the same directory as this setup.py file
-        cmake_list_dir = os.path.abspath(os.path.dirname(__file__))
-        print("-" * 10, "Running CMake prepare", "-" * 40)
-        subprocess.check_call(
-            ["cmake", cmake_list_dir] + cmake_args, cwd=self.build_temp, env=env
-        )
-
-        print("-" * 10, "Building extensions", "-" * 40)
-        cmake_cmd = ["cmake", "--build", "."] + self.build_args
-        subprocess.check_call(cmake_cmd, cwd=self.build_temp)
-        # Move from build temp to final position
-        for ext in self.extensions:
-            self.move_output(ext)
-
-    def move_output(self, ext):
-        build_temp = Path(self.build_temp).resolve()
-        lib_name = "lib" + ext.name + ".so"
-        dest_path = build_temp.parents[0] / lib_name
-        source_path = build_temp / lib_name
-        dest_directory = dest_path.parents[0]
-        dest_directory.mkdir(parents=True, exist_ok=True)
-        self.copy_file(source_path, dest_path)
-
-
-ext_modules = [
-    CMakeExtension("ait_model"),
-]
 
 setup(
     name="fx2ait",
     version="0.2.dev1",
     description="FX2AIT: Convert PyTorch Models to AITemplate",
-    zip_safe=True,
+    zip_safe=False,
     install_requires=["torch"],  # We will need torch>=1.13
     packages=find_packages(),
-    ext_modules=ext_modules,
-    cmdclass=dict(build_ext=CMakeBuild),
+    ext_modules=get_extensions(),
+    cmdclass={"build_ext": BuildExtension.with_options(no_python_abi_suffix=True)},
 )

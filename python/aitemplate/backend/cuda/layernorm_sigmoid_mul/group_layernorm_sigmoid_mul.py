@@ -269,7 +269,11 @@ def group_layernorm_sigmoid_mul_gen_function_call(func_attrs, indent="  "):
 
     all_shape_funcs = []
     # all Ms are the same
-    input_0_shapes = inputs[0]._attrs["shape"]
+    if func_attrs.get("input_accessors", None):
+        input_accessor = func_attrs["input_accessors"][0]
+        input_0_shapes = input_accessor.original_shapes
+    else:
+        input_0_shapes = inputs[0]._attrs["shape"]
     norm_ndim = len(func_attrs["normalized_shape"][0])
     m_name = "M"
     m_shape_func = layernorm_common.generate_m_shape_func(
