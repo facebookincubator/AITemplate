@@ -774,13 +774,15 @@ class ModelContainerGenerator:
                     self.state_record.add(func._attrs["name"])
             self._process_dims_for_op(func)
 
-        if self.debug_settings.check_all_nan_and_inf or node._attrs.get(
-            "check_nan_and_inf", False
-        ):
+        if (
+            self.debug_settings.check_all_nan_and_inf
+            or node._attrs.get("check_nan_and_inf", False)
+        ) and (not isinstance(node, IntVarTensor)):
             self._append_check_nan_and_inf(node)
-        if self.debug_settings.check_all_outputs or node._attrs.get(
-            "check_outputs", False
-        ):
+        if (
+            self.debug_settings.check_all_outputs
+            or node._attrs.get("check_outputs", False)
+        ) and (not isinstance(node, IntVarTensor)):
             self._append_check_outputs(node)
 
     def _append_check_nan_and_inf(self, node: Tensor):
