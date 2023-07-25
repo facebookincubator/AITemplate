@@ -115,6 +115,11 @@ def compile_esrgan(
     work_dir="./tmp",
     model_name="ESRGANModel",
 ):
+    if scale != 4:
+        print(
+            "Scale != 4 supports static shape only. Maximum value of batch_size, height and width will be used."
+        )
+
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
 
@@ -141,7 +146,7 @@ def compile_esrgan(
     )
     rrdbnet.name_parameter_tensor()
 
-    constants = map_rrdb(pt_model)
+    constants = map_rrdb(pt_model, scale=scale)
 
     batch_size = IntVar(values=list(batch_size), name="batch_size")
     channels = num_in_ch

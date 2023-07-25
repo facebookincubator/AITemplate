@@ -113,6 +113,15 @@ def make_layer(basic_block, num_basic_block, **kwarg):
     return nn.Sequential(*layers)
 
 
+def size(tensor):
+    """
+    returns maximum of each dynamic dim
+    """
+    dims = ops.size()(tensor)
+    dims = [dim._attrs["int_var"]._attrs["values"][-1] for dim in dims]
+    return dims
+
+
 def pixel_unshuffle(x: Tensor, scale):
     """Pixel unshuffle.
 
@@ -123,7 +132,7 @@ def pixel_unshuffle(x: Tensor, scale):
     Returns:
         Tensor: the pixel unshuffled feature.
     """
-    b, hh, hw, c = ops.size()(x)
+    b, hh, hw, c = size(x)
     out_channel = c * (scale**2)
     assert hh % scale == 0 and hw % scale == 0
     h = hh // scale
@@ -163,7 +172,10 @@ class RRDBNet(nn.Module):
             num_in_ch = num_in_ch * 4
         elif scale == 1:
             num_in_ch = num_in_ch * 16
-        self.conv_first = nn.Conv2dBiasFewChannels(num_in_ch, num_feat, 3, 1, 1)
+        if num_in_ch < 8:
+            self.conv_first = nn.Conv2dBiasFewChannels(num_in_ch, num_feat, 3, 1, 1)
+        else:
+            self.conv_first = nn.Conv2dBias(num_in_ch, num_feat, 3, 1, 1)
         self.body = make_layer(
             RRDB, num_block, num_feat=num_feat, num_grow_ch=num_grow_ch
         )
@@ -198,7 +210,7 @@ class RRDBNet(nn.Module):
         return out
 
 
-def map_rrdb(pt_mod):
+def map_rrdb(pt_mod, scale=4):
     params_ait = {}
     for key, arr in pt_mod.items():
         arr = arr.to(torch.float16)
@@ -206,7 +218,8 @@ def map_rrdb(pt_mod):
         if len(arr.shape) == 4:
             arr = arr.permute((0, 2, 3, 1)).contiguous()
         params_ait[key] = arr
-    params_ait["conv_first_weight"] = torch.functional.F.pad(
-        params_ait["conv_first_weight"], (0, 1)
-    )
+    if scale == 4:
+        params_ait["conv_first_weight"] = torch.functional.F.pad(
+            params_ait["conv_first_weight"], (0, 1)
+        )
     return params_ait
