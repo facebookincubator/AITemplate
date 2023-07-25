@@ -54,7 +54,7 @@ from modeling.rrdbnet import map_rrdb, mark_output, RRDBNet
 )
 @click.option(
     "--include-constants",
-    default=False,
+    default=True,
     type=bool,
     help="include constants (model weights) with compiled model",
 )
