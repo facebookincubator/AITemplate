@@ -192,9 +192,11 @@ def _get_inputs_outputs(
     """
     Given ops of a partitioned subgraph based on output shape, and ops of full graph
     to form a complete graph with fused_elementwise op, returns all inputs/outputs of
-    the ops and the external input of the subgraph, which will serve as input of fused_elementwise op.
+    the ops and the external input/output of the subgraph, which will serve as input/output
+    of fused_elementwise op.
     """
     external_inputs = set()
+    external_outputs = set()
     tmp_inputs = set()
     tmp_outputs = set()
 
@@ -209,6 +211,9 @@ def _get_inputs_outputs(
             assert op in input_tensor._attrs["dst_ops"]
         for output_tensor in op._attrs["outputs"]:
             tmp_outputs.add(output_tensor)
+            dst_ops = set(output_tensor._attrs["dst_ops"])
+            if output_tensor._attrs["is_output"] or len(dst_ops - all_ops) > 0:
+                external_outputs.add(output_tensor)
             assert len(output_tensor._attrs["src_ops"]) == 1
             assert list(output_tensor._attrs["src_ops"])[0] == op
 
@@ -217,7 +222,18 @@ def _get_inputs_outputs(
     ), "external_inputs: {} is not equal to tmp_inputs: {} - tmp_outputs: {}.".format(
         external_inputs, tmp_inputs, tmp_outputs
     )
-    return [tmp_inputs, tmp_outputs, external_inputs]
+    assert (
+        len(tmp_outputs - tmp_inputs - external_outputs) == 0
+    ), "tmp_outputs: {} - tmp_inputs: {} - external_outputs: {} is not empty.".format(
+        tmp_outputs, tmp_inputs, external_outputs
+    )
+    assert (
+        len(external_outputs - tmp_outputs) == 0
+    ), "external_outputs: {} - tmp_outputs: {} is not empty.".format(
+        external_outputs, tmp_outputs
+    )
+
+    return [tmp_inputs, tmp_outputs, external_inputs, external_outputs]
 
 
 def _collect_info(
@@ -254,9 +270,11 @@ def _collect_info(
         ), "Unable to find topological order of op list for fused_elementwise!"
         # Get all inputs/outputs of elementwise ops and their external input/output,
         # which will serve as input/output of fused_elementwise op.
-        tmp_inputs, tmp_outputs, external_inputs = _get_inputs_outputs(op_list, all_ops)
-        # Note external outputs were generated earlier because we need to group
-        # them by their shapes.
+        tmp_inputs, tmp_outputs, external_inputs, _ = _get_inputs_outputs(
+            op_list, all_ops
+        )
+        # Use the external outputs we already collected because the external outputs returned by
+        # _get_inputs_outputs may have different shapes.
         external_outputs = subgraph_info.external_outputs
         fused_op_info = FusedElementwiseInfo(
             op_list, tmp_inputs, tmp_outputs, external_inputs, external_outputs
