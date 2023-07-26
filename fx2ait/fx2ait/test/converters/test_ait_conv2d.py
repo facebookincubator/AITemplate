@@ -30,6 +30,7 @@ class TestConv2dConverter(AITTestCase):
             param("non_unary_params", 3, 2, padding=1, bias=False),
             param("dilation", 1, dilation=2),
             param("multi_group", 1, 1, 1, 1, 3, bias=True),
+            param("in_channel_padding_gt_4_lt_8", 1, in_channel=7),
         ]
     )
     def test_conv2d(
@@ -40,13 +41,14 @@ class TestConv2dConverter(AITTestCase):
         padding=0,
         dilation=1,
         groups=1,
+        in_channel=3,
         bias=True,
     ):
         class TestModule(torch.nn.Module):
             def __init__(self):
                 super().__init__()
                 self.conv = torch.nn.Conv2d(
-                    3, 36, kernel_size, stride, padding, dilation, groups, bias
+                    in_channel, 36, kernel_size, stride, padding, dilation, groups, bias
                 )
                 self.relu = torch.nn.ReLU()
 
@@ -54,7 +56,7 @@ class TestConv2dConverter(AITTestCase):
                 return self.relu(self.conv(x))
 
         model = TestModule().cuda().half()
-        inputs = [torch.randn(1, 3, 224, 224).cuda().half()]
+        inputs = [torch.randn(1, in_channel, 224, 224).cuda().half()]
         self.run_test(
             model,
             inputs,
