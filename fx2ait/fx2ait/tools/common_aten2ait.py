@@ -109,6 +109,7 @@ class DispatchTestCase(TestCase):
                 pt2_mode=True,
                 enable_functionalization=False,
                 enable_dynamic_shape=True,
+                _use_old_decomp_table=True,
             ),
         )._to_server(ServerCompileConfig(passes=passes_list))
 
