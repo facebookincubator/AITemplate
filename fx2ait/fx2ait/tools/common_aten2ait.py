@@ -24,7 +24,7 @@ from unittest import TestCase
 import executorch.exir as exir
 import torch
 from aitemplate.compiler.public import DynamicProfileStrategy
-from executorch.exir import CaptureConfig, ServerCompileConfig
+from executorch.exir import CaptureConfig
 
 from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter
@@ -111,7 +111,7 @@ class DispatchTestCase(TestCase):
                 enable_dynamic_shape=True,
                 _use_old_decomp_table=True,
             ),
-        )._to_server(ServerCompileConfig(passes=passes_list))
+        ).transform(*tuple(passes_list))
 
         fx_module = run_const_fold(fx_module)
         _LOGGER.info(f"aten fx graph: {fx_module.graph}")
