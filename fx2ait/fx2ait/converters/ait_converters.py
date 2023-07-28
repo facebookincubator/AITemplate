@@ -307,8 +307,20 @@ def acc_ops_linalg_norm(
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
+    if (
+        isinstance(kwargs["dim"], int)
+        and "ord" in kwargs
+        and kwargs["ord"] != 2
+        and kwargs["ord"] is not None
+    ):
+        # If dim is an int, the vector norm will be computed.
+        # For vector norm, the default ord is 2 if not specified
+        # otherwise, AIT hasn't implement it
+        raise RuntimeError("AIT linalg_norm only supports ord=2 use case!")
 
-    if "ord" not in kwargs or kwargs["ord"] != 2:
+    if not isinstance(kwargs["dim"], int) and (
+        "ord" not in kwargs or kwargs["ord"] != 2
+    ):
         raise RuntimeError("AIT linalg_norm only supports ord=2 use case!")
 
     # Hard code ord_kind=2 for l2 norm
