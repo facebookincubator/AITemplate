@@ -102,16 +102,20 @@ class DispatchTestCase(TestCase):
         if customized_passes:
             passes_list.extend(customized_passes)
 
-        fx_module = exir.capture(
-            mod,
-            tuple(original_inputs),
-            CaptureConfig(
-                pt2_mode=True,
-                enable_functionalization=False,
-                enable_dynamic_shape=True,
-                _use_old_decomp_table=True,
-            ),
-        ).transform(*tuple(passes_list))
+        fx_module = (
+            exir.capture(
+                mod,
+                tuple(original_inputs),
+                CaptureConfig(
+                    pt2_mode=True,
+                    enable_functionalization=False,
+                    enable_dynamic_shape=True,
+                    _use_old_decomp_table=True,
+                ),
+            )
+            .transform(*tuple(passes_list))
+            .exported_program.graph_module
+        )
 
         fx_module = run_const_fold(fx_module)
         _LOGGER.info(f"aten fx graph: {fx_module.graph}")
