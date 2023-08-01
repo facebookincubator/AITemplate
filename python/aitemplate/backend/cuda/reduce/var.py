@@ -24,6 +24,7 @@ import jinja2
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.reduce import reduce_3d
+from aitemplate.backend.target import Target
 
 
 EXTRA_CODE_TEMPLATE = jinja2.Template(
@@ -148,17 +149,17 @@ void shared_load<48>(void *dst, uint32_t ptr) {
 } // namespace arch
 
 template <typename ElementT, bool BesselCorrection>
-struct NumericConverter<WelfordData<ElementT, BesselCorrection>,
+struct NumericConverter<WelfordData<{{acc_type}}, BesselCorrection>,
                         ElementT,
                         FloatRoundStyle::round_to_nearest> {
 
-  using result_type = WelfordData<ElementT, BesselCorrection>;
+  using result_type = WelfordData<{{acc_type}}, BesselCorrection>;
   using source_type = ElementT;
   static FloatRoundStyle const round_style = FloatRoundStyle::round_to_nearest;
 
   CUTLASS_HOST_DEVICE
   static result_type convert(source_type const & s) {
-    return WelfordData<ElementT, BesselCorrection>(-1, static_cast<ElementT>(s), ElementT(0));
+    return WelfordData<{{acc_type}}, BesselCorrection>(-1, static_cast<{{acc_type}}>(s), {{acc_type}}(0));
   }
 
   CUTLASS_HOST_DEVICE
@@ -169,11 +170,11 @@ struct NumericConverter<WelfordData<ElementT, BesselCorrection>,
 
 template <typename ElementT, bool BesselCorrection>
 struct NumericConverter<ElementT,
-                        WelfordData<ElementT, BesselCorrection>,
+                        WelfordData<{{acc_type}}, BesselCorrection>,
                         FloatRoundStyle::round_to_nearest> {
 
   using result_type = ElementT;
-  using source_type = WelfordData<ElementT, BesselCorrection>;
+  using source_type = WelfordData<{{acc_type}}, BesselCorrection>;
   static FloatRoundStyle const round_style = FloatRoundStyle::round_to_nearest;
 
   CUTLASS_HOST_DEVICE
@@ -183,14 +184,14 @@ struct NumericConverter<ElementT,
       if (s.count <= 1) {
         return ElementT(nanf("Not a Number"));
       } else {
-        return s.m2 / ElementT((int)(s.count - 1));
+        return ElementT(s.m2) / ElementT((int)(s.count - 1));
       }
     } else {
       // sample variance
       if (s.count <= 0) {
         return ElementT(nanf("Not a Number"));
       } else {
-        return s.m2 / ElementT((int)(s.count));
+        return ElementT(s.m2) / ElementT((int)(s.count));
       }
     }
   }
@@ -294,17 +295,20 @@ def var_gen_function(func_attrs) -> str:
     """
     bessel = "true" if func_attrs["unbiased"] else "false"
     backend_spec = CUDASpec()
-    elem_output_type = backend_spec.dtype_to_lib_type(
-        func_attrs["outputs"][0]._attrs["dtype"]
-    )
-    acc_type = f"WelfordData<{elem_output_type}, {bessel}>"
+    output_type = func_attrs["outputs"][0]._attrs["dtype"]
+    elem_output_type = backend_spec.dtype_to_lib_type(output_type)
+
+    acc_type = "float"
+    if Target.current()._kwargs.get("use_fp16_acc", False) and output_type == "float16":
+        acc_type = elem_output_type
+    welford_type = f"WelfordData<{acc_type}, {bessel}>"
     return reduce_3d.gen_function(
         func_attrs,
         "cutlass::welford_op",
         reduce_3d.DEFAULT_PROLOGUE_TEMPLATE,
         reduce_3d.DEFAULT_EPILOGUE_SCALAR_TEMPLATE,
-        EXTRA_CODE_TEMPLATE.render(),
-        accumulation_type=acc_type,
+        EXTRA_CODE_TEMPLATE.render(acc_type=acc_type),
+        accumulation_type=welford_type,
     )
 
 
