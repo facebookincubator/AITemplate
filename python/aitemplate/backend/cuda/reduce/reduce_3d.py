@@ -28,6 +28,7 @@ from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import tensor_accessor_codegen
 
 from aitemplate.backend.cuda.reduce import reduce_small_axis
+from aitemplate.backend.target import Target
 
 
 DEFAULT_PROLOGUE_TEMPLATE = jinja2.Template(
@@ -830,7 +831,13 @@ def gen_function(
     output_type = backend_spec.dtype_to_lib_type(y._attrs["dtype"])
     if accumulation_type is None:
         # follow pytorch's semantics
-        acc_type = output_type
+        if (
+            Target.current()._kwargs.get("use_fp16_acc", False)
+            and y._attrs["dtype"] == "float16"
+        ):
+            acc_type = output_type
+        else:
+            acc_type = "float"
     else:
         acc_type = accumulation_type
 
