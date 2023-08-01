@@ -256,7 +256,7 @@ class ProfilerRunner:
     however, the results are empirically better compared to the previous runner.
     """
 
-    def __init__(self, devices: List[str], postprocessing_delegate, timeout: int = 300):
+    def __init__(self, devices: List[str], postprocessing_delegate, timeout: int = 500):
         """
         Parameters
         ----------
