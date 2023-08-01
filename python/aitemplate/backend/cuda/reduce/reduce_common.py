@@ -18,6 +18,7 @@ CUDA reduce common functions
 import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import IntImm, IntVar
 
@@ -88,7 +89,7 @@ void {{func_name}}_launcher(
   using Layout = cutlass::layout::TensorNHWC;
   // Match pytorch's behavior where the accumuation type is the same
   // as the output type
-  using ElementCompute = ElemOutputType;
+  using ElementCompute = {{accumulation_type}};
   using ReductionOp = {{reduction_op}}<ElementCompute>;
   constexpr int NUM_DIMS = 4;
   assert(rank <= NUM_DIMS);
@@ -193,9 +194,8 @@ def gen_function(func_attrs, reduction_op):
     elem_input_type = backend_spec.dtype_to_lib_type(
         func_attrs["inputs"][0]._attrs["dtype"]
     )
-    elem_output_type = backend_spec.dtype_to_lib_type(
-        func_attrs["outputs"][0]._attrs["dtype"]
-    )
+    output_type = func_attrs["outputs"][0]._attrs["dtype"]
+    elem_output_type = backend_spec.dtype_to_lib_type(output_type)
 
     vector_lens_config = [32, 16, 8, 4, 1]
     exec_paths = ""
@@ -213,11 +213,17 @@ def gen_function(func_attrs, reduction_op):
         workspace_ptr = "workspace"
     else:
         workspace_ptr = "nullptr"
+
+    accumulation_type = "float"
+    if Target.current()._kwargs.get("use_fp16_acc", False) and output_type == "float16":
+        accumulation_type = elem_output_type
+
     return SRC_TEMPLATE.render(
         func_name=func_attrs["name"],
         reduction_op=reduction_op,
         exec_paths=exec_paths,
         workspace_ptr=workspace_ptr,
+        accumulation_type=accumulation_type,
     )
 
 
