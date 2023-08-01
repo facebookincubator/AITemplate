@@ -69,7 +69,7 @@ class AITInterpreter(torch.fx.Interpreter):
         save_remote_cache: Optional[bool] = False,
         do_optimize_graph: bool = True,
         use_fast_math: bool = True,
-        profile_timeout: int = 300,
+        profile_timeout: int = 500,
     ):
         """
         Args:
