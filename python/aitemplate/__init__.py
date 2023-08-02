@@ -16,6 +16,7 @@ import sys
 
 from aitemplate import backend, compiler, frontend, testing, utils
 from aitemplate._libinfo import __version__  # noqa
+from aitemplate.utils.misc import setup_logger
 
 if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
     PY3STATEMENT = "The minimal Python requirement is Python 3.7"
@@ -23,4 +24,4 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 7):
 
 __all__ = ["backend", "compiler", "frontend", "testing", "utils"]
 
-root_logger = utils.misc.setup_logger(__name__)
+root_logger = setup_logger(__name__)
