@@ -226,6 +226,9 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
 {% endif %}
 
     void ProfileImpl(StreamType stream, size_t iters, const std::string& filename) {
+#ifdef OPTIMIZE_FOR_COMPILATION_TIME
+      throw std::runtime_error("Profile is disabled, please recompile without OPTIMIZE_FOR_COMPILE_TIME flag");
+#else
       std::ofstream ss(filename);
       if (!ss) {
         throw std::runtime_error(std::string("Could not open file ") + filename);
@@ -285,6 +288,7 @@ class {{model_name}} : public ModelBase<{{model_name}}> {
       DeviceToDeviceCopies(stream);
       std::cout << "AIT per op profiling finished." << std::endl;
       FreeDeviceMemory(L2CacheSlab);
+#endif
     }
 
     static std::unique_ptr<{{model_name}}> Create(

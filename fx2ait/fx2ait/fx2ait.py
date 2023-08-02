@@ -70,6 +70,7 @@ class AITInterpreter(torch.fx.Interpreter):
         do_optimize_graph: bool = True,
         use_fast_math: bool = True,
         profile_timeout: int = 500,
+        optimize_for_compilation_time: bool = False,
     ):
         """
         Args:
@@ -89,6 +90,7 @@ class AITInterpreter(torch.fx.Interpreter):
             save_remote_cache: whether to save the updated cache
             use_fast_math: whether to use fast math in CUDA kernels
             profile_timeout: timeout in seconds for AIT profilers to complete
+            optimize_for_compilation_time: we use O1 and disable the ProfileImpl function to reduce compilation time.
         """
         super().__init__(module)
 
@@ -112,6 +114,7 @@ class AITInterpreter(torch.fx.Interpreter):
             _LOGGER.info(f"Set CACHE_DIR to {self.cache_dir}")
         self.use_fp16_acc = use_fp16_acc
         self.use_fast_math = use_fast_math
+        self.optimize_for_compilation_time = optimize_for_compilation_time
         self.hardware_target = self._create_target()
         self.input_specs = input_specs
         self.input_specs_iter = 0
@@ -138,6 +141,7 @@ class AITInterpreter(torch.fx.Interpreter):
             use_fp16_acc=self.use_fp16_acc,
             remote_cache_bytes=self.remote_cache_bytes,
             use_fast_math=self.use_fast_math,
+            optimize_for_compilation_time=self.optimize_for_compilation_time,
         )
 
     def _load_profile_cache(self) -> bytes:
