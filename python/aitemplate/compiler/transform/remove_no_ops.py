@@ -36,8 +36,46 @@ from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 
 from aitemplate.compiler.transform import transform_utils
 
-from aitemplate.utils import graph_utils
+from aitemplate.utils import graph_utils, shape_utils
 from aitemplate.utils.shape_utils import is_singleton_dimension
+
+
+def _remove_no_op_dynamic_slices(sorted_graph: List[Tensor]) -> List[Tensor]:
+    """
+    Remove any no-op slices from the graph. A no-op slice is when the input tensor
+    and output tensor are exactly the same. This happens when the start indices
+    and end indices cover the entire dimension length.
+
+    x = Tensor([1, 2, 3])
+    y = x[:]
+
+    xx = Tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
+    yy = xx[0:2, -4:4]
+    """
+
+    ops = graph_utils.get_sorted_ops(sorted_graph)
+    for op in ops:
+        if op._attrs["op"] != "dynamic_slice":
+            continue
+
+        inputs = op._attrs["inputs"]
+        assert len(inputs) == 1, "dynamic_slice must only have 1 input"
+
+        outputs = op._attrs["outputs"]
+        assert len(inputs) == 1, "dynamic_slice must only have 1 output"
+
+        slice_input, slice_output = inputs[0], outputs[0]
+        if (
+            not shape_utils.is_same_shape(slice_input.shape(), slice_output.shape())
+            or slice_output._attrs["is_output"]
+        ):
+            continue
+
+        for dst_op in slice_output.dst_ops():
+            transform_utils.replace_tensor_for_op(dst_op, slice_output, slice_input)
+        transform_utils.remove_tensor_from_sorted_graph(slice_output)
+
+    return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
 def _remove_no_op_splits(sorted_graph: List[Tensor]) -> List[Tensor]:
@@ -236,6 +274,7 @@ def remove_no_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
         Graph after remove no-ops
     """
     passes = [
+        _remove_no_op_dynamic_slices,
         _remove_no_op_splits,
         _remove_no_op_expands,
         _fuse_expand_elementwise,
