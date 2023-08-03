@@ -49,13 +49,13 @@ def gen_function(
     half2_data_ref = backend_spec.half2_data_ref
 
     args = {
-        "indent":"    ",
-        "dtype":"int64_t ",
-        "div":"/",
-        "x_dim0":"*batch",
-        "x_dim1":"*in_h",
-        "x_dim2":"*in_w",
-        "x_dim3":"*in_ch",
+        "indent": "    ",
+        "dtype": "int64_t ",
+        "div": "/",
+        "x_dim0": "*batch",
+        "x_dim1": "*in_h",
+        "x_dim2": "*in_w",
+        "x_dim3": "*in_ch",
     }
     if func_attrs["out_shape"] is True:
         args["out_h"] = "*out_h"

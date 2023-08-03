@@ -102,15 +102,17 @@ class upsampling2d_base(Operator):
         self.exec_cond_template = EXEC_COND_TEMPLATE
 
     def _infer_shape(self, x: List[int], out: List[int] = None):
-        self.shape_eval_template = SHAPE_FUNC_TEMPLATE if out is None else _SHAPE_FUNC_TEMPLATE
+        self.shape_eval_template = (
+            SHAPE_FUNC_TEMPLATE if out is None else _SHAPE_FUNC_TEMPLATE
+        )
         args = {
-            "indent":"",
-            "dtype":"",
-            "div":"//",
-            "x_dim0":x[0],
-            "x_dim1":x[1],
-            "x_dim2":x[2],
-            "x_dim3":x[3],
+            "indent": "",
+            "dtype": "",
+            "div": "//",
+            "x_dim0": x[0],
+            "x_dim1": x[1],
+            "x_dim2": x[2],
+            "x_dim3": x[3],
         }
         if out is None:
             args["scale_factor"] = self._attrs["scale_factor"]
@@ -118,9 +120,7 @@ class upsampling2d_base(Operator):
             args["out_h"] = out[1]
             args["out_w"] = out[2]
         self.shape_args = args
-        eval_func = self.shape_eval_template.render(
-            **args
-        )
+        eval_func = self.shape_eval_template.render(**args)
         output = {}
         exec(eval_func, output)  # noqa: P204
         return [
@@ -156,8 +156,16 @@ class upsampling2d_base(Operator):
 
         in_h = x._attrs["shape"][1]._attrs["symbolic_value"]
         in_w = x._attrs["shape"][2]._attrs["symbolic_value"]
-        out_h = in_h * int(self._attrs["scale_factor"]) if out is None else out._attrs["shape"][1]._attrs["symbolic_value"]
-        out_w = in_w * int(self._attrs["scale_factor"]) if out is None else out._attrs["shape"][2]._attrs["symbolic_value"]
+        out_h = (
+            in_h * int(self._attrs["scale_factor"])
+            if out is None
+            else out._attrs["shape"][1]._attrs["symbolic_value"]
+        )
+        out_w = (
+            in_w * int(self._attrs["scale_factor"])
+            if out is None
+            else out._attrs["shape"][2]._attrs["symbolic_value"]
+        )
 
         output_shape[1]._attrs["symbolic_value"] = out_h
         output_shape[2]._attrs["symbolic_value"] = out_w
