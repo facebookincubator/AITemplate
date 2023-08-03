@@ -40,6 +40,28 @@ from aitemplate.utils import graph_utils, shape_utils
 from aitemplate.utils.shape_utils import is_singleton_dimension
 
 
+def _remove_id_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
+    """Remove identity ops."""
+    ops = graph_utils.get_sorted_ops(sorted_graph)
+    for op in ops:
+        if op._attrs["op"] != "identity":
+            continue
+
+        inputs = op._attrs["inputs"]
+        assert len(inputs) == 1, "identity must only have 1 input"
+
+        outputs = op._attrs["outputs"]
+        identity_output = outputs[0]
+        assert len(inputs) == 1, "identity must only have 1 output"
+
+        # skip a very special case where id takes an input and produces an output
+        if identity_output._attrs["is_output"] and inputs[0]._attrs["is_input"]:
+            continue
+
+        transform_utils.remove_single_tensor_op_from_sorted_graph(op)
+    return transform_utils.sanitize_sorted_graph(sorted_graph)
+
+
 def _remove_no_op_concats(sorted_graph: List[Tensor]) -> List[Tensor]:
     """
     Remove no-op concats from the graph. A no-op concat is where the output
@@ -328,6 +350,7 @@ def remove_no_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
         Graph after remove no-ops
     """
     passes = [
+        _remove_id_ops,
         _remove_no_op_concats,
         _remove_no_op_dynamic_slices,
         _remove_no_op_splits,
