@@ -31,13 +31,67 @@ call the passes in this file more than once.
 """
 from typing import List
 
-from aitemplate.compiler.base import IntVar, JaggedIntVar, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Tensor
 from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 
 from aitemplate.compiler.transform import transform_utils
 
 from aitemplate.utils import graph_utils, shape_utils
 from aitemplate.utils.shape_utils import is_singleton_dimension
+
+
+def _remove_no_op_concats(sorted_graph: List[Tensor]) -> List[Tensor]:
+    """
+    Remove no-op concats from the graph. A no-op concat is where the output
+    tensor is exactly the same as the input tensor(s) and it isn't the model output.
+    This is the case when:
+    1. There is a single input tensor.
+    2. There is a single non-empty input tensor and the remaining input tensors
+    are empty.
+
+    x = Tensor(shape=[7])
+    empty1 = Tensor(shape=[0], value=[])
+    empty2 = Tensor(shape=[0], value=[])
+
+    y1 = ops.concatenate([x])                   # Case 1
+    y2 = ops.concatenate([empty1])              # Case 1
+    y2 = ops.concatenate([empty1, x, empty2])   # Case 2
+    """
+
+    def is_dim_gt_zero(dim):
+        if isinstance(dim, IntImm):
+            return dim.value() > 0
+        elif isinstance(dim, IntVar):
+            return dim.lower_bound() > 0
+
+    ops = graph_utils.get_sorted_ops(sorted_graph)
+    for op in ops:
+        if op._attrs["op"] != "concatenate":
+            continue
+
+        inputs = op._attrs["inputs"]
+        assert len(inputs) >= 1, "concat must have at least 1 input"
+
+        outputs = op._attrs["outputs"]
+        concat_output = outputs[0]
+        assert len(outputs) == 1, "concat must have a single output"
+
+        # Assumes non-empty tensors have non-zero dimensions.
+        # And empty tensors have dimensions of size 0.
+        is_input_non_empty = [
+            all(is_dim_gt_zero(dim) for dim in tensor.shape()) for tensor in inputs
+        ]
+        n_non_empty = sum(is_input_non_empty)
+        if len(inputs) > 1 and n_non_empty > 1 or outputs[0]._attrs["is_output"]:
+            continue
+
+        idx = is_input_non_empty.index(True) if n_non_empty == 1 else 0
+        concat_input = inputs[idx]
+        for dst_op in concat_output.dst_ops():
+            transform_utils.replace_tensor_for_op(dst_op, concat_output, concat_input)
+        transform_utils.remove_tensor_from_sorted_graph(concat_output)
+
+    return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
 def _remove_no_op_dynamic_slices(sorted_graph: List[Tensor]) -> List[Tensor]:
@@ -274,6 +328,7 @@ def remove_no_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
         Graph after remove no-ops
     """
     passes = [
+        _remove_no_op_concats,
         _remove_no_op_dynamic_slices,
         _remove_no_op_splits,
         _remove_no_op_expands,
