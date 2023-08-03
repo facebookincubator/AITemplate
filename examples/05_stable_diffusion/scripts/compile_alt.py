@@ -82,10 +82,10 @@ def compile_diffusers(
         convert_conv_to_gemm = False
 
     assert (
-        width[0] % 64 == 0 and width[1] % 64 == 0
+        width[0] % 8 == 0 and width[1] % 8 == 0
     ), "Minimum Width and Maximum Width must be multiples of 64, otherwise, the compilation process will fail."
     assert (
-        height[0] % 64 == 0 and height[1] % 64 == 0
+        height[0] % 8 == 0 and height[1] % 8 == 0
     ), "Minimum Height and Maximum Height must be multiples of 64, otherwise, the compilation process will fail."
 
     pipe = StableDiffusionPipeline.from_pretrained(

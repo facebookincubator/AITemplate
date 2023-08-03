@@ -60,10 +60,10 @@ def compile_diffusers(
         convert_conv_to_gemm = False
 
     assert (
-        width % 64 == 0
+        width % 8 == 0
     ), "Width must be multiples of 64, otherwise, the compilation process will fail."
     assert (
-        height % 64 == 0
+        height % 8 == 0
     ), "Height must be multiples of 64, otherwise, the compilation process will fail."
 
     controlnet = ControlNetModel.from_pretrained(

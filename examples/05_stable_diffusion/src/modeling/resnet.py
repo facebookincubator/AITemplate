@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 from aitemplate.compiler import ops
-from aitemplate.frontend import nn
+from aitemplate.frontend import nn, Tensor
 
 
 def get_shape(x):
@@ -57,11 +57,17 @@ class Upsample2D(nn.Module):
         else:
             self.Conv2d_0 = conv
 
-    def forward(self, x):
+    def forward(self, x, upsample_size=None):
         if self.use_conv_transpose:
             return self.conv(x)
-
-        x = nn.Upsampling2d(scale_factor=2.0, mode="nearest")(x)
+        out = None
+        if upsample_size is not None:
+            out = ops.size()(x)
+            out[1] = upsample_size[1]
+            out[2] = upsample_size[2]
+            out = [x._attrs["int_var"] for x in out]
+            out = Tensor(out)
+        x = nn.Upsampling2d(scale_factor=2.0, mode="nearest")(x, out)
 
         # TODO(Suraj, Patrick) - clean up after weight dicts are correctly renamed
         if self.use_conv:
