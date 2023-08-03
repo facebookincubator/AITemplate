@@ -44,9 +44,11 @@ class Upsampling2d(Module):
         self.op = upsampling2d(scale_factor, mode)
 
     def forward(self, *args):
-        assert len(args) == 1
+        out = None
         x = args[0]
-        return self.op(x)
+        if len(args) == 2:
+            out = args[1]
+        return self.op(x, out)
 
 
 class Upsampling2dAdd(Module):

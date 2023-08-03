@@ -44,6 +44,18 @@ SHAPE_FUNC_TEMPLATE = jinja2.Template(
 {{indent}}{{dtype}}WO = WI * {{scale_factor}};
 """
 )
+_SHAPE_FUNC_TEMPLATE = jinja2.Template(
+    """
+{{indent}}{{dtype}}NI = {{x_dim0}};
+{{indent}}{{dtype}}HI = {{x_dim1}};
+{{indent}}{{dtype}}WI = {{x_dim2}};
+{{indent}}{{dtype}}CI = {{x_dim3}};
+{{indent}}{{dtype}}CO = {{x_dim3}};
+{{indent}}{{dtype}}NO = NI;
+{{indent}}{{dtype}}HO = {{out_h}};
+{{indent}}{{dtype}}WO = {{out_w}};
+"""
+)
 
 SHAPE_ASSIGNMENT_TEMPLATE = jinja2.Template(
     """
@@ -84,20 +96,30 @@ class upsampling2d_base(Operator):
         self._attrs["op"] = "upsampling2d"
         self._attrs["scale_factor"] = scale_factor
         self._attrs["mode"] = mode
+        self._attrs["out_shape"] = False
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
         self.shape_save_template = SHAPE_ASSIGNMENT_TEMPLATE
         self.exec_cond_template = EXEC_COND_TEMPLATE
 
-    def _infer_shape(self, x: List[int]):
+    def _infer_shape(self, x: List[int], out: List[int] = None):
+        self.shape_eval_template = SHAPE_FUNC_TEMPLATE if out is None else _SHAPE_FUNC_TEMPLATE
+        args = {
+            "indent":"",
+            "dtype":"",
+            "div":"//",
+            "x_dim0":x[0],
+            "x_dim1":x[1],
+            "x_dim2":x[2],
+            "x_dim3":x[3],
+        }
+        if out is None:
+            args["scale_factor"] = self._attrs["scale_factor"]
+        else:
+            args["out_h"] = out[1]
+            args["out_w"] = out[2]
+        self.shape_args = args
         eval_func = self.shape_eval_template.render(
-            indent="",
-            dtype="",
-            div="//",
-            scale_factor=self._attrs["scale_factor"],
-            x_dim0=x[0],
-            x_dim1=x[1],
-            x_dim2=x[2],
-            x_dim3=x[3],
+            **args
         )
         output = {}
         exec(eval_func, output)  # noqa: P204
@@ -108,13 +130,18 @@ class upsampling2d_base(Operator):
             int(output["CO"]),
         ]
 
-    def _infer_shapes(self, x: Tensor):
+    def _infer_shapes(self, x: Tensor, out: Tensor = None):
         x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
         x_shapes = itertools.product(*x_shape_values)
         # run infershape for each
+        if out is None:
+            out_shapes = [None] * len(x.shape())
+        else:
+            out_shape_values = [var._attrs["values"] for var in out._attrs["shape"]]
+            out_shapes = itertools.product(*out_shape_values)
         y_shapes = []
-        for x_shape in x_shapes:
-            y_shape = self._infer_shape(x_shape)
+        for x_shape, out_shape in zip(x_shapes, out_shapes):
+            y_shape = self._infer_shape(x_shape, out_shape)
             y_shapes.append(y_shape)
 
         def unique(vector):
@@ -129,8 +156,8 @@ class upsampling2d_base(Operator):
 
         in_h = x._attrs["shape"][1]._attrs["symbolic_value"]
         in_w = x._attrs["shape"][2]._attrs["symbolic_value"]
-        out_h = in_h * int(self._attrs["scale_factor"])
-        out_w = in_w * int(self._attrs["scale_factor"])
+        out_h = in_h * int(self._attrs["scale_factor"]) if out is None else out._attrs["shape"][1]._attrs["symbolic_value"]
+        out_w = in_w * int(self._attrs["scale_factor"]) if out is None else out._attrs["shape"][2]._attrs["symbolic_value"]
 
         output_shape[1]._attrs["symbolic_value"] = out_h
         output_shape[2]._attrs["symbolic_value"] = out_w
@@ -156,11 +183,12 @@ class upsampling2d_base(Operator):
         )
         return signature
 
-    def __call__(self, x: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor, out: Tensor = None) -> List[Tensor]:
+        self._attrs["out_shape"] = True if out is not None else False
         self._attrs["inputs"] = [x]
         self._set_depth()
         self._extract_exec_path(x)
-        output_shape = self._infer_shapes(x)
+        output_shape = self._infer_shapes(x, out)
         output = Tensor(output_shape, src_ops={self}, dtype=x._attrs["dtype"])
         self._attrs["outputs"] = [output]
         return output
@@ -169,6 +197,7 @@ class upsampling2d_base(Operator):
         return {
             "mode": self._attrs["mode"],
             "scale_factor": self._attrs["scale_factor"],
+            "out_shape": self._attrs["out_shape"],
         }
 
     def gen_function(self) -> str:

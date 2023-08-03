@@ -48,15 +48,22 @@ def gen_function(
     input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
     half2_data_ref = backend_spec.half2_data_ref
 
+    args = {
+        "indent":"    ",
+        "dtype":"int64_t ",
+        "div":"/",
+        "x_dim0":"*batch",
+        "x_dim1":"*in_h",
+        "x_dim2":"*in_w",
+        "x_dim3":"*in_ch",
+    }
+    if func_attrs["out_shape"] is True:
+        args["out_h"] = "*out_h"
+        args["out_w"] = "*out_w"
+    else:
+        args["scale_factor"] = func_attrs["scale_factor"]
     shape_eval_func = shape_eval_template.render(
-        indent="  ",
-        dtype="int64_t ",
-        x_dim0="*batch",
-        x_dim1="*in_h",
-        x_dim2="*in_w",
-        x_dim3="*in_ch",
-        scale_factor=func_attrs["scale_factor"],
-        div="/",
+        **args,
     )
     shape_save_func = shape_save_template.render(
         indent="  ",
