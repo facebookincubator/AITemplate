@@ -87,7 +87,7 @@ fx2ait_tests: &fx2ait_tests
 jobs:
   fx2ait-test:
     machine:
-      image: ubuntu-2004-cuda-11.4:202110-01
+      image: linux-cuda-11:default
       resource_class: gpu.nvidia.medium
     steps:
       - checkout
@@ -99,7 +99,7 @@ jobs:
 
   build-and-test:
     machine:
-      image: ubuntu-2004-cuda-11.4:202110-01
+      image: linux-cuda-11:default
       # Check T101565170 for multi-gpu use cases.
       resource_class: gpu.nvidia.medium
     parallelism: 10
