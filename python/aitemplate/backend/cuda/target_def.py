@@ -178,8 +178,17 @@ class CUDA(Target):
             options.extend(
                 [
                     "--use_fast_math",
-                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
                     "-DAIT_USE_FAST_MATH=1",
+                ]
+            )
+        if (
+            self._kwargs.get("use_tanh_for_sigmoid", False)
+            or environ.use_tanh_for_sigmoid()
+        ):
+            options.extend(
+                [
+                    "-DAIT_USE_TANH_FOR_SIGMOID=1",
+                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
                 ]
             )
         return options
@@ -445,8 +454,17 @@ class FBCUDA(CUDA):
             compile_options.extend(
                 [
                     "--use_fast_math",
-                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
                     "-DAIT_USE_FAST_MATH=1",
+                ]
+            )
+        if (
+            self._kwargs.get("use_tanh_for_sigmoid", False)
+            or environ.use_tanh_for_sigmoid()
+        ):
+            compile_options.extend(
+                [
+                    "-DAIT_USE_TANH_FOR_SIGMOID=1",
+                    "-DCUTLASS_USE_TANH_FOR_SIGMOID=1",
                 ]
             )
         compile_options_str = " ".join(compile_options)
