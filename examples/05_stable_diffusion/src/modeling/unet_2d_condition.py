@@ -14,6 +14,8 @@
 #
 from typing import Optional, Tuple, Union
 
+from aitemplate.compiler import ops
+
 from aitemplate.frontend import nn, Tensor
 
 from .embeddings import TimestepEmbedding, Timesteps
@@ -83,19 +85,71 @@ class UNet2DConditionModel(nn.Module):
         cross_attention_dim: int = 1280,
         attention_head_dim: Union[int, Tuple[int]] = 8,
         use_linear_projection: bool = False,
+        class_embed_type: Optional[str] = None,
+        num_class_embeds: Optional[int] = None,
+        only_cross_attention=[True, True, True, False],
+        conv_in_kernel=3,
+        dtype="float16",
+        time_embedding_dim=None,
+        projection_class_embeddings_input_dim=None,
+        addition_embed_type=None,
+        addition_time_embed_dim=None,
+        transformer_layers_per_block=1,
     ):
         super().__init__()
         self.center_input_sample = center_input_sample
         self.sample_size = sample_size
-        time_embed_dim = block_out_channels[0] * 4
+        self.time_embedding_dim = time_embedding_dim
+        time_embed_dim = time_embedding_dim or block_out_channels[0] * 4
 
         # input
-        self.conv_in = nn.Conv2dBias(in_channels, block_out_channels[0], 3, 1, 1)
+        self.in_channels = in_channels
+        if self.in_channels % 4 != 0:
+            in_channels = self.in_channels + (4 - (self.in_channels % 4))
+        else:
+            in_channels = self.in_channels
+        conv_in_padding = (conv_in_kernel - 1) // 2
+        print("in_channels", in_channels)
+        if in_channels < 8:
+            self.conv_in = nn.Conv2dBiasFewChannels(
+                in_channels, block_out_channels[0], 3, 1, conv_in_padding, dtype=dtype
+            )
+        else:
+            self.conv_in = nn.Conv2dBias(
+                in_channels, block_out_channels[0], 3, 1, conv_in_padding, dtype=dtype
+            )
         # time
-        self.time_proj = Timesteps(block_out_channels[0], flip_sin_to_cos, freq_shift)
+        self.time_proj = Timesteps(
+            block_out_channels[0],
+            flip_sin_to_cos,
+            freq_shift,
+            dtype=dtype,
+            arange_name="arange",
+        )
         timestep_input_dim = block_out_channels[0]
 
-        self.time_embedding = TimestepEmbedding(timestep_input_dim, time_embed_dim)
+        self.time_embedding = TimestepEmbedding(
+            timestep_input_dim, time_embed_dim, dtype=dtype
+        )
+        self.class_embed_type = class_embed_type
+        if class_embed_type is None and num_class_embeds is not None:
+            self.class_embedding = nn.Embedding(
+                [num_class_embeds, time_embed_dim], dtype=dtype
+            )
+        elif class_embed_type == "timestep":
+            self.class_embedding = TimestepEmbedding(
+                timestep_input_dim, time_embed_dim, dtype=dtype
+            )
+        elif class_embed_type == "identity":
+            self.class_embedding = nn.Identity(dtype=dtype)
+        else:
+            self.class_embedding = None
+
+        if addition_embed_type == "text_time":
+            # self.add_time_proj = Timesteps(addition_time_embed_dim, flip_sin_to_cos, freq_shift, dtype=dtype, arange_name="add_arange")
+            self.add_embedding = TimestepEmbedding(
+                projection_class_embeddings_input_dim, time_embed_dim, dtype=dtype
+            )
 
         self.down_blocks = nn.ModuleList([])
         self.up_blocks = nn.ModuleList([])
@@ -109,10 +163,10 @@ class UNet2DConditionModel(nn.Module):
             input_channel = output_channel
             output_channel = block_out_channels[i]
             is_final_block = i == len(block_out_channels) - 1
-
             down_block = get_down_block(
                 down_block_type,
                 num_layers=layers_per_block,
+                transformer_layers_per_block=transformer_layers_per_block[i],
                 in_channels=input_channel,
                 out_channels=output_channel,
                 temb_channels=time_embed_dim,
@@ -123,11 +177,14 @@ class UNet2DConditionModel(nn.Module):
                 cross_attention_dim=cross_attention_dim,
                 downsample_padding=downsample_padding,
                 use_linear_projection=use_linear_projection,
+                only_cross_attention=only_cross_attention[i],
+                dtype=dtype,
             )
             self.down_blocks.append(down_block)
 
         # mid
         self.mid_block = UNetMidBlock2DCrossAttn(
+            transformer_layers_per_block=transformer_layers_per_block[-1],
             in_channels=block_out_channels[-1],
             temb_channels=time_embed_dim,
             resnet_eps=norm_eps,
@@ -138,11 +195,15 @@ class UNet2DConditionModel(nn.Module):
             attn_num_head_channels=attention_head_dim[-1],
             resnet_groups=norm_num_groups,
             use_linear_projection=use_linear_projection,
+            dtype=dtype,
         )
 
         # up
         reversed_block_out_channels = list(reversed(block_out_channels))
         reversed_attention_head_dim = list(reversed(attention_head_dim))
+        reversed_transformer_layers_per_block = list(
+            reversed(transformer_layers_per_block)
+        )
         output_channel = reversed_block_out_channels[0]
         for i, up_block_type in enumerate(up_block_types):
             prev_output_channel = output_channel
@@ -156,6 +217,7 @@ class UNet2DConditionModel(nn.Module):
             up_block = get_up_block(
                 up_block_type,
                 num_layers=layers_per_block + 1,
+                transformer_layers_per_block=reversed_transformer_layers_per_block[i],
                 in_channels=input_channel,
                 out_channels=output_channel,
                 prev_output_channel=prev_output_channel,
@@ -166,6 +228,8 @@ class UNet2DConditionModel(nn.Module):
                 attn_num_head_channels=reversed_attention_head_dim[i],
                 cross_attention_dim=cross_attention_dim,
                 use_linear_projection=use_linear_projection,
+                only_cross_attention=only_cross_attention[i],
+                dtype=dtype,
             )
             self.up_blocks.append(up_block)
             prev_output_channel = output_channel
@@ -176,17 +240,33 @@ class UNet2DConditionModel(nn.Module):
             num_groups=norm_num_groups,
             eps=norm_eps,
             use_swish=True,
+            dtype=dtype,
         )
 
-        self.conv_out = nn.Conv2dBias(block_out_channels[0], out_channels, 3, 1, 1)
+        self.conv_out = nn.Conv2dBias(
+            block_out_channels[0], out_channels, 3, 1, 1, dtype=dtype
+        )
 
     def forward(
         self,
         sample,
         timesteps,
         encoder_hidden_states,
-        down_block_additional_residuals: Optional[Tuple[Tensor]] = None,
-        mid_block_additional_residual: Optional[Tensor] = None,
+        down_block_residual_0=None,
+        down_block_residual_1=None,
+        down_block_residual_2=None,
+        down_block_residual_3=None,
+        down_block_residual_4=None,
+        down_block_residual_5=None,
+        down_block_residual_6=None,
+        down_block_residual_7=None,
+        down_block_residual_8=None,
+        down_block_residual_9=None,
+        down_block_residual_10=None,
+        down_block_residual_11=None,
+        mid_block_residual=None,
+        class_labels: Optional[Tensor] = None,
+        add_embeds: Optional[Tensor] = None,
         return_dict: bool = True,
     ):
         """r
@@ -202,12 +282,50 @@ class UNet2DConditionModel(nn.Module):
             [`~models.unet_2d_condition.UNet2DConditionOutput`] if `return_dict` is True, otherwise a `tuple`. When
             returning a tuple, the first element is the sample tensor.
         """
+        down_block_additional_residuals = (
+            down_block_residual_0,
+            down_block_residual_1,
+            down_block_residual_2,
+            down_block_residual_3,
+            down_block_residual_4,
+            down_block_residual_5,
+            down_block_residual_6,
+            down_block_residual_7,
+            down_block_residual_8,
+            down_block_residual_9,
+            down_block_residual_10,
+            down_block_residual_11,
+        )
+        mid_block_additional_residual = mid_block_residual
+        if down_block_additional_residuals[0] is None:
+            down_block_additional_residuals = None
 
         # 1. time
         t_emb = self.time_proj(timesteps)
         emb = self.time_embedding(t_emb)
+        if self.class_embedding is not None:
+            if class_labels is None:
+                raise ValueError(
+                    "class_labels should be provided when num_class_embeds > 0"
+                )
+
+            if self.class_embed_type == "timestep":
+                class_labels = self.time_proj(class_labels)
+
+            class_emb = ops.batch_gather()(
+                self.class_embedding.weight.tensor(), class_labels
+            )
+            emb = emb + class_emb
+
+        if add_embeds is not None:
+            aug_emb = self.add_embedding(add_embeds)
+            emb = emb + aug_emb
 
         # 2. pre-process
+        if self.in_channels % 4 != 0:
+            channel_pad = self.in_channels + (4 - (self.in_channels % 4))
+            sample = ops.pad_last_dim(4, channel_pad)(sample)
+
         sample = self.conv_in(sample)
 
         # 3. down
@@ -234,6 +352,9 @@ class UNet2DConditionModel(nn.Module):
             for down_block_res_sample, down_block_additional_residual in zip(
                 down_block_res_samples, down_block_additional_residuals
             ):
+                down_block_additional_residual._attrs[
+                    "shape"
+                ] = down_block_res_sample._attrs["shape"]
                 down_block_res_sample += down_block_additional_residual
                 new_down_block_res_samples += (down_block_res_sample,)
 
@@ -245,14 +366,18 @@ class UNet2DConditionModel(nn.Module):
         )
 
         if mid_block_additional_residual is not None:
+            mid_block_additional_residual._attrs["shape"] = sample._attrs["shape"]
             sample += mid_block_additional_residual
-
+        upsample_size = None
         # 5. up
-        for upsample_block in self.up_blocks:
+        for i, upsample_block in enumerate(self.up_blocks):
+            is_final_block = i == len(self.up_blocks) - 1
             res_samples = down_block_res_samples[-len(upsample_block.resnets) :]
             down_block_res_samples = down_block_res_samples[
                 : -len(upsample_block.resnets)
             ]
+            if not is_final_block:
+                upsample_size = ops.size()(down_block_res_samples[-1])
 
             if (
                 hasattr(upsample_block, "attentions")
@@ -263,10 +388,14 @@ class UNet2DConditionModel(nn.Module):
                     temb=emb,
                     res_hidden_states_tuple=res_samples,
                     encoder_hidden_states=encoder_hidden_states,
+                    upsample_size=upsample_size,
                 )
             else:
                 sample = upsample_block(
-                    hidden_states=sample, temb=emb, res_hidden_states_tuple=res_samples
+                    hidden_states=sample,
+                    temb=emb,
+                    res_hidden_states_tuple=res_samples,
+                    upsample_size=upsample_size,
                 )
 
         # 6. post-process
@@ -274,4 +403,6 @@ class UNet2DConditionModel(nn.Module):
         # when running in half-precision
         sample = self.conv_norm_out(sample)
         sample = self.conv_out(sample)
+        sample._attrs["is_output"] = True
+        sample._attrs["name"] = "latent_output"
         return sample

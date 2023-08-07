@@ -57,11 +57,12 @@ class CrossAttention(nn.Module):
         self.heads = heads
         self.dim_head = dim_head
 
-        self.to_q = nn.Linear(query_dim, inner_dim, bias=False)
-        self.to_k = nn.Linear(context_dim, inner_dim, bias=False)
-        self.to_v = nn.Linear(context_dim, inner_dim, bias=False)
+        self.to_q = nn.Linear(query_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_k = nn.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
+        self.to_v = nn.Linear(context_dim, inner_dim, bias=False, dtype=dtype)
         self.to_out = nn.Sequential(
-            nn.Linear(inner_dim, query_dim), nn.Dropout(dropout)
+            nn.Linear(inner_dim, query_dim, dtype=dtype),
+            nn.Dropout(dropout, dtype=dtype),
         )
 
     def forward(self, x, context=None, mask=None, residual=None):
@@ -98,30 +99,34 @@ class CrossAttention(nn.Module):
 
 
 class GEGLU(nn.Module):
-    def __init__(self, dim_in, dim_out):
+    def __init__(self, dim_in, dim_out, dtype="float16"):
         super().__init__()
-        self.proj = nn.Linear(dim_in, dim_out, specialization="mul")
-        self.gate = nn.Linear(dim_in, dim_out, specialization="fast_gelu")
+        self.proj = nn.Linear(dim_in, dim_out, specialization="mul", dtype=dtype)
+        self.gate = nn.Linear(dim_in, dim_out, specialization="fast_gelu", dtype=dtype)
 
     def forward(self, x):
         return self.proj(x, self.gate(x))
 
 
 class FeedForward(nn.Module):
-    def __init__(self, dim, dim_out=None, mult=4, glu=False, dropout=0.0):
+    def __init__(
+        self, dim, dim_out=None, mult=4, glu=False, dropout=0.0, dtype="float16"
+    ):
         super().__init__()
         inner_dim = int(dim * mult)
         dim_out = default(dim_out, dim)
         project_in = (
             nn.Sequential(
-                nn.Linear(dim, inner_dim, specialization="fast_gelu"),
+                nn.Linear(dim, inner_dim, specialization="fast_gelu", dtype=dtype),
             )
             if not glu
-            else GEGLU(dim, inner_dim)
+            else GEGLU(dim, inner_dim, dtype=dtype)
         )
 
         self.net = nn.Sequential(
-            project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim_out)
+            project_in,
+            nn.Dropout(dropout, dtype=dtype),
+            nn.Linear(inner_dim, dim_out, dtype=dtype),
         )
 
     def forward(self, x, residual=None):
@@ -144,35 +149,54 @@ class BasicTransformerBlock(nn.Module):
         context_dim=None,
         gated_ff=True,
         checkpoint=True,
+        only_cross_attention=False,
+        dtype="float16",
     ):
         super().__init__()
+        self.only_cross_attention = only_cross_attention
         self.attn1 = CrossAttention(
-            query_dim=dim, heads=n_heads, dim_head=d_head, dropout=dropout
-        )  # is a self-attention
-        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff)
-        self.attn2 = CrossAttention(
             query_dim=dim,
-            context_dim=context_dim,
+            context_dim=context_dim if only_cross_attention else None,
             heads=n_heads,
             dim_head=d_head,
             dropout=dropout,
+            dtype=dtype,
         )
-        self.norm1 = nn.LayerNorm(dim)
-        self.norm2 = nn.LayerNorm(dim)
-        self.norm3 = nn.LayerNorm(dim)
+        self.ff = FeedForward(dim, dropout=dropout, glu=gated_ff, dtype=dtype)
+        if context_dim is not None:
+            self.attn2 = CrossAttention(
+                query_dim=dim,
+                context_dim=context_dim,
+                heads=n_heads,
+                dim_head=d_head,
+                dropout=dropout,
+                dtype=dtype,
+            )
+        else:
+            self.attn2 = None
+        self.norm1 = nn.LayerNorm(dim, dtype=dtype)
+        self.norm2 = nn.LayerNorm(dim, dtype=dtype)
+        self.norm3 = nn.LayerNorm(dim, dtype=dtype)
         self.checkpoint = checkpoint
 
         self.param = (dim, n_heads, d_head, context_dim, gated_ff, checkpoint)
 
     def forward(self, x, context=None):
-        x = self.attn1(self.norm1(x), residual=x)
-        x = self.attn2(self.norm2(x), context=context, residual=x)
+        x = self.attn1(
+            self.norm1(x),
+            residual=x,
+            context=context if self.only_cross_attention else None,
+        )
+        if self.attn2 is not None:
+            x = self.attn2(self.norm2(x), context=context, residual=x)
         x = self.ff(self.norm3(x), residual=x)
         return x
 
 
-def Normalize(in_channels):
-    return nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+def Normalize(in_channels, dtype="float16"):
+    return nn.GroupNorm(
+        num_groups=32, num_channels=in_channels, eps=1e-6, affine=True, dtype=dtype
+    )
 
 
 class SpatialTransformer(nn.Module):
@@ -193,34 +217,42 @@ class SpatialTransformer(nn.Module):
         dropout=0.0,
         context_dim=None,
         use_linear_projection=False,
+        only_cross_attention=False,
+        dtype="float16",
     ):
         super().__init__()
         self.in_channels = in_channels
         inner_dim = n_heads * d_head
-        self.norm = Normalize(in_channels)  # Group Norm
+        self.norm = Normalize(in_channels, dtype=dtype)  # Group Norm
         self.use_linear_projection = use_linear_projection
 
         if use_linear_projection:
-            self.proj_in = nn.Linear(in_channels, inner_dim)
+            self.proj_in = nn.Linear(in_channels, inner_dim, dtype=dtype)
         else:
             self.proj_in = nn.Conv2dBias(
-                in_channels, inner_dim, kernel_size=1, stride=1, padding=0
+                in_channels, inner_dim, kernel_size=1, stride=1, padding=0, dtype=dtype
             )
 
         self.transformer_blocks = nn.ModuleList(
             [
                 BasicTransformerBlock(
-                    inner_dim, n_heads, d_head, dropout=dropout, context_dim=context_dim
+                    inner_dim,
+                    n_heads,
+                    d_head,
+                    dropout=dropout,
+                    context_dim=context_dim,
+                    only_cross_attention=only_cross_attention,
+                    dtype=dtype,
                 )
                 for d in range(depth)
             ]
         )
 
         if use_linear_projection:
-            self.proj_out = nn.Linear(inner_dim, in_channels)
+            self.proj_out = nn.Linear(inner_dim, in_channels, dtype=dtype)
         else:
             self.proj_out = nn.Conv2dBias(
-                inner_dim, in_channels, kernel_size=1, stride=1, padding=0
+                inner_dim, in_channels, kernel_size=1, stride=1, padding=0, dtype=dtype
             )
 
     def forward(self, x, context=None):
@@ -517,12 +549,17 @@ class CLIPEncoder(nn.Module):
 
         hidden_states = inputs_embeds
         for _, encoder_layer in enumerate(self.layers):
-            if output_hidden_states:
+            if output_hidden_states and encoder_states is not None:
                 encoder_states = encoder_states + (hidden_states,)
             layer_outputs = encoder_layer(hidden_states)
             hidden_states = layer_outputs
 
-        return hidden_states
+        last_hidden_state = hidden_states
+        output = last_hidden_state
+        if output_hidden_states:
+            encoder_states = encoder_states + (hidden_states,)
+            output = encoder_states
+        return output
 
 
 class CLIPTextEmbeddings(nn.Module):
@@ -581,6 +618,7 @@ class CLIPTextTransformer(nn.Module):
     def __init__(
         self,
         hidden_size=768,
+        text_projection_dim=None,
         output_attentions=False,
         output_hidden_states=False,
         use_return_dict=False,
@@ -605,10 +643,19 @@ class CLIPTextTransformer(nn.Module):
             act_layer=act_layer,
         )
         self.final_layer_norm = nn.LayerNorm(hidden_size)
+        if text_projection_dim is not None:
+            self.text_projection = nn.Linear(
+                hidden_size, text_projection_dim, bias=False
+            )
+        else:
+            self.text_projection = None
 
         self.output_attentions = output_attentions
         self.output_hidden_states = output_hidden_states
         self.use_return_dict = use_return_dict
+        self.hidden_size = hidden_size
+        self.seq_len = seq_len
+        self.num_layers = num_hidden_layers
 
     def forward(
         self,
@@ -622,27 +669,40 @@ class CLIPTextTransformer(nn.Module):
         r"""
         Returns:
         """
-        output_attentions = (
-            output_attentions
-            if output_attentions is not None
-            else self.output_attentions
-        )
-        output_hidden_states = (
-            output_hidden_states
-            if output_hidden_states is not None
-            else self.output_hidden_states
-        )
-        return_dict = return_dict if return_dict is not None else self.use_return_dict
-
-        if input_ids is None:
-            raise ValueError("You have to specify either input_ids")
+        batch = ops.size()(input_ids)[0]
 
         hidden_states = self.embeddings(input_ids=input_ids, position_ids=position_ids)
 
-        encoder_outputs = self.encoder(
-            inputs_embeds=hidden_states,
+        encoder_output = self.encoder(
+            inputs_embeds=hidden_states, output_hidden_states=self.output_hidden_states
         )
-
-        last_hidden_state = encoder_outputs
+        if self.output_hidden_states:
+            last_hidden_state = encoder_output[-1]
+        else:
+            last_hidden_state = encoder_output
         last_hidden_state = self.final_layer_norm(last_hidden_state)
-        return last_hidden_state
+
+        argmax = ops.argmax(-1)(input_ids)
+        pooled_output = ops.index_select(dim=1)(last_hidden_state, argmax)
+        pooled_output = ops.reshape()(pooled_output, [batch, self.hidden_size])
+        last_hidden_state._attrs["is_output"] = True
+        last_hidden_state._attrs["name"] = "last_hidden_state"
+        pooled_output._attrs["is_output"] = True
+        pooled_output._attrs["name"] = "pooled_output"
+        output = (
+            last_hidden_state,
+            pooled_output,
+        )
+        if self.text_projection is not None:
+            text_embeds = self.text_projection(pooled_output)
+            text_embeds._attrs["is_output"] = True
+            text_embeds._attrs["name"] = "text_embeds"
+            output = output + (text_embeds,)
+
+        if self.output_hidden_states:
+            for idx, hidden_state in enumerate(encoder_output[:-1]):
+                hidden_state._attrs["is_output"] = True
+                hidden_state._attrs["name"] = f"hidden_state_{idx}"
+                output = output + (hidden_state,)
+
+        return output

@@ -50,6 +50,7 @@ class AttentionBlock(nn.Module):
         num_groups: int = 32,
         rescale_output_factor: float = 1.0,
         eps: float = 1e-5,
+        dtype="float16",
     ):
         super().__init__()
         self.batch_size = batch_size
@@ -58,13 +59,14 @@ class AttentionBlock(nn.Module):
             channels // num_head_channels if num_head_channels is not None else 1
         )
         self.num_head_size = num_head_channels
-        self.group_norm = nn.GroupNorm(num_groups, channels, eps)
+        self.group_norm = nn.GroupNorm(num_groups, channels, eps, dtype=dtype)
         self.attention = nn.CrossAttention(
             channels,
             height * width,
             height * width,
             self.num_heads,
             qkv_bias=True,
+            dtype=dtype,
         )
         self.rescale_output_factor = rescale_output_factor
 
