@@ -32,7 +32,9 @@ header_files = """
 #include <cub/cub.cuh>
 
 using bfloat16 = nv_bfloat16;
-
+// if this #if statement does not evaluate to True, it is already
+// defined in cub's util_type.cuh and would be a redefinition
+#if (__CUDACC_VER_MAJOR__ < 11 && CUDA_VERSION < 11000) || _NVHPC_CUDA
 namespace cub {
     template <>
     struct FpLimits<bfloat16>
@@ -54,7 +56,7 @@ namespace cub {
     template<> struct Traits<bfloat16>
       : NumericTraits<bfloat16> {};
 }
-
+#endif
 """
 
 
