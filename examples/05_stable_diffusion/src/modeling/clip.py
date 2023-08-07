@@ -646,3 +646,124 @@ class CLIPTextTransformer(nn.Module):
         last_hidden_state = encoder_outputs
         last_hidden_state = self.final_layer_norm(last_hidden_state)
         return last_hidden_state
+
+
+class CLIPVisionEmbeddings(nn.Module):
+    def __init__(
+        self,
+        hidden_size=768,
+        num_channels=3,
+        image_size=224,
+        patch_size=16,
+        dtype="float16",
+    ):
+        super().__init__()
+        self.embed_dim = hidden_size
+        self.image_size = image_size
+        self.patch_size = patch_size
+        self.num_channels = num_channels
+
+        self.class_embedding = nn.Parameter(shape=[1, 1, hidden_size], dtype=dtype)
+        num_channels = num_channels + (4 - (num_channels % 4))
+        self.patch_embedding = nn.Conv2dBiasFewChannels(
+            in_channels=num_channels,
+            out_channels=hidden_size,
+            kernel_size=patch_size,
+            stride=patch_size,
+            dtype=dtype,
+        )
+
+        self.num_patches = (image_size // patch_size) ** 2
+        self.num_positions = self.num_patches + 1
+        self.position_embedding = nn.Embedding(
+            shape=[self.num_positions, hidden_size], dtype=dtype
+        )
+
+    def forward(self, pixel_values: Tensor, position_ids: Tensor) -> Tensor:
+        pixel_values = ops.pad_last_dim(4, 4)(pixel_values)
+        input_shape = ops.size()(pixel_values)
+        batch_size = input_shape[0]
+        patch_embeds = self.patch_embedding(pixel_values)
+        patch_embeds = ops.flatten(1, 2)(patch_embeds)
+
+        class_embeds = ops.expand()(self.class_embedding.tensor(), [batch_size, 1, -1])
+        class_embeds._attrs["shape"][0] = pixel_values._attrs["shape"][0]
+        embeddings = ops.concatenate()([class_embeds, patch_embeds], dim=1)
+
+        position_embedding = self.position_embedding.tensor()
+        position_embedding = ops.reshape()(
+            position_embedding, [1, self.num_positions, self.embed_dim]
+        )
+        position_embedding = ops.expand()(position_embedding, [input_shape[0], -1, -1])
+
+        embeddings = embeddings + ops.batch_gather()(position_embedding, position_ids)
+
+        return embeddings
+
+
+class CLIPVisionTransformer(nn.Module):
+    def __init__(
+        self,
+        hidden_size=1024,
+        layer_norm_eps=1e-05,
+        num_channels=3,
+        image_size=224,
+        patch_size=14,
+        num_hidden_layers=24,
+        num_attention_heads=16,
+        hidden_act="quick_gelu",
+        projection_dim=None,
+    ):
+        super().__init__()
+        self.embed_dim = hidden_size
+        self.embeddings = CLIPVisionEmbeddings(
+            hidden_size=hidden_size,
+            num_channels=num_channels,
+            image_size=image_size,
+            patch_size=patch_size,
+        )
+        self.pre_layrnorm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+        self.encoder = CLIPEncoder(
+            num_attention_heads=num_attention_heads,
+            num_hidden_layers=num_hidden_layers,
+            hidden_size=hidden_size,
+            act_layer=hidden_act,
+        )
+        self.post_layernorm = nn.LayerNorm(hidden_size, eps=layer_norm_eps)
+        if projection_dim is not None:
+            self.visual_projection = nn.Linear(hidden_size, projection_dim, bias=False)
+        else:
+            self.visual_projection = None
+
+    def forward(
+        self,
+        pixel_values: Tensor,
+        position_ids: Tensor,
+    ):
+        batch = ops.size()(pixel_values)[0]._attrs["int_var"]._attrs["values"][0]
+        hidden_states = self.embeddings(pixel_values, position_ids)
+        hidden_states = self.pre_layrnorm(hidden_states)
+
+        encoder_outputs = self.encoder(
+            inputs_embeds=hidden_states,
+        )
+
+        last_hidden_state = encoder_outputs
+        pooled_output = ops.dynamic_slice()(
+            last_hidden_state,
+            start_indices=[0, 0, 0],
+            end_indices=[batch, 1, self.embed_dim],
+        )
+        pooled_output = self.post_layernorm(pooled_output)
+        pooled_output = ops.squeeze(dim=0)(pooled_output)
+        if self.visual_projection is not None:
+            image_embeds = self.visual_projection(pooled_output)
+            image_embeds._attrs["is_output"] = True
+            image_embeds._attrs["name"] = "image_embeds"
+            return image_embeds
+        else:
+            pooled_output._attrs["is_output"] = True
+            pooled_output._attrs["name"] = "pooled_output"
+            last_hidden_state._attrs["is_output"] = True
+            last_hidden_state._attrs["name"] = "last_hidden_state"
+            return pooled_output, last_hidden_state
