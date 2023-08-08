@@ -139,21 +139,24 @@ __inline__ __device__ void warpReduceSum(
   }
 }
 
-template <typename T>
+// Note that it's not a complete block-wide reduction.
+// Only threads that share threadIdx.y reduce values.
+template <typename T, size_t ROWS = 1>
 __inline__ __device__ void blockReduceSum(T& val) {
-  __shared__ T shared[WARP_SIZE];
-  int lane = threadIdx.x & 0x1f; // threadIdx.x % warp_size
-  int wid = threadIdx.x >> 5; // threadIdx.x / warp_size
+  // NOTE: if ROWS > 1, we must have blockDim.x % WARP_SIZE == 0
+  __shared__ T shared[ROWS][WARP_SIZE];
+  int lane = threadIdx.x & 0x1f; // threadIdx.x % WARP_SIZE
+  int wid = threadIdx.x >> 5; // threadIdx.x / WARP_SIZE
 
   warpReduceSum<T>(val);
 
   if (lane == 0)
-    shared[wid] = val;
+    shared[threadIdx.y][wid] = val;
 
   __syncthreads();
 
   bool is_mask = threadIdx.x < (blockDim.x / 32.f);
-  val = is_mask ? shared[lane] : (T)(0.0f);
+  val = is_mask ? shared[threadIdx.y][lane] : (T)(0.0f);
   if (wid == 0)
     warpReduceSum<T>(val);
 }
@@ -168,21 +171,21 @@ __inline__ __device__ void warpReduceMax(
   }
 }
 
-template <typename T>
+template <typename T, size_t ROWS = 1>
 __inline__ __device__ void blockReduceMax(T& val) {
-  __shared__ T shared[WARP_SIZE];
+  __shared__ T shared[ROWS][WARP_SIZE];
   int lane = threadIdx.x & 0x1f;
   int wid = threadIdx.x >> 5;
 
   warpReduceMax<T>(val);
 
   if (lane == 0)
-    shared[wid] = val;
+    shared[threadIdx.y][wid] = val;
 
   __syncthreads();
 
   bool is_mask = threadIdx.x < (blockDim.x / 32.f);
-  val = is_mask ? shared[lane] : (T)(0.0f);
+  val = is_mask ? shared[threadIdx.y][lane] : (T)(0.0f);
 
   if (wid == 0)
     warpReduceMax<T>(val);
@@ -844,35 +847,15 @@ void LaunchSoftmaxK1Middle(
   SOFTMAX_LAUNCH_CHECK();
 }
 
-// Note that it's not a complete block-wide reduction.
-// Only threads that share threadIdx.y reduce values.
-template <typename T, template <typename> class ReduceOp>
-__forceinline__ __device__ T softmax_general_block_reduce_x(T* shared, T val) {
-  ReduceOp<T> r;
-  shared += threadIdx.y * blockDim.x;
-
-  __syncthreads();
-
-  shared[threadIdx.x] = val;
-
-  // NOTE: loop starts with __syncthreads()
-  int offset = blockDim.x / 2;
-  while (offset > 0) {
-    __syncthreads();
-    if (threadIdx.x < offset)
-      shared[threadIdx.x] =
-          r(shared[threadIdx.x], shared[threadIdx.x + offset]);
-    offset /= 2;
-  }
-
-  __syncthreads();
-
-  return shared[0];
-}
-
-template <typename T, size_t DimSize, size_t InnerSize, size_t DimThreads>
+template <
+    typename T,
+    size_t DimSize,
+    size_t InnerSize,
+    size_t DimThreads,
+    size_t InnerThreads>
 __global__ void softmax_general(const T* input, T* output, size_t outer_size) {
   extern __shared__ unsigned char smem[];
+  __shared__ T s_max[InnerThreads], s_sum[InnerThreads];
   auto sdata = reinterpret_cast<T*>(smem);
   const uint32_t outer_stride = InnerSize * DimSize;
   const uint32_t dim_stride = InnerSize;
@@ -884,26 +867,36 @@ __global__ void softmax_general(const T* input, T* output, size_t outer_size) {
          inner_index < InnerSize;
          inner_index += blockDim.y * gridDim.y) {
       const uint32_t data_offset = outer_offset + inner_index;
-      T max_input = std::numeric_limits<T>::lowest();
+      T local_max = std::numeric_limits<T>::lowest();
       // DimThreads == blockDim.x, but using DimThreads here is actually a perf
       // regression
       for (uint32_t d = threadIdx.x; d < DimSize; d += blockDim.x) {
         const T value = input[data_offset + d * dim_stride];
-        max_input = fast_max(max_input, value);
+        local_max = fast_max(local_max, value);
       }
-      if constexpr (DimThreads > 1)
-        max_input =
-            softmax_general_block_reduce_x<T, FastMax>(sdata, max_input);
+      if constexpr (DimThreads > 1) {
+        blockReduceMax<T, InnerThreads>(local_max);
+        if (threadIdx.x == 0)
+          s_max[threadIdx.y] = local_max;
+        __syncthreads();
+        local_max = s_max[threadIdx.y];
+      }
 
-      T sum = 0;
+      T local_sum = 0;
       for (uint32_t d = threadIdx.x; d < DimSize; d += blockDim.x)
-        sum += fast_exp(input[data_offset + d * dim_stride] - max_input);
-      if constexpr (DimThreads > 1)
-        sum = softmax_general_block_reduce_x<T, std::plus>(sdata, sum);
+        local_sum += fast_exp(input[data_offset + d * dim_stride] - local_max);
+      if constexpr (DimThreads > 1) {
+        blockReduceSum<T, InnerThreads>(local_sum);
+        if (threadIdx.x == 0)
+          s_sum[threadIdx.y] = local_sum;
+        __syncthreads();
+        local_sum = s_sum[threadIdx.y];
+      }
 
       for (uint32_t d = threadIdx.x; d < DimSize; d += blockDim.x)
         output[data_offset + d * dim_stride] =
-            fast_exp(input[data_offset + d * dim_stride] - max_input) / sum;
+            fast_exp(input[data_offset + d * dim_stride] - local_max) /
+            local_sum;
     }
   }
 }
@@ -940,18 +933,18 @@ void LaunchSoftmaxGeneral(
     int multiprocessorCount,
     cudaStream_t stream) {
   int block_size = DimThreads * InnerThreads;
-  size_t smem_size = DimThreads == 1 ? 0 : block_size * sizeof(T);
+  size_t smem_size = DimThreads == 1 ? 0 : InnerThreads * WARP_SIZE * sizeof(T);
   int max_active_blocks;
   cudaOccupancyMaxActiveBlocksPerMultiprocessor(
       &max_active_blocks,
-      softmax_general<T, DimSize, InnerSize, DimThreads>,
+      softmax_general<T, DimSize, InnerSize, DimThreads, InnerThreads>,
       block_size,
       smem_size);
   max_active_blocks *= multiprocessorCount;
   dim3 grid = softmax_general_get_grid_size<InnerThreads, InnerSize>(
       max_active_blocks, outer_size);
   dim3 block(DimThreads, InnerThreads);
-  softmax_general<T, DimSize, InnerSize, DimThreads>
+  softmax_general<T, DimSize, InnerSize, DimThreads, InnerThreads>
       <<<grid, block, smem_size, stream>>>(input, output, outer_size);
   SOFTMAX_LAUNCH_CHECK();
 }
