@@ -25,13 +25,15 @@ from statistics import mean
 import torch
 
 from aitemplate.compiler import compile_model, ops
-from aitemplate.compiler.base import IntVar
+from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.profile import profile_callable
 from aitemplate.testing.test_utils import filter_test_cases_by_params, TestEnv
 from aitemplate.utils.torch_utils import string_to_torch_dtype
 from parameterized import parameterized
+
+BenchResult = namedtuple("BenchResult", ["dim", "batch_size", "runtime_ms"])
 
 
 class SoftmaxTestCase(unittest.TestCase):
@@ -49,8 +51,14 @@ class SoftmaxTestCase(unittest.TestCase):
         if target.name() == "cuda" and dtype == "bfloat16" and int(target._arch) < 80:
             self.skipTest(f"CUDA SM{target._arch} doesn't support {dtype}")
 
+        batch_size_dim = (
+            IntVar(list(batch_sizes))
+            if len(batch_sizes) > 1
+            else IntImm(batch_sizes[0])
+        )
+        batch_size_dim._attrs["name"] = "input_batch"
         X = Tensor(
-            shape=[IntVar(name="input_batch", values=list(batch_sizes)), *input_shapes],
+            shape=[batch_size_dim, *input_shapes],
             dtype=dtype,
             name="X",
             is_input=True,
@@ -85,8 +93,7 @@ class SoftmaxTestCase(unittest.TestCase):
             {
                 TestEnv.CUDA_LESS_THAN_SM80: [
                     ("dim_1_fp16", "float16", (1, 1024), (6,), 1),
-                    ("tail_shapes_all_1_fp16", "float16", (1, 2), (6, 1, 1), 1),
-                    ("tail_shapes_not_all_1_fp16", "float16", (1, 2), (6, 1, 2), 1),
+                    ("tail_dims_all_1_fp16", "float16", (1, 2), (6, 1, 1), 1),
                     ("odd_small_fp16", "float16", (1, 13), (11,)),
                     ("odd_mid_fp16", "float16", (1, 4096), (33,)),
                     ("odd_large_fp16", "float16", (2, 31), (1409,)),
@@ -116,11 +123,17 @@ class SoftmaxTestCase(unittest.TestCase):
                     ("k8_mid_fp32", "float32", (1, 2), (264,)),
                     ("k8_large_fp32", "float32", (1, 2), (3848,)),
                     ("no_smem_fp32", "float32", (1, 2), (12500,)),
+                    (
+                        "general_no_smem_fp32",
+                        "float32",
+                        (1, 2),
+                        (6, 8, 3, 3),
+                        2,
+                    ),
                 ],
                 TestEnv.CUDA_SM80: [
                     ("dim_1_bf16", "bfloat16", (1, 2), (6,), 1),
-                    ("tail_shapes_all_1_bf16", "bfloat16", (1, 2), (6, 1, 1), 1),
-                    ("tail_shapes_not_all_1_bf16", "bfloat16", (1, 2), (6, 1, 2), 1),
+                    ("tail_dims_all_1_bf16", "bfloat16", (1, 2), (6, 1, 1), 1),
                     ("odd_small_bf16", "bfloat16", (1, 2), (11,)),
                     ("odd_mid_bf16", "bfloat16", (1, 2), (33,)),
                     ("odd_large_bf16", "bfloat16", (1, 2), (1409,)),
@@ -134,6 +147,42 @@ class SoftmaxTestCase(unittest.TestCase):
                     ("k8_mid_bf16", "bfloat16", (1, 2), (264,)),
                     ("k8_large_bf16", "bfloat16", (1, 2), (3848,)),
                     ("no_smem_bf16", "bfloat16", (1, 2), (12500,)),
+                    (
+                        "general_no_smem_bf16",
+                        "bfloat16",
+                        (1, 2),
+                        (6, 8, 3, 3),
+                        2,
+                    ),
+                    (
+                        "general_smem_bf16",
+                        "bfloat16",
+                        (1, 2),
+                        (6, 64, 3, 3),
+                        2,
+                    ),
+                    (
+                        "general_reduce_dim_1_bf16",
+                        "bfloat16",
+                        (1, 2),
+                        (1, 3),
+                        1,
+                    ),
+                    (
+                        # when inner_size > max_threads_per_block
+                        "general_large_inner_size_bf16",
+                        "bfloat16",
+                        (1, 2),
+                        (64, 32, 64),  # 32 * 64 > 1024
+                        1,
+                    ),
+                    (
+                        "general_reduce_outermost_dim_bf16",
+                        "bfloat16",
+                        (64,),
+                        (3, 3),
+                        0,
+                    ),
                 ],
             }
         )
@@ -157,9 +206,6 @@ class SoftmaxTestCase(unittest.TestCase):
     def _test_benchmark_softmax(self):
         dtype = "float16"
         torch_dtype = string_to_torch_dtype(dtype)
-        BenchResult = namedtuple(
-            "BenchResult", ["dim", "batch_size", "permute_ms", "softmax_ms"]
-        )
         results = []
         shape = (260, 4)
         batch_sizes = [2**p for p in range(0, 16)]
@@ -184,30 +230,21 @@ class SoftmaxTestCase(unittest.TestCase):
                     )
                     profiling_data = json.loads(f.read())
 
-                    permute_ms = 0
-                    softmax_ms = 0
+                    runtime_ms = 0
                     for func_name, record in profiling_data.items():
-                        if func_name.startswith("permute"):
-                            permute_ms += record["ms_per_iter"]
-                        elif func_name.startswith("softmax"):
-                            softmax_ms += record["ms_per_iter"]
-                    results.append(
-                        BenchResult(reduction_dim, batch_size, permute_ms, softmax_ms)
-                    )
+                        if func_name.startswith("softmax"):
+                            runtime_ms += record["ms_per_iter"]
+                    results.append(BenchResult(reduction_dim, batch_size, runtime_ms))
 
         for r in results:
             items = r.batch_size * math.prod(shape)
-            runtime_ms = r.permute_ms + r.softmax_ms
-            print(
-                f"{r.dim=}, {items=}, {r.permute_ms=}, {r.softmax_ms=}, {runtime_ms=}"
-            )
+            print(f"{r.dim=}, {items=}, {r.runtime_ms=}")
 
     def _test_benchmark_pytorch_softmax(self):
         batch_sizes = [2**p for p in range(0, 16)]
         shape = (260, 4)
         dtype = "float16"
         torch_dtype = string_to_torch_dtype(dtype)
-        BenchResult = namedtuple("BenchResult", ["dim", "batch_size", "runtime_ms"])
         cache_flush_slab = torch.empty(
             size=[40, 1024, 1024],  # A100 L2 cache size
             dtype=torch.float16,

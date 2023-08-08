@@ -95,6 +95,13 @@ __inline__ __device__ bfloat16 fast_max(const bfloat16 a, const bfloat16 b) {
 #endif
 
 template <typename T>
+struct FastMax {
+  __device__ __forceinline__ T operator()(T a, T b) const {
+    return fast_max(a, b);
+  }
+};
+
+template <typename T>
 __inline__ __device__ T Inf();
 
 template <>
@@ -851,6 +858,118 @@ void LaunchSoftmaxK1Middle(
   softmax_stored_locally_multi_dim<T, T, cols_per_thread>
       <<<grid, block, 0, stream>>>(input, output, batch_size, NElements);
 
+  SOFTMAX_LAUNCH_CHECK();
+}
+
+// Note that it's not a complete block-wide reduction.
+// Only threads that share threadIdx.y reduce values.
+template <typename T, template <typename> class ReduceOp>
+__forceinline__ __device__ T softmax_general_block_reduce_x(T* shared, T val) {
+  ReduceOp<T> r;
+  shared += threadIdx.y * blockDim.x;
+
+  __syncthreads();
+
+  shared[threadIdx.x] = val;
+
+  // NOTE: loop starts with __syncthreads()
+  int offset = blockDim.x / 2;
+  while (offset > 0) {
+    __syncthreads();
+    if (threadIdx.x < offset)
+      shared[threadIdx.x] =
+          r(shared[threadIdx.x], shared[threadIdx.x + offset]);
+    offset /= 2;
+  }
+
+  __syncthreads();
+
+  return shared[0];
+}
+
+template <typename T, size_t DimSize, size_t InnerSize, size_t DimThreads>
+__global__ void softmax_general(const T* input, T* output, size_t outer_size) {
+  extern __shared__ unsigned char smem[];
+  auto sdata = reinterpret_cast<T*>(smem);
+  const uint32_t outer_stride = InnerSize * DimSize;
+  const uint32_t dim_stride = InnerSize;
+
+  for (uint32_t outer_index = blockIdx.x; outer_index < outer_size;
+       outer_index += gridDim.x) {
+    const uint32_t outer_offset = outer_index * outer_stride;
+    for (uint32_t inner_index = blockIdx.y * blockDim.y + threadIdx.y;
+         inner_index < InnerSize;
+         inner_index += blockDim.y * gridDim.y) {
+      const uint32_t data_offset = outer_offset + inner_index;
+      T max_input = std::numeric_limits<T>::lowest();
+      // DimThreads == blockDim.x, but using DimThreads here is actually a perf
+      // regression
+      for (uint32_t d = threadIdx.x; d < DimSize; d += blockDim.x) {
+        const T value = input[data_offset + d * dim_stride];
+        max_input = fast_max(max_input, value);
+      }
+      if constexpr (DimThreads > 1)
+        max_input =
+            softmax_general_block_reduce_x<T, FastMax>(sdata, max_input);
+
+      T sum = 0;
+      for (uint32_t d = threadIdx.x; d < DimSize; d += blockDim.x)
+        sum += fast_exp(input[data_offset + d * dim_stride] - max_input);
+      if constexpr (DimThreads > 1)
+        sum = softmax_general_block_reduce_x<T, std::plus>(sdata, sum);
+
+      for (uint32_t d = threadIdx.x; d < DimSize; d += blockDim.x)
+        output[data_offset + d * dim_stride] =
+            fast_exp(input[data_offset + d * dim_stride] - max_input) / sum;
+    }
+  }
+}
+
+template <size_t InnerThreads, size_t InnerSize>
+inline dim3 softmax_general_get_grid_size(
+    size_t max_active_blocks,
+    size_t outer_size) {
+  // First, tile as many blocks as we can over the y axis (block.y ==
+  // InnerThreads)
+  size_t inner_blocks = (InnerSize + InnerThreads - 1) / InnerThreads;
+  if (inner_blocks > max_active_blocks)
+    inner_blocks = max_active_blocks;
+  // Fill the x axis with as many blocks as we can fit (a little more is ok too)
+  size_t outer_blocks = (max_active_blocks + inner_blocks - 1) / inner_blocks;
+  if (outer_blocks > outer_size)
+    outer_blocks = outer_size;
+  return dim3(outer_blocks, inner_blocks);
+}
+
+// This implementation of softmax can handle arbitrary reduction dimensions, but
+// is less efficient than the specialized kernels above that reduce only over
+// the last dimension.
+template <
+    typename T,
+    size_t DimSize,
+    size_t InnerSize,
+    size_t DimThreads,
+    size_t InnerThreads>
+void LaunchSoftmaxGeneral(
+    const T* input,
+    T* output,
+    size_t outer_size,
+    int multiprocessorCount,
+    cudaStream_t stream) {
+  int block_size = DimThreads * InnerThreads;
+  size_t smem_size = DimThreads == 1 ? 0 : block_size * sizeof(T);
+  int max_active_blocks;
+  cudaOccupancyMaxActiveBlocksPerMultiprocessor(
+      &max_active_blocks,
+      softmax_general<T, DimSize, InnerSize, DimThreads>,
+      block_size,
+      smem_size);
+  max_active_blocks *= multiprocessorCount;
+  dim3 grid = softmax_general_get_grid_size<InnerThreads, InnerSize>(
+      max_active_blocks, outer_size);
+  dim3 block(DimThreads, InnerThreads);
+  softmax_general<T, DimSize, InnerSize, DimThreads>
+      <<<grid, block, smem_size, stream>>>(input, output, outer_size);
   SOFTMAX_LAUNCH_CHECK();
 }
 
