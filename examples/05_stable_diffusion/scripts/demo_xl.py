@@ -16,9 +16,8 @@
 import click
 import torch
 
-from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from aitemplate.utils.import_path import import_parent
-from diffusers import StableDiffusionXLPipeline, AutoencoderKL
+from diffusers import AutoencoderKL, StableDiffusionXLPipeline
 
 if __name__ == "__main__":
     import_parent(filepath=__file__, level=1)
@@ -70,7 +69,21 @@ from src.pipeline_stable_diffusion_xl_ait import StableDiffusionXLAITPipeline
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
-def run(hf_hub_or_path, apply_weights, unet_module, text_encoder_module, text_encoder_2_module, time_embed_module, vae_module, width, height, batch, prompt, negative_prompt, benchmark):
+def run(
+    hf_hub_or_path,
+    apply_weights,
+    unet_module,
+    text_encoder_module,
+    text_encoder_2_module,
+    time_embed_module,
+    vae_module,
+    width,
+    height,
+    batch,
+    prompt,
+    negative_prompt,
+    benchmark,
+):
     diffusers_pipe = StableDiffusionXLPipeline.from_pretrained(
         hf_hub_or_path,
         use_safetensors=True,

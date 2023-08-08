@@ -80,6 +80,7 @@ def get_outputs(module: Model, dims, device: str = "cuda", dtype: str = "float16
         outputs[name] = output
     return outputs
 
+
 def timestep_inference(
     module: Model,
     timestep: torch.Tensor,
@@ -89,15 +90,14 @@ def timestep_inference(
     to_cpu: bool = False,
 ):
     timestep = torch.tensor([timestep]).to(device)
-    inputs = {
-        "timestep": timestep.to(device)
-    }
+    inputs = {"timestep": timestep.to(device)}
     if dtype == "float16":
         for k, v in inputs.items():
             inputs[k] = v.half()
     dims = [1]
     outputs = get_outputs(module, dims, device, dtype)
     return inference(module, inputs, outputs, benchmark=benchmark, to_cpu=to_cpu)
+
 
 def clip_inference(
     module: Model,
@@ -163,7 +163,9 @@ def unet_inference(
             inputs[k] = v.half()
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu)
+    return inference(
+        module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu
+    )
 
 
 def vae_decode_inference(
@@ -187,7 +189,9 @@ def vae_decode_inference(
     }
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu)
+    return inference(
+        module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu
+    )
 
 
 def vae_encode_inference(
@@ -215,4 +219,6 @@ def vae_encode_inference(
     }
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu)
+    return inference(
+        module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu
+    )
