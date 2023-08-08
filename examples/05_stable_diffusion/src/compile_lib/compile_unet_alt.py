@@ -90,7 +90,8 @@ def compile_timestep_embedder(
     constants = {"arange": torch.arange(start=0, end=dim // 2, dtype=torch.float16)}
 
     target = detect_target(use_fp16_acc=True, convert_conv_to_gemm=True)
-    compile_model(Y, target, work_dir, model_name, constants=constants)
+    dll_name = model_name + ".dll" if sys.platform == "win32" else model_name + ".so"
+    compile_model(Y, target, work_dir, model_name, constants=constants, dll_name=dll_name)
 
 
 def compile_unet(
