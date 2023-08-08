@@ -88,7 +88,9 @@ def profile_callable(
         if e.cuda_time != 0
     ]
 
-    sorted_events = sorted(events, key=itemgetter("start"))
+    sorted_events = sorted(
+        filter(lambda e: e["name"] != "Context Sync", events), key=itemgetter("start")
+    )
     assert 0 == len(sorted_events) % n_iter
     n_groups = len(sorted_events) // n_iter
     # in each group (corresponding to a profiling iteration),
