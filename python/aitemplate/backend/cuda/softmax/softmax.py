@@ -15,7 +15,9 @@
 """
 Softmax codegen for CUDA.
 """
+from __future__ import annotations
 
+import math
 import os
 from typing import Any, Dict
 
@@ -30,7 +32,7 @@ from aitemplate.compiler.base import IntImm
 # pylint: disable=C0301, C0116
 
 
-# input size: [M, K]
+# input size: [M, K] where M == outer size (product of outer dims) and K == reduction dim
 # We put if else condition here to avoid long compilation time.
 # i.e. for each K, we only need to compile one of the implementation, not all.
 #
@@ -44,7 +46,14 @@ FUNC_TEMPLATE = jinja2.Template(
 {{func_signature}}
 {
   {{shape_functions}}
-  size_t m = M;
+  {{func_impl}}
+}
+    """
+)
+
+FUNC_IMPL_INNER_SIZE_EQ_1 = jinja2.Template(
+    """
+  const size_t M = outer_size;
   bool success = true;
 
   // For threshold K, please refer to this post: https://fb.quip.com/HCfIAbpWB0qi
@@ -100,22 +109,33 @@ FUNC_TEMPLATE = jinja2.Template(
       LaunchSoftmaxK1Middle<{{dtype}}, {{K}}>(static_cast<const {{dtype}}*>(input), static_cast<{{dtype}}*>(output), M, stream);
     {% elif K > 1408 %}
       // K > 1408
-      LaunchSoftmaxBlockAll<{{dtype}}, {{dtype}}, {{K}}>( (const {{dtype}}*) input, ({{dtype}}*) output, m, stream, &success);
+      LaunchSoftmaxBlockAll<{{dtype}}, {{dtype}}, {{K}}>( (const {{dtype}}*) input, ({{dtype}}*) output, M, stream, &success);
     {% endif %}
   {% endif %}
 
   if (!success) {
-    softmaxBlockNocache<{{dtype}}><<<m, 1024, 0, stream>>>(({{dtype}}*)input, ({{dtype}}*)output, m, {{K}});
+    softmaxBlockNocache<{{dtype}}><<<M, 1024, 0, stream>>>(({{dtype}}*)input, ({{dtype}}*)output, M, {{K}});
   }
-}
+    """
+)
+
+FUNC_IMPL_GENERAL = jinja2.Template(
+    """
+    LaunchSoftmaxGeneral<{{dtype}}, {{dim_size}}, {{inner_size}}, {{dim_threads}}, {{inner_threads}}>(
+        (const {{dtype}}*) input,
+        ({{dtype}}*) output,
+        outer_size,
+        multiprocessor_count,
+        stream
+    );
     """
 )
 
 SHAPE_FUNCTIONS = jinja2.Template(
     """
-    int64_t M = 1;
+    int64_t outer_size = 1;
 {% for idx in range(reduction_dim) %}
-    M *= *in_{{idx}};
+    outer_size *= *in_{{idx}};
 {% endfor %}
     """
 )
@@ -127,6 +147,7 @@ void {{func_name}}(void* input,
 {% for idx in range(reduction_dim) %}
                int64_t* in_{{idx}},
 {% endfor %}
+               int multiprocessor_count,
                cudaStream_t stream)
     """,
     trim_blocks=True,
@@ -146,6 +167,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {% for name in outer_dim_names %}
 {{indent}}   &{{name}},
 {% endfor %}
+{{indent}}   device_properties_.multiProcessorCount,
 {{indent}}   stream
 {{indent}});
     """,
@@ -175,30 +197,60 @@ def find_tile_size(k: int) -> int:
     return m
 
 
+def _softmax_general_block_size(dim_size: int, inner_size: int) -> tuple[int, int]:
+    MAX_THREADS_PER_BLOCK = 1024
+    inner_threads = min(inner_size, MAX_THREADS_PER_BLOCK)
+    dim_threads = 1
+    if inner_threads <= 64 and dim_size >= 64:
+        while (
+            inner_threads * dim_threads <= MAX_THREADS_PER_BLOCK
+            and dim_threads <= dim_size
+        ):
+            dim_threads *= 2
+        dim_threads //= 2
+    return dim_threads, inner_threads
+
+
 @registry.reg("cuda.softmax.gen_function")
 def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
-    dim = func_attrs["dim"]
-    shapes = func_attrs["inputs"][0]._attrs["shape"]
+    reduction_dim = func_attrs["dim"]
+    shape = func_attrs["inputs"][0]._attrs["shape"]
 
-    assert isinstance(
-        shapes[dim], IntImm
-    ), "softmax requires reduction dim to be static"
+    assert all(
+        isinstance(dim, IntImm) for dim in shape[reduction_dim:]
+    ), "softmax requires reduction dim & inner dims to be static"
 
-    k = shapes[dim].value()
+    dim_size = shape[reduction_dim].value()
 
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][0]._attrs["dtype"]
     )
+
+    inner_size = math.prod(dim.value() for dim in shape[reduction_dim + 1 :])
+    if inner_size == 1:
+        func_impl = FUNC_IMPL_INNER_SIZE_EQ_1.render(
+            dtype=elem_input_type,
+            m=find_tile_size(dim_size),
+            K=dim_size,
+        )
+    else:
+        dim_threads, inner_threads = _softmax_general_block_size(dim_size, inner_size)
+        func_impl = FUNC_IMPL_GENERAL.render(
+            dtype=elem_input_type,
+            dim_size=dim_size,
+            inner_size=inner_size,
+            dim_threads=dim_threads,
+            inner_threads=inner_threads,
+        )
+
     return FUNC_TEMPLATE.render(
         custom_libs=Target.current().get_custom_libs(
             os.path.dirname(__file__), "softmax.cuh"
         ),
         func_signature=get_func_signature(func_attrs),
-        shape_functions=SHAPE_FUNCTIONS.render(reduction_dim=dim),
-        dtype=elem_input_type,
-        K=k,
-        m=find_tile_size(k),
+        func_impl=func_impl,
+        shape_functions=SHAPE_FUNCTIONS.render(reduction_dim=reduction_dim),
     )
 
 
