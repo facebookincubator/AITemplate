@@ -36,14 +36,23 @@ def get_compiler_opt_level() -> str:
     return compiler_opt
 
 
-def use_fast_math() -> str:
+def use_fast_math() -> bool:
     """
     Whether the fast math option should be used for the device code generation.
     Fast math implies the use of approximate math operations (say,
     a division operation), allowing to gain speed at the cost of accuracy.
-    Default value is "1".
+    Default value to get from environment variable is "1".
     """
     return os.getenv("AIT_USE_FAST_MATH", "1") == "1"
+
+
+def use_tanh_for_sigmoid() -> bool:
+    """
+    Whether the we want to use tanh to approximate sigmoid for the device code generation.
+    This controls both the code generation for AITemplate codegen and CUTLASS.
+    Default value to get from environment variable is "0".
+    """
+    return os.getenv("AIT_USE_TANH_FOR_SIGMOID", "0") == "1"
 
 
 def enable_cuda_lto() -> bool:

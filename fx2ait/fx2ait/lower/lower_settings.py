@@ -85,3 +85,5 @@ class LowerSettings:
     trace_ait_module: bool = True
     # If True, optimize for compilation time (ie. compile w/ -O1 rather than -O3 and skip profiling codegen)
     optimize_for_compilation_time: bool = False
+    # If True, use tanh to approximate sigmoid in CUDA kernels
+    use_tanh_for_sigmoid: bool = False
