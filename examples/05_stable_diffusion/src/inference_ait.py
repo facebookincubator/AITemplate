@@ -45,12 +45,16 @@ def inference(
     benchmark_count: int = 50,
     benchmark_repeat: int = 4,
     permute: bool = False,
+    to_cpu: bool = False,
 ):
     module.run_with_tensors(inputs, outputs, graph_mode=False)
     if permute:
         for name, output in outputs.items():
             if len(output.shape) == 4:
                 outputs[name] = output.permute((0, 3, 1, 2))
+    if to_cpu:
+        for name, output in outputs.items():
+            outputs[name] = output.cpu()
     if benchmark:
         t, _, _ = module.benchmark_with_tensors(
             inputs=inputs,
@@ -76,6 +80,24 @@ def get_outputs(module: Model, dims, device: str = "cuda", dtype: str = "float16
         outputs[name] = output
     return outputs
 
+def timestep_inference(
+    module: Model,
+    timestep: torch.Tensor,
+    device: str = "cuda",
+    dtype: str = "float16",
+    benchmark: bool = False,
+    to_cpu: bool = False,
+):
+    timestep = torch.tensor([timestep]).to(device)
+    inputs = {
+        "timestep": timestep.to(device)
+    }
+    if dtype == "float16":
+        for k, v in inputs.items():
+            inputs[k] = v.half()
+    dims = [1]
+    outputs = get_outputs(module, dims, device, dtype)
+    return inference(module, inputs, outputs, benchmark=benchmark, to_cpu=to_cpu)
 
 def clip_inference(
     module: Model,
@@ -84,6 +106,7 @@ def clip_inference(
     device: str = "cuda",
     dtype: str = "float16",
     benchmark: bool = False,
+    to_cpu: bool = False,
 ):
     batch = input_ids.shape[0]
     input_ids = input_ids.to(device)
@@ -94,7 +117,7 @@ def clip_inference(
     }
     dims = [batch]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark)
+    return inference(module, inputs, outputs, benchmark=benchmark, to_cpu=to_cpu)
 
 
 def unet_inference(
@@ -109,6 +132,7 @@ def unet_inference(
     device: str = "cuda",
     dtype: str = "float16",
     benchmark: bool = False,
+    to_cpu: bool = False,
 ):
     batch = latent_model_input.shape[0]
     height, width = latent_model_input.shape[2], latent_model_input.shape[3]
@@ -139,7 +163,7 @@ def unet_inference(
             inputs[k] = v.half()
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, permute=True)
+    return inference(module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu)
 
 
 def vae_decode_inference(
@@ -149,6 +173,7 @@ def vae_decode_inference(
     dtype: str = "float16",
     benchmark: bool = False,
     factor: int = 8,
+    to_cpu: bool = False,
 ):
     batch = latent.shape[0]
     height, width = latent.shape[2:]
@@ -162,7 +187,7 @@ def vae_decode_inference(
     }
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, permute=True)
+    return inference(module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu)
 
 
 def vae_encode_inference(
@@ -173,6 +198,7 @@ def vae_encode_inference(
     benchmark: bool = False,
     factor: int = 8,
     latent_channels: int = 4,
+    to_cpu: bool = False,
 ):
     batch = pixels.shape[0]
     height, width = pixels.shape[2:]
@@ -189,4 +215,4 @@ def vae_encode_inference(
     }
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, permute=True)
+    return inference(module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu)
