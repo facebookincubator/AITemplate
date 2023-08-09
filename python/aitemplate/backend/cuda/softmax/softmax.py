@@ -199,15 +199,22 @@ def find_tile_size(k: int) -> int:
 
 def _softmax_general_block_size(dim_size: int, inner_size: int) -> tuple[int, int]:
     MAX_THREADS_PER_BLOCK = 1024
+    WARP_SIZE = 32
+    assert inner_size != 0
     inner_threads = min(inner_size, MAX_THREADS_PER_BLOCK)
     dim_threads = 1
-    if inner_threads <= 64 and dim_size >= 64:
-        while (
-            inner_threads * dim_threads <= MAX_THREADS_PER_BLOCK
-            and dim_threads <= dim_size
-        ):
-            dim_threads *= 2
-        dim_threads //= 2
+    if inner_threads <= 32 and dim_size >= WARP_SIZE:
+        dim_threads = (
+            min(
+                MAX_THREADS_PER_BLOCK // inner_threads // WARP_SIZE,
+                dim_size // WARP_SIZE,
+            )
+            * WARP_SIZE
+        )
+    # When dim_threads > 1, warp reduction is done, and for our warp reduction
+    # impl to work, dim_threads needs to be a multiple of the warp size.
+    assert dim_threads == 1 or dim_threads % WARP_SIZE == 0
+    assert dim_threads != 0
     return dim_threads, inner_threads
 
 
