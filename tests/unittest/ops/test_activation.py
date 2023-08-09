@@ -671,6 +671,54 @@ class FusedElementwiseTestCase(unittest.TestCase):
             dtype=dtype,
         )
 
+    def _test_fast_sigmoid_extreme_value(
+        self, atol, rtol, use_tanh_for_sigmoid, testname
+    ):
+        X1 = Tensor(
+            shape=[IntImm(2), IntImm(2)],
+            dtype="float16",
+            name="input0",
+            is_input=True,
+        )
+        sigmoid_op = ops.elementwise(FuncEnum.SIGMOID)
+        X2 = sigmoid_op(X1)
+        X2._attrs["is_output"] = True
+        X2._attrs["name"] = "output0"
+
+        target = detect_target(use_tanh_for_sigmoid=use_tanh_for_sigmoid)
+        module = compile_model(X2, target, "./tmp", f"fast_sigmoid_{testname}")
+
+        x1_pt = get_random_torch_tensor((2, 2), "float16")
+        x1_pt[0, 0] = -6
+        x1_pt[0, 1] = -8
+        x1_pt[1, 0] = -10
+        x1_pt[1, 1] = -12
+
+        x2_pt = torch.sigmoid(x1_pt)
+        x2 = torch.empty_like(x2_pt)
+        module.run_with_tensors([x1_pt], [x2])
+        torch.testing.assert_close(x2, x2_pt, atol=atol, rtol=rtol, equal_nan=True)
+
+    def test_fast_sigmoid(self):
+        self._test_fast_sigmoid_extreme_value(
+            atol=1e-2, rtol=1e-2, use_tanh_for_sigmoid=True, testname="use_tanh"
+        )
+        self._test_fast_sigmoid_extreme_value(
+            atol=1e-6, rtol=1e-2, use_tanh_for_sigmoid=False, testname="original"
+        )
+
+    @unittest.skipIf(
+        detect_target().name() == "rocm", "ROCM doesn't use tanh for sigmoid."
+    )
+    def test_fast_sigmoid_fail(self):
+        with self.assertRaises(AssertionError):
+            self._test_fast_sigmoid_extreme_value(
+                atol=1e-6,
+                rtol=1e-2,
+                use_tanh_for_sigmoid=True,
+                testname="use_tanh_fail",
+            )
+
     @parameterized.expand(
         **filter_test_cases_by_params(
             {
