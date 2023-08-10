@@ -1319,6 +1319,18 @@ def default_fproc(
         ):
             return ret
     acc_type = cutlass_lib.library.DataType.f32
+
+    if (
+        "no_tf32" in Target.current()._kwargs
+        and data_type == "float"
+        and Target.current()._kwargs["no_tf32"]
+    ):
+        if (
+            op.tile_description.math_instruction.element_a
+            == cutlass_lib.library.DataType.tf32
+        ):
+            return ret
+
     # check target use fp16 acc
     if "use_fp16_acc" in Target.current()._kwargs and data_type == "cutlass::half_t":
         if Target.current()._kwargs["use_fp16_acc"]:
