@@ -450,36 +450,7 @@ def acc_ops_softmax(
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
 
-    dim = kwargs["dim"]
-    rank = len(input_val.shape())
-    if dim < 0:
-        dim = rank + dim
-    if dim != rank - 1:
-        for i in range(dim + 1, rank):
-            unsupported = False
-            if isinstance(input_val.shape()[i], IntImm):
-                if input_val.shape()[i].value() != 1:
-                    unsupported = True
-            elif isinstance(input_val.shape()[i], IntVar):
-                unsupported = True
-            else:
-                raise RuntimeError(
-                    f"unknown dimension type={type(i)} in AITTensor={input_val}"
-                )
-
-            if unsupported:
-                raise ValueError(
-                    f"AIT softmax only supports dim=rank-1, got AITTensor={input_val}, "
-                    f"where dim={dim}, rank={rank}"
-                )
-        reshape_dim = size()(input_val)[: dim + 1]
-        reshape_val = reshape()(input_val, reshape_dim)
-        softmax_val = softmax()(reshape_val, -1)
-        return reshape()(
-            softmax_val, reshape_dim + [IntVarTensor(IntImm(1))] * (rank - dim - 1)
-        )
-
-    return softmax()(input_val, dim)
+    return softmax()(input_val, kwargs["dim"])
 
 
 @ait_converter(acc_ops.relu)
