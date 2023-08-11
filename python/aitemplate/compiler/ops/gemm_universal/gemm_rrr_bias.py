@@ -23,6 +23,20 @@ from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 
 class gemm_rrr_bias(gemm_rrr):
+    """GEMM Specialization: GEMM_RRR(A, B) + Bias
+    A[RowMajor], B[RowMajor], Bias[RowMajor], C[RowMajor]
+
+    This operator is equivalent to the following pytorch code:
+
+    .. highlight:: python
+    .. code-block:: python
+        A = torch.randn(M, K).cuda().half()
+        B = torch.randn(K, N).cuda().half()
+        Bias = torch.randn(N).cuda().half()
+
+        y = torch.nn.functional.linear(A, B.t(), bias=Bias)
+    """
+
     def __init__(self):
         super().__init__()
         self._attrs["op"] = "gemm_rrr_bias"

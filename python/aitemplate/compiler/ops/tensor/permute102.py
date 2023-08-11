@@ -61,7 +61,7 @@ class permute102(Operator):
         x_shape = x._attrs["shape"]
         return [x_shape[1], x_shape[0], x_shape[2]]
 
-    def __call__(self, x: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor) -> Tensor:
         """
         Parameters
         ----------

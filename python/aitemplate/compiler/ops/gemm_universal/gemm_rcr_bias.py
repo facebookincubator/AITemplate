@@ -24,6 +24,7 @@ from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 class gemm_rcr_bias(gemm_rcr):
     """GEMM Specialization: GEMM_RCR(A, B) + Bias
+    A[RowMajor], B[ColMajor], Bias[RowMajor], C[RowMajor]
 
     This operator is equivalent to the following pytorch code:
 

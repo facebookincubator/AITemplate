@@ -133,9 +133,9 @@ class dynamic_slice(Operator):
         ----------
         x : Tensor
             Input tensor.
-        start_indices : List[int]
+        start_indices : List[Union[IntVar, IntVarTensor, Optional[int]]]
             Similar to PyTorch and numpy, indices can be negative
-        end_indices : List[int]
+        end_indices : List[Union[IntVar, IntVarTensor, Optional[int]]]
             end_index is not included. Similar to PyTorch and
                 numpy, indices can be negative.
 
