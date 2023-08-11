@@ -393,7 +393,19 @@ std::vector<AITData> AITModelImpl::processInputs(
       // call in a local!
       input = input.to(*floating_point_input_dtype_);
     }
-    inputs_contig.push_back(input.contiguous());
+    auto t = input.contiguous();
+    size_t elem_sz = t.element_size();
+    // Let's be conservative - make sure all inputs tensor pointers are
+    // aligned by 8 of sizeof(dtype)
+    if ((((uint64_t)(t.data_ptr())) % (elem_sz * 8)) != 0) {
+      LOG(INFO) << "FORCE tensor pointer alignment: input_name: " << input_name
+                << ", unaligned addr: " << std::hex << t.data_ptr();
+      auto t2 = t.clone();
+      LOG(INFO) << "cloned tensor pointer addr: " << std::hex << t2.data_ptr();
+      inputs_contig.push_back(t2);
+    } else {
+      inputs_contig.push_back(t);
+    }
     auto& input_contig = inputs_contig.back();
     auto input_shape_array_ref = input_contig.sizes();
     ait_inputs[ait_input_idx] = AITData{

@@ -18,7 +18,9 @@ backend concatenate function common templates.
 import jinja2
 
 from aitemplate.backend.common import tensor_accessor_codegen
+from aitemplate.backend.target import Target
 
+from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.tensor import concatenate
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
@@ -745,18 +747,48 @@ def gen_function_call(
     input_names = ",\n      ".join([i._attrs["name"] for i in inputs])
     real_input_shape_defs = []
     real_input_shape_names = []
+    # It's not uncommon that multiple shape definitions share the same
+    # dimension values. In such a case, we could keep a single definition.
+    # In some rare cases, this little trick can dramatically reduce the
+    # number of lines generated for the relevant concatenate op and thus
+    # may improve the compilation time. Currently, we only enable this
+    # optimization for cases where we care about compilation time, as
+    # for most cases, the unoptimized version can generate more readable
+    # code while having little impact to the compilation time.
+    seen_input_shape_dims = {}
+    input_shape_name_subs = {}
+    optimize_for_compilation_time = Target.current()._kwargs.get(
+        "optimize_for_compilation_time", False
+    )
+
+    def _make_dims_key(dims):
+        dim_vals = []
+        for d in dims:
+            if isinstance(d, IntImm):
+                dim_vals.append(str(d.value()))
+            else:
+                d._attrs["name"]
+        return ",".join(dim_vals)
+
     for idx, (i, input_accessor) in enumerate(zip(inputs, input_accessors)):
         input_shape_name = f'{i._attrs["name"]}_shape_{idx}'
         orig_input_shape = input_accessor.original_shapes
         dims = ", ".join([dim._attrs["name"] for dim in orig_input_shape])
-        one_shape_def = INPUT_SHAPE_DEF_TEMPLATE.render(
-            indent="      ",
-            input_shape_name=input_shape_name,
-            input_dims=dims,
-            index_type=backend_spec.index_type,
-        )
-        real_input_shape_defs.append(one_shape_def)
-        real_input_shape_names.append(input_shape_name)
+        dims_key = _make_dims_key(orig_input_shape)
+        seen_shape_name = seen_input_shape_dims.get(dims_key, None)
+        if not optimize_for_compilation_time or seen_shape_name is None:
+            one_shape_def = INPUT_SHAPE_DEF_TEMPLATE.render(
+                indent="      ",
+                input_shape_name=input_shape_name,
+                input_dims=dims,
+                index_type=backend_spec.index_type,
+            )
+            real_input_shape_defs.append(one_shape_def)
+            real_input_shape_names.append(input_shape_name)
+            seen_input_shape_dims[dims_key] = input_shape_name
+        else:
+            real_input_shape_names.append(seen_shape_name)
+            input_shape_name_subs[input_shape_name] = seen_shape_name
 
     y_shape = y._attrs["shape"]
     y_dim_refs = ", ".join(["&" + dim._attrs["name"] for dim in y_shape])
@@ -781,6 +813,7 @@ def gen_function_call(
     # all input shape defs and names, including those that are masked out
     all_input_shape_defs = []
     all_input_shape_names = []
+    seen_input_shape_dims = {}
     # first, create shape defs for inputs that have been masked off
     for (
         mask,
@@ -792,19 +825,30 @@ def gen_function_call(
                 dims = ", ".join(
                     [str(dim._attrs["values"][0]) for dim in orig_input._attrs["shape"]]
                 )
-                one_shape_def = INPUT_SHAPE_DEF_TEMPLATE.render(
-                    indent="      ",
-                    input_shape_name=orig_input_shape_name,
-                    input_dims=dims,
-                    index_type=backend_spec.index_type,
-                )
-                all_input_shape_defs.append(one_shape_def)
-            all_input_shape_names.append(orig_input_shape_name)
+                dims_key = _make_dims_key(orig_input._attrs["shape"])
+                seen_shape_name = seen_input_shape_dims.get(dims_key, None)
+                if not optimize_for_compilation_time or seen_shape_name is None:
+                    one_shape_def = INPUT_SHAPE_DEF_TEMPLATE.render(
+                        indent="      ",
+                        input_shape_name=orig_input_shape_name,
+                        input_dims=dims,
+                        index_type=backend_spec.index_type,
+                    )
+                    all_input_shape_defs.append(one_shape_def)
+                    seen_input_shape_dims[dims_key] = orig_input_shape_name
+                    all_input_shape_names.append(orig_input_shape_name)
+                else:
+                    all_input_shape_names.append(seen_shape_name)
+            else:
+                all_input_shape_names.append(orig_input_shape_name)
         else:
             all_input_shape_names.append("")
     # update all_input_shapes with real input shapes
     for idx, (input_tensor, input_index) in enumerate(zip(inputs, input_indices)):
         input_shape_name = f'{input_tensor._attrs["name"]}_shape_{idx}'
+        sub_name = input_shape_name_subs.get(input_shape_name, None)
+        if sub_name is not None:
+            input_shape_name = sub_name
         all_input_shape_names[input_index] = input_shape_name
 
     return FUNC_CALL_TEMPLATE.render(

@@ -31,7 +31,13 @@ class ConcatenateTestCase(unittest.TestCase):
         self.test_count = 0
 
     def _run_concatenate(
-        self, *, concatenate_op, input_shapes, dim=None, input_type="float16"
+        self,
+        *,
+        concatenate_op,
+        input_shapes,
+        dim=None,
+        input_type="float16",
+        optimize_args=False,
     ):
         # generate torch reference result
         input_tensors_pt = [
@@ -44,7 +50,10 @@ class ConcatenateTestCase(unittest.TestCase):
             else torch.cat(input_tensors_pt, dim)
         )
 
-        target = detect_target()
+        if optimize_args:
+            target = detect_target(optimize_for_compilation_time=True)
+        else:
+            target = detect_target()
         inputs = [
             Tensor(
                 shape=shape, dtype=input_type, name="input_{}".format(i), is_input=True
@@ -68,9 +77,19 @@ class ConcatenateTestCase(unittest.TestCase):
         self.test_count += 1
 
     def _run_batch_concatenate(
-        self, *, batch_sizes, concatenate_op, input_shapes, dim=0, input_type="float16"
+        self,
+        *,
+        batch_sizes,
+        concatenate_op,
+        input_shapes,
+        dim=0,
+        input_type="float16",
+        optimize_args=False,
     ):
-        target = detect_target()
+        if optimize_args:
+            target = detect_target(optimize_for_compilation_time=True)
+        else:
+            target = detect_target()
         BATCH_DIM_NAME = "input_batch"
         batch_dim = shape_utils.gen_int_var_min_max(
             values=batch_sizes, name=BATCH_DIM_NAME
@@ -122,6 +141,7 @@ class ConcatenateTestCase(unittest.TestCase):
         input_masks,
         dim=None,
         input_type="float16",
+        optimize_args=False,
     ):
         # generate torch reference result
         input_tensors_pt = [
@@ -134,7 +154,10 @@ class ConcatenateTestCase(unittest.TestCase):
             else torch.cat(input_tensors_pt, dim)
         )
 
-        target = detect_target()
+        if optimize_args:
+            target = detect_target(optimize_for_compilation_time=True)
+        else:
+            target = detect_target()
         inputs = [
             Tensor(
                 shape=shape, dtype=input_type, name="input_{}".format(i), is_input=True
@@ -188,6 +211,13 @@ class ConcatenateTestCase(unittest.TestCase):
             batch_sizes=[1, 1],
             concatenate_op=ops.concatenate(),
             input_shapes=([1], [1]),
+            dim=0,
+            optimize_args=True,
+        )
+        self._run_batch_concatenate(
+            batch_sizes=[1, 1],
+            concatenate_op=ops.concatenate(),
+            input_shapes=([1], [1]),
             dim=1,
         )
         self._run_batch_concatenate(
@@ -227,6 +257,12 @@ class ConcatenateTestCase(unittest.TestCase):
         )
         self._run_concatenate(
             concatenate_op=ops.concatenate(), input_shapes=([1, 1], [1, 1]), dim=0
+        )
+        self._run_concatenate(
+            concatenate_op=ops.concatenate(),
+            input_shapes=([1, 1], [1, 1]),
+            dim=0,
+            optimize_args=True,
         )
         self._run_concatenate(
             concatenate_op=ops.concatenate(), input_shapes=([1, 1], [1, 1]), dim=1
@@ -323,6 +359,13 @@ class ConcatenateTestCase(unittest.TestCase):
     def test_masked_cat(self):
         self._run_masked_concatenate(
             concatenate_op=ops.concatenate(),
+            input_shapes=([2, 2, 2], [2, 2, 2], [2, 2, 2]),
+            input_masks=[True, True, False],
+            dim=2,
+            optimize_args=True,
+        )
+        self._run_masked_concatenate(
+            concatenate_op=ops.concatenate(),
             input_shapes=([2], [2]),
             input_masks=[True, False],
             dim=0,
@@ -344,6 +387,13 @@ class ConcatenateTestCase(unittest.TestCase):
             input_shapes=([1, 1, 1], [1, 1, 2], [1, 1, 4]),
             input_masks=[False, True, False],
             dim=2,
+        )
+        self._run_masked_concatenate(
+            concatenate_op=ops.concatenate(),
+            input_shapes=([1, 1, 1], [1, 1, 2], [1, 1, 4]),
+            input_masks=[False, True, False],
+            dim=2,
+            optimize_args=True,
         )
 
     @parameterized.expand(("float16", "float32", "bfloat16"))
