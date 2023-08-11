@@ -54,17 +54,17 @@ class TestSoftmaxConverter(AITTestCase):
 
         # Test static use case
         inputs = [
-            torch.randn(2, 3, 5, 1, 1).half().cuda(),
+            torch.randn(2, 3, 5, 2, 1).half().cuda(),
         ]
         self.run_test(model, inputs, expected_ops={acc_ops.softmax})
 
         # Test dynamic use case
         inputs_spec = TensorSpec.create_spec_from_shapes(
             inputs_min=[
-                [2, 3, 5, 1, 1],
+                [2, 3, 5, 4, 1],
             ],
             inputs_max=[
-                [20, 10, 5, 1, 1],
+                [20, 10, 5, 4, 1],
             ],
             dtype_list=[
                 torch.float16,
@@ -75,25 +75,6 @@ class TestSoftmaxConverter(AITTestCase):
             inputs_spec,
             expected_ops={acc_ops.softmax},
         )
-
-    @parameterized.expand(
-        [
-            param("default", dim=2),
-            param("neg", dim=-3),
-        ]
-    )
-    def test_softmax_expected_failure(self, name, dim=None):
-        class TestModule(torch.nn.Module):
-            def forward(self, x: torch.Tensor) -> torch.Tensor:
-                return torch.nn.functional.softmax(x, dim=dim)
-
-        model = TestModule().cuda().half()
-
-        inputs = [
-            torch.randn(2, 3, 5, 2, 1).half().cuda(),
-        ]
-        with self.assertRaises(ValueError):
-            self.run_test(model, inputs, expected_ops={acc_ops.softmax})
 
     @parameterized.expand(
         [
@@ -119,7 +100,7 @@ class TestSoftmaxConverter(AITTestCase):
                 torch.float16,
             ],
         )
-        with self.assertRaises(ValueError):
+        with self.assertRaises(NotImplementedError):
             self.run_test_with_dynamic_shape(
                 model,
                 inputs_spec,
