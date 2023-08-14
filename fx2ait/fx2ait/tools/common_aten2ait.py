@@ -107,7 +107,6 @@ class DispatchTestCase(TestCase):
                 mod,
                 tuple(original_inputs),
                 CaptureConfig(
-                    pt2_mode=True,
                     enable_functionalization=False,
                     enable_dynamic_shape=True,
                     _use_old_decomp_table=True,
