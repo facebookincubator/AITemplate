@@ -116,7 +116,7 @@ class concatenate(Operator):
                 output_shape.append(output_dim)
         return output_shape
 
-    def __call__(self, inputs: List[Tensor], dim=0) -> List[Tensor]:
+    def __call__(self, inputs: List[Tensor], dim=0) -> Tensor:
         self._attrs["inputs"] = list(inputs)
         self._attrs["input_accessors"] = [
             TensorAccessor(t) for t in self._attrs["inputs"]

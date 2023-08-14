@@ -21,7 +21,7 @@ from typing import List
 from aitemplate import backend
 
 from aitemplate.backend import registry
-from aitemplate.compiler.base import Operator, Tensor
+from aitemplate.compiler.base import IntVar, Operator, Tensor
 
 # pylint: disable=C0103,W0221
 
@@ -55,7 +55,7 @@ class permute210(Operator):
         super().__init__()
         self._attrs["op"] = "permute210"
 
-    def _infer_shapes(self, x: Tensor):
+    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
         """Infers shapes for permute210.
 
         Parameters
@@ -64,7 +64,7 @@ class permute210(Operator):
 
         Returns
         ------
-        Tensor
+        List[IntVar]
             Inferred output 3d tensor with input shape.
             Because its a permute210 operation,
             Out.d0=In.d2, Out.d2=In.d0.
@@ -72,7 +72,7 @@ class permute210(Operator):
         x_shape = x._attrs["shape"]
         return [x_shape[2], x_shape[1], x_shape[0]]
 
-    def __call__(self, x: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor) -> Tensor:
         """
         Return the output tensor of permute210
 
