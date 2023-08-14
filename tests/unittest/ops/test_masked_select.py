@@ -30,10 +30,12 @@ from parameterized import parameterized
     detect_target().name() == "rocm", "masked_select is not implemented for ROCm"
 )
 class maskedSelectTestCase(unittest.TestCase):
-    def _test_masked_select(
+    def _test_broadcastable_dynamic_masked_select(
         self,
-        batch_size=1,
-        shape=(2, 6),
+        input_dynamic_shape=(2, 6),
+        mask_dynamic_shape=(2, 6),
+        input_shape=(2, 6),
+        mask_shape=(2, 6),
         test_name="masked_select",
         copy_op=False,
         dtype="float16",
@@ -41,13 +43,13 @@ class maskedSelectTestCase(unittest.TestCase):
         benchmark=False,
     ):
         X1 = Tensor(
-            shape=shape,
+            shape=input_dynamic_shape,
             dtype=dtype,
             name="x",
             is_input=True,
         )
         X2 = Tensor(
-            shape=shape,
+            shape=mask_dynamic_shape,
             dtype="bool",
             name="mask",
             is_input=True,
@@ -62,13 +64,18 @@ class maskedSelectTestCase(unittest.TestCase):
 
         target = detect_target()
         module = compile_model([X4], target, "./tmp", test_name)
-        x = get_random_torch_tensor(shape, dtype=dtype)
+
+        x = get_random_torch_tensor(input_shape, dtype=dtype)
         if zero_mask:
-            mask = torch.zeros_like(x)
+            mask = torch.zeros(mask_shape)
         else:
-            mask = get_random_torch_tensor(shape, dtype="float16") > 0
+            mask = get_random_torch_tensor(mask_shape, dtype="float16") > 0
         y_pt = torch.masked_select(x, mask)
-        y = torch.empty((x.numel(),), dtype=x.dtype, device=x.device)
+        y = torch.empty(
+            (torch.broadcast_shapes(input_shape, mask_shape).numel(),),
+            dtype=x.dtype,
+            device=x.device,
+        )
         y_ait = module.run_with_tensors([x, mask], [y])["output_values"]
         # y_ait contains the correct result. It points to the same memory blob as y, but has the correct shape
         self.assertTrue(torch.allclose(y_pt, y_ait, atol=1e-10, rtol=0))
@@ -76,7 +83,9 @@ class maskedSelectTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(y_pt, y[: y_ait.shape[0]], atol=1e-10, rtol=0))
 
         if benchmark:
-            print(f"Benchmarking with shape={shape}, dtype={dtype}")
+            print(
+                f"Benchmarking with input_shape={input_shape}, mask_shape={mask_shape}, dtype={dtype}"
+            )
             # Warm up.
             for _ in range(5):
                 module.run_with_tensors([x, mask], [y])
@@ -100,6 +109,47 @@ class maskedSelectTestCase(unittest.TestCase):
             print(f"PyTorch time: {torch_time_per_iter_ms:.2f}ms")
 
             print(f"Speedup: {torch_time_per_iter_ms / time_per_iter_ms:.2f}x")
+
+    def _test_broadcastable_masked_select(
+        self,
+        input_shape=(2, 6),
+        mask_shape=(2, 6),
+        test_name="masked_select",
+        copy_op=False,
+        dtype="float16",
+        zero_mask=False,
+        benchmark=False,
+    ):
+        self._test_broadcastable_dynamic_masked_select(
+            input_dynamic_shape=input_shape,
+            mask_dynamic_shape=mask_shape,
+            input_shape=input_shape,
+            mask_shape=mask_shape,
+            test_name=test_name,
+            copy_op=copy_op,
+            dtype=dtype,
+            zero_mask=zero_mask,
+            benchmark=benchmark,
+        )
+
+    def _test_masked_select(
+        self,
+        shape=(2, 6),
+        test_name="masked_select",
+        copy_op=False,
+        dtype="float16",
+        zero_mask=False,
+        benchmark=False,
+    ):
+        self._test_broadcastable_masked_select(
+            input_shape=shape,
+            mask_shape=shape,
+            test_name=test_name,
+            copy_op=copy_op,
+            dtype=dtype,
+            zero_mask=zero_mask,
+            benchmark=benchmark,
+        )
 
     @parameterized.expand(
         [
@@ -180,7 +230,6 @@ class maskedSelectTestCase(unittest.TestCase):
 
     def test_input_dynamic_shape(
         self,
-        batch_size=1,
         shape=(2, 6),
         test_name="masked_select_dynamic",
         dtype="float16",
@@ -190,35 +239,15 @@ class maskedSelectTestCase(unittest.TestCase):
         Check that dynamic input shape is handled correctly.
         """
         dyn_shape = (IntVar(values=(1, 10)), IntVar(values=(1, 10)))
-        X1 = Tensor(
-            shape=dyn_shape,
+        self._test_broadcastable_dynamic_masked_select(
+            input_dynamic_shape=dyn_shape,
+            mask_dynamic_shape=dyn_shape,
+            input_shape=shape,
+            mask_shape=shape,
+            test_name=test_name,
             dtype=dtype,
-            name="x",
-            is_input=True,
+            benchmark=benchmark,
         )
-        X2 = Tensor(
-            shape=dyn_shape,
-            dtype="bool",
-            name="mask",
-            is_input=True,
-        )
-        X4_op = ops.masked_select()
-        X4 = X4_op(X1, X2)
-        X4._attrs["is_output"] = True
-        X4._attrs["name"] = "output_values"
-
-        target = detect_target()
-        module = compile_model([X4], target, "./tmp", test_name)
-
-        x = get_random_torch_tensor(shape, dtype=dtype)
-        mask = get_random_torch_tensor(shape, dtype="float16") > 0
-        y_pt = torch.masked_select(x, mask)
-        y = torch.empty((x.numel(),), dtype=x.dtype, device=x.device)
-        y_ait = module.run_with_tensors([x, mask], [y])["output_values"]
-        # y_ait contains the correct result. It points to the same memory blob as y, but has the correct shape
-        self.assertTrue(torch.allclose(y_pt, y_ait, atol=1e-10, rtol=0))
-        # y retained the original shape (x.numel(),), so needs to be cut before comparison
-        self.assertTrue(torch.allclose(y_pt, y[: y_ait.shape[0]], atol=1e-10, rtol=0))
 
     def test_empty_output(self, shape=(2, 6)):
         """
@@ -227,6 +256,154 @@ class maskedSelectTestCase(unittest.TestCase):
         self._test_masked_select(
             shape=shape,
             test_name="masked_select_zero_mask",
+        )
+
+    @parameterized.expand(
+        [
+            [(32, 16), (1, 16), False],
+            [(32, 1), (64, 1, 16), False],
+            [(64, 32, 64), (64,), False],
+            [(128, 256), (1024, 128, 256), False],
+            [(10, 1, 1, 256), (10, 10, 10, 10, 128, 256), False],
+            # Uncomment to benchmark
+            # [(32, 16), (1, 16), True],
+            # [(32, 1), (64, 1, 16), True],
+            # [(64, 32, 64), (64,), True],
+            # [(64,), (64, 32, 64), True],
+            # [(128, 256), (1024, 1, 256), True],
+            # [(1024, 1, 256), (128, 256), True],
+            # [(128, 256), (1024, 128, 256), True],
+            # [(1024, 128, 256), (128, 256), True],
+            # [(1024, 1, 256), (1024, 128, 256), True],
+            # [(1024, 128, 256), (1024, 1, 256), True],
+            # [(10, 1, 1, 256), (10, 10, 10, 10, 128, 256), True],
+            # [(10, 10, 10, 10, 128, 256), (10, 1, 1, 256), True],
+            # [(10, 10, 1, 1), (10, 10, 10, 1, 1, 10, 256), True],
+            # [(10, 10, 10, 1, 1, 10, 256), (10, 10, 1, 1), True],
+        ]
+    )
+    def test_fp16_input_broadcast_shape(
+        self,
+        input_shape,
+        mask_shape,
+        benchmark=False,
+        test_name="masked_select_broadcast_fp16",
+        dtype="float16",
+    ):
+        """
+        Check the support for broadcastable input and mask.
+        """
+        self._test_broadcastable_masked_select(
+            input_shape=input_shape,
+            mask_shape=mask_shape,
+            test_name=test_name,
+            dtype=dtype,
+            benchmark=benchmark,
+        )
+
+    @parameterized.expand(
+        [
+            [(32, 16), (1, 16), False],
+            [(32, 1), (64, 1, 16), False],
+            [(64, 32, 64), (64,), False],
+            [(128, 256), (1024, 128, 256), False],
+            [(10, 1, 1, 256), (10, 10, 10, 10, 128, 256), False],
+            # Uncomment to benchmark
+            # [(32, 16), (1, 16), True],
+            # [(32, 1), (64, 1, 16), True],
+            # [(64, 32, 64), (64,), True],
+            # [(64,), (64, 32, 64), True],
+            # [(128, 256), (1024, 1, 256), True],
+            # [(1024, 1, 256), (128, 256), True],
+            # [(128, 256), (1024, 128, 256), True],
+            # [(1024, 128, 256), (128, 256), True],
+            # [(1024, 1, 256), (1024, 128, 256), True],
+            # [(1024, 128, 256), (1024, 1, 256), True],
+            # [(10, 1, 1, 256), (10, 10, 10, 10, 128, 256), True],
+            # [(10, 10, 10, 10, 128, 256), (10, 1, 1, 256), True],
+            # [(10, 10, 1, 1), (10, 10, 10, 1, 1, 10, 256), True],
+            # [(10, 10, 10, 1, 1, 10, 256), (10, 10, 1, 1), True],
+        ]
+    )
+    def test_fp32_input_broadcast_shape(
+        self,
+        input_shape,
+        mask_shape,
+        benchmark=False,
+        test_name="masked_select_broadcast_fp32",
+        dtype="float32",
+    ):
+        """
+        Check the support for broadcastable input and mask.
+        """
+        self._test_broadcastable_masked_select(
+            input_shape=input_shape,
+            mask_shape=mask_shape,
+            test_name=test_name,
+            dtype=dtype,
+            benchmark=benchmark,
+        )
+
+    @parameterized.expand(
+        [
+            [
+                {0, 1},
+                {1},
+                {0: IntVar(values=(1, 10)), 1: IntVar(values=(1, 10))},
+                (6, 8),
+                (8,),
+            ],
+            [{0}, {0}, {0: IntVar(values=(1, 10))}, (7, 6, 8), (7, 1, 8)],
+            [{0}, set(), {0: IntVar(values=(1, 10))}, (7, 6, 8), (1, 1, 8)],
+            [
+                {0},
+                {2},
+                {0: IntVar(values=(1, 10)), 2: IntVar(values=(1, 10))},
+                (7, 6, 1),
+                (1, 6, 9),
+            ],
+        ]
+    )
+    def test_input_broadcast_dynamic_shape(
+        self,
+        input_dynamic_dim_idx,
+        mask_dynamic_dim_idx,
+        dynamic_dim_dict,
+        input_shape,
+        mask_shape,
+        test_name="masked_select_broadcast_dynamic_shape",
+        dtype="float16",
+        benchmark=False,
+    ):
+        """
+        Check that broadcast dynamic shape is handled correctly.
+        """
+
+        input_rank = len(input_shape)
+        mask_rank = len(mask_shape)
+        max_rank = max(input_rank, mask_rank)
+        input_dynamic_shape = []
+        mask_dynamic_shape = []
+        for idx in range(max_rank):
+            if idx >= max_rank - input_rank:
+                if idx in input_dynamic_dim_idx and idx in dynamic_dim_dict:
+                    input_dynamic_shape.append(dynamic_dim_dict[idx])
+                else:
+                    input_dynamic_shape.append(input_shape[idx - max_rank + input_rank])
+            if idx >= max_rank - mask_rank:
+                if idx in mask_dynamic_dim_idx and idx in dynamic_dim_dict:
+                    mask_dynamic_shape.append(dynamic_dim_dict[idx])
+                else:
+                    mask_dynamic_shape.append(mask_shape[idx - max_rank + mask_rank])
+
+        self._test_broadcastable_dynamic_masked_select(
+            input_dynamic_shape=input_dynamic_shape,
+            mask_dynamic_shape=mask_dynamic_shape,
+            input_shape=input_shape,
+            mask_shape=mask_shape,
+            test_name=test_name,
+            dtype=dtype,
+            benchmark=benchmark,
         )
 
 

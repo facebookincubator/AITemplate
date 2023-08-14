@@ -24,6 +24,10 @@ from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import IntVar, Operator, Tensor
 
+from aitemplate.compiler.dtype import get_dtype_size
+
+from aitemplate.utils import shape_utils
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,13 +39,14 @@ class masked_select(Operator):
 
     Args:
         input (Tensor): the source tensor.
-        mask (Tensor, boolean): has to be of same shape as input.
+        mask (Tensor, boolean): the shapes of the mask tensor and the input tensor do not need
+            to match, but they must be broadcastable.
 
     Returns:
-        output: 1D tensor of length equal to the total number of elements in `input`. The result
-            is contained in the first `num_nonmasked` elements of output. The rest of the output
-            tensor is not meaningful.
-        num_nonmasked: number of the non-masked elements in the input, i.e. the length of the
+        output: 1D tensor of length equal to the total number of elements in broadcast shape
+            deduced from input and mask. The result is contained in the first `num_nonmasked`
+            elements of output. The rest of the output tensor is not meaningful.
+        num_nonmasked: number of the non-masked elements from the input, i.e. the length of the
             significant part of output.
     """
 
@@ -49,20 +54,39 @@ class masked_select(Operator):
         super().__init__()
         self._attrs["op"] = "masked_select"
         self._attrs["workspace"] = 0
+        self._attrs["max_shape"] = None
 
     def _infer_shape(self, x: Tensor, mask: Tensor) -> List[IntVar]:
         input_shape = x._attrs["shape"]
         mask_shape = mask._attrs["shape"]
-        if input_shape != mask_shape:
+        broadcastable, max_shape = shape_utils.get_broadcast_max_shape(
+            input_shape, mask_shape
+        )
+        if not broadcastable:
             raise RuntimeError(
-                "Tensor shapes of input and mask are not equal! Shape1: {}, shape2: {}".format(
+                "Tensor shapes of input and mask are not broadcastable! Shape1: {}, shape2: {}".format(
                     input_shape, mask_shape
                 )
             )
-
+        self._attrs["max_shape"] = max_shape
         numel = 1
-        for dim in input_shape:
+        for dim in max_shape:
             numel *= dim.upper_bound()
+
+        # Allocate temporary buffer. This empirical formula for size is deduced by looking at necessary
+        # memory to expand input/mask and the buffer sizes requested by cub::DeviceSelect::Flagged for
+        # different input sizes.
+        input_workspace_size = (input_shape != max_shape) * get_dtype_size(
+            x._attrs["dtype"]
+        )
+        mask_workspace_size = (mask_shape != max_shape) * 1  # bool
+        self._attrs["workspace"] = (
+            numel * (input_workspace_size + mask_workspace_size) + numel // 128 + 1024
+        )
+        _LOGGER.debug(
+            f'Allocating {self._attrs["workspace"]} bytes for temporary buffer of masked_select op'
+        )
+
         # Output size can range from 0 (when all mask elements are False) to the total number of
         # elements in the input (when all mask elements are True).
         return [IntVar(values=(0, numel))]
@@ -81,13 +105,6 @@ class masked_select(Operator):
         output = Tensor(output_shape, src_ops={self}, dtype=x._attrs["dtype"])
 
         self._attrs["outputs"] = [output]
-        # Allocate temporary buffer. This empirical formula for size is deduced by looking at buffer sizes
-        # requested by cub::DeviceSelect::Flagged for differen input sizes. Required buffer size depends on
-        # the number of input elements and on the GPU architecture, but not on the input data type.
-        self._attrs["workspace"] = output_shape[0].upper_bound() // 128 + 1024
-        _LOGGER.debug(
-            f'Allocating {self._attrs["workspace"]} bytes for temporary buffer of masked_select op'
-        )
         return output
 
     def gen_function(self) -> str:
