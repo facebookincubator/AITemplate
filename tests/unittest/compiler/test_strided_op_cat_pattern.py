@@ -2246,7 +2246,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
     def test_col_reduce_cat_fusion(self):
         self._test_col_reduce_cat_fusion()
 
-    def _test_strided_op_multiple_cats(self, dtype="float16"):
+    def _test_strided_op_multiple_cats(self, dtype="float16", optimize_args=False):
         # y1 = concat(x0, x1) # [4, 30]
         # y2 = slice(y1) # [4, 6]
         # y = concat(y1, y2) # [4, 36]
@@ -2255,7 +2255,10 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         cat_dim = 1
         test_name = f"test_strided_op_multiple_cats_{dtype}"
 
-        target = detect_target()
+        if optimize_args:
+            target = detect_target(optimize_for_compilation_time=True)
+        else:
+            target = detect_target()
         X0 = Tensor(shape=x0_shape, dtype=dtype, name="x0", is_input=True)
         X1 = Tensor(shape=x1_shape, dtype=dtype, name="x1", is_input=True)
 
@@ -2288,7 +2291,7 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
 
         torch.testing.assert_close(y_pt, y.cpu().numpy(), atol=0.05, rtol=0.05)
 
-    def _test_strided_op_multiple_cats_2(self, dtype="float16"):
+    def _test_strided_op_multiple_cats_2(self, dtype="float16", optimize_args=False):
         # y1 = x0 + x1
         # y2 = slice(y1)
         # y3 = concat(x2, y2)
@@ -2299,7 +2302,10 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         cat_dim = 1
         test_name = f"test_strided_op_multiple_cats_2_{dtype}"
 
-        target = detect_target()
+        if optimize_args:
+            target = detect_target(optimize_for_compilation_time=True)
+        else:
+            target = detect_target()
         X0 = Tensor(shape=x0_shape, dtype=dtype, name="x0", is_input=True)
         X1 = Tensor(shape=x1_shape, dtype=dtype, name="x1", is_input=True)
         X2 = Tensor(shape=x2_shape, dtype=dtype, name="x2", is_input=True)
@@ -2343,6 +2349,8 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
     def test_strided_op_multiple_cats(self):
         self._test_strided_op_multiple_cats()
         self._test_strided_op_multiple_cats_2()
+        self._test_strided_op_multiple_cats(optimize_args=True)
+        self._test_strided_op_multiple_cats_2(optimize_args=True)
 
     @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
     def test_reduce_cat_float(self):
