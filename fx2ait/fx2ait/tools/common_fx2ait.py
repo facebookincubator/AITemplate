@@ -388,15 +388,34 @@ def benchmark_function(
     mod: torch.nn.Module,
     inputs: List[torch.Tensor],
     permute_inputs: Optional[List[int]] = None,
+    precision: LowerPrecision = LowerPrecision.FP16,
+    leaf_module: Callable = None,
 ) -> float:
     mod.eval()
+
+    leaf_module_list = []
+    if leaf_module:
+        if isinstance(leaf_module, list):
+            leaf_module_list.extend(leaf_module)
+        else:
+            leaf_module_list.append(leaf_module)
+
     mod = acc_tracer.trace(
         mod,
         inputs,
+        leaf_module_list=leaf_module_list,
     )
     original_inputs = inputs
     if permute_inputs:
         inputs = [inp.permute(*permute_inputs).contiguous() for inp in inputs]
+    torch_dtype = lower_precision_to_torch_type(precision)
+    mod.to(torch_dtype)
+    inputs = map_aggregate(
+        inputs,
+        lambda inp: inp.to(torch_dtype).contiguous()
+        if inp.dtype not in (torch.bool, torch.int64)
+        else inp.contiguous(),
+    )
     interp = AITInterpreter(
         mod,
         inputs,
