@@ -1644,14 +1644,14 @@ def acc_ops_tile(
         for _ in range(input_dim_len - len(shape_dims)):
             shape_dims.insert(0, 1)
     if input_dim_len < len(shape_dims):
-        shape = input_val.shape()
+        new_shape = list(input_val.shape())
         for _ in range(len(shape_dims) - input_dim_len):
-            shape.insert(0, IntImm(1))
-        result = expand()(input_val, shape)
+            new_shape.insert(0, IntImm(1))
+        result = reshape()(input_val, new_shape)
 
     for i, shape in enumerate(shape_dims):
         # Avoid operate on batch_size dim
-        if input_val.shape()[i]._attrs["name"] is not None:
+        if result.shape()[i]._attrs["name"] is not None:
             continue
         cat_groups = [result] * shape
         result = concatenate()(cat_groups, dim=i)
