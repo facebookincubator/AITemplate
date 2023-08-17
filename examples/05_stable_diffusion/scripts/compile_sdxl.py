@@ -15,6 +15,8 @@
 import logging
 import sys
 
+sys.setrecursionlimit(10000)
+
 import click
 import torch
 from aitemplate.testing import detect_target
