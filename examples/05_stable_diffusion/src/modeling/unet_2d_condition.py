@@ -94,7 +94,7 @@ class UNet2DConditionModel(nn.Module):
         projection_class_embeddings_input_dim=None,
         addition_embed_type=None,
         addition_time_embed_dim=None,
-        transformer_layers_per_block=1,
+        transformer_layers_per_block=[1, 1, 1, 1],
     ):
         super().__init__()
         self.center_input_sample = center_input_sample
