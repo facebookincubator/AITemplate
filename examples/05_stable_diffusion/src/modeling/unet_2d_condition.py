@@ -93,7 +93,6 @@ class UNet2DConditionModel(nn.Module):
         time_embedding_dim=None,
         projection_class_embeddings_input_dim=None,
         addition_embed_type=None,
-        addition_time_embed_dim=None,
         transformer_layers_per_block=[1, 1, 1, 1],
     ):
         super().__init__()
@@ -146,7 +145,6 @@ class UNet2DConditionModel(nn.Module):
             self.class_embedding = None
 
         if addition_embed_type == "text_time":
-            # self.add_time_proj = Timesteps(addition_time_embed_dim, flip_sin_to_cos, freq_shift, dtype=dtype, arange_name="add_arange")
             self.add_embedding = TimestepEmbedding(
                 projection_class_embeddings_input_dim, time_embed_dim, dtype=dtype
             )

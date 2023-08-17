@@ -134,7 +134,6 @@ def compile_unet(
     conv_in_kernel: int = 3,
     projection_class_embeddings_input_dim=None,
     addition_embed_type=None,
-    addition_time_embed_dim=None,
     transformer_layers_per_block=[1, 1, 1, 1],
     dtype="float16",
 ):
@@ -167,7 +166,6 @@ def compile_unet(
         conv_in_kernel=conv_in_kernel,
         projection_class_embeddings_input_dim=projection_class_embeddings_input_dim,
         addition_embed_type=addition_embed_type,
-        addition_time_embed_dim=addition_time_embed_dim,
         transformer_layers_per_block=transformer_layers_per_block,
         dtype=dtype,
     )

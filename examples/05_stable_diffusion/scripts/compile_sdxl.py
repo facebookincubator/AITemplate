@@ -170,7 +170,6 @@ def compile_diffusers(
         conv_in_kernel=pipe.unet.config.conv_in_kernel,
         projection_class_embeddings_input_dim=pipe.unet.config.projection_class_embeddings_input_dim,
         addition_embed_type=pipe.unet.config.addition_embed_type,
-        addition_time_embed_dim=pipe.unet.config.addition_time_embed_dim,
         transformer_layers_per_block=pipe.unet.config.transformer_layers_per_block,
         constants=False
         if sys.platform == "win32"
