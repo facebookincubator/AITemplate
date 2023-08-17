@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, Dict, List, Set, Union
+from typing import Any, Dict, List, Optional, Set, Union
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
@@ -306,6 +306,57 @@ class TensorSpec:
 
         return max_seq_lens
 
+    @staticmethod
+    def _try_getting_jagged_tensor_map(
+        inputs: List[torch.Tensor],
+        jagged_tensor_batch_dims: Set[int],
+        fx_inputs: Optional[List[torch.fx.Node]] = None,
+    ) -> Optional[Dict[int, int]]:
+        """
+        Try getting a map associating each jagged tensor input with the offsets.
+
+        In the jagged tensor operators, jagged tensors are normally passed as inputs
+        together with the (one or more) offsets tensors. Here we try to infer the
+        mapping between each jagged tensor input in the graph and the corresponding
+        offsets tensor based on the pre-populated meta-parameters of the fx.Nodes
+        corresponding to the jagged tensor inputs.
+        """
+        if fx_inputs is None or len(fx_inputs) != len(inputs):
+            return None
+
+        fx_input_shapes = []
+        for fx_inp in fx_inputs:
+            tensor_meta = fx_inp.meta.get("tensor_meta", None)
+            if tensor_meta is None:
+                return None
+            shape = getattr(tensor_meta, "shape", None)
+            if shape is None:
+                return None
+            fx_input_shapes.append(shape)
+
+        for i, inp in enumerate(inputs):
+            if inp.shape != fx_input_shapes[i]:
+                # shape mismatch between the sample input
+                # and the corresponding fx.Node in the graph
+                return None
+
+        jagged_tensor_map = {}
+        seen_offsets_names = {}
+        for i, inp in enumerate(inputs):
+            if inp.shape[0] in jagged_tensor_batch_dims:
+                offsets_name = fx_inputs[i].meta.get("offsets_name", None)
+                if offsets_name is None or len(offsets_name) > 1:
+                    # offsets name attached to the jagged tensor's
+                    # fx.Node is either unavailable or ambiguous
+                    return None
+                offsets_name = list(offsets_name)[0]
+                if offsets_name not in seen_offsets_names:
+                    seen_offsets_names[offsets_name] = len(seen_offsets_names)
+                # associate the jagged tensor with the corresponding offsets
+                jagged_tensor_map[i] = seen_offsets_names[offsets_name]
+
+        return jagged_tensor_map
+
     @classmethod
     def from_input_list_with_batch_size_jagged_tensor(
         cls,
@@ -316,6 +367,7 @@ class TensorSpec:
         jagged_offsets_batch_dims: Set[int],
         additional_inputs: List[torch.Tensor] = None,
         infer_max_seq_lens_from_offsets: bool = False,
+        fx_inputs: List[torch.fx.Node] = None,
     ) -> List["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
@@ -330,6 +382,21 @@ class TensorSpec:
                 jagged_offsets_batch_dims=jagged_offsets_batch_dims,
             )
 
+        jagged_tensor_map = cls._try_getting_jagged_tensor_map(
+            inputs=inputs,
+            jagged_tensor_batch_dims=jagged_tensor_batch_dims,
+            fx_inputs=fx_inputs,
+        )
+        if jagged_tensor_map is not None:
+            logger.info("Successfully detected a jagged_tensor_map:")
+            for input_id, jagged_tensor_id in jagged_tensor_map.items():
+                logger.info(f"{input_id=}, {jagged_tensor_id=}")
+        else:
+            logger.info(
+                "Unable to detect a jagged_tensor_map: falling back "
+                "to the batch dim-based jagged tensor detection."
+            )
+
         result: List = []
         result_unsorted: List = []
         left_inputs: List = []
@@ -340,11 +407,18 @@ class TensorSpec:
             batch_dim_lower_bound: int = 0
             batch_dim_upper_bound: int = 0
             batch_dim_name: str = ""
-            if batch_dim in jagged_tensor_batch_dims:
+            if jagged_tensor_map is not None and ind in jagged_tensor_map:
                 batch_dim_lower_bound = 0  # when all sequences are empty
                 # if the maximum sequence length for this jagged tensor was not
                 # inferred from the offsets, we use the globally configured
                 # max_sequence_length (passed as argument to this function)
+                max_seq_len = max_seq_lens_from_offsets.get(
+                    batch_dim, max_sequence_length
+                )
+                batch_dim_upper_bound = max_batch_size * max_seq_len
+                batch_dim_name = f"batch_size_jagged_tensor_id_{jagged_tensor_map[ind]}"
+            elif batch_dim in jagged_tensor_batch_dims:
+                batch_dim_lower_bound = 0
                 max_seq_len = max_seq_lens_from_offsets.get(
                     batch_dim, max_sequence_length
                 )
