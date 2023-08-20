@@ -844,14 +844,19 @@ clean:
         # for cache invalidation purposes (different compiler versions
         # should not reuse same cached build artifacts )
         cc = Target.current().cc()
-        compilers = {"main_compiler": cc}
+        compilers = {}
         if "nvcc" in cc:
-            ccbin_match = re.search(r'-ccbin "?([^ "]+)', cc)
+            # extract the part before " -ccbin " as group #1
+            # and the content of the quoted expression (until
+            # the first space) after " -ccbin " as group #2
+            ccbin_match = re.search(r'(.*) -ccbin "?([^ "]+)', cc)
             if ccbin_match:
-                nvcc_host_compiler = ccbin_match.group(1)
+                cc = ccbin_match.group(1)
+                nvcc_host_compiler = ccbin_match.group(2)
             else:
                 nvcc_host_compiler = "g++"  # default, using PATH resolution
             compilers["nvcc_host_compiler"] = nvcc_host_compiler
+        compilers["main_compiler"] = cc
 
         # Write compiler version string(s)
         # into the build directory, to enable using them for cache hash determination

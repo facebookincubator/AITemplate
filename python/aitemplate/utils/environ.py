@@ -63,6 +63,13 @@ def enable_cuda_lto() -> bool:
     return os.getenv("AIT_ENABLE_CUDA_LTO", "0") == "1"
 
 
+def nvcc_ccbin() -> str:
+    """
+    nvcc host compiler (ccbin)
+    """
+    return os.getenv("AIT_NVCC_CCBIN", "")
+
+
 def force_profiler_cache() -> bool:
     """
     Force the profiler to use the cached results. The profiler will throw

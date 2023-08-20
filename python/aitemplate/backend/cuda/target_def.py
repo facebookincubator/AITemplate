@@ -135,8 +135,8 @@ class CUDA(Target):
     def get_host_compiler_options(self) -> List[str]:
         return self._build_gnu_host_compiler_options()
 
-    def _get_nvcc_debug_options(self) -> str:
-        CUDA_DEBUG_LEVEL_STRINGS = ["", "-lineinfo", "-g -G"]
+    def _get_nvcc_debug_options(self) -> List[str]:
+        CUDA_DEBUG_LEVEL_STRINGS = [[], ["-lineinfo"], ["-g", "-G"]]
         level = environ.get_cuda_nvcc_debug_level()
         if level.isdigit():
             level = int(level)
@@ -144,7 +144,7 @@ class CUDA(Target):
                 level >= 0 and level < 3
             ), "Debug level out of range. Must be 0 (no debug info), 1 (lineinfo) or 2 (with debug info, disable opt)"
             return CUDA_DEBUG_LEVEL_STRINGS[level]
-        return level
+        return [level]
 
     def _build_nvcc_compiler_options(self) -> List[str]:
         code = [f"sm_{self._arch}", f"compute_{self._arch}"]
@@ -169,7 +169,7 @@ class CUDA(Target):
                     "--source-in-ptx",
                 ]
             ),  # Annotate the ptx file with source information
-        options.append(self._get_nvcc_debug_options())
+        options.extend(self._get_nvcc_debug_options())
         if self._ndebug == 1:
             options.append("-DNDEBUG")
         if environ.use_fast_math() and (
@@ -242,7 +242,10 @@ class CUDA(Target):
             shutil.rmtree(self.lib_folder)
 
     def cc(self):
-        return "nvcc"
+        cc = "nvcc"
+        if environ.nvcc_ccbin():
+            cc += " -ccbin " + environ.nvcc_ccbin()
+        return cc
 
     def compile_cmd(self, executable=False):
         if executable:
@@ -443,7 +446,7 @@ class FBCUDA(CUDA):
                         "--source-in-ptx",  # Annotate the ptx file with source information
                     ]
                 ),
-            options.append(self._get_nvcc_debug_options())
+            options.extend(self._get_nvcc_debug_options())
             if self._ndebug == 1:
                 options.append("-DNDEBUG")
             FBCUDA.static_compile_options_ = options
