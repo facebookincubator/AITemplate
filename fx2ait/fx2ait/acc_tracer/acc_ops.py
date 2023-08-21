@@ -2143,6 +2143,14 @@ def norm_mapper(node: torch.fx.Node, _: torch.nn.Module) -> torch.fx.Node:
     ],
 )
 @register_custom_acc_mapper_fn(
+    op_and_target=("call_function", torch.split_with_sizes),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("split_sizes", "split_size_or_sections"),
+        ("dim", "dim"),
+    ],
+)
+@register_custom_acc_mapper_fn(
     op_and_target=("call_function", torch.split),
     arg_replacement_tuples=[
         ("tensor", "input"),
