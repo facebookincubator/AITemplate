@@ -101,6 +101,8 @@ ignore =
   W504,
 
   # Too opinionated.
+  # zip() without strict= (strict isn't available in python < 3.10)
+  B905,
   # Block comment should start with '# '.
   E265,
   # Too many leading '#' for block comment.
