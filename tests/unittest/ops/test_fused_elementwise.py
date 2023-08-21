@@ -87,7 +87,7 @@ class FusedElementwiseTestCase(unittest.TestCase):
         inputs, outputs, external_inputs, external_outputs = _get_inputs_outputs(
             {op1, op2}, {op1, op2}
         )
-        for tensor in inputs | outputs:
+        for tensor in itertools.chain(inputs, outputs):
             tensor._attrs["src_ops"] = tensor._attrs["src_ops"] - {op1, op2}
             tensor._attrs["dst_ops"] = tensor._attrs["dst_ops"] - {op1, op2}
         fused_op = ops.fused_elementwise(

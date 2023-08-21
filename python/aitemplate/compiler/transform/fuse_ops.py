@@ -16,6 +16,7 @@
 Perform operator fusions.
 """
 import collections
+import itertools
 import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Set
@@ -141,10 +142,10 @@ def _find_fusable_elementwise_ops(op: Operator) -> Set[Operator]:
 @dataclass
 class FusedElementwiseInfo:
     partitioned_ops: List[Operator]
-    inputs: Set[Tensor]
-    outputs: Set[Tensor]
-    external_inputs: Set[Tensor]
-    external_outputs: Set[Tensor]
+    inputs: List[Tensor]
+    outputs: List[Tensor]
+    external_inputs: List[Tensor]
+    external_outputs: List[Tensor]
 
 
 def _partition_subgraphs(ops: Set[Operator]) -> Dict[str, Set[Operator]]:
@@ -178,47 +179,51 @@ def _partition_subgraphs(ops: Set[Operator]) -> Dict[str, Set[Operator]]:
 
 def _get_inputs_outputs(
     partitioned_ops: Set[Operator], all_ops: Set[Operator]
-) -> List[Set[Tensor]]:
+) -> List[List[Tensor]]:
     """
     Given ops of a partitioned subgraph based on output shape, and ops of full graph
     to form a complete graph with fused_elementwise op, returns all inputs/outputs of
     the ops and the external input/output of the subgraph, which will serve as input/output
     of fused_elementwise op.
     """
-    external_inputs = set()
-    external_outputs = set()
-    tmp_inputs = set()
-    tmp_outputs = set()
+    external_inputs, external_outputs = [], []
+    tmp_inputs, tmp_outputs = [], []
 
     for op in partitioned_ops:
         for input_tensor in op._attrs["inputs"]:
-            tmp_inputs.add(input_tensor)
+            tmp_inputs.append(input_tensor)
             src_ops = set(input_tensor._attrs["src_ops"])
             if (len(src_ops) == 0 or len(src_ops - all_ops) > 0) and (
                 not input_tensor.is_a_const_num()
             ):
-                external_inputs.add(input_tensor)
+                external_inputs.append(input_tensor)
             assert op in input_tensor._attrs["dst_ops"]
         for output_tensor in op._attrs["outputs"]:
-            tmp_outputs.add(output_tensor)
+            tmp_outputs.append(output_tensor)
             dst_ops = set(output_tensor._attrs["dst_ops"])
             if output_tensor._attrs["is_output"] or len(dst_ops - all_ops) > 0:
-                external_outputs.add(output_tensor)
+                external_outputs.append(output_tensor)
             assert len(output_tensor._attrs["src_ops"]) == 1
             assert list(output_tensor._attrs["src_ops"])[0] == op
 
-    assert (
-        external_inputs == tmp_inputs - tmp_outputs
+    # dict.fromkeys takes unique tensors and preserves the ordering.
+    external_inputs = list(dict.fromkeys(external_inputs))
+    external_outputs = list(dict.fromkeys(external_outputs))
+    tmp_inputs = list(dict.fromkeys(tmp_inputs))
+    tmp_outputs = list(dict.fromkeys(tmp_outputs))
+
+    assert set(external_inputs) == set(tmp_inputs) - set(
+        tmp_outputs
     ), "external_inputs: {} is not equal to tmp_inputs: {} - tmp_outputs: {}.".format(
         external_inputs, tmp_inputs, tmp_outputs
     )
     assert (
-        len(tmp_outputs - tmp_inputs - external_outputs) == 0
+        len(set(tmp_outputs) - set(tmp_inputs) - set(external_outputs)) == 0
     ), "tmp_outputs: {} - tmp_inputs: {} - external_outputs: {} is not empty.".format(
         tmp_outputs, tmp_inputs, external_outputs
     )
     assert (
-        len(external_outputs - tmp_outputs) == 0
+        len(set(external_outputs) - set(tmp_outputs)) == 0
     ), "external_outputs: {} - tmp_outputs: {} is not empty.".format(
         external_outputs, tmp_outputs
     )
@@ -274,7 +279,7 @@ def _create_fuse_ops(info_list: List[FusedElementwiseInfo]) -> None:
     """
     for info in info_list:
         op_set = set(info.partitioned_ops)
-        for tensor in info.inputs | info.outputs:
+        for tensor in itertools.chain(info.inputs, info.outputs):
             tensor._attrs["src_ops"] = tensor._attrs["src_ops"] - op_set
             tensor._attrs["dst_ops"] = tensor._attrs["dst_ops"] - op_set
         fused_elementwise(
