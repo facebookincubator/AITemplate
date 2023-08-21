@@ -15,7 +15,7 @@
 """
 Fused elementwise operator definition.
 """
-from typing import List, Set
+from typing import Iterable, List
 
 from aitemplate import backend
 from aitemplate.backend import registry
@@ -52,7 +52,7 @@ class fused_elementwise(Operator):
                 )
 
     def _update_inputs_outputs(
-        self, inputs: Set[Operator], outputs: Set[Operator]
+        self, inputs: Iterable[Operator], outputs: Iterable[Operator]
     ) -> None:
         self._attrs["inputs"] = list(inputs)
         self._attrs["input_accessors"] = [
@@ -89,8 +89,8 @@ class fused_elementwise(Operator):
     def __init__(
         self,
         elementwise_ops: List[elementwise],
-        inputs: Set[Operator],
-        outputs: Set[Operator],
+        inputs: Iterable[Operator],
+        outputs: Iterable[Operator],
     ) -> None:
         super().__init__()
 
