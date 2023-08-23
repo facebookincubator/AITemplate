@@ -22,11 +22,14 @@ import unittest
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
 
+import aitemplate
+
 import torch
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
+from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from aitemplate.testing.detect_target import detect_target
 from aitemplate.utils.graph_utils import get_sorted_ops
 from aitemplate.utils.torch_utils import string_to_torch_dtype
@@ -313,3 +316,47 @@ def init_random_weights(m):
         pass
     else:
         print("Passed root module: " + str(type(m)))
+
+
+def benchmark_module(
+    name: str,
+    inputs: Tensor,
+    outputs: Tensor,
+    pt_mod: torch.nn.Module,
+    ait_mod: aitemplate.frontend.nn.module.Module,
+    iters: int = 100,
+    permute_inputs: Optional[List[int]] = None,
+):
+    input_shape = inputs.size()
+    batch_size = input_shape[0]
+
+    # benchmark pt
+    # warmup
+    args = (inputs,)
+    t = benchmark_torch_function(iters, pt_mod, *args)
+    # benchmark
+    t_pt = benchmark_torch_function(iters, pt_mod, *args)
+    print(
+        f"{name}_pt: batch_size: {batch_size}, {t_pt} ms",
+    )
+
+    # benchmark ait
+    # warm up
+    inputs = inputs.permute(permute_inputs).contiguous() if permute_inputs else inputs
+    graph_mode = False
+    t, _, __ = ait_mod.benchmark_with_tensors(
+        [inputs],
+        [outputs],
+        count=iters,
+        graph_mode=graph_mode,
+    )
+    # benchmark
+    t_ait, _, __ = ait_mod.benchmark_with_tensors(
+        [inputs],
+        [outputs],
+        count=iters,
+        graph_mode=graph_mode,
+    )
+    print(
+        f"{name}_ait: batch_size: {batch_size}, {t_ait} ms",
+    )
