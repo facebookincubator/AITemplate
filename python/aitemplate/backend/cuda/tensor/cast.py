@@ -93,6 +93,11 @@ void invoke_{{func_name}}(void* output, const void* input,
 )
 
 CAST_FUNCS = {
+    "bool": {
+        "half": "(half)input[idx];",
+        "float": "(float)input[idx];",
+        "bfloat16": "(bfloat16)input[idx];",
+    },
     "half": {
         "bfloat16": "__float2bfloat16_rn(__half2float(input[idx]));",
         "float": "__half2float(input[idx]);",

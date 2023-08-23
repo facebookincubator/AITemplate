@@ -76,6 +76,7 @@ from aitemplate.compiler.ops.tensor.size import size
 from aitemplate.compiler.ops.tensor.topk import topk
 
 """Memory ops"""
+from aitemplate.compiler.ops.tensor.cast import cast
 from aitemplate.compiler.ops.tensor.chunk import chunk
 from aitemplate.compiler.ops.tensor.concatenate import concatenate
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice

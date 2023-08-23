@@ -15,13 +15,14 @@
 import logging
 import math
 import operator
-from typing import Dict, List, Sequence, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
 
 from aitemplate.compiler.public import (
     avg_pool2d,
     bmm_rrr,
+    cast,
     chunk,
     clamp,
     concatenate,
@@ -1590,6 +1591,37 @@ def acc_ops_to_dtype(
     # It introduces a node in AIT graph which has is_input=True and is_output=True. The node name is output_xx
     # fx2ait throws error when doing the input name binding. So we need an identity layer.
     input_val = kwargs["input"]
+
+    def _get_cast_to_dtype_from_kwargs(
+        kwargs: Dict[str, Argument]
+    ) -> Optional[torch.dtype]:
+        torch_dtype_to_ait_dtype_str = {
+            torch.float: "float32",
+            torch.half: "float16",
+            torch.float16: "float16",
+            torch.bfloat16: "bfloat16",
+        }
+        if "acc_out_ty" not in kwargs or not hasattr(kwargs["acc_out_ty"], "dtype"):
+            return None
+
+        if isinstance(kwargs["acc_out_ty"].dtype, torch.dtype):
+            return torch_dtype_to_ait_dtype_str[kwargs["acc_out_ty"].dtype]
+        elif isinstance(kwargs["acc_out_ty"].dtype, AITTensor):
+            return kwargs["acc_out_ty"].dtype.dtype()
+        return None
+
+    cast_dtype = _get_cast_to_dtype_from_kwargs(kwargs)
+    input_dtype = input_val.dtype() if isinstance(input_val, AITTensor) else None
+    if cast_dtype is not None and cast_dtype != input_dtype:
+        input_tys = ["float16", "float32", "float", "bfloat16", "bool"]
+        cast_tys = [
+            "float16",
+            "float32",
+            "float",
+            "bfloat16",
+        ]
+        if input_dtype in input_tys and cast_dtype in cast_tys:
+            return cast()(input_val, cast_dtype)
     return identity()(input_val)
 
 

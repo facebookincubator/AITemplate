@@ -49,7 +49,7 @@ class cast(Operator):
     ) -> Tensor:
         x_dtype = normalize_dtype(x._attrs["dtype"])
         dtype = normalize_dtype(dtype)
-        if x_dtype not in ("float16", "bfloat16", "float32"):
+        if x_dtype not in ("float16", "bfloat16", "float32", "bool"):
             raise TypeError(
                 f"Expected dtype for x must be float16,bfloat16 or float32 , but got {x_dtype}."
             )
@@ -58,6 +58,7 @@ class cast(Operator):
             raise TypeError(
                 f"Expected dtype to cast must be float16,bfloat16 or float32 , but got {dtype}."
             )
+
         if dtype == x_dtype:
             return x
 
