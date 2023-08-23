@@ -27,6 +27,10 @@ from aitemplate.utils.torch_utils import string_to_torch_dtype
 from parameterized import param, parameterized
 
 
+@unittest.skipIf(
+    detect_target().name() == "cuda" and int(detect_target()._arch) < 80,
+    "Not supported by CUDA < SM80.",
+)
 class TestCast(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -74,6 +78,9 @@ class TestCast(unittest.TestCase):
             param(4, "bfloat16", "float32", 123, "bfloat16_to_float32"),
             param(5, "float32", "float16", [20, 30], "float32_to_float16"),
             param(6, "float32", "bfloat16", [1, 128], "float32_to_bfloat16"),
+            param(7, "bool", "float16", [10, 128], "bool_to_float16"),
+            param(8, "bool", "bfloat16", [10, 128], "bool_to_bfloat16"),
+            param(9, "bool", "float32", [10, 128], "bool_to_float32"),
         ]
     )
     def test_cast(

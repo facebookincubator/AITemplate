@@ -183,6 +183,8 @@ def _get_torch_tensor(torch_fn, shape, dtype):
 
 
 def get_random_torch_tensor(shape, dtype="float16"):
+    if dtype == "bool":
+        return _get_torch_tensor(torch.randn, shape, "float32") < 0.5
     return _get_torch_tensor(torch.randn, shape, dtype)
 
 
