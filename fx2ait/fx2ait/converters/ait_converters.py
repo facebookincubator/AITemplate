@@ -1605,7 +1605,8 @@ def acc_ops_to_dtype(
             return None
 
         if isinstance(kwargs["acc_out_ty"].dtype, torch.dtype):
-            return torch_dtype_to_ait_dtype_str[kwargs["acc_out_ty"].dtype]
+            return torch_dtype_to_ait_dtype_str.get(kwargs["acc_out_ty"].dtype)
+
         elif isinstance(kwargs["acc_out_ty"].dtype, AITTensor):
             return kwargs["acc_out_ty"].dtype.dtype()
         return None
