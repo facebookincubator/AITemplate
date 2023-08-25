@@ -861,7 +861,7 @@ class MoveViewOpsTestCase(unittest.TestCase):
         module = compile_model(Y, target, "./tmp", test_name)
         sorted_graph = module.debug_sorted_graph
         sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
-        self.assertEqual(len(sorted_ops), 5)
+        self.assertEqual(len(sorted_ops), 4)
         concat_cnt = 0
         for sorted_op in sorted_ops:
             if sorted_op._attrs["op"] == "concatenate":

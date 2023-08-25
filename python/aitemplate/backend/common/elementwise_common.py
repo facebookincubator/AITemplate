@@ -1101,6 +1101,16 @@ def _gen_write_outputs_str(
             read_t=fused_elementwise_metadata.max_read_t,
             data_idx=index_variable,
         )
+
+        # This is for fusing duplicate fused-elementwise ops. The newly fused op
+        # will have multiple outputs but only a single original output. Allowing
+        # us to calculate the original output once and re-use it for all outputs.
+        if (
+            len(fused_elementwise_metadata.original_outputs) == 1
+            and len(fused_elementwise_metadata.outputs) > 1
+        ):
+            output_idx = 0
+
         write_out = KERNEL_WRITE_OUTPUT_TEMPLATE.render(
             get_strided_address=get_strided_addr_str,
             output_name=output_name,
