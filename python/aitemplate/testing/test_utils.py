@@ -22,13 +22,12 @@ import unittest
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
 
-import aitemplate
-
 import torch
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
+from aitemplate.frontend.nn.module import Module as AITModule
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from aitemplate.testing.detect_target import detect_target
 from aitemplate.utils.graph_utils import get_sorted_ops
@@ -325,7 +324,7 @@ def benchmark_module(
     inputs: Tensor,
     outputs: Tensor,
     pt_mod: torch.nn.Module,
-    ait_mod: aitemplate.frontend.nn.module.Module,
+    ait_mod: AITModule,
     iters: int = 100,
     permute_inputs: Optional[List[int]] = None,
 ):
