@@ -43,12 +43,15 @@ class TestTopkConverter(AITTestCase):
 
     @parameterized.expand(
         [
-            [[2, 4], 1],
-            [[2, 4], 2],
-            [[3, 3], 3],
+            [[2, 4], 1, torch.float16],
+            [[2, 4], 2, torch.float16],
+            [[3, 3], 3, torch.float32],
+            [[10, 12], 4, torch.bfloat16],
         ]
     )
-    def test_multi_dimensional(self, input: List[int], k: int) -> None:
+    def test_multi_dimensional(
+        self, input: List[int], k: int, dtype: torch.dtype
+    ) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 values, indices = torch.topk(x, k)
@@ -56,7 +59,7 @@ class TestTopkConverter(AITTestCase):
 
         model = TestModule().cuda()
         inputs = [
-            torch.randn(*input).half().cuda(),
+            torch.randn(*input).to(dtype).cuda(),
         ]
         self.run_test(model, inputs, expected_ops={acc_ops.topk})
 

@@ -80,6 +80,12 @@ class topkTestCase(unittest.TestCase):
 
         scores = self._create_tensors(shape, dtype)
         (values, y_pt) = torch.topk(scores, k=topK, dim=dim)
+        # torch.topk doesn't have stable results on duplicate values
+        if dtype == "bfloat16":
+            (values, y_pt) = torch.sort(scores, dim=dim, stable=True, descending=True)
+            values = values[:, :topK]
+            y_pt = y_pt[:, :topK]
+
         torch_dtype = string_to_torch_dtype(dtype)
         x = scores.reshape(shape).contiguous()
         y2 = torch.empty(o_shape).cuda().to(torch.int64)
@@ -134,6 +140,25 @@ class topkTestCase(unittest.TestCase):
             test_name="topk_heap_f32",
             copy_op=False,
             dtype="float32",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCm.")
+    def test_bfloat16(self):
+        self._test_topk(
+            shape=(4, 500),
+            topK=200,
+            dim=1,
+            test_name="topk_sort_bf16",
+            copy_op=False,
+            dtype="bfloat16",
+        )
+        self._test_topk(
+            shape=(4, 500),
+            topK=30,
+            dim=1,
+            test_name="topk_heap_bf16",
+            copy_op=False,
+            dtype="bfloat16",
         )
 
 
