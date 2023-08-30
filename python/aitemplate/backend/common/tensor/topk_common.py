@@ -125,6 +125,32 @@ template <typename T>
 struct NumericTraits;
 
 template<>
+struct NumericTraits<bfloat16> {
+  __host__ __device__
+  static bfloat16 zero() {
+    return 0.0f;
+  }
+
+  __host__ __device__
+  static bfloat16 one() {
+    uint16_t ret = 0x3f80;
+    return *reinterpret_cast<bfloat16*>(&ret);
+  }
+
+  __host__ __device__
+  static bfloat16 min() {
+    uint16_t ret = 0xff7f;
+    return *reinterpret_cast<bfloat16*>(&ret);
+  }
+
+  __host__ __device__
+  static bfloat16 max() {
+    uint16_t ret = 0x7f7f;
+    return *reinterpret_cast<bfloat16*>(&ret);
+  }
+};
+
+template<>
 struct NumericTraits<half> {
   __host__ __device__
   static half zero() {

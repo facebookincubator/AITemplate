@@ -26,9 +26,20 @@ from aitemplate.backend.common.tensor import topk_common
 
 header_files = """
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include "cutlass/cutlass.h"
 #include "cutlass/fast_math.h"
 #include <cub/cub.cuh>
+
+using bfloat16 = nv_bfloat16;
+
+namespace cub {
+    template <> struct NumericTraits<bfloat16>
+      : BaseTraits<FLOATING_POINT, true, false, unsigned short, bfloat16> {};
+
+    template<> struct Traits<bfloat16>
+      : NumericTraits<bfloat16> {};
+}
 """
 
 

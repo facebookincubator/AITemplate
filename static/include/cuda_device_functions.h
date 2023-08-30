@@ -24,6 +24,7 @@
 #include "cutlass/util/host_tensor.h"
 #include "cutlass/util/reference/host/tensor_fill.h"
 
+#include <cuda_bf16.h>
 #include <nvtx3/nvToolsExt.h>
 
 namespace ait {
