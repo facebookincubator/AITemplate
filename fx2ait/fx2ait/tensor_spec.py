@@ -345,9 +345,12 @@ class TensorSpec:
         for i, inp in enumerate(inputs):
             if inp.shape[0] in jagged_tensor_batch_dims:
                 offsets_name = fx_inputs[i].meta.get("offsets_name", None)
-                if offsets_name is None or len(offsets_name) > 1:
+                if offsets_name is None:
+                    # not a jagged tensor
+                    continue
+                if len(offsets_name) > 1:
                     # offsets name attached to the jagged tensor's
-                    # fx.Node is either unavailable or ambiguous
+                    # fx.Node is either ambiguous: failing here
                     return None
                 offsets_name = list(offsets_name)[0]
                 if offsets_name not in seen_offsets_names:
@@ -387,7 +390,7 @@ class TensorSpec:
             jagged_tensor_batch_dims=jagged_tensor_batch_dims,
             fx_inputs=fx_inputs,
         )
-        if jagged_tensor_map is not None:
+        if jagged_tensor_map:
             logger.info("Successfully detected a jagged_tensor_map:")
             for input_id, jagged_tensor_id in jagged_tensor_map.items():
                 logger.info(f"{input_id=}, {jagged_tensor_id=}")
@@ -407,7 +410,7 @@ class TensorSpec:
             batch_dim_lower_bound: int = 0
             batch_dim_upper_bound: int = 0
             batch_dim_name: str = ""
-            if jagged_tensor_map is not None and ind in jagged_tensor_map:
+            if jagged_tensor_map and ind in jagged_tensor_map:
                 batch_dim_lower_bound = 0  # when all sequences are empty
                 # if the maximum sequence length for this jagged tensor was not
                 # inferred from the offsets, we use the globally configured
@@ -417,7 +420,7 @@ class TensorSpec:
                 )
                 batch_dim_upper_bound = max_batch_size * max_seq_len
                 batch_dim_name = f"batch_size_jagged_tensor_id_{jagged_tensor_map[ind]}"
-            elif batch_dim in jagged_tensor_batch_dims:
+            elif not jagged_tensor_map and batch_dim in jagged_tensor_batch_dims:
                 batch_dim_lower_bound = 0
                 max_seq_len = max_seq_lens_from_offsets.get(
                     batch_dim, max_sequence_length
