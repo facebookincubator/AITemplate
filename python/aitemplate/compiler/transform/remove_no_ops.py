@@ -84,7 +84,7 @@ def _remove_no_op_concats(sorted_graph: List[Tensor]) -> List[Tensor]:
         if isinstance(dim, IntImm):
             return dim.value() > 0
         elif isinstance(dim, IntVar):
-            return dim.lower_bound() > 0
+            return dim.upper_bound() > 0
 
     ops = graph_utils.get_sorted_ops(sorted_graph)
     for op in ops:
