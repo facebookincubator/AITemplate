@@ -18,7 +18,7 @@ from typing import Sequence
 import torch
 
 from aitemplate.compiler import compile_model, ops
-from aitemplate.compiler.base import Tensor
+from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor, graph_has_op
 
@@ -42,10 +42,11 @@ class TestRemoveNoOpConcats(unittest.TestCase):
     # These are meaningful
     5. inputs=[non-empty, non-empty]
     6. inputs=[non-empty, empty, non-empty]
+    7. inputs=[with-zero-lower-bound-int-var, another-one-like-that]
 
     # These should have exceptions
-    7. inputs=[rank-2 non-empty, rank-1 empty]
-    8. inputs=[rank-2 non-empty, rank-2 empty]
+    8. inputs=[rank-2 non-empty, rank-1 empty]
+    9. inputs=[rank-2 non-empty, rank-2 empty]
     """
 
     def test_remove_no_op_concats_no_ops(self):
@@ -91,6 +92,14 @@ class TestRemoveNoOpConcats(unittest.TestCase):
             test_name="test_remove_no_op_concats_two_non_empty_and_empty",
         )
 
+        int_var = IntVar([0, 10])
+        self._test_remove_no_op_concats_impl(
+            input_shapes=[[int_var, 3], [int_var, 5]],
+            should_keep_concat=True,
+            concat_dim=1,
+            test_name="test_remove_no_op_concats_zero_lower_bound_int_var",
+        )
+
     def test_remove_no_op_concats_exceptions(self):
         """We expect this to raise an exception in these test cases."""
 
@@ -115,22 +124,28 @@ class TestRemoveNoOpConcats(unittest.TestCase):
         input_shapes: Sequence[Sequence[int]],
         should_keep_concat: bool,
         test_name: str,
+        concat_dim: int = 0,
     ):
         inputs = [
             Tensor(shape=shape, name=f"input_{i}", is_input=True)
             for i, shape in enumerate(input_shapes)
         ]
-        concatenated = ops.concatenate()(inputs)
+        concatenated = ops.concatenate()(inputs, dim=concat_dim)
         c = Tensor(shape=[1], name="input_const", is_input=True)
         model_output = (concatenated * c) + (concatenated / c)
         model_output._attrs["name"] = "output_0"
         model_output._attrs["is_output"] = True
 
+        input_shapes = [
+            [(d.upper_bound() if isinstance(d, IntVar) else d) for d in shape]
+            for shape in input_shapes
+        ]
+
         inputs_pt = {
             f"input_{i}": get_random_torch_tensor(shape=shape)
             for i, shape in enumerate(input_shapes)
         }
-        concatenated_pt = torch.concat(list(inputs_pt.values()))
+        concatenated_pt = torch.concat(list(inputs_pt.values()), dim=concat_dim)
         c_pt = get_random_torch_tensor(shape=[1])
         Y_pt = (concatenated_pt * c_pt) + (concatenated_pt / c_pt)
         Y_ait = torch.empty_like(Y_pt)
