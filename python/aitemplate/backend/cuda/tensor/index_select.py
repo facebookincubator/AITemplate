@@ -46,6 +46,7 @@ from aitemplate.backend import registry
 
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda import cuda_common
+from aitemplate.utils import shape_utils
 
 
 header_files = """
@@ -62,12 +63,11 @@ FUNC_DECL_TEMPLATE = jinja2.Template(
 void {{func_name}}(
     {{input_type}}* /*output*/,
     const {{input_type}}* /*input*/,
-    const {{index_type}} /*dim*/,
     const {{index_type}} /*dim_len*/,
     const {{index_type}}* /*dim_idxs*/,
     const {{index_type}} /*dim_idxs_len*/,
     const {{index_type}} /*num_before*/,
-    const {{index_type}} /*num_after*/,
+    {{index_type}} /*num_after*/,
     cudaStream_t /*stream*/
     );
 """
@@ -77,14 +77,14 @@ SRC_TEMPLATE = jinja2.Template(
     """
 {{header_files}}
 
+#define N_THREADS_PER_BLOCK 256
+
 __global__ void index_select_kernel(
-    {{input_type}}* output,
-    const {{input_type}}* input,
-    const {{index_type}} dim,
+    {{read_t}}* output,
+    const {{read_t}}* input,
     const {{index_type}} dim_len,
     const {{index_type}}* dim_idxs,
     const {{index_type}} dim_idxs_len,
-    const {{index_type}} num_before,
     const {{index_type}} num_after,
     const {{index_type}} N
 ) {
@@ -92,12 +92,12 @@ __global__ void index_select_kernel(
     #pragma unroll
     for(auto i = idx; i<N; i+=gridDim.x*blockDim.x) {
         auto res = i;
-        auto k = i%num_after;
-        res = res/num_after;
-        auto j = res%dim_idxs_len;
-        res = res/dim_idxs_len;
-        auto skip = res*dim_len*num_after + (dim_idxs[j]*num_after) + k;
-        output[i] = input[skip];
+        auto k = i % num_after;
+        res = res / num_after;
+        auto j = res % dim_idxs_len;
+        res = res / dim_idxs_len;
+        auto input_idx = res * dim_len * num_after + (dim_idxs[j] * num_after) + k;
+        output[i] = input[input_idx];
     }
 
 }
@@ -105,21 +105,27 @@ __global__ void index_select_kernel(
 void {{func_name}}(
     {{input_type}}* output,
     const {{input_type}}* input,
-    const {{index_type}} dim,
     const {{index_type}} dim_len,
     const {{index_type}}* dim_idxs,
     const {{index_type}} dim_idxs_len,
     const {{index_type}} num_before,
-    const {{index_type}} num_after,
+    {{index_type}} num_after,
     cudaStream_t stream
     ) {
 
-    {{index_type}} N =  num_before*dim_idxs_len*num_after;
-    const {{index_type}} threads  = 256;
-    auto blocks = (N + threads - 1) / threads;
+    num_after /= {{read_vector_length}};
+    {{index_type}} N = num_before * dim_idxs_len * num_after;
+    auto blocks = (N + N_THREADS_PER_BLOCK - 1) / N_THREADS_PER_BLOCK;
 
-    index_select_kernel<<<blocks, threads, 0, stream>>>(output, input, dim, dim_len, dim_idxs,
-        dim_idxs_len, num_before, num_after, N);
+    index_select_kernel<<<blocks, N_THREADS_PER_BLOCK, 0, stream>>>(
+        reinterpret_cast<{{read_t}}*>(output),
+        reinterpret_cast<const {{read_t}}*>(input),
+        dim_len,
+        dim_idxs,
+        dim_idxs_len,
+        num_after,
+        N
+    );
 }
 """
 )
@@ -143,7 +149,6 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 {{indent}}  {{func_name}}(
 {{indent}}      {{output}},
 {{indent}}      {{input}},
-{{indent}}      {{dim}},
 {{indent}}      dim_len,
 {{indent}}      {{dim_idxs}},
 {{indent}}      {{dim_idxs_len}},
@@ -169,6 +174,7 @@ def gen_function(func_attrs) -> str:
     backend_spec = CUDASpec()
     x = func_attrs["inputs"][0]
     y = func_attrs["outputs"][0]
+    dim = func_attrs["dim"]
 
     input_type = cuda_common.dtype_to_cuda_type(x._attrs["dtype"])
     output_type = cuda_common.dtype_to_cuda_type(y._attrs["dtype"])
@@ -176,11 +182,24 @@ def gen_function(func_attrs) -> str:
     if input_type != output_type:
         raise TypeError("input type must equal to output type")
 
+    read_t = backend_spec.get_elementwise_read_backend_type(
+        shape_utils.get_num_rightmost_static_elements(
+            y.shape(), len(x.shape()) - dim - 1
+        ),
+        y.dtype(),
+    )
+    data_t = backend_spec.dtype_to_backend_type(y.dtype())
+    read_vector_length = int(
+        backend_spec.sizeof_types[read_t] / backend_spec.sizeof_types[data_t]
+    )
+
     return SRC_TEMPLATE.render(
         input_type=input_type,
         index_type=backend_spec.index_type,
         func_name=func_attrs["name"],
         header_files=header_files,
+        read_t=read_t,
+        read_vector_length=read_vector_length,
     )
 
 
