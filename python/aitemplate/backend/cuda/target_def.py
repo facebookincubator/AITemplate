@@ -158,6 +158,7 @@ class CUDA(Target):
             environ.get_compiler_opt_level(),
             "-std=c++17",
             "--expt-relaxed-constexpr",
+            "-DCUTLASS_DEBUG_TRACE_LEVEL=" + environ.get_cutlass_debug_trace_level(),
         ]
         if environ.enable_ptxas_info():
             options.extend(
@@ -429,6 +430,8 @@ class FBCUDA(CUDA):
                     if not FBCUDA.optimize_for_compilation_time_
                     else "-O1",
                     "-std=c++17",
+                    "-DCUTLASS_DEBUG_TRACE_LEVEL="
+                    + environ.get_cutlass_debug_trace_level(),
                 ]
                 + (
                     ["-DOPTIMIZE_FOR_COMPILATION_TIME"]

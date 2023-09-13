@@ -285,6 +285,14 @@ def get_cuda_nvcc_debug_level():
     return level
 
 
+def get_cutlass_debug_trace_level():
+    """
+    Return level of CUTLASS lib debug trace information. Default to no debug info.
+    """
+    level = os.getenv("CUTLASS_DEBUG_TRACE_LEVEL", "0")
+    return level
+
+
 def enable_cuda_source_navigation_fix():
     """
     When this flag is enabled, the FBCUDA Target will copy every *.cu file in build dirs into
