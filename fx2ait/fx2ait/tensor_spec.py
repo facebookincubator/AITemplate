@@ -306,8 +306,9 @@ class TensorSpec:
 
         return max_seq_lens
 
-    @staticmethod
-    def _try_getting_jagged_tensor_map(
+    @classmethod
+    def try_getting_jagged_tensor_map(
+        cls,
         inputs: List[torch.Tensor],
         jagged_tensor_batch_dims: Set[int],
         fx_inputs: Optional[List[torch.fx.Node]] = None,
@@ -371,6 +372,7 @@ class TensorSpec:
         additional_inputs: List[torch.Tensor] = None,
         infer_max_seq_lens_from_offsets: bool = False,
         fx_inputs: List[torch.fx.Node] = None,
+        jagged_tensor_map: Optional[Dict[int, int]] = None,
     ) -> List["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
@@ -383,21 +385,6 @@ class TensorSpec:
             max_seq_lens_from_offsets = cls._get_max_seq_lens_from_offsets(
                 inputs=inputs,
                 jagged_offsets_batch_dims=jagged_offsets_batch_dims,
-            )
-
-        jagged_tensor_map = cls._try_getting_jagged_tensor_map(
-            inputs=inputs,
-            jagged_tensor_batch_dims=jagged_tensor_batch_dims,
-            fx_inputs=fx_inputs,
-        )
-        if jagged_tensor_map:
-            logger.info("Successfully detected a jagged_tensor_map:")
-            for input_id, jagged_tensor_id in jagged_tensor_map.items():
-                logger.info(f"{input_id=}, {jagged_tensor_id=}")
-        else:
-            logger.info(
-                "Unable to detect a jagged_tensor_map: falling back "
-                "to the batch dim-based jagged tensor detection."
             )
 
         result: List = []
