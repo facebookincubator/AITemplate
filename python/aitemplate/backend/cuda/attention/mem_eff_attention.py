@@ -703,7 +703,10 @@ def mem_eff_attention_gen_function(func_attrs: Dict[str, Any]) -> str:
         func_template = FUNC_TEMPLATE_GROUPED_FMHA
     else:
         func_template = FUNC_TEMPLATE_KERNEL_FWD
-
+    # Mem-eff attention relies on cutlass 2 which doesn't yet have SM90 specialization
+    arch = func_attrs["arch"]
+    if arch == "90":
+        arch = "80"
     return func_template.render(
         elem_input_type=elem_input_type,
         head_size=func_attrs["head_size"],
@@ -711,7 +714,7 @@ def mem_eff_attention_gen_function(func_attrs: Dict[str, Any]) -> str:
         kIs64x64="true" if func_attrs["head_size"] <= 64 else "false",
         kSingleValueIteration="true" if func_attrs["head_size"] <= 128 else "false",
         cuda_check=CUDA_CHECK,
-        arch=func_attrs["arch"],
+        arch=arch,
     )
 
 
