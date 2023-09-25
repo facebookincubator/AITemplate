@@ -49,7 +49,12 @@ class ChunkTestCase(unittest.TestCase):
             Y._attrs["name"] = "output_{}".format(idx)
             Y._attrs["is_output"] = True
 
-        module = compile_model(Ys, target, "./tmp", "chunk")
+        # Use unique test name to avoid race condition
+        shape_hash = hash(str(input_shape))
+        test_name = f"chunks_{chunks}_{dim}_{input_type}_{shape_hash}"
+        module = compile_model(
+            Ys, target, "./tmp", test_name=test_name, dll_name=f"{test_name}.so"
+        )
 
         for batch_size in input_shape[0]._attrs["values"]:
             logging.info(f"Testing {batch_size=}")
