@@ -49,15 +49,16 @@ def run(
     prompt = [prompt] * batch
     negative_prompt = [negative_prompt] * batch
     with torch.autocast("cuda"):
-        image = pipe(
+        images = pipe(
             prompt=prompt,
             height=height,
             width=width,
             negative_prompt=negative_prompt,
             num_inference_steps=steps,
             guidance_scale=cfg,
-        ).images[0]
-    image.save("example_ait.png")
+        ).images
+    for i, image in enumerate(images):
+        image.save(f"example_ait_{i}.png")
 
 
 if __name__ == "__main__":
