@@ -18,7 +18,9 @@ CUDA reduce module init
 from aitemplate.backend.cuda.reduce import (
     reduce_3d,
     reduce_common,
+    reduce_max,
     reduce_mean,
+    reduce_min,
     reduce_sum,
     var,
     vector_norm,
@@ -27,7 +29,9 @@ from aitemplate.backend.cuda.reduce import (
 __all__ = [
     "reduce_3d",
     "reduce_common",
+    "reduce_max",
     "reduce_mean",
+    "reduce_min",
     "reduce_sum",
     "var",
     "vector_norm",

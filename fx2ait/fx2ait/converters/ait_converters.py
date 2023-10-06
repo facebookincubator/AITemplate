@@ -51,7 +51,9 @@ from aitemplate.compiler.public import (
     ndhwc3to8,
     pad_last_dim,
     permute,
+    reduce_max,
     reduce_mean,
+    reduce_min,
     reduce_sum,
     reshape,
     size,
@@ -239,6 +241,26 @@ def acc_ops_mean(
     name: str,
 ) -> ConverterOutput:
     return create_reduce_op(reduce_mean, args, kwargs, name)
+
+
+@ait_converter(acc_ops.amax)
+def acc_ops_amax(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    return create_reduce_op(reduce_max, args, kwargs, name)
+
+
+@ait_converter(acc_ops.amin)
+def acc_ops_amin(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    return create_reduce_op(reduce_min, args, kwargs, name)
 
 
 @ait_converter(acc_ops.linear)

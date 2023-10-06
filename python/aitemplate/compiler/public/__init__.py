@@ -44,7 +44,9 @@ from aitemplate.compiler.ops.gemm_universal.gemm_rcr_bias import gemm_rcr_bias
 from aitemplate.compiler.ops.gemm_universal.gemm_rrr import gemm_rrr
 
 """Reduce"""
+from aitemplate.compiler.ops.reduce.reduce_max import reduce_max
 from aitemplate.compiler.ops.reduce.reduce_mean import reduce_mean
+from aitemplate.compiler.ops.reduce.reduce_min import reduce_min
 from aitemplate.compiler.ops.reduce.reduce_sum import reduce_sum
 from aitemplate.compiler.ops.reduce.var import var
 from aitemplate.compiler.ops.reduce.vector_norm import vector_norm
