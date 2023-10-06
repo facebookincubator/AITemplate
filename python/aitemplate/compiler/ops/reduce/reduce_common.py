@@ -253,7 +253,7 @@ class reduce_base(Operator):
         # Note that this is a temprary solution only for col-reduction reduce_sum
         # kernels that invoke cutlass's TensorReduction kernel. Once we have our
         # own implementation, we will remove the workaround.
-        if self._attrs["op"] == "reduce_sum" and (
+        if self._attrs["op"] in ("reduce_sum", "reduce_min", "reduce_max") and (
             self._attrs["reduction_axes"][0] != input_rank - 1
         ):
             ws_size = self._compute_workspace_size(

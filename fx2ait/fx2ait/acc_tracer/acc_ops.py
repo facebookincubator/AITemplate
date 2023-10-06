@@ -1556,6 +1556,22 @@ def max_dim_reduce(*, input, dim=None, keepdim=False):
     return torch.max(input=input, dim=dim, keepdim=keepdim)
 
 
+@register_acc_op_properties(AccOpProperty.unary)
+@register_acc_op_mapping(op_and_target=("call_function", torch.amax))
+@register_acc_op_mapping(op_and_target=("call_method", "amax"))
+@register_acc_op
+def amax(*, input, dim, keepdim=False):
+    return torch.amax(input=input, dim=dim, keepdim=keepdim)
+
+
+@register_acc_op_properties(AccOpProperty.unary)
+@register_acc_op_mapping(op_and_target=("call_function", torch.amin))
+@register_acc_op_mapping(op_and_target=("call_method", "amin"))
+@register_acc_op
+def amin(*, input, dim, keepdim=False):
+    return torch.amin(input=input, dim=dim, keepdim=keepdim)
+
+
 @register_acc_op_properties(AccOpProperty.pointwise)
 @register_acc_op_mapping(op_and_target=("call_function", torch.maximum))
 @register_acc_op_mapping(op_and_target=("call_method", "maximum"))

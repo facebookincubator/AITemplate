@@ -127,7 +127,7 @@ void {{func_name}}_launcher(
     src_dims[0], src_dims[1], src_dims[2], src_dims[3]
   );
   Layout src_layout(Layout::packed(src_extent));
-  ElementCompute reduction_identity = ElementCompute();
+  ElementCompute reduction_identity = {{reduction_identity}};
   TensorReduction reduction(src_extent, reduction_axis);
   ReductionOp reduction_op = ReductionOp();
   assert(dst_ptr);
@@ -189,7 +189,11 @@ def gen_function_decl(func_attrs):
     )
 
 
-def gen_function(func_attrs, reduction_op):
+def gen_function(
+    func_attrs,
+    reduction_op,
+    reduction_identity="ElementCompute()",
+):
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_lib_type(
         func_attrs["inputs"][0]._attrs["dtype"]
@@ -221,6 +225,7 @@ def gen_function(func_attrs, reduction_op):
     return SRC_TEMPLATE.render(
         func_name=func_attrs["name"],
         reduction_op=reduction_op,
+        reduction_identity=reduction_identity,
         exec_paths=exec_paths,
         workspace_ptr=workspace_ptr,
         accumulation_type=accumulation_type,

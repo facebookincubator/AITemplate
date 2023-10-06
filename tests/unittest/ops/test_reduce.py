@@ -74,11 +74,13 @@ class ReduceTestCase(unittest.TestCase):
         dll_name = f"test_{self.test_count}.so"
         module = compile_model(Y, target, "./tmp", test_name, dll_name=dll_name)
         X_pt = get_random_torch_tensor(input_shape, input_type)
-        dtype_pt = string_to_torch_dtype(output_type)
-        if keepdim is None:
-            Y_pt = torch_reduce_op(X_pt, dim, dtype=dtype_pt)
-        else:
-            Y_pt = torch_reduce_op(X_pt, dim, keepdim=keepdim, dtype=dtype_pt)
+        pt_args = [X_pt, dim]
+        pt_kwargs = {}
+        if keepdim is not None:
+            pt_kwargs["keepdim"] = keepdim
+        if torch_reduce_op not in (torch.amin, torch.amax):
+            pt_kwargs["dtype"] = string_to_torch_dtype(output_type)
+        Y_pt = torch_reduce_op(*pt_args, **pt_kwargs)
 
         y = torch.empty_like(Y_pt)
         module.run_with_tensors([X_pt], [y])
@@ -116,7 +118,11 @@ class ReduceTestCase(unittest.TestCase):
 
     def test_reduce_sum(self):
         self._run_reduce_sum(
-            dim=0, input_shape=[1], keepdim=True, input_type="float16", output_type=None
+            dim=0,
+            input_shape=[1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
         )
         self._run_reduce_sum(
             dim=1,
@@ -160,7 +166,6 @@ class ReduceTestCase(unittest.TestCase):
             input_type="float16",
             output_type="float16",
         )
-
         self._run_reduce_sum(
             dim=0,
             input_shape=[4],
@@ -408,6 +413,268 @@ class ReduceTestCase(unittest.TestCase):
             use_fp16_acc=True,
         )
 
+    def _run_reduce_max(
+        self,
+        *,
+        dim,
+        input_shape,
+        keepdim,
+        input_type="float16",
+        output_type=None,
+        use_fp16_acc=False,
+    ):
+        self._run_reduce(
+            test_name=f"reduce_max_{input_type}_{output_type}",
+            reduce_op=ops.reduce_max,
+            torch_reduce_op=torch.amax,
+            dim=dim,
+            input_shape=input_shape,
+            keepdim=keepdim,
+            input_type=input_type,
+            output_type=output_type,
+            use_fp16_acc=use_fp16_acc,
+        )
+
+    def test_reduce_max(self):
+        self._run_reduce_max(
+            dim=0,
+            input_shape=[1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=1,
+            input_shape=[1, 4],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=0,
+            input_shape=[1, 4],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=0,
+            input_shape=[2, 4],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=0,
+            input_shape=[1, 2, 1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=1,
+            input_shape=[1, 2, 1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=2,
+            input_shape=[5, 4, 3],
+            keepdim=True,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_max(
+            dim=0,
+            input_shape=[4],
+            keepdim=False,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=0,
+            input_shape=[1, 4],
+            keepdim=False,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_max(
+            dim=0,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_max(
+            dim=1,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_max(
+            dim=1,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+            use_fp16_acc=True,
+        )
+        self._run_reduce_max(
+            dim=2,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_max(
+            dim=-1,
+            input_shape=[1, 1000000, 6],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        # allocate workspace for the strided tensor_reduce kernel
+        self._run_reduce_max(
+            dim=2,
+            input_shape=[1, 1, 8, 128],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+
+    def _run_reduce_min(
+        self,
+        *,
+        dim,
+        input_shape,
+        keepdim,
+        input_type="float16",
+        output_type=None,
+        use_fp16_acc=False,
+    ):
+        self._run_reduce(
+            test_name=f"reduce_min_{input_type}_{output_type}",
+            reduce_op=ops.reduce_min,
+            torch_reduce_op=torch.amin,
+            dim=dim,
+            input_shape=input_shape,
+            keepdim=keepdim,
+            input_type=input_type,
+            output_type=output_type,
+            use_fp16_acc=use_fp16_acc,
+        )
+
+    def test_reduce_min(self):
+        self._run_reduce_min(
+            dim=0,
+            input_shape=[1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=1,
+            input_shape=[1, 4],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=0,
+            input_shape=[1, 4],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=0,
+            input_shape=[2, 4],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=0,
+            input_shape=[1, 2, 1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=1,
+            input_shape=[1, 2, 1],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=2,
+            input_shape=[5, 4, 3],
+            keepdim=True,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_min(
+            dim=0,
+            input_shape=[4],
+            keepdim=False,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=0,
+            input_shape=[1, 4],
+            keepdim=False,
+            input_type="float16",
+            output_type=None,
+        )
+        self._run_reduce_min(
+            dim=0,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_min(
+            dim=1,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_min(
+            dim=1,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+            use_fp16_acc=True,
+        )
+        self._run_reduce_min(
+            dim=2,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+        )
+        self._run_reduce_min(
+            dim=-1,
+            input_shape=[1, 1000000, 6],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+        # allocate workspace for the strided tensor_reduce kernel
+        self._run_reduce_min(
+            dim=2,
+            input_shape=[1, 1, 8, 128],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+        )
+
     def _run_batched_reduce(
         self,
         *,
@@ -567,6 +834,33 @@ class ReduceTestCase(unittest.TestCase):
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
+    def test_reduce_max_float32(self):
+        # reduce_smallaxis
+        self._run_reduce_max(
+            dim=1,
+            input_shape=[1, 4],
+            keepdim=True,
+            input_type="float32",
+            output_type=None,
+        )
+        # reduce_3d
+        self._run_reduce_max(
+            dim=-2,
+            input_shape=[3, 2048, 4],
+            keepdim=False,
+            input_type="float32",
+            output_type=None,
+        )
+        # reduce (common) 2d
+        self._run_reduce_max(
+            dim=-1,
+            input_shape=[1270, 1223],
+            keepdim=False,
+            input_type="float32",
+            output_type=None,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
     def test_reduce_sum_bfloat16(self):
         # reduce_smallaxis
         self._run_reduce_sum(
@@ -597,6 +891,33 @@ class ReduceTestCase(unittest.TestCase):
             output_type=None,
             rtol=1e-0,
             atol=1e-0,
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
+    def test_reduce_max_bfloat16(self):
+        # reduce_smallaxis
+        self._run_reduce_max(
+            dim=1,
+            input_shape=[1, 4],
+            keepdim=True,
+            input_type="bfloat16",
+            output_type=None,
+        )
+        # reduce_3d
+        self._run_reduce_max(
+            dim=-2,
+            input_shape=[3, 2048, 4],
+            keepdim=False,
+            input_type="bfloat16",
+            output_type=None,
+        )
+        # reduce (common) 2d
+        self._run_reduce_max(
+            dim=-1,
+            input_shape=[1270, 1223],
+            keepdim=False,
+            input_type="bfloat16",
+            output_type=None,
         )
 
 
