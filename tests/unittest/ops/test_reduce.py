@@ -226,6 +226,16 @@ class ReduceTestCase(unittest.TestCase):
             input_type="float16",
             output_type=None,
         )
+        # make sure that the workspace size is computed correctly
+        # for the fp32 accumulator (use_fp16_acc=False)
+        self._run_reduce_sum(
+            dim=1,
+            input_shape=[1024, 2, 1855],
+            keepdim=False,
+            input_type="float16",
+            output_type=None,
+            use_fp16_acc=False,
+        )
 
     def _run_reduce_mean(
         self,
