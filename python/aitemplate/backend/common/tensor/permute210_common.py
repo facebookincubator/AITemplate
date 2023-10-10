@@ -179,6 +179,10 @@ void {{function_name}} (
     int64_t x_dim2,
     {{prefix}}Stream_t stream
 ) {
+  if (x_dim0 == 0 || x_dim1 == 0 || x_dim2 == 0) {
+    // empty input: nothing to do
+    return;
+  }
   if (!in_ptr) {
     throw std::runtime_error("in_ptr is NULL!");
   }
