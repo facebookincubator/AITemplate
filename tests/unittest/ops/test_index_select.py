@@ -280,6 +280,46 @@ class IndexSelectTest(unittest.TestCase):
                     benchmark=benchmark,
                 )
 
+    @parameterized.expand(
+        [
+            [(5, 4, 3, 2), False],
+            # [(2, 6), False],
+            # [(20, 6), False],
+            # [(300, 80), False],
+            # Uncomment to benchmark
+            # [(5, 4, 3, 2), True],
+            # [(2, 6), True],
+            # [(20, 6), True],
+            # [(300, 80), True],
+            # [(1024, 128, 256), True],
+            # [(1024, 1024, 100), True],
+            # [(1, 1), True],
+            # [(10, 1), True],
+            # [(100, 1), True],
+            # [(1000, 1), True],
+            # [(10000, 1), True], #revisit
+            # [(100000, 1), True],
+            # [(1000000, 1), True],
+            # [(10000000, 1), True],
+            # [(100000000, 1), True],
+            # [(10000, 10000), True],
+            # [(10, 10, 10, 10, 10, 10, 10, 10), True],
+        ]
+    )
+    def test_bf16(self, shape, benchmark=False):
+        torch.manual_seed(1024)
+        random.seed(1024)
+        for idx, _ in enumerate(shape):
+            for dim_idx_len in [1, int(shape[idx] / 2), shape[idx]]:
+                self._test_index_select(
+                    shape=shape,
+                    dim_idx=idx,
+                    dim_idx_len=dim_idx_len if dim_idx_len > 0 else 1,
+                    test_name="index_select_bf16",
+                    dtype="bfloat16",
+                    benchmark=benchmark,
+                )
+
 
 if __name__ == "__main__":
     torch.manual_seed(1024)
