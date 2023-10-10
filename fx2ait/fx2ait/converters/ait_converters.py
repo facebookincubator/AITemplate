@@ -42,6 +42,7 @@ from aitemplate.compiler.public import (
     getitem,
     group_norm,
     identity,
+    index_select,
     IntImm,
     IntVar,
     IntVarTensor,
@@ -1829,3 +1830,24 @@ def acc_ops_masked_select(
     mask = kwargs["mask"]
 
     return masked_select()(input_val, mask)
+
+
+@ait_converter(acc_ops.index_select)
+def acc_ops_index_select(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0] if len(args) >= 1 else kwargs["input"]
+    dim = args[1] if len(args) >= 2 else kwargs["dim"]
+    index = args[2] if len(args) >= 3 else kwargs["index"]
+
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor 'input' for {name}: {input_val}")
+    if not isinstance(dim, int):
+        raise RuntimeError(f"Non-int 'dim' for {name}: {dim}")
+    if not isinstance(index, AITTensor):
+        raise RuntimeError(f"Non-tensor 'index' for {name}: {index}")
+
+    return index_select(dim=dim)(x=input_val, dim_idxs=index)
