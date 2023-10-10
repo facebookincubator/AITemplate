@@ -197,6 +197,12 @@ void {{function_name}} (
     const int64_t* x_dims,
     {{prefix}}Stream_t stream
 ) {
+  for (int i = 0; i < rank; i++) {
+      if (x_dims[i] == 0) {
+          // empty input: nothing to do
+          return;
+      }
+  }
   if (!in_ptr) {
     throw std::runtime_error("in_ptr is NULL!");
   }
