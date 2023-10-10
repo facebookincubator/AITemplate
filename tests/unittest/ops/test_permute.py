@@ -139,6 +139,38 @@ class GenericPermuteTest(unittest.TestCase):
             testname="test_generic_permute_bf16",
         )
 
+    def test_zero_size_input(self):
+        self._test_generic_permute(
+            input_shapes=[0, 4, 8],
+            dims=[0, 2, 1],
+            torch_dtype=torch.float16,
+            testname="test_zero_size_input_021",
+        )
+        self._test_generic_permute(
+            input_shapes=[4, 0, 8],
+            dims=[1, 0, 2],
+            torch_dtype=torch.float16,
+            testname="test_zero_size_input_102",
+        )
+        self._test_generic_permute(
+            input_shapes=[4, 8, 0],
+            dims=[2, 1, 0],
+            torch_dtype=torch.float16,
+            testname="test_zero_size_input_210",
+        )
+        self._test_generic_permute(
+            input_shapes=[0, 32, 0, 8],
+            dims=[0, 2, 1, 3],
+            torch_dtype=torch.float16,
+            testname="test_zero_size_input_0213",
+        )
+        self._test_generic_permute(
+            input_shapes=[4, 0, 8, 0],
+            dims=[0, 3, 1, 2],
+            torch_dtype=torch.float16,
+            testname="test_zero_size_input_0312",
+        )
+
 
 if __name__ == "__main__":
     torch.manual_seed(0)
