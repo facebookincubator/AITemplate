@@ -370,7 +370,6 @@ class ModelContainerGenerator:
         self.visited_func = set()
         self.visited_dims = set()
         self.set_up_constant_names = []
-        self.param_name_to_ptr_idx = {}
 
         self.num_constants = 0
         self.constants_data_size = 0
@@ -584,7 +583,6 @@ class ModelContainerGenerator:
             )
         )
         self.set_inputs.append(check_not_null(tensor))
-        self.param_name_to_ptr_idx[name] = self.input_idx
         self._record_param_tensor_info(tensor, self.input_idx)
         self.input_idx += 1
 
@@ -599,27 +597,25 @@ class ModelContainerGenerator:
     def _codegen_output_aliases_tensor(self, tensor: Tensor) -> None:
         name = tensor._attrs["name"]
         view = tensor._attrs["is_view_of"]
-        if tensor._attrs["external_tensor"] is not None:
+        external_tensor = tensor._attrs["external_tensor"]
+        if external_tensor is not None:
+            assert not external_tensor._attrs[
+                "is_param"
+            ], "Views of constants should be folded."
             self.set_inputs.append(set_value(name, view._attrs["name"]))
             return
-        is_view = view is not None
-        if is_view and (view._attrs["name"] in self.param_name_to_ptr_idx):
-            ptr_idx = self.param_name_to_ptr_idx[view._attrs["name"]]
+
+        if view:
+            # View is already initialized, assign to view.
             self.set_inputs.append(set_value(name, view._attrs["name"]))
         else:
-            ptr_idx = self._get_output_idx(name)
+            # Original tensor, initialize it.
+            output_idx = self._get_output_idx(name)
             self.set_inputs.append(
                 set_value(
                     name,
-                    f"static_cast<decltype({name})>(params_[{ptr_idx}].ptr)",
+                    f"static_cast<decltype({name})>(params_[{output_idx}].ptr)",
                 )
-            )
-
-        self.param_name_to_ptr_idx[name] = ptr_idx
-        if tensor._attrs["is_output"]:
-            self._record_param_tensor_info(tensor, ptr_idx)
-            self.set_inputs.append(
-                check_not_null(tensor, skip_if_lower_bound_is_zero=True)
             )
 
     def _codegen_output_tensor(self, tensor: Tensor) -> None:
@@ -634,7 +630,6 @@ class ModelContainerGenerator:
 
         if is_param:
             self._codegen_param_setup(tensor)
-            self._record_param_tensor_info(tensor, output_idx)
             self.device_to_device_copies.append(device_copy(tensor, tensor, output_idx))
         elif external_tensor is not None:
             # Special view cases for outputs; we can hit this case if the output
@@ -649,7 +644,6 @@ class ModelContainerGenerator:
             self.device_to_device_copies.append(
                 device_copy(tensor, external_tensor, output_idx)
             )
-            self._record_param_tensor_info(tensor, output_idx)
         elif is_input:
             # Inputs that are also outputs require an extra copy
             self.set_inputs.append(
@@ -659,11 +653,25 @@ class ModelContainerGenerator:
                 )
             )
             self._record_param_tensor_info(tensor, self.input_idx)
-            self._record_param_tensor_info(tensor, output_idx)
             self.device_to_device_copies.append(device_copy(tensor, tensor, output_idx))
             self.input_idx += 1
+        elif is_view:
+            self.set_inputs.append(set_value(name, view._attrs["name"]))
+            self.set_inputs.append(
+                check_not_null(tensor, skip_if_lower_bound_is_zero=True)
+            )
         else:
-            self._codegen_output_aliases_tensor(tensor)
+            self.set_inputs.append(
+                set_value(
+                    name,
+                    f"static_cast<decltype({name})>(params_[{output_idx}].ptr)",
+                )
+            )
+            self.set_inputs.append(
+                check_not_null(tensor, skip_if_lower_bound_is_zero=True)
+            )
+
+        self._record_param_tensor_info(tensor, output_idx)
 
     def _process_dims(self, shape: List[IntVar]) -> None:
         for dim in shape:
