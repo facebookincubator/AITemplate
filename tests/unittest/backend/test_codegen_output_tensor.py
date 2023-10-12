@@ -18,13 +18,15 @@ import os
 import unittest
 from typing import Sequence
 
+import torch
+
 from aitemplate.backend.codegen import device_copy, set_value
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target
 
-from aitemplate.testing.test_utils import gen_input_tensor
+from aitemplate.testing.test_utils import gen_input_tensor, get_random_torch_tensor
 
 
 class TestCodegenOutput(unittest.TestCase):
@@ -102,6 +104,8 @@ class TestCodegenOutput(unittest.TestCase):
         Case: Two outputs are a view of the same tensor.
         Graph: ( gelu ) <--view-- ( output_0 )
                         <--view-- ( output_1 )
+        Expect: If a tensor is a view for multiple outputs, then it's assigned to
+        only one of the outputs' ptrs. We expect D2D copies for the remaining outputs.
         """
         # AIT, two outputs.
         x = gen_input_tensor(shape=self.SHAPE, name="input_x")
@@ -114,7 +118,7 @@ class TestCodegenOutput(unittest.TestCase):
         output1._attrs["is_output"] = True
         output1._attrs["name"] = "output_1"
 
-        compile_model(
+        model = compile_model(
             [output0, output1],
             detect_target(),
             self.WORKDIR,
@@ -135,10 +139,25 @@ class TestCodegenOutput(unittest.TestCase):
         expected_codegen = (
             set_value("output_0", view_name),
             set_value("output_1", view_name),
+            device_copy(output0, view, dst_idx=1),
         )
         self._assert_codegen_exists(
             test_name, expected_codegen, self.MODEL_GENERATED_FILE
         )
+
+        # This is an edge case -- test the accuracy.
+        x_pt = get_random_torch_tensor(self.SHAPE)
+        gelu_pt = torch.nn.functional.gelu(x_pt)
+        output0_pt = torch.unsqueeze(gelu_pt, dim=0)
+        output1_pt = torch.flatten(gelu_pt)
+        output0_ait = torch.empty_like(output0_pt)
+        output1_ait = torch.empty_like(output1_pt)
+
+        model.run_with_tensors(
+            {"input_x": x_pt}, {"output_0": output0_ait, "output_1": output1_ait}
+        )
+        self.assertTrue(torch.allclose(output0_ait, output0_pt, atol=1e-2, rtol=1e-2))
+        self.assertTrue(torch.allclose(output1_ait, output1_pt, atol=1e-2, rtol=1e-2))
 
     def test_output_is_view_of_output(self, test_name="output_is_view_of_output"):
         """

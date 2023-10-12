@@ -631,19 +631,25 @@ class ModelContainerGenerator:
         if is_param:
             self._codegen_param_setup(tensor)
             self.device_to_device_copies.append(device_copy(tensor, tensor, output_idx))
-        elif external_tensor is not None:
-            # Special view cases for outputs; we can hit this case if the output
-            # is a view of a constant, input, or another output.
+        elif is_view or external_tensor is not None:
             assert (
                 is_view
-            ), f"orig_tensor is not None, but node {name} is not marked as a view! Node: {tensor}"
+            ), f"External tensor is not None, but node {name} is not marked as a view! Node: {tensor}"
+            view_name = view._attrs["name"]
+            self.set_inputs.append(set_value(name, view_name))
             self.set_inputs.append(
-                check_not_null(tensor, output_idx, skip_if_lower_bound_is_zero=True)
+                check_not_null(tensor, skip_if_lower_bound_is_zero=True)
             )
-            self.set_inputs.append(set_value(name, view._attrs["name"]))
-            self.device_to_device_copies.append(
-                device_copy(tensor, external_tensor, output_idx)
+
+            view_assigned_to_another_output = (
+                self._get_output_idx(view_name) != output_idx
             )
+            if external_tensor or view_assigned_to_another_output:
+                # Copy from original tensor so this output can also have the data.
+                original_tensor = external_tensor if external_tensor else view
+                self.device_to_device_copies.append(
+                    device_copy(tensor, original_tensor, output_idx)
+                )
         elif is_input:
             # Inputs that are also outputs require an extra copy
             self.set_inputs.append(
@@ -655,11 +661,6 @@ class ModelContainerGenerator:
             self._record_param_tensor_info(tensor, self.input_idx)
             self.device_to_device_copies.append(device_copy(tensor, tensor, output_idx))
             self.input_idx += 1
-        elif is_view:
-            self.set_inputs.append(set_value(name, view._attrs["name"]))
-            self.set_inputs.append(
-                check_not_null(tensor, skip_if_lower_bound_is_zero=True)
-            )
         else:
             self.set_inputs.append(
                 set_value(
