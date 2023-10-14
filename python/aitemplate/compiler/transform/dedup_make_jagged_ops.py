@@ -21,7 +21,7 @@ from typing import Dict, List, Set
 
 from aitemplate.compiler.base import IntVar, JaggedIntVar, Operator, Tensor
 
-from aitemplate.compiler.ops import make_jagged
+from aitemplate.compiler.ops.common.view_ops import make_jagged
 from aitemplate.compiler.transform.toposort import toposort
 from aitemplate.compiler.transform.transform_utils import (
     remove_dst_op_from_tensor,
