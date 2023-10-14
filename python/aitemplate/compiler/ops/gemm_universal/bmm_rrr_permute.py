@@ -19,7 +19,7 @@ Batch GEMM specialization for A[RowMajor], B[RowMajor], C[RowMajor] with permuta
 from typing import Tuple
 
 from aitemplate.compiler.base import Tensor
-from aitemplate.compiler.ops.common import reshape
+from aitemplate.compiler.ops.common.view_ops import reshape
 from aitemplate.compiler.ops.gemm_universal.bmm_xxx import bmm_rrr
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 

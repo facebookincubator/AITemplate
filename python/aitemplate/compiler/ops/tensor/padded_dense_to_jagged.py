@@ -21,7 +21,7 @@ from typing import List
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import IntVar, JaggedDim, JaggedIntVar, Operator, Tensor
-from aitemplate.compiler.ops import make_jagged
+from aitemplate.compiler.ops.common.view_ops import make_jagged
 
 
 class padded_dense_to_jagged(Operator):

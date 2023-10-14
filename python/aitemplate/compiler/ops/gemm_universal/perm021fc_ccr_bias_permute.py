@@ -16,7 +16,7 @@
 GEMM Specialization: (A.permute(0, 2, 1)[col] @ B[col] + Bias).permute(0, 2, 1)
 """
 from aitemplate.compiler.base import Tensor
-from aitemplate.compiler.ops.common import reshape
+from aitemplate.compiler.ops.common.view_ops import reshape
 from aitemplate.compiler.ops.gemm_universal.perm021fc_ccr_bias import perm021fc_ccr_bias
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
