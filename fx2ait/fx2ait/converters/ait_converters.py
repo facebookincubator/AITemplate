@@ -488,6 +488,31 @@ def acc_ops_relu(
     return elementwise(FuncEnum.RELU)(input_val)
 
 
+@ait_converter(acc_ops.elu)
+def acc_ops_elu(
+    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Unexpected input for {name}: {input_val}")
+
+    inputs = [input_val]
+    if "alpha" in kwargs:
+        if not isinstance(kwargs["alpha"], (int, float)):
+            raise RuntimeError(
+                f"When specified, alpha in {name} must be a scalar: {input_val}"
+            )
+        input_alpha = AITTensor(
+            shape=[],
+            dtype=input_val._attrs["dtype"],
+            name="alpha",
+            value=kwargs["alpha"],
+        )
+        inputs.append(input_alpha)
+
+    return elementwise(FuncEnum.ELU)(*inputs)
+
+
 @ait_converter(acc_ops.leaky_relu)
 def acc_ops_leaky_relu(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
