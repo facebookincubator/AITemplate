@@ -6,4 +6,5 @@ pip3 install opencv-python
 pip3 install tqdm
 pip3 install timm
 pip3 install transformers
-pip3 install diffusers
+pip3 install accelerate
+pip3 install git+https://github.com/huggingface/diffusers

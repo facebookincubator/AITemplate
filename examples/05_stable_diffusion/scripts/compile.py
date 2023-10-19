@@ -18,7 +18,7 @@ import click
 import torch
 from aitemplate.testing import detect_target
 from aitemplate.utils.import_path import import_parent
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionGLIGENTextImagePipeline
 
 if __name__ == "__main__":
     import_parent(filepath=__file__, level=1)
@@ -48,9 +48,9 @@ def compile_diffusers(
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
-    pipe = StableDiffusionPipeline.from_pretrained(
+    pipe = StableDiffusionGLIGENTextImagePipeline.from_pretrained(
         local_dir,
-        revision="fp16",
+        revision="main",
         torch_dtype=torch.float16,
     ).to("cuda")
 

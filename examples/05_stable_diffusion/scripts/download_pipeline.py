@@ -14,7 +14,7 @@
 #
 import click
 import torch
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusionGLIGENTextImagePipeline
 
 
 @click.command()
@@ -36,10 +36,9 @@ from diffusers import StableDiffusionPipeline
     help="Pipeline files local directory.",
 )
 def download_pipeline_files(model_name, token, save_directory) -> None:
-
-    StableDiffusionPipeline.from_pretrained(
+    StableDiffusionGLIGENTextImagePipeline.from_pretrained(
         model_name,
-        revision="fp16",
+        revision="main",
         torch_dtype=torch.float16,
         use_auth_token=token if len(token) > 5 else token.lower() == "true",
     ).save_pretrained(save_directory)
