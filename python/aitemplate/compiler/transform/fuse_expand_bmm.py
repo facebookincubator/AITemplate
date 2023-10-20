@@ -26,7 +26,6 @@ broadcasting capability to achieve the same functionality as expand.
 from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor
-from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.compiler.transform.toposort import toposort
 from aitemplate.compiler.transform.transform_utils import (
@@ -39,6 +38,10 @@ def _can_fuse(expand_op: Operator, bmm_op: Operator) -> bool:
     """
     determine if expand_op and bmm_op can be fused
     """
+    from aitemplate.compiler.ops.tensor.expand import (  # inner import to break circular import
+        ExpandDimensionType,
+    )
+
     expand_output = expand_op._attrs["outputs"][0]
     if expand_output._attrs["is_output"]:
         return False
