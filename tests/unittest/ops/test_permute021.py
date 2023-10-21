@@ -69,6 +69,9 @@ class Permute021Test(unittest.TestCase):
             param(3, (2, 3, 4, 384, 262), (0, 1, 2, 4, 3)),
             param(4, (IntVar([2, 3]), 384, 262), (0, 2, 1)),
             param(5, (IntVar([2, 3, 4]), 5, 384, 262), (0, 1, 3, 2)),
+            param(6, (409600, 12, 16), (0, 2, 1)),
+            param(7, (12, 409600, 16), (0, 2, 1)),
+            param(8, (12, 16, 409600), (0, 2, 1)),
         ]
     )
     def test_permute021_fp16(self, id, input_shape, dims):
