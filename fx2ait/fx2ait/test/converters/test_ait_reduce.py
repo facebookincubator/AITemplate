@@ -113,3 +113,69 @@ class TestMeanConverter(AITTestCase):
             [torch.randn(2, 3, 4).half().cuda()],
             expected_ops={},
         )
+
+
+class TestAminConverter(AITTestCase):
+    @parameterized.expand(
+        [
+            ["default", (1), False],
+            ["keepdim", (1), True],
+            ["negative_dim", (-1), False],
+        ]
+    )
+    def test_amin(self, test_name, dim, keepdim):
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return torch.amin(x, dim=dim, keepdim=keepdim)
+
+        model = TestModule().cuda()
+        inputs = [torch.randn(1, 2, 3).half().cuda()]
+        self.run_test(model, inputs, expected_ops={acc_ops.amin})
+
+    @parameterized.expand(
+        [
+            ["default", None, False],
+            ["specified_dims", (0, 1, 2), False],
+        ]
+    )
+    def test_amin_multi_dims(self, test_name, dim, keepdim):
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+                return y + torch.amin(x, dim=dim, keepdim=keepdim)
+
+        model = TestModule().cuda()
+        inputs = [torch.randn(2, 3, 5).half().cuda()] * 2
+        self.run_test(model, inputs, expected_ops={acc_ops.add, acc_ops.amin})
+
+
+class TestAmaxConverter(AITTestCase):
+    @parameterized.expand(
+        [
+            ["default", (1), False],
+            ["keepdim", (1), True],
+            ["negative_dim", (-1), False],
+        ]
+    )
+    def test_amax(self, test_name, dim, keepdim):
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return torch.amax(x, dim=dim, keepdim=keepdim)
+
+        model = TestModule().cuda()
+        inputs = [torch.randn(1, 2, 3).half().cuda()]
+        self.run_test(model, inputs, expected_ops={acc_ops.amax})
+
+    @parameterized.expand(
+        [
+            ["default", None, False],
+            ["specified_dims", (0, 1, 2), False],
+        ]
+    )
+    def test_amax_multi_dims(self, test_name, dim, keepdim):
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+                return y + torch.amax(x, dim=dim, keepdim=keepdim)
+
+        model = TestModule().cuda()
+        inputs = [torch.randn(2, 3, 5).half().cuda()] * 2
+        self.run_test(model, inputs, expected_ops={acc_ops.add, acc_ops.amax})

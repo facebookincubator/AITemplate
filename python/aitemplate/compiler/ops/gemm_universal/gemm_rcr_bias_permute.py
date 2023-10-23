@@ -19,7 +19,7 @@ gemm rcr with bias + permute
 from typing import Tuple
 
 from aitemplate.compiler.base import Tensor
-from aitemplate.compiler.ops.common import reshape
+from aitemplate.compiler.ops.common.view_ops import reshape
 from aitemplate.compiler.ops.gemm_universal import gemm_rcr_bias
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 

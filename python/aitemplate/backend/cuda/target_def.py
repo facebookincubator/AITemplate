@@ -286,7 +286,6 @@ class FBCUDA(CUDA):
         cutlass_src_path = parutil.get_dir_path(
             "aitemplate/AITemplate/fb/3rdparty/cutlass"
         )
-        cub_src_path = parutil.get_dir_path("aitemplate/AITemplate/fb/3rdparty/cub")
         static_files_path = parutil.get_dir_path("aitemplate/AITemplate/static")
         if "optimize_for_compilation_time" in kwargs:
             FBCUDA.optimize_for_compilation_time_ = kwargs[
@@ -302,9 +301,7 @@ class FBCUDA(CUDA):
             self._include_path = tempfile.mkdtemp()
 
             FBCUDA.cutlass_path_ = self._include_path + "/cutlass"
-            self.cub_path_ = self._include_path + "/cub"
             shutil.copytree(cutlass_src_path, FBCUDA.cutlass_path_)
-            shutil.copytree(cub_src_path, self.cub_path_)
 
             attention_src_path = parutil.get_dir_path(
                 "aitemplate/AITemplate/python/aitemplate/backend/cuda/attention/src"

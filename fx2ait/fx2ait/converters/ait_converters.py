@@ -42,6 +42,7 @@ from aitemplate.compiler.public import (
     getitem,
     group_norm,
     identity,
+    index_select,
     IntImm,
     IntVar,
     IntVarTensor,
@@ -51,7 +52,9 @@ from aitemplate.compiler.public import (
     ndhwc3to8,
     pad_last_dim,
     permute,
+    reduce_max,
     reduce_mean,
+    reduce_min,
     reduce_sum,
     reshape,
     size,
@@ -239,6 +242,26 @@ def acc_ops_mean(
     name: str,
 ) -> ConverterOutput:
     return create_reduce_op(reduce_mean, args, kwargs, name)
+
+
+@ait_converter(acc_ops.amax)
+def acc_ops_amax(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    return create_reduce_op(reduce_max, args, kwargs, name)
+
+
+@ait_converter(acc_ops.amin)
+def acc_ops_amin(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    return create_reduce_op(reduce_min, args, kwargs, name)
 
 
 @ait_converter(acc_ops.linear)
@@ -463,6 +486,31 @@ def acc_ops_relu(
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
 
     return elementwise(FuncEnum.RELU)(input_val)
+
+
+@ait_converter(acc_ops.elu)
+def acc_ops_elu(
+    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Unexpected input for {name}: {input_val}")
+
+    inputs = [input_val]
+    if "alpha" in kwargs:
+        if not isinstance(kwargs["alpha"], (int, float)):
+            raise RuntimeError(
+                f"When specified, alpha in {name} must be a scalar: {input_val}"
+            )
+        input_alpha = AITTensor(
+            shape=[],
+            dtype=input_val._attrs["dtype"],
+            name="alpha",
+            value=kwargs["alpha"],
+        )
+        inputs.append(input_alpha)
+
+    return elementwise(FuncEnum.ELU)(*inputs)
 
 
 @ait_converter(acc_ops.leaky_relu)
@@ -1807,3 +1855,24 @@ def acc_ops_masked_select(
     mask = kwargs["mask"]
 
     return masked_select()(input_val, mask)
+
+
+@ait_converter(acc_ops.index_select)
+def acc_ops_index_select(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = args[0] if len(args) >= 1 else kwargs["input"]
+    dim = args[1] if len(args) >= 2 else kwargs["dim"]
+    index = args[2] if len(args) >= 3 else kwargs["index"]
+
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor 'input' for {name}: {input_val}")
+    if not isinstance(dim, int):
+        raise RuntimeError(f"Non-int 'dim' for {name}: {dim}")
+    if not isinstance(index, AITTensor):
+        raise RuntimeError(f"Non-tensor 'index' for {name}: {index}")
+
+    return index_select(dim=dim)(x=input_val, dim_idxs=index)

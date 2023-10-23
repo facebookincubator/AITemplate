@@ -49,17 +49,19 @@ def create_reduce_op(
     dims = kwargs.get("dim", None)
     if dims is None:
         dims = list(range(len(input_val.shape())))
+    if isinstance(dims, int):
+        dims = [dims]
     if len(dims) < 1:
         raise ValueError("No dims to reduce on")
     dim = dims[0]
     keepdim = False if "keepdim" not in kwargs else kwargs["keepdim"]
-    sum_val = op_type(dim=dim, keepdim=keepdim)(input_val)
+    reduced_val = op_type(dim=dim, keepdim=keepdim)(input_val)
 
     if len(dims) > 1:
-        new_kwargs = {"input": sum_val, "dims": dims[1:]}
+        new_kwargs = {"input": reduced_val, "dims": dims[1:]}
         return create_reduce_op(op_type, args, new_kwargs, name)
 
-    return sum_val
+    return reduced_val
 
 
 def create_binary_op(

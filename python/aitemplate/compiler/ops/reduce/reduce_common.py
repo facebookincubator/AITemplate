@@ -93,7 +93,11 @@ class reduce_base(Operator):
         return output_dims
 
     def _compute_ws_size_strided(
-        self, extent, reduction_axis, vector_length, dtype
+        self,
+        extent: List[int],
+        reduction_axis: int,
+        vector_length: int,
+        accumulation_type: str,
     ) -> int:
         """
         Compute workspace size for contiguous reduction kernels.
@@ -137,12 +141,15 @@ class reduce_base(Operator):
             cta_count_z = (inner_count + threadblock_shape_z - 1) // threadblock_shape_z
         if int(cta_count_z) == 1:
             return 0
-        vector_size_bytes = vector_length * get_dtype_size(dtype)
+        vector_size_bytes = vector_length * get_dtype_size(accumulation_type)
         workspace_stride = extent[k_rank - 1] * vector_size_bytes
         return workspace_stride * outer_count * cta_count_z
 
     def _compute_workspace_size(
-        self, shape: List[IntVar], reduction_axis, dtype
+        self,
+        shape: List[IntVar],
+        reduction_axis: int,
+        input_type: str,
     ) -> int:
         """
         Compute workspace size for the given shape using the same algorithm as
@@ -150,6 +157,20 @@ class reduce_base(Operator):
         the maximum dim value for dynamic dimension, whereas TensorReduction
         uses the real dim value at runtime.
         """
+        # workspace size must be computed in terms of the accumulation dtype;
+        # see the CUTLASS code in TensorReductionAffineStrided for the reference:
+        # https://github.com/NVIDIA/cutlass/blob/ff02da266713bd3365aed65c552412e126c040cb/include/cutlass/reduction/device/tensor_reduce_affine_strided.h#L223
+        accumulation_type = "float32"
+        try:
+            if (
+                backend.target.Target.current()._kwargs.get("use_fp16_acc", False)
+                and input_type == "float16"
+            ):
+                accumulation_type = input_type
+        except RuntimeError:
+            # Target is not set: conservatively
+            # assume float32 accumulation type
+            pass
         # Make sure the last dim is static to pre-compute vector_length.
         # Note that this is a temporary constraint. Once we replace TensorReduction
         # with our own col-reduction kernel, we will remove this entire workaround.
@@ -212,7 +233,10 @@ class reduce_base(Operator):
             max_ws = max(
                 max_ws,
                 self._compute_ws_size_strided(
-                    extent_affine, reduction_axis, vector_length, dtype
+                    extent_affine,
+                    reduction_axis,
+                    vector_length,
+                    accumulation_type,
                 ),
             )
         return max_ws
@@ -253,7 +277,7 @@ class reduce_base(Operator):
         # Note that this is a temprary solution only for col-reduction reduce_sum
         # kernels that invoke cutlass's TensorReduction kernel. Once we have our
         # own implementation, we will remove the workaround.
-        if self._attrs["op"] == "reduce_sum" and (
+        if self._attrs["op"] in ("reduce_sum", "reduce_min", "reduce_max") and (
             self._attrs["reduction_axes"][0] != input_rank - 1
         ):
             ws_size = self._compute_workspace_size(

@@ -18,7 +18,7 @@ BMM_RCR + Softmax + BMM_RRR + Permute Specialization
 from typing import Tuple
 
 from aitemplate.compiler.base import IntImm, Tensor
-from aitemplate.compiler.ops.common import reshape
+from aitemplate.compiler.ops.common.view_ops import reshape
 from aitemplate.compiler.ops.gemm_universal import gemm_common as common
 from aitemplate.compiler.ops.gemm_universal.bmm import bmm
 from aitemplate.compiler.tensor_accessor import TensorAccessor

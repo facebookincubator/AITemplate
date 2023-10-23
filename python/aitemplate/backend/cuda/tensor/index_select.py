@@ -43,26 +43,27 @@ Blocks are(N + threads - 1) / threads;
 import jinja2
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.backend_spec import CUDASpec
-from aitemplate.backend.cuda import cuda_common
 from aitemplate.utils import shape_utils
 
 
 header_files = """
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
 #include "cutlass/cutlass.h"
 #include "cutlass/fast_math.h"
 #include <cub/cub.cuh>
+
+using bfloat16 = nv_bfloat16;
 """
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
 void {{func_name}}(
-    {{input_type}}* /*output*/,
-    const {{input_type}}* /*input*/,
+    void* /*output*/,
+    const void* /*input*/,
     const {{index_type}} /*dim_len*/,
     const {{index_type}}* /*dim_idxs*/,
     const {{index_type}} /*dim_idxs_len*/,
@@ -103,8 +104,8 @@ __global__ void index_select_kernel(
 }
 
 void {{func_name}}(
-    {{input_type}}* output,
-    const {{input_type}}* input,
+    void* output,
+    const void* input,
     const {{index_type}} dim_len,
     const {{index_type}}* dim_idxs,
     const {{index_type}} dim_idxs_len,
@@ -176,8 +177,8 @@ def gen_function(func_attrs) -> str:
     y = func_attrs["outputs"][0]
     dim = func_attrs["dim"]
 
-    input_type = cuda_common.dtype_to_cuda_type(x._attrs["dtype"])
-    output_type = cuda_common.dtype_to_cuda_type(y._attrs["dtype"])
+    input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
+    output_type = backend_spec.dtype_to_backend_type(y._attrs["dtype"])
 
     if input_type != output_type:
         raise TypeError("input type must equal to output type")
@@ -214,8 +215,10 @@ def gen_function_decl(func_attrs) -> str:
         The function declaration string
     """
     backend_spec = CUDASpec()
+
     x = func_attrs["inputs"][0]
-    input_type = cuda_common.dtype_to_cuda_type(x._attrs["dtype"])
+    input_type = backend_spec.dtype_to_backend_type(x._attrs["dtype"])
+
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_attrs["name"],
         input_type=input_type,

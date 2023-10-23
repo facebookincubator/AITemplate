@@ -80,7 +80,8 @@ __global__ void reduce_small_in_v_out_v(
     const ElementInput *input,
     int64_t num_rows,
     int64_t batch_stride_input,
-    int64_t batch_stride_output) {
+    int64_t batch_stride_output,
+    ElementCompute reduction_identity) {
   int block_batch = blockIdx.y;
   // index within the batch
   const size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -133,7 +134,7 @@ __global__ void reduce_small_in_v_out_v(
   CUTLASS_PRAGMA_UNROLL
   for (int64_t i = 0; i < num_elems_per_thread / num_cols; i++) {
     static_assert(num_elems_per_thread % num_rows_per_thread == 0);
-    FragmentCompute frag_compute = FragmentCompute(0);
+    FragmentCompute frag_compute = FragmentCompute(reduction_identity);
     CUTLASS_PRAGMA_UNROLL
     for (int64_t j = 0; j < num_cols; j++) {
       int64_t read_idx = i * num_cols + j;
@@ -166,13 +167,13 @@ __global__ void reduce_small_in_v_out_v(
 {% endif %}
 }
 
-template <typename ElemOutputType,
-          typename ElemInputType,
-          typename ElemComputeType,
+template <typename ElementOutput,
+          typename ElementInput,
+          typename ElementCompute,
           int64_t num_cols>
 void reduce_mean_launcher_small_axis(
-  ElemOutputType *output,
-  ElemInputType *input,
+  ElementOutput *output,
+  ElementInput *input,
   int64_t num_batches,
   int64_t num_rows,
   int64_t batch_stride_input,
@@ -180,16 +181,16 @@ void reduce_mean_launcher_small_axis(
   cudaStream_t stream
 ) {
   constexpr int64_t num_read_v =
-      sizeof({{read_vec_type}}) / sizeof(ElemInputType);
+      sizeof({{read_vec_type}}) / sizeof(ElementInput);
   constexpr int64_t row_gcd = std::gcd(num_cols, num_read_v);
   constexpr int64_t num_rows_per_thread = num_read_v / row_gcd;
 {% if output_accessor.is_contiguous %}
   constexpr int64_t num_write_bytes_v =
-      num_rows_per_thread * sizeof(ElemOutputType);
+      num_rows_per_thread * sizeof(ElementOutput);
 {% else %}
   constexpr int64_t num_write_bytes_v =
       std::min(num_rows_per_thread, static_cast<int64_t>({{output_access_alignment}})) *
-      sizeof(ElemOutputType);
+      sizeof(ElementOutput);
 {% endif %}
 
   assert(num_rows % num_rows_per_thread == 0);
@@ -201,9 +202,9 @@ void reduce_mean_launcher_small_axis(
 
 #define HANDLE_ONE_WRITE_VEC(write_bytes, write_vec_type) \\
     if (write_bytes == num_write_bytes_v) {               \\
-      reduce_small_in_v_out_v<ElemInputType,              \\
-                              ElemOutputType,             \\
-                              ElemComputeType,            \\
+      reduce_small_in_v_out_v<ElementInput,               \\
+                              ElementOutput,              \\
+                              ElementCompute,             \\
                               {{read_vec_type}},          \\
                               write_vec_type,             \\
                               num_rows_per_thread,        \\
@@ -213,17 +214,18 @@ void reduce_mean_launcher_small_axis(
           input,                                          \\
           num_rows,                                       \\
           batch_stride_input,                             \\
-          batch_stride_output);                           \\
+          batch_stride_output,                            \\
+          {{reduction_identity}});                        \\
       LAUNCH_CHECK_REDUCE();                              \\
       return;                                             \\
     }
     HANDLE_ONE_WRITE_VEC(16, uint4)
     HANDLE_ONE_WRITE_VEC(8, uint2)
     HANDLE_ONE_WRITE_VEC(4, unsigned)
-    if constexpr (std::is_same_v<ElemOutputType, cutlass::half_t>) {
+    if constexpr (std::is_same_v<ElementOutput, cutlass::half_t>) {
       HANDLE_ONE_WRITE_VEC(2, cutlass::half_t)
     }
-    else if constexpr (std::is_same_v<ElemOutputType, cutlass::bfloat16_t>) {
+    else if constexpr (std::is_same_v<ElementOutput, cutlass::bfloat16_t>) {
       HANDLE_ONE_WRITE_VEC(2, cutlass::bfloat16_t)
     }
     throw std::runtime_error("unsupported vector size for write");
@@ -232,10 +234,10 @@ void reduce_mean_launcher_small_axis(
   }
 }
 
-template <typename ElemOutputType, typename ElemInputType>
+template <typename ElementOutput, typename ElementInput>
 void reduce_mean_launcher_small_axis_column_major(
-  ElemOutputType *output,
-  ElemInputType *input,
+  ElementOutput *output,
+  ElementInput *input,
   int64_t num_batches,
   int64_t num_rows,
   int64_t num_columns,
@@ -379,6 +381,7 @@ def get_exec_cond_and_kernel(
     acc_type,
     output_accessors,
     output_alignment,
+    reduction_identity,
 ) -> str:
     """return a pair that contains the execution condition for this special
        reduction kernel and the source code of this reduction kernel
@@ -450,6 +453,7 @@ def get_exec_cond_and_kernel(
         )
     kernel_src = KERNEL_SRC_TEMPLATE.render(
         reduce_op=reduce_op,
+        reduction_identity=reduction_identity,
         prologue_code=prologue_code,
         epilogue_scalar_code=epilogue_scalar_code,
         read_vec_type=read_vec_type,

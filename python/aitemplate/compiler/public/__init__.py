@@ -44,7 +44,9 @@ from aitemplate.compiler.ops.gemm_universal.gemm_rcr_bias import gemm_rcr_bias
 from aitemplate.compiler.ops.gemm_universal.gemm_rrr import gemm_rrr
 
 """Reduce"""
+from aitemplate.compiler.ops.reduce.reduce_max import reduce_max
 from aitemplate.compiler.ops.reduce.reduce_mean import reduce_mean
+from aitemplate.compiler.ops.reduce.reduce_min import reduce_min
 from aitemplate.compiler.ops.reduce.reduce_sum import reduce_sum
 from aitemplate.compiler.ops.reduce.var import var
 from aitemplate.compiler.ops.reduce.vector_norm import vector_norm
@@ -71,6 +73,7 @@ from aitemplate.compiler.ops.padding import ndhwc3to8, nhwc3to8, pad_last_dim
 from aitemplate.compiler.ops.pool.avg_pool2d import avg_pool2d
 from aitemplate.compiler.ops.pool.max_pool2d import max_pool2d
 from aitemplate.compiler.ops.softmax.softmax import softmax
+from aitemplate.compiler.ops.tensor.index_select import index_select
 from aitemplate.compiler.ops.tensor.masked_select import masked_select
 from aitemplate.compiler.ops.tensor.size import size
 from aitemplate.compiler.ops.tensor.topk import topk

@@ -91,6 +91,12 @@ void {{func_name}}(
 {% endfor %}
   *dim_{{input_rank - 1}}
     };
+    for (int i = 0; i < {{input_rank}}; i++) {
+        if (src_dims[i] == 0) {
+            // empty input: nothing to do
+            return;
+        }
+    }
     invokePermute<{{input_rank}}, {{elem_type}}>(dst, src, src_dims, permutation, stream);
 }
 
