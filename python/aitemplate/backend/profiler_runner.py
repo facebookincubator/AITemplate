@@ -122,13 +122,6 @@ def process_task(task: Task) -> None:
 
     if len(stderr) > 0:
         # TODO: ugly fix, should remove when finish all profiler refactor
-        runtimes = PROF_RUNTIME_PATTERN.findall(stdout)
-        if len(runtimes) > 0:
-            single_file_profiler = True
-        if not single_file_profiler:
-            task._failed = True
-            return
-
         _LOGGER.debug(
             "Failed: [{name}][{algo}]\ncmd:\n{cmd}\nstderr:\n{stderr}".format(
                 name=task._name,
@@ -137,6 +130,13 @@ def process_task(task: Task) -> None:
                 stderr=stderr,
             ),
         )
+        runtimes = PROF_RUNTIME_PATTERN.findall(stdout)
+        if len(runtimes) > 0:
+            single_file_profiler = True
+        if not single_file_profiler:
+            task._failed = True
+            return
+
     task._ret, task._failed = extract_profile_result(
         stdout=stdout,
         return_ops=task._kwargs.get("return_ops", None),

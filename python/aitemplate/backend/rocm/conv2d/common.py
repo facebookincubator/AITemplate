@@ -284,7 +284,7 @@ ARGS_PARSE_TEMPLATE = jinja2.Template(
   const int64_t stride = std::stoi(argv[8]);
   const int64_t pad = std::stoi(argv[9]);
   const int64_t dilation = std::stoi(argv[10]);
-  const int64_t group = std::stoi(argv[11]);
+  const int64_t group = std::stoi(argv[14]);
 """
 )
 

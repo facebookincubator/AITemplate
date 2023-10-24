@@ -19,33 +19,24 @@ FROM docker.io/rocm/pytorch:rocm5.6_ubuntu20.04_py3.8_pytorch_2.0.1
 ENV UBSAN_OPTIONS=print_stacktrace=1
 ENV LC_ALL=C.UTF-8
 ENV LANG=C.UTF-8
-ADD ./docker/install/rocm_dev-requirements.txt dev-requirements.txt
 RUN groupadd -f render
 
 WORKDIR /
 
-ADD ./docker/install/ /Install
+RUN git clone -b merge_upstream https://github.com/ROCmSoftwarePlatform/AITemplate.git
+
+WORKDIR /AITemplate
 # necessary package
-RUN bash /Install/install_basic_dep.sh
+RUN bash ./docker/install/install_basic_dep.sh
 
 # for test
-RUN bash /Install/install_test_dep.sh
+RUN bash ./docker/install/install_test_dep.sh
 
 # for docs
-RUN bash /Install/install_doc_dep.sh
+RUN bash ./docker/install/install_doc_dep.sh
 
 # for detection
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
-RUN bash /Install/install_detection_deps.sh
+RUN bash ./docker/install/install_detection_deps.sh
 
-# Copy AITemplate to Docker
-RUN mkdir /AITemplate
-ADD ./COMMIT_INFO /AITemplate/COMMIT_INFO
-ADD ./python /AITemplate/python
-ADD ./3rdparty /AITemplate/3rdparty
-ADD ./examples /AITemplate/examples
-ADD ./tests /AITemplate/tests
-ADD ./docs /AITemplate/docs
-ADD ./static /AITemplate/static
-ADD ./licenses /AITemplate/licenses
-RUN cd /AITemplate/python && python setup.py install
+RUN cd ./python && python setup.py install
