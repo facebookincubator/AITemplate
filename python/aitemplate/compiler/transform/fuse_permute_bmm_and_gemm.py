@@ -18,7 +18,7 @@ Perform fusions for permute+bmm operators.
 from typing import Callable, List, Optional, Set, Tuple, Type, Union
 
 from aitemplate.compiler import ops
-from aitemplate.compiler.base import IntImm, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.ops.gemm_universal import (
     bmm_ccr,
     bmm_crr,
@@ -211,7 +211,27 @@ def fuse_permute_bmm_and_gemm(
         if not op._attrs["op"].startswith("gemm"):
             return False
         inputs = op._attrs["inputs"]
-        return len(inputs[0].shape()) != 2 or len(inputs[1].shape()) != 2
+        # cutlass's bmm assigns the batch size to grid_z, which
+        # cannot exceeds 65535
+        MAX_B_DIM_VAL = 65535
+
+        def _valid_shape(shape: List[Union[IntImm, IntVar]]):
+            b_dim = shape[0]
+            if isinstance(b_dim, IntImm):
+                b_dim_val = b_dim.value()
+            else:
+                b_dim_val = b_dim.upper_bound()
+            return b_dim_val <= MAX_B_DIM_VAL
+
+        input_shape_0 = inputs[0].shape()
+        input_shape_1 = inputs[1].shape()
+        if len(input_shape_0) != 3 and len(input_shape_1) != 3:
+            return False
+        if len(input_shape_0) == 3 and not _valid_shape(input_shape_0):
+            return False
+        if len(input_shape_1) == 3 and not _valid_shape(input_shape_1):
+            return False
+        return True
 
     def _is_transpose(op: Operator):
         if op._attrs["op"] != "permute":

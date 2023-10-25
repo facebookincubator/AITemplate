@@ -933,6 +933,60 @@ class FusePermuteBmmCase(unittest.TestCase):
         module.run_with_tensors(inputs, [y])
         self.assertTrue(torch.allclose(Y_pt, y, atol=1e-1, rtol=1e-1))
 
+    def _test_gemm_broadcast_rcr_to_gemm_ccr(self, B, testname, dtype="float16"):
+        batch_dim = shape_utils.gen_int_var_min_max(B)
+        M = 48
+        N = 1
+        K = 13
+        X0_shape = [batch_dim, K, M]
+        W_shape = [N, K]
+        X2_shape = [batch_dim, M, N]
+
+        X0, W, gemm_tensor = self._create_permute_bmm_graph(
+            X0_shape,
+            W_shape,
+            bmm_type="gemm_rcr",
+            permA=True,
+            permB=False,
+            dtype=dtype,
+            bias_shape=None,
+        )
+        X2 = Tensor(shape=X2_shape, dtype=dtype, name="input_2", is_input=True)
+
+        Y = ops.elementwise(FuncEnum.ADD)(gemm_tensor, X2)
+        Y._attrs["name"] = "output_0"
+        Y._attrs["is_output"] = True
+
+        # Check value correctness
+        target = detect_target()
+        module = compile_model(Y, target, "./tmp", testname)
+
+        for b in B:
+            x0_pt = get_random_torch_tensor([b, M, K], dtype)
+            w_pt = get_random_torch_tensor(W_shape, dtype)
+            w_pt_tran = w_pt.permute((1, 0)).contiguous()
+            gemm_pt = torch.matmul(x0_pt, w_pt_tran)
+            x2_pt = get_random_torch_tensor([b, M, N], dtype)
+            y_pt = gemm_pt + x2_pt
+
+            y = get_torch_empty_tensor([b, M, N], dtype)
+
+            x0_pt_tran = x0_pt.permute((0, 2, 1)).contiguous()
+            inputs = {
+                "input_0": x0_pt_tran,
+                "input_1": w_pt,
+                "input_2": x2_pt,
+            }
+            module.run_with_tensors(inputs, [y])
+            self.assertTrue(torch.allclose(y_pt, y, atol=1e-1, rtol=1e-1))
+
+    def test_gemm_broadcast_rcr_to_gemm_ccr(self):
+        self._test_gemm_broadcast_rcr_to_gemm_ccr(
+            B=(1, 409600),
+            testname="gemm_broadcast_rcr_to_gemm_ccr_fp16",
+            dtype="float16",
+        )
+
 
 filter_test_cases_by_test_env(FusePermuteBmmCase)
 if __name__ == "__main__":
