@@ -364,6 +364,9 @@ class IntImm(IntVar):
             and self._attrs["values"] == another._attrs["values"]
         )
 
+    def __hash__(self) -> int:
+        return super().__hash__()
+
     def value(self) -> int:
         """Returns value of this IntImm."""
         return self._attrs["values"][0]
