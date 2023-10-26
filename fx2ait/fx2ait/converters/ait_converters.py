@@ -123,6 +123,18 @@ def acc_ops_mul(
     return create_binary_op(FuncEnum.MUL, args, kwargs, name)
 
 
+@ait_converter(acc_ops.square)
+def acc_ops_square(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    new_kwargs = dict(kwargs.copy())
+    new_kwargs["other"] = new_kwargs["input"]
+    return create_binary_op(FuncEnum.MUL, args, new_kwargs, name)
+
+
 @ait_converter(acc_ops.div)
 def acc_ops_div(
     target: Target,
