@@ -144,3 +144,5 @@ tags
 
 # vim temp files
 *.swp
+
+COMMIT_INFO
