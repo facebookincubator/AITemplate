@@ -47,15 +47,3 @@ RUN pip3 install 'cuda-python<12.0.0'
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
 RUN bash /Install/install_detection_deps.sh
 
-# Copy AITemplate to Docker
-RUN mkdir /AITemplate
-ADD ./COMMIT_INFO /AITemplate/COMMIT_INFO
-ADD ./python /AITemplate/python
-ADD ./3rdparty /AITemplate/3rdparty
-ADD ./examples /AITemplate/examples
-ADD ./tests /AITemplate/tests
-ADD ./docs /AITemplate/docs
-ADD ./static /AITemplate/static
-ADD ./licenses /AITemplate/licenses
-ADD ./docker/install/install_ait.sh /AITemplate/
-RUN bash /AITemplate/install_ait.sh
