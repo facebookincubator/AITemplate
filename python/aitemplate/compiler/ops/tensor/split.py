@@ -20,6 +20,7 @@ from typing import List, Sequence, Union
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
+from aitemplate.utils import shape_utils
 from aitemplate.utils.tensor_utils import wrap_dim
 
 # pylint: disable=C0103,W0221
@@ -89,9 +90,12 @@ class split(Operator):
         self._attrs["split_dim"] = dim
         self._set_depth()
         if isinstance(split_size_or_sections, (List, tuple)):
+            split_size_or_sections = [
+                shape_utils.convert_IntVar_to_int(d) for d in split_size_or_sections
+            ]
             split_sizes = list(split_size_or_sections)
         else:
-            split_size = split_size_or_sections
+            split_size = shape_utils.convert_IntVar_to_int(split_size_or_sections)
             if not isinstance(split_size, int):
                 raise RuntimeError("split_size expected to be of int")
             # TODO: support split along dynamic axis

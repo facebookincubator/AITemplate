@@ -1138,7 +1138,7 @@ def ait_acc_ops_split(
         raise ValueError(f"Non-tensor inputs for {name}: {input_val}")
 
     split_size_or_sections = kwargs["split_size_or_sections"]
-    if not isinstance(split_size_or_sections, (int, list)):
+    if not isinstance(split_size_or_sections, (int, list, IntVarTensor)):
         raise ValueError(
             f"Unexpected value for split_size_or_sections in {name}: {split_size_or_sections}"
         )
