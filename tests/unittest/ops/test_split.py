@@ -18,12 +18,14 @@ import unittest
 import torch
 
 from aitemplate.compiler import compile_model, ops
-from aitemplate.frontend import IntVar, Tensor
+from aitemplate.compiler.base import IntVarTensor
+from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
+from aitemplate.utils import shape_utils
 
 
 class SplitTestCase(unittest.TestCase):
@@ -48,10 +50,18 @@ class SplitTestCase(unittest.TestCase):
         split_op = ops.split()
         # generate torch reference result
         X_pt = get_random_torch_tensor(input_shape, input_type)
+        if isinstance(split_size_or_sections, (list, tuple)):
+            split_size_or_sections_pt = [
+                shape_utils.convert_IntVar_to_int(d) for d in split_size_or_sections
+            ]
+        else:
+            split_size_or_sections_pt = shape_utils.convert_IntVar_to_int(
+                split_size_or_sections
+            )
         Ys_pt = (
-            torch.split(X_pt, split_size_or_sections)
+            torch.split(X_pt, split_size_or_sections_pt)
             if dim is None
-            else torch.split(X_pt, split_size_or_sections, dim)
+            else torch.split(X_pt, split_size_or_sections_pt, dim)
         )
         if output_masks is not None:
             Ys_pt = [y_pt for idx, y_pt in enumerate(Ys_pt) if output_masks[idx]]
@@ -177,6 +187,17 @@ class SplitTestCase(unittest.TestCase):
         self._run_split(input_shape=[8, 6, 4], split_size_or_sections=[2, 3, 3], dim=0)
         self._run_split(input_shape=[8, 6, 4], split_size_or_sections=(5, 1), dim=1)
         self._run_split(input_shape=[8, 6, 4], split_size_or_sections=(2, 2), dim=2)
+
+        self._run_split(
+            input_shape=[2, 3, 4],
+            split_size_or_sections=IntVarTensor(IntImm(10)),
+            dim=1,
+        )
+        self._run_split(
+            input_shape=[8, 6, 4],
+            split_size_or_sections=[2, IntVarTensor(IntImm(3)), 3],
+            dim=0,
+        )
 
         # some special cases
         self._run_split(input_shape=[2, 0, 4], split_size_or_sections=4, dim=-2)
