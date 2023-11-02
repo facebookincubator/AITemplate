@@ -49,6 +49,8 @@ class AITInterpreterResult(NamedTuple):
     input_names: Sequence[str]
     output_names: Sequence[str]
     fx_input_names: Sequence[str] = []
+    input_dtypes: Sequence[str] = []
+    output_dtypes: Sequence[str] = []
 
 
 class AITInterpreter(torch.fx.Interpreter):
@@ -128,7 +130,9 @@ class AITInterpreter(torch.fx.Interpreter):
         self.profile_devs = profile_devs
 
         self._input_names: List[str] = []
+        self._input_dtypes: List[str] = []
         self._output_names: List[str] = []
+        self._output_dtypes: List[str] = []
         self._fx_input_names: List[str] = []
         self._loaded_params: Dict[str, AITTensor] = {}
 
@@ -252,6 +256,11 @@ class AITInterpreter(torch.fx.Interpreter):
             for n in self.engine.debug_sorted_graph
             if n._attrs["is_input"]
         ]
+        ait_input_dtypes = {
+            n._attrs["name"]: n._attrs["dtype"]
+            for n in self.engine.debug_sorted_graph
+            if n._attrs["is_input"]
+        }
         for name in ait_input_names:
             assert (
                 self._fx_input_names.count(name) == 1
@@ -260,6 +269,7 @@ class AITInterpreter(torch.fx.Interpreter):
         for name in self._fx_input_names:
             if name in ait_input_names:
                 self._input_names.append(name)
+                self._input_dtypes.append(ait_input_dtypes[name])
 
         for i, input_name in enumerate(self._fx_input_names):
             _LOGGER.info("Set input{}: {}".format(i, input_name))
@@ -275,6 +285,8 @@ class AITInterpreter(torch.fx.Interpreter):
             self._input_names,
             self._output_names,
             self._fx_input_names,
+            self._input_dtypes,
+            self._output_dtypes,
         )
 
     def run_node(self, n):
@@ -396,5 +408,6 @@ class AITInterpreter(torch.fx.Interpreter):
             output._attrs["name"] = name
             output._attrs["is_output"] = True
             self._output_names.append(name)
+            self._output_dtypes.append(output._attrs["dtype"])
 
         return outputs
