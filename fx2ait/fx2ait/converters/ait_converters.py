@@ -1298,7 +1298,7 @@ def _choose_conv2d_op(
         weight = pad_last_dim(len(weight._attrs["shape"]), 8)(weight)
         x = pad_last_dim(len(x._attrs["shape"]), 8)(x)
     elif last_dim % 2 != 0:
-        return RuntimeError(
+        raise RuntimeError(
             f"Conv2d is not implemented for input channel dim {last_dim}: it needs to be aligned to a multiple of 2/4/8"
         )
     if bias:
