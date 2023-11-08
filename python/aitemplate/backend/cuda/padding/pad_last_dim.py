@@ -97,8 +97,12 @@ SRC_TEMPLATE = jinja2.Template(
  ******************************************************************************/
 
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 #include <cuda_runtime.h>
 #include "cutlass/util/host_tensor.h"
+
+using bfloat16 = __nv_bfloat16;
+using bfloat16_2 = __nv_bfloat162;
 
 namespace {
 template <typename T>
@@ -229,6 +233,8 @@ def gen_function(func_attrs, template_path, shape_eval_template, shape_save_temp
         elem_input_type2 = "half2"
     elif elem_input_type == "float":
         elem_input_type2 = "float2"
+    elif elem_input_type == "bfloat16":
+        elem_input_type2 = "bfloat16_2"
     else:
         raise NotImplementedError(f"unsupported {elem_input_type=}")
     ndim = func_attrs["ndim"]

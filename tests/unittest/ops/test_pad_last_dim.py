@@ -84,6 +84,18 @@ class PadLastDim(unittest.TestCase):
             dtype="float32",
         )
 
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_static_shape_4d_bf16(self):
+        self._test_static_shape_4d(
+            test_name="static_shape_4d_bf16",
+            dtype="bfloat16",
+        )
+        self._test_static_shape_4d(
+            copy_op=True,
+            test_name="static_shape_4d_bf16_copy_op",
+            dtype="bfloat16",
+        )
+
     def _test_static_shape_2d(
         self,
         copy_op=False,
@@ -137,6 +149,18 @@ class PadLastDim(unittest.TestCase):
             copy_op=True,
             test_name="static_shape_2d_fp32_copy_op",
             dtype="float32",
+        )
+
+    @unittest.skipIf(detect_target().name() == "rocm", "Not supported by ROCM.")
+    def test_static_shape_2d_bf16(self):
+        self._test_static_shape_2d(
+            test_name="static_shape_2d_bf16",
+            dtype="bfloat16",
+        )
+        self._test_static_shape_2d(
+            copy_op=True,
+            test_name="static_shape_2d_bf16_copy_op",
+            dtype="bfloat16",
         )
 
 
