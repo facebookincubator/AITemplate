@@ -236,6 +236,24 @@ class ReduceTestCase(unittest.TestCase):
             output_type=None,
             use_fp16_acc=False,
         )
+        # Uses reduce_common_slim_tensor
+        self._run_reduce_sum(
+            dim=1,
+            input_shape=[2048, 10, 1032],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+            use_fp16_acc=True,
+        )
+        # Doesn't use reduce_common_slim_tensor
+        self._run_reduce_sum(
+            dim=1,
+            input_shape=[2048, 10, 1031],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+            use_fp16_acc=True,
+        )
 
     def _run_reduce_mean(
         self,
@@ -684,6 +702,14 @@ class ReduceTestCase(unittest.TestCase):
             input_type="float16",
             output_type=None,
         )
+        # Use reduce_common_slim_tensor
+        self._run_reduce_min(
+            dim=1,
+            input_shape=[1024, 2, 4],
+            keepdim=False,
+            input_type="float16",
+            output_type=None,
+        )
 
     def _run_batched_reduce(
         self,
@@ -842,6 +868,14 @@ class ReduceTestCase(unittest.TestCase):
             rtol=1.3e-6,
             atol=1e-5,
         )
+        # Uses reduce_common_slim_tensor
+        self._run_reduce_sum(
+            dim=-2,
+            input_shape=[2048, 10, 2048],
+            keepdim=False,
+            input_type="float32",
+            output_type=None,
+        )
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")
     def test_reduce_max_float32(self):
@@ -925,6 +959,14 @@ class ReduceTestCase(unittest.TestCase):
         self._run_reduce_max(
             dim=-1,
             input_shape=[1270, 1223],
+            keepdim=False,
+            input_type="bfloat16",
+            output_type=None,
+        )
+        # Uses reduce_common_slim_tensor
+        self._run_reduce_max(
+            dim=-2,
+            input_shape=[2048, 7, 1026],
             keepdim=False,
             input_type="bfloat16",
             output_type=None,
