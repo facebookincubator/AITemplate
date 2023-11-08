@@ -351,7 +351,10 @@ class AITInterpreter(torch.fx.Interpreter):
 
         data = _TorchConstantTensorData(ait_val)
         tensor = AITTensor(
-            shape=attr_val.shape, dtype=ait_dtype, name=ait_friendly_name
+            shape=attr_val.shape,
+            dtype=ait_dtype,
+            name=ait_friendly_name,
+            original_name=target,
         )
         tensor._bind_data(data)
         self._loaded_params[ait_friendly_name] = tensor

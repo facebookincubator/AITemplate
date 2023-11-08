@@ -727,6 +727,33 @@ void ModelContainer::WriteAllConstantNamesTo(
   }
 }
 
+AITemplateDtype ModelContainer::ConstantDtype(const char* name) const {
+  auto unbound_it = unbound_constant_name_to_idx_.find(name);
+  if (unbound_it != unbound_constant_name_to_idx_.end()) {
+    auto idx = unbound_it->second + num_inputs_ + num_outputs_;
+    CHECK_VECTOR_ACCESS(param_dtypes_, idx)
+    return param_dtypes_[idx];
+  }
+
+  auto bound_it = bound_constant_name_to_idx_.find(name);
+  if (bound_it != bound_constant_name_to_idx_.end()) {
+    auto idx = bound_it->second;
+    CHECK_VECTOR_ACCESS(bound_constant_dtypes_, idx)
+    return bound_constant_dtypes_[idx];
+  }
+
+  throw std::runtime_error{std::string{"ConstantDtype() can't find "} + name};
+}
+
+const char* ModelContainer::ConstantOriginalName(const char* name) const {
+  auto it = constant_name_to_original_name_.find(name);
+  if (it == constant_name_to_original_name_.end()) {
+    throw std::runtime_error{
+        std::string{"ConstantOriginalName() can't find "} + name};
+  }
+  return it->second.c_str();
+}
+
 void ModelContainer::PrepareForRun(
     Model* model,
     const AITData* inputs,
