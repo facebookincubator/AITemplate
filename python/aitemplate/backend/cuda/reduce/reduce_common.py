@@ -18,6 +18,10 @@ CUDA reduce common functions
 import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec
+from aitemplate.backend.cuda.reduce.reduce_common_slim_tensor import (
+    get_special_exec_cond_and_kernel,
+    meets_special_kernel_conditions,
+)
 from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import IntImm, IntVar
@@ -64,6 +68,8 @@ SRC_TEMPLATE = jinja2.Template(
 #include "cutlass/layout/tensor.h"
 #include "cutlass/util/host_tensor.h"
 
+{{special_reduction_code}}
+
 #define CUTLASS_CHECK_REDUCE(status)                                                  \\
   {                                                                                   \\
     cutlass::Status error = status;                                                   \\
@@ -75,6 +81,7 @@ SRC_TEMPLATE = jinja2.Template(
     }                                                                                 \\
   }
 
+#ifndef SKIP_GENERAL_REDUCTION
 template <typename ElemOutputType, typename ElemInputType, int VectorLength = 1>
 void {{func_name}}_launcher(
     ElemOutputType *dst_ptr,
@@ -142,7 +149,11 @@ void {{func_name}}_launcher(
     );
   CUTLASS_CHECK_REDUCE(status);
 }
+#else
+#undef SKIP_GENERAL_REDUCTION
+#endif // !SKIP_GENERAL_REDUCTION
 #undef CUTLASS_CHECK_REDUCE
+
 void {{func_name}}(
     void *dst_ptr,
     void *src_ptr,
@@ -222,6 +233,19 @@ def gen_function(
     if Target.current()._kwargs.get("use_fp16_acc", False) and output_type == "float16":
         accumulation_type = elem_output_type
 
+    # If conditions are met, replace exec_paths and include the special reduction code.
+    special_reduction_code = ""
+    if meets_special_kernel_conditions(func_attrs, elem_input_type, elem_output_type):
+        exec_paths, special_reduction_code = get_special_exec_cond_and_kernel(
+            func_attrs,
+            elem_input_type,
+            elem_output_type,
+            accumulation_type,
+            func_attrs["output_accessors"],
+            reduction_op,
+            reduction_identity,
+        )
+
     return SRC_TEMPLATE.render(
         func_name=func_attrs["name"],
         reduction_op=reduction_op,
@@ -229,6 +253,7 @@ def gen_function(
         exec_paths=exec_paths,
         workspace_ptr=workspace_ptr,
         accumulation_type=accumulation_type,
+        special_reduction_code=special_reduction_code,
     )
 
 
