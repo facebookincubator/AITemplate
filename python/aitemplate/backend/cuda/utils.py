@@ -18,10 +18,6 @@ Util functions for CUDA codegen.
 import logging
 
 from aitemplate.backend import registry
-from aitemplate.utils.environ import (
-    allow_cutlass_sm90_kernels,
-    force_cutlass_sm90_kernels,
-)
 from aitemplate.utils.mk_cutlass_lib.mk_cutlass_lib import mk_cutlass_lib
 
 # pylint: disable=C0103,C0415,W0707
@@ -51,7 +47,12 @@ registry.reg("cuda.make_cutlass_lib")(mk_cutlass_lib)
 
 
 @registry.reg("cuda.gen_cutlass_ops")
-def gen_ops(arch, cuda_version):
+def gen_ops(
+    arch,
+    cuda_version,
+    allow_cutlass_sm90,
+    force_cutlass_sm90,
+):
     import cutlass_lib
 
     args = Args(arch)
@@ -60,9 +61,9 @@ def gen_ops(arch, cuda_version):
     manifest = cutlass_lib.manifest.Manifest(args)
 
     if arch == "90":
-        if force_cutlass_sm90_kernels():
+        if force_cutlass_sm90:
             cutlass_lib.generator.GenerateSM90(manifest, args.cuda_version)
-        elif allow_cutlass_sm90_kernels():
+        elif allow_cutlass_sm90:
             cutlass_lib.generator.GenerateSM90(manifest, args.cuda_version)
             cutlass_lib.generator.GenerateSM80(manifest, args.cuda_version)
             cutlass_lib.extra_operation.GenerateSM80(manifest, args)

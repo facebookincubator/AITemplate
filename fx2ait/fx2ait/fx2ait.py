@@ -74,6 +74,8 @@ class AITInterpreter(torch.fx.Interpreter):
         use_tanh_for_sigmoid: bool = False,
         profile_timeout: int = 500,
         optimize_for_compilation_time: bool = False,
+        allow_cutlass_sm90: bool = False,
+        force_cutlass_sm90: bool = False,
     ):
         """
         Args:
@@ -93,6 +95,8 @@ class AITInterpreter(torch.fx.Interpreter):
             save_remote_cache: whether to save the updated cache
             use_fast_math: whether to use fast math in CUDA kernels
             use_tanh_for_sigmoid: whether to use tanh to approximate sigmoid in CUDA kernels
+            allow_cutlass_sm90: generate cutlass sm90 kernels alongside sm80 kernels on sm90 arch
+            force_cutlass_sm90: only generate cutlass sm90 kernels on sm90 arch
             profile_timeout: timeout in seconds for AIT profilers to complete
             optimize_for_compilation_time: we use O1 and disable the ProfileImpl function to reduce compilation time.
         """
@@ -119,6 +123,8 @@ class AITInterpreter(torch.fx.Interpreter):
         self.use_fp16_acc = use_fp16_acc
         self.use_fast_math = use_fast_math
         self.use_tanh_for_sigmoid = use_tanh_for_sigmoid
+        self.allow_cutlass_sm90 = allow_cutlass_sm90
+        self.force_cutlass_sm90 = force_cutlass_sm90
         self.optimize_for_compilation_time = optimize_for_compilation_time
         self.hardware_target = self._create_target()
         self.input_specs = input_specs
@@ -149,6 +155,8 @@ class AITInterpreter(torch.fx.Interpreter):
             remote_cache_bytes=self.remote_cache_bytes,
             use_fast_math=self.use_fast_math,
             use_tanh_for_sigmoid=self.use_tanh_for_sigmoid,
+            allow_cutlass_sm90=self.allow_cutlass_sm90,
+            force_cutlass_sm90=self.force_cutlass_sm90,
             optimize_for_compilation_time=self.optimize_for_compilation_time,
         )
 
