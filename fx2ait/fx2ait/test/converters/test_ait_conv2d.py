@@ -14,28 +14,20 @@
 #
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
+import logging
+
 import torch
+from aitemplate.testing.test_utils import filter_test_cases_by_params, TestEnv
+from aitemplate.utils.torch_utils import string_to_torch_dtype
 from fx2ait.acc_tracer import acc_ops
-from fx2ait.tools.common_fx2ait import AITTestCase
-from parameterized import param, parameterized
+from fx2ait.tools.common_fx2ait import AITTestCase, torch_type_to_lower_precision
+from parameterized import parameterized
 
 
 class TestConv2dConverter(AITTestCase):
-    @parameterized.expand(
-        [
-            param("default", 1),
-            param("no_bias", 1, bias=False),
-            param("tuple_parameters", 1, (1, 1), (1, 1)),
-            param("non_zero_padding", 1, padding=1),
-            param("non_unary_params", 3, 2, padding=1, bias=False),
-            param("dilation", 1, dilation=2),
-            param("multi_group", 1, 1, 1, 1, 3, bias=True),
-            param("in_channel_padding_gt_4_lt_8", 1, in_channel=7),
-        ]
-    )
-    def test_conv2d(
+    def _test_conv2d(
         self,
-        name,
+        test_name,
         kernel_size,
         stride=1,
         padding=0,
@@ -43,6 +35,7 @@ class TestConv2dConverter(AITTestCase):
         groups=1,
         in_channel=3,
         bias=True,
+        ait_dtype="float16",
     ):
         class TestModule(torch.nn.Module):
             def __init__(self):
@@ -55,10 +48,51 @@ class TestConv2dConverter(AITTestCase):
             def forward(self, x):
                 return self.relu(self.conv(x))
 
-        model = TestModule().cuda().half()
-        inputs = [torch.randn(1, in_channel, 224, 224).cuda().half()]
+        logging.info(f"Running test {test_name}.")
+
+        dtype = string_to_torch_dtype(ait_dtype)
+        model = TestModule().cuda().to(dtype)
+        inputs = [torch.randn(1, in_channel, 224, 224).cuda().to(dtype)]
         self.run_test(
             model,
             inputs,
             expected_ops={acc_ops.conv2d},
+            precision=torch_type_to_lower_precision(dtype),
+        )
+
+    @parameterized.expand(
+        **filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16")],
+                TestEnv.CUDA_SM80: [("bfloat16"), ("float32")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_conv2d(self, ait_dtype):
+        self._test_conv2d(f"{ait_dtype}_default", 1, ait_dtype=ait_dtype)
+        self._test_conv2d(f"{ait_dtype}_no_bias", 1, bias=False, ait_dtype=ait_dtype)
+        self._test_conv2d(
+            f"{ait_dtype}_tuple_parameters", 1, (1, 1), (1, 1), ait_dtype=ait_dtype
+        )
+        self._test_conv2d(
+            f"{ait_dtype}_non_zero_padding", 1, padding=1, ait_dtype=ait_dtype
+        )
+        self._test_conv2d(
+            f"{ait_dtype}_non_unary_params",
+            3,
+            2,
+            padding=1,
+            bias=False,
+            ait_dtype=ait_dtype,
+        )
+        self._test_conv2d(f"{ait_dtype}_dilation", 1, dilation=2, ait_dtype=ait_dtype)
+        self._test_conv2d(
+            f"{ait_dtype}_multi_group", 1, 1, 1, 1, 3, bias=True, ait_dtype=ait_dtype
+        )
+        self._test_conv2d(
+            f"{ait_dtype}_padding_3", 1, in_channel=3, ait_dtype=ait_dtype
+        )
+        self._test_conv2d(
+            f"{ait_dtype}_padding_7", 1, in_channel=7, ait_dtype=ait_dtype
         )
