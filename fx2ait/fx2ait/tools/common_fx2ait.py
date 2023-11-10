@@ -56,6 +56,21 @@ def lower_precision_to_torch_type(
         raise ValueError(f"Unsupported precision: {precision}")
 
 
+def torch_type_to_lower_precision(
+    dtype: torch.dtype,
+) -> LowerPrecision:
+    if dtype == torch.float16:
+        return LowerPrecision.FP16
+    elif dtype == torch.bfloat16:
+        return LowerPrecision.BF16
+    elif dtype == torch.float:
+        return LowerPrecision.FP32
+    elif dtype == torch.int8:
+        return LowerPrecision.INT8
+    else:
+        raise ValueError(f"Unsupported dtype: {dtype}")
+
+
 def fetch_attr(mod, target):
     """
     Fetch an attribute from the ``Module`` hierarchy of ``mod.module``.

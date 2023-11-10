@@ -1281,6 +1281,8 @@ def _choose_conv2d_op(
     Helper to choose conv2d vs. conv2d_bias op based on existence of bias
     and pad channel input dim to 4/8
     """
+    REQUIRED_ALIGNMENT = 8
+
     if transposed:
         if bias:
             return transposed_conv2d_bias(stride=stride, pad=pad, dilate=dilate)(
@@ -1289,18 +1291,25 @@ def _choose_conv2d_op(
         else:
             return transposed_conv2d(stride=stride, pad=pad, dilate=dilate)(x, weight)
     last_dim = x._attrs["shape"][-1]._attrs["values"][0]
-    # CUDA conv channel dim weights need to align w/ a multiple of 2/4/8
-    # if CI < 4, pad to 4; if 5 < CI < 8, pad to 8;
-    if last_dim < 4:
-        weight = pad_last_dim(len(weight._attrs["shape"]), 4)(weight)
-        x = pad_last_dim(len(x._attrs["shape"]), 4)(x)
-    elif last_dim > 4 and last_dim < 8:
-        weight = pad_last_dim(len(weight._attrs["shape"]), 8)(weight)
-        x = pad_last_dim(len(x._attrs["shape"]), 8)(x)
-    elif last_dim % 2 != 0:
-        raise RuntimeError(
-            f"Conv2d is not implemented for input channel dim {last_dim}: it needs to be aligned to a multiple of 2/4/8"
+    dtype = x._attrs["dtype"]
+    if dtype == "float16":
+        dtype_bytes = 2
+    elif dtype == "bfloat16":
+        dtype_bytes = 2
+    elif dtype == "float32":
+        dtype_bytes = 4
+    else:
+        raise NotImplementedError(f"Unsupported dtype: {dtype}")
+    last_dim_bytes = last_dim * dtype_bytes
+    # CUDA conv channel dim weight need to align w/ a multiple of REQUIRED_ALIGNMENT bytes.
+    if last_dim_bytes % REQUIRED_ALIGNMENT != 0:
+        new_dim_size = int(
+            ((last_dim_bytes // REQUIRED_ALIGNMENT) + 1)
+            * REQUIRED_ALIGNMENT
+            / dtype_bytes
         )
+        weight = pad_last_dim(len(weight._attrs["shape"]), new_dim_size)(weight)
+        x = pad_last_dim(len(x._attrs["shape"]), new_dim_size)(x)
     if bias:
         return conv2d_bias(stride=stride, pad=pad, dilate=dilate)(x, weight, bias)
     else:

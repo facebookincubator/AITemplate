@@ -534,10 +534,6 @@ def extract_config(
     elif "bfloat16" in lib_dtype:
         data_type = cutlass_lib.library.DataType.bf16
         acc_type = cutlass_lib.library.DataType.f32
-        # check target use fp16 acc
-        if "use_fp16_acc" in Target.current()._kwargs:
-            if Target.current()._kwargs["use_fp16_acc"]:
-                acc_type = cutlass_lib.library.DataType.bf16
     else:
         raise RuntimeError(f"Unsupported dtype {lib_dtype}")
 
