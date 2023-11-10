@@ -196,6 +196,11 @@ AITModelImpl::AITModelImpl(
   LOAD_SYMBOL_WARN(
       foldConstantsDoubleBufferFunc_,
       "AITemplateModelContainerFoldConstantsInDoubleBuffer");
+  LOAD_SYMBOL_WARN(
+      getConstantDtypeFunc_, "AITemplateModelContainerGetConstantDtype");
+  LOAD_SYMBOL_WARN(
+      getConstantOriginalNameFunc_,
+      "AITemplateModelContainerGetConstantOriginalName");
 
   // It's possible that we have new field added in AITemplateModelContainer,
   // But we can be using a new AITModel to load an old AITemplateModelContainer.
@@ -657,4 +662,41 @@ void AITModelImpl::swapConstants() {
       "swapConstantsFunc_ not loaded, can not do in place update");
   AIT_CHECK(swapConstantsFunc_(model_handle_));
 }
+
+std::vector<std::string> AITModelImpl::getConstantNames() const {
+  TORCH_CHECK(getNumConstantsFunc_, "getNumConstantsFunc_ not loaded");
+  TORCH_CHECK(getConstantNamesFunc_, "getConstantNamesFunc_ not loaded");
+
+  const auto numConstants =
+      AITCall(getNumConstantsFunc_, model_handle_, false, false);
+
+  std::vector<const char*> constantNames(numConstants, nullptr);
+  AIT_CHECK(
+      getConstantNamesFunc_(model_handle_, false, false, constantNames.data()));
+
+  std::vector<std::string> result;
+  for (auto name : constantNames) {
+    result.emplace_back(name);
+  }
+  return result;
+}
+
+at::ScalarType AITModelImpl::getConstantDtype(const std::string& name) const {
+  TORCH_CHECK(getConstantDtypeFunc_, "getConstantDtypeFunc_ not loaded");
+
+  AITemplateDtype dtype;
+  AIT_CHECK(getConstantDtypeFunc_(model_handle_, name.c_str(), &dtype));
+  return AITemplateDtypeToTorchDtype(dtype);
+}
+
+std::string AITModelImpl::getConstantOriginalName(
+    const std::string& name) const {
+  TORCH_CHECK(
+      getConstantOriginalNameFunc_, "getConstantOriginalNameFunc_ not loaded");
+
+  const char* result{nullptr};
+  AIT_CHECK(getConstantOriginalNameFunc_(model_handle_, name.c_str(), &result));
+  return result;
+}
+
 } // namespace torch::aitemplate

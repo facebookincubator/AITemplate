@@ -181,6 +181,16 @@ AIT_EXPORT AITemplateError AITemplateModelContainerGetConstantNames(
     bool constant_folding_inputs_only,
     const char** constant_names_out);
 
+AIT_EXPORT AITemplateError AITemplateModelContainerGetConstantDtype(
+    AITemplateModelHandle handle,
+    const char* name,
+    AITemplateDtype* dtype);
+
+AIT_EXPORT AITemplateError AITemplateModelContainerGetConstantOriginalName(
+    AITemplateModelHandle handle,
+    const char* name,
+    const char** original_name_out);
+
 AIT_EXPORT AITemplateError AITemplateModelContainerRun(
     AITemplateModelHandle handle,
     const AITData* inputs,

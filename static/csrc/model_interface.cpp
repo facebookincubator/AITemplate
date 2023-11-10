@@ -184,6 +184,27 @@ AITemplateError AITemplateModelContainerGetConstantNames(
   })
 }
 
+AITemplateError AITemplateModelContainerGetConstantDtype(
+    AITemplateModelHandle handle,
+    const char* name,
+    AITemplateDtype* dtype) {
+  RETURN_ERROR_IF_NULL(handle)
+  RETURN_ERROR_IF_NULL(dtype)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE({ *dtype = m->ConstantDtype(name); })
+}
+
+AITemplateError AITemplateModelContainerGetConstantOriginalName(
+    AITemplateModelHandle handle,
+    const char* name,
+    const char** original_name_out) {
+  RETURN_ERROR_IF_NULL(handle)
+  RETURN_ERROR_IF_NULL(original_name_out)
+  auto* m = reinterpret_cast<ait::ModelContainer*>(handle);
+  CONVERT_EXCEPTION_TO_ERROR_CODE(
+      { *original_name_out = m->ConstantOriginalName(name); })
+}
+
 AITemplateError AITemplateModelContainerRun(
     AITemplateModelHandle handle,
     const AITData* inputs,

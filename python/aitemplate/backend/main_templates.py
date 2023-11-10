@@ -356,6 +356,7 @@ ModelContainerBase::ModelContainerBase(
       max_param_numel_(num_params_),
       max_param_storage_bytes_(num_params_) {
 {{ set_up_constant_names }}
+{{ set_up_constant_original_names }}
 {{ set_up_param_names }}
 {{ set_up_param_dtypes }}
 {{ set_up_bound_constant_dtypes }}

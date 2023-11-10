@@ -105,6 +105,10 @@ class ModelContainerBase {
   // the dytpe, but it's easier to just cache them.
   std::vector<size_t> max_param_storage_bytes_;
   std::vector<size_t> max_param_numel_;
+
+  // Mapping of constant names to their original names, i.e. before making
+  // constant names AIT friendly.
+  std::unordered_map<std::string, std::string> constant_name_to_original_name_;
 };
 
 // This creates a new ModelContainer; its implementation is also
@@ -247,6 +251,10 @@ class ModelContainer : ModelContainerBase {
       const char** names_out,
       bool unbound_constants_only,
       bool constant_folding_inputs_only) const;
+
+  AITemplateDtype ConstantDtype(const char* name) const;
+
+  const char* ConstantOriginalName(const char* name) const;
 
  private:
   void WaitForAllModels(bool include_constant_folder = false);

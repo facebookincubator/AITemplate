@@ -72,6 +72,7 @@ def _non_output_from_tensor(tensor: Tensor) -> Tensor:
         dtype=tensor._attrs["dtype"],
         is_view_of=tensor._attrs["is_view_of"],
         is_internal_constant=tensor._attrs["is_internal_constant"],
+        original_name=tensor._attrs["original_name"],
     )
     new_tensor._attrs["is_param"] = tensor._attrs["is_param"]
     new_tensor._attrs["data"] = tensor._attrs["data"]

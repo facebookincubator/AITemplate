@@ -115,6 +115,12 @@ class AITModelImpl {
 
   void swapConstants();
 
+  std::vector<std::string> getConstantNames() const;
+
+  at::ScalarType getConstantDtype(const std::string& name) const;
+
+  std::string getConstantOriginalName(const std::string& name) const;
+
  private:
   // @lint-ignore CLANGTIDY facebook-hte-NonPodStaticDeclaration
   static thread_local std::unordered_map<std::string, std::string>
@@ -167,6 +173,10 @@ class AITModelImpl {
   decltype(&AITemplateModelContainerSwapConstants) swapConstantsFunc_ = nullptr;
   decltype(&AITemplateModelContainerFoldConstantsInDoubleBuffer)
       foldConstantsDoubleBufferFunc_ = nullptr;
+  decltype(&AITemplateModelContainerGetConstantDtype) getConstantDtypeFunc_ =
+      nullptr;
+  decltype(&AITemplateModelContainerGetConstantOriginalName)
+      getConstantOriginalNameFunc_ = nullptr;
 
   const std::string library_basename_;
   const std::string library_path_;

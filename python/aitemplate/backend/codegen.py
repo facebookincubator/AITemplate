@@ -370,6 +370,7 @@ class ModelContainerGenerator:
         self.visited_func = set()
         self.visited_dims = set()
         self.set_up_constant_names = []
+        self.set_up_constant_original_names = []
 
         self.num_constants = 0
         self.constants_data_size = 0
@@ -495,6 +496,14 @@ class ModelContainerGenerator:
                 self.bound_constant_idx,
             )
         )
+        original_name = tensor._attrs.get("original_name")
+        if original_name is not None:
+            self.set_up_constant_original_names.append(
+                set_value(
+                    f'constant_name_to_original_name_["{name}"]',
+                    f'"{original_name}"',
+                )
+            )
         self.set_up_bound_constant_dtypes.append(
             set_value(
                 f"bound_constant_dtypes_[{self.bound_constant_idx}]",
@@ -557,6 +566,14 @@ class ModelContainerGenerator:
                     self.unbound_constant_idx,
                 )
             )
+            original_name = tensor._attrs.get("original_name")
+            if original_name is not None:
+                self.set_up_constant_original_names.append(
+                    set_value(
+                        f'constant_name_to_original_name_["{name}"]',
+                        f'"{original_name}"',
+                    )
+                )
             self._record_param_tensor_info(
                 tensor,
                 self.unbound_constant_idx + self.num_inputs + self.num_outputs,
@@ -1062,6 +1079,9 @@ class ModelContainerGenerator:
             num_outputs=self.num_outputs,
             param_size=self.max_constant_blob_size + self.extra_owned_constant_size,
             set_up_constant_names="\n".join(self.set_up_constant_names),
+            set_up_constant_original_names="\n".join(
+                self.set_up_constant_original_names
+            ),
             set_up_param_dtypes="\n".join(self.set_up_param_dtypes),
             set_up_bound_constant_dtypes="\n".join(self.set_up_bound_constant_dtypes),
             set_up_bound_constant_size="\n".join(self.set_up_bound_constant_size),
@@ -1096,6 +1116,14 @@ class ModelContainerGenerator:
                     self.unbound_constant_idx,
                 )
             )
+            original_name = tensor._attrs.get("original_name")
+            if original_name is not None:
+                self.set_up_constant_original_names.append(
+                    set_value(
+                        f'constant_name_to_original_name_["{name}"]',
+                        f'"{original_name}"',
+                    )
+                )
             self._record_param_tensor_info(
                 tensor,
                 self.unbound_constant_idx + self.num_inputs + self.num_outputs,
