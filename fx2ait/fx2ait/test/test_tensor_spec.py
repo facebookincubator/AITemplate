@@ -178,3 +178,21 @@ class TestTensorSpec(unittest.TestCase):
             ),
             specs[3],
         )
+
+    def test_input_with_first_dim_zero(self):
+        inputs = [
+            torch.empty([10, 8643], dtype=torch.float16),
+            torch.empty([0, 8643], dtype=torch.float16),
+        ]
+
+        specs = TensorSpec.from_input_list_with_batch_size(inputs, 32)
+
+        self.assertEqual(
+            [
+                TensorSpec(
+                    [IntVar([1, 32], "batch_size"), IntImm(8643)], torch.float16
+                ),
+                TensorSpec([IntImm(0), IntImm(8643)], torch.float16),
+            ],
+            specs,
+        )
