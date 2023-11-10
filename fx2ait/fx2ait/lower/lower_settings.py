@@ -87,3 +87,7 @@ class LowerSettings:
     optimize_for_compilation_time: bool = False
     # If True, use tanh to approximate sigmoid in CUDA kernels
     use_tanh_for_sigmoid: bool = False
+    # generate cutlass sm90 kernels alongside sm80 kernels on sm90 arch
+    allow_cutlass_sm90: bool = False
+    # only generate cutlass sm90 kernels on sm90 arch
+    force_cutlass_sm90: bool = False

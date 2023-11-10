@@ -41,8 +41,12 @@ class GEMMBiasTestCase(unittest.TestCase):
         super(GEMMBiasTestCase, self).__init__(*args, **kwargs)
         self._test_id = 0
 
-    def _test_rcr(self, Ms, N, K, test_name, dtype="float16"):
-        target = detect_target()
+    def _test_rcr(
+        self, Ms, N, K, test_name, dtype="float16", allow_sm90=False, force_sm90=False
+    ):
+        target = detect_target(
+            allow_cutlass_sm90=allow_sm90, force_cutlass_sm90=force_sm90
+        )
         tolerance_limits = _TOLERANCE_LIMITS[dtype]
         MDim = shape_utils.gen_int_var_min_max(Ms, name="m")
         X = Tensor(shape=[MDim, IntImm(K)], dtype=dtype, name="input_0", is_input=True)
@@ -108,6 +112,26 @@ class GEMMBiasTestCase(unittest.TestCase):
         )
 
     def test_rcr_sm90(self) -> None:
+        with env_variables(
+            INSIDE_RE_WORKER="1",
+            FORCE_PROFILE="1",
+        ):
+            self._test_rcr(
+                Ms=[128],
+                N=32,
+                K=32,
+                test_name="target_fp16_allow_sm90",
+                dtype="float16",
+                allow_sm90=True,
+            )
+            self._test_rcr(
+                Ms=[128],
+                N=32,
+                K=32,
+                test_name="target_fp16_force_sm90",
+                dtype="float16",
+                force_sm90=True,
+            )
         with env_variables(
             AIT_FORCE_CUTLASS_SM90_KERNELS="1",
             INSIDE_RE_WORKER="1",

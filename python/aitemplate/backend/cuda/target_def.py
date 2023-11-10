@@ -235,7 +235,17 @@ class CUDA(Target):
         super().__enter__()
         self._gen_cutlass_lib_pkg()
         f_gen_ops = registry.get("cuda.gen_cutlass_ops")
-        self._operators = f_gen_ops(self._arch, self._cuda_version)
+        allow_cutlass_sm90 = (
+            self._kwargs.get("allow_cutlass_sm90", False)
+            or environ.allow_cutlass_sm90_kernels()
+        )
+        force_cutlass_sm90 = (
+            self._kwargs.get("force_cutlass_sm90", False)
+            or environ.force_cutlass_sm90_kernels()
+        )
+        self._operators = f_gen_ops(
+            self._arch, self._cuda_version, allow_cutlass_sm90, force_cutlass_sm90
+        )
 
     def __exit__(self, ptype, value, trace):
         super().__exit__(ptype, value, trace)
