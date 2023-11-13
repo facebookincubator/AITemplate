@@ -183,14 +183,6 @@ using namespace gemm_kernel_utils;
       throw std::runtime_error(error_msg);
     }
     kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);
-
-    cudaError_t err = cudaDeviceSynchronize();
-
-    if (err != cudaSuccess)  {
-      std::cerr << "Kernel execution error: " << cudaGetErrorString(err);
-      return;
-    }
-
 }
     """
 )
