@@ -23,7 +23,7 @@ RUN groupadd -f render
 
 WORKDIR /
 
-RUN git clone -b merge_upstream https://github.com/ROCmSoftwarePlatform/AITemplate.git
+RUN git clone -b merge_upstream --recursive https://github.com/ROCmSoftwarePlatform/AITemplate.git
 
 WORKDIR /AITemplate
 # necessary package
@@ -39,4 +39,4 @@ RUN bash ./docker/install/install_doc_dep.sh
 RUN DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get -y install tzdata
 RUN bash ./docker/install/install_detection_deps.sh
 
-RUN cd ./python && python setup.py install
+RUN bash ./docker/install/install_ait.sh
