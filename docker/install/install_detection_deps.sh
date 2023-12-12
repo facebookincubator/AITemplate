@@ -5,5 +5,5 @@ pip3 install yacs
 pip3 install opencv-python
 pip3 install tqdm
 pip3 install timm
-pip3 install transformers
-pip3 install diffusers
+pip3 install transformers==4.25.0
+pip3 install diffusers==0.11.1
