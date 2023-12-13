@@ -36,7 +36,10 @@ from aitemplate.compiler.transform.fuse_ops import (
     fuse_ops,
     process_singleton_elementwise,
 )
-from aitemplate.compiler.transform.fuse_parallel_gemms import fuse_parallel_gemms
+from aitemplate.compiler.transform.fuse_parallel_gemms import (
+    fuse_parallel_gemms,
+    fuse_single_source_parallel_gemms,
+)
 from aitemplate.compiler.transform.fuse_permute_bmm_and_gemm import (
     fuse_permute_bmm_and_gemm,
 )
@@ -104,6 +107,7 @@ def optimize_graph(
         fuse_expand_bmm,
         transform_odd_alignment,
         fuse_conv_elementwise,
+        fuse_single_source_parallel_gemms,
         fuse_mm_elementwise,
         fuse_mm_reshape_permute,
         # make sure we run move_view_op_before_concat before transform_memory_ops
