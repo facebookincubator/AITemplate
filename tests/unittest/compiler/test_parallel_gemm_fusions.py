@@ -21,7 +21,10 @@ import torch
 
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
-from aitemplate.compiler.transform.fuse_parallel_gemms import fuse_parallel_gemms
+from aitemplate.compiler.transform.fuse_parallel_gemms import (
+    fuse_parallel_gemms,
+    fuse_single_source_parallel_gemms,
+)
 from aitemplate.compiler.transform.toposort import toposort
 from aitemplate.frontend import IntImm, IntVar, Tensor
 from aitemplate.testing import detect_target
@@ -732,7 +735,248 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         )
 
 
+class SingleSourceParallelGemmFusionTestCase(unittest.TestCase):
+    def __init__(self, *args, **kwargs):
+        super(SingleSourceParallelGemmFusionTestCase, self).__init__(*args, **kwargs)
+        self._test_id = 0
+
+    def test_simple_gemm_rcr(self, dtype: str = "float16"):
+        M = 1024
+        N = [256, 32, 128]
+        K = 256
+
+        X = Tensor(
+            shape=[IntImm(M), IntImm(K)],
+            name="X",
+            dtype=dtype,
+            is_input=True,
+        )
+        Ws = []
+        for i in range(len(N)):
+            W = Tensor(
+                shape=[IntImm(N[i]), IntImm(K)],
+                dtype=dtype,
+                name=f"W{i}",
+            )
+            Ws.append(W)
+
+        Ys = []
+        for i in range(len(N)):
+            Ys.append(ops.elementwise(FuncEnum.RELU)(ops.gemm_rcr()(X, Ws[i])))
+            Ys[-1]._attrs["name"] = f"output{i}"
+            Ys[-1]._attrs["is_output"] = True
+
+        constants = {}
+        for i in range(len(N)):
+            constants[f"W{i}"] = get_random_torch_tensor([N[i], K], dtype)
+
+        # Test graph pass is correct.
+        sorted_graph = toposort(Ys)
+        new_sorted_graph = fuse_single_source_parallel_gemms(sorted_graph)
+
+        sorted_ops = graph_utils.get_sorted_ops(new_sorted_graph)
+        self.assertEqual(count_ops(sorted_ops, "gemm_rcr"), 1)
+
+        # Test e2e results.
+        x_pt = get_random_torch_tensor([M, K], dtype)
+
+        Ys_pt = []
+        for i in range(len(N)):
+            y_pt = torch.nn.functional.linear(x_pt, constants[f"W{i}"])
+            Ys_pt.append(torch.nn.functional.relu(y_pt))
+
+        # Run AITemplate module.
+        target = detect_target()
+        with compile_model(
+            Ys,
+            target,
+            "./tmp",
+            f"fuse_single_source_parallel_gemm_simple_{dtype}",
+            dll_name=f"test_{self._test_id}.so",
+            constants=constants,
+        ) as module:
+            self._test_id += 1
+
+            outs = []
+            for n in N:
+                outs.append(get_torch_empty_tensor([M, n], dtype))
+            module.run_with_tensors([x_pt], outs)
+
+        # Do comparisons.
+        for (out_ait, out_pt) in zip(outs, Ys_pt):
+            self.assertTrue(torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2))
+
+    def test_gemm_rcr_bias(self, dtype: str = "float16"):
+        M = 1024
+        N = [36, 24, 256]
+        K = 256
+
+        X = Tensor(
+            shape=[IntImm(M), IntImm(K)],
+            name="X",
+            dtype=dtype,
+            is_input=True,
+        )
+        Ws = []
+        Bs = []
+        for i in range(len(N)):
+            W = Tensor(
+                shape=[IntImm(N[i]), IntImm(K)],
+                dtype=dtype,
+                name=f"W{i}",
+            )
+            B = Tensor(
+                shape=[IntImm(N[i])],
+                dtype=dtype,
+                name=f"B{i}",
+            )
+            Ws.append(W)
+            Bs.append(B)
+
+        Ys = []
+        for i in range(len(N)):
+            Ys.append(
+                ops.elementwise(FuncEnum.RELU)(ops.gemm_rcr_bias()(X, Ws[i], Bs[i]))
+            )
+            Ys[-1]._attrs["name"] = f"output{i}"
+            Ys[-1]._attrs["is_output"] = True
+
+        constants = {}
+        for i in range(len(N)):
+            constants[f"W{i}"] = get_random_torch_tensor([N[i], K], dtype)
+            constants[f"B{i}"] = get_random_torch_tensor([N[i]], dtype)
+
+        # Test graph pass is correct.
+        sorted_graph = toposort(Ys)
+        new_sorted_graph = fuse_single_source_parallel_gemms(sorted_graph)
+
+        sorted_ops = graph_utils.get_sorted_ops(new_sorted_graph)
+        self.assertEqual(count_ops(sorted_ops, "gemm_rcr_bias"), 1)
+
+        # Test e2e results.
+        x_pt = get_random_torch_tensor([M, K], dtype)
+
+        Ys_pt = []
+        for i in range(len(N)):
+            y_pt = torch.nn.functional.linear(
+                x_pt, constants[f"W{i}"], constants[f"B{i}"]
+            )
+            Ys_pt.append(torch.nn.functional.relu(y_pt))
+
+        # Run AITemplate module.
+        target = detect_target()
+        with compile_model(
+            Ys,
+            target,
+            "./tmp",
+            f"fuse_single_source_parallel_gemm_rcr_bias_{dtype}",
+            dll_name=f"test_{self._test_id}.so",
+            constants=constants,
+        ) as module:
+            self._test_id += 1
+
+            outs = []
+            for n in N:
+                outs.append(get_torch_empty_tensor([M, n], dtype))
+            module.run_with_tensors([x_pt], outs)
+
+        # Do comparisons.
+        for (out_ait, out_pt) in zip(outs, Ys_pt):
+            self.assertTrue(torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2))
+
+    def test_mix_gemm(self, dtype: str = "float16"):
+        M = 1024
+        N1 = [512, 128, 32]
+        N2 = [32, 128, 256]
+        K = 256
+
+        X = Tensor(
+            shape=[IntImm(M), IntImm(K)],
+            name="X",
+            dtype=dtype,
+            is_input=True,
+        )
+        Ws = []
+        Bs = []
+        for i, n in enumerate(N1 + N2):
+            W = Tensor(
+                shape=[IntImm(n), IntImm(K)],
+                dtype=dtype,
+                name=f"W{i}",
+            )
+            B = Tensor(
+                shape=[IntImm(n)],
+                dtype=dtype,
+                name=f"B{i}",
+            )
+            Ws.append(W)
+            Bs.append(B)
+        Bs = Bs[: len(N1)]
+
+        Ys = []
+        for i in range(len(N1)):
+            Ys.append(
+                ops.elementwise(FuncEnum.RELU)(ops.gemm_rcr_bias()(X, Ws[i], Bs[i]))
+            )
+            Ys[-1]._attrs["name"] = f"output{i}"
+            Ys[-1]._attrs["is_output"] = True
+        for i in range(len(N1), len(N1 + N2)):
+            Ys.append(ops.elementwise(FuncEnum.RELU)(ops.gemm_rcr()(X, Ws[i])))
+            Ys[-1]._attrs["name"] = f"output{i}"
+            Ys[-1]._attrs["is_output"] = True
+
+        constants = {}
+        for i, n in enumerate(N1):
+            constants[f"W{i}"] = get_random_torch_tensor([n, K], dtype)
+            constants[f"B{i}"] = get_random_torch_tensor([n], dtype)
+        for i, n in enumerate(N2):
+            constants[f"W{i + len(N1)}"] = get_random_torch_tensor([n, K], dtype)
+
+        # Test graph pass is correct.
+        sorted_graph = toposort(Ys)
+        new_sorted_graph = fuse_single_source_parallel_gemms(sorted_graph)
+
+        sorted_ops = graph_utils.get_sorted_ops(new_sorted_graph)
+        self.assertEqual(count_ops(sorted_ops, "gemm_rcr"), 1)
+        self.assertEqual(count_ops(sorted_ops, "gemm_rcr_bias"), 1)
+
+        # Test e2e results.
+        x_pt = get_random_torch_tensor([M, K], dtype)
+
+        Ys_pt = []
+        for i in range(len(N1)):
+            y_pt = torch.nn.functional.linear(
+                x_pt, constants[f"W{i}"], constants[f"B{i}"]
+            )
+            Ys_pt.append(torch.nn.functional.relu(y_pt))
+        for i in range(len(N2)):
+            y_pt = torch.nn.functional.linear(x_pt, constants[f"W{i+len(N1)}"])
+            Ys_pt.append(torch.nn.functional.relu(y_pt))
+
+        # Run AITemplate module.
+        target = detect_target()
+        with compile_model(
+            Ys,
+            target,
+            "./tmp",
+            f"fuse_single_source_parallel_mix_gemm_{dtype}",
+            dll_name=f"test_{self._test_id}.so",
+            constants=constants,
+        ) as module:
+            self._test_id += 1
+
+            outs = []
+            for n in N1 + N2:
+                outs.append(get_torch_empty_tensor([M, n], dtype))
+            module.run_with_tensors([x_pt], outs)
+
+        # Do comparisons.
+        for (out_ait, out_pt) in zip(outs, Ys_pt):
+            self.assertTrue(torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2))
+
+
 filter_test_cases_by_test_env(ParallelGemmCatFusionTestCase)
+filter_test_cases_by_test_env(SingleSourceParallelGemmFusionTestCase)
 
 if __name__ == "__main__":
     torch.manual_seed(0)
