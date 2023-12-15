@@ -87,7 +87,7 @@ def mk_cutlass_lib(template_path, dst_prefix=None):
     return dst_prefix
 
 
-if __name__ == "__main__":
+def main() -> None:
     cutlass_path = os.getenv("SRCDIR")
     output_path = os.getenv("OUT")
 
@@ -95,3 +95,7 @@ if __name__ == "__main__":
     assert cutlass_path is not None
 
     mk_cutlass_lib(cutlass_path + "/cutlass", os.path.dirname(output_path))
+
+
+if __name__ == "__main__":
+    main()  # pragma: no cover
