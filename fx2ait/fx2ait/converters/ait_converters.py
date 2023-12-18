@@ -1607,6 +1607,54 @@ def acc_ops_avg_pool2d(
     return ait_nhwc2nchw(result)
 
 
+@ait_converter(acc_ops.avg_pool3d)
+def acc_ops_avg_pool3d(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Non-tensor inputs for {name}: {input_val}")
+
+    input_val = ait_ncdhw2ndhwc(input_val)
+
+    kernel_size = identical_elem_tuple_to_int(kwargs["kernel_size"])
+    stride = (
+        identical_elem_tuple_to_int(kwargs["stride"])
+        if kwargs["stride"]
+        else kernel_size
+    )
+    padding = identical_elem_tuple_to_int(kwargs["padding"])
+
+    assert kernel_size == 1, "avg_pool3d only supports kT == 1 currently"
+    assert stride == 1, "avg_pool3d only supports sT == 1 currently"
+    assert padding == 0, "avg_pool3d only supports T_padding == 0 currently"
+
+    ceil_mode = kwargs["ceil_mode"]
+    count_include_pad = kwargs["count_include_pad"]
+    divisor_override = kwargs["divisor_override"]
+    if ceil_mode or not count_include_pad or divisor_override:
+        raise RuntimeError(
+            "Non-default ceil_mode/count_include_pad/divisor_override not supported yet"
+        )
+
+    N, D, H, W, C = input_val.shape()
+
+    shape_0 = (-1, H, W, C)
+    input_val = reshape()(input_val, shape_0)
+
+    output = avg_pool2d(kernel_size=kernel_size, stride=stride, pad=padding)(input_val)
+
+    _, H_o, W_o, _ = output.shape()
+    shape_1 = (N, D, H_o, W_o, C)
+
+    output = reshape()(output, shape_1)
+    return ait_ndhwc2ncdhw(output)
+
+
 @ait_converter(acc_ops.adaptive_avg_pool2d)
 def acc_ops_adaptive_avg_pool2d(
     target: Target,
