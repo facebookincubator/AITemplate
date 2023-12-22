@@ -67,7 +67,9 @@ from aitemplate.compiler.public import (
     vector_norm,
 )
 
-from aitemplate.testing import detect_target
+from aitemplate.frontend.nn import Upsampling2d
+
+from fx2ait.acc_tracer import acc_ops, ait_acc_ops
 from torch.fx.node import Argument, Target
 
 from fx2ait.acc_tracer import acc_ops, ait_acc_ops
@@ -318,8 +320,20 @@ def acc_ops_linalg_norm(
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
+    if (
+        isinstance(kwargs["dim"], int)
+        and "ord" in kwargs
+        and kwargs["ord"] != 2
+        and kwargs["ord"] is not None
+    ):
+        # If dim is an int, the vector norm will be computed.
+        # For vector norm, the default ord is 2 if not specified
+        # otherwise, AIT hasn't implement it
+        raise RuntimeError("AIT linalg_norm only supports ord=2 use case!")
 
-    if "ord" not in kwargs or kwargs["ord"] != 2:
+    if not isinstance(kwargs["dim"], int) and (
+        "ord" not in kwargs or kwargs["ord"] != 2
+    ):
         raise RuntimeError("AIT linalg_norm only supports ord=2 use case!")
 
     # Hard code ord_kind=2 for l2 norm
@@ -391,6 +405,20 @@ def acc_ops_abs(
         raise RuntimeError(f"Unexpected input for {name}: {input_val}")
 
     return elementwise(FuncEnum.ABS)(input_val)
+
+
+@ait_converter(acc_ops.exp)
+def acc_ops_exp(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Unexpected input for {name}: {input_val}")
+
+    return elementwise(FuncEnum.EXP)(input_val)
 
 
 @ait_converter(acc_ops.log)
@@ -1137,6 +1165,32 @@ def ait_acc_ops_expand(
     return expand()(input_val, shape)
 
 
+@ait_converter(acc_ops.interpolate)
+def ait_acc_ops_interpolate(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+
+    if not isinstance(input_val, AITTensor):
+        raise ValueError(f"Non-tensor inputs for {name}: {input_val}")
+
+    scale_factor = kwargs["scale_factor"]
+    if not scale_factor:
+        raise ValueError("scale_factor cannot be empty")
+
+    mode = kwargs["mode"]
+    if not mode:
+        raise ValueError("mode cannot be empty")
+
+    op = Upsampling2d(scale_factor=scale_factor, mode=mode)
+
+    res = op(ait_nchw2nhwc(input_val))
+    return ait_nhwc2nchw(res)
+
+
 @ait_converter(acc_ops.batch_norm)
 def acc_ops_batch_norm(
     target: Target,
@@ -1221,6 +1275,9 @@ def _choose_conv2d_op(
     if last_dim < 4:
         weight = pad_last_dim(len(weight._attrs["shape"]), 4)(weight)
         x = pad_last_dim(len(x._attrs["shape"]), 4)(x)
+    elif last_dim > 4 and last_dim < 8:
+        weight = pad_last_dim(len(weight._attrs["shape"]), 8)(weight)
+        x = pad_last_dim(len(x._attrs["shape"]), 8)(x)
     elif last_dim % 2 != 0:
         return RuntimeError(
             f"Conv2d is not implemented for input channel dim {last_dim}: it needs to be aligned to a multiple of 2/4/8"
@@ -1563,6 +1620,7 @@ def acc_ops_contiguous(
 
 
 @ait_converter(acc_ops.to_dtype)
+@ait_converter(acc_ops.dtype)
 def acc_ops_to_dtype(
     target: Target,
     args: Tuple[Argument, ...],

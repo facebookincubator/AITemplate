@@ -30,6 +30,8 @@ def get_timestep_embedding(
     downscale_freq_shift: float = 1,
     scale: float = 1,
     max_period: int = 10000,
+    dtype: str = "float16",
+    arange_name="arange",
 ):
     """
     This matches the implementation in Denoising Diffusion Probabilistic Models: Create sinusoidal timestep embeddings.
@@ -44,7 +46,7 @@ def get_timestep_embedding(
     half_dim = embedding_dim // 2
 
     exponent = (-math.log(max_period)) * Tensor(
-        shape=[half_dim], dtype="float16", name="arange"
+        shape=[half_dim], dtype=dtype, name=arange_name
     )
 
     exponent = exponent * (1.0 / (half_dim - downscale_freq_shift))
@@ -70,11 +72,19 @@ def get_timestep_embedding(
 
 
 class TimestepEmbedding(nn.Module):
-    def __init__(self, channel: int, time_embed_dim: int, act_fn: str = "silu"):
+    def __init__(
+        self,
+        channel: int,
+        time_embed_dim: int,
+        act_fn: str = "silu",
+        dtype: str = "float16",
+    ):
         super().__init__()
 
-        self.linear_1 = nn.Linear(channel, time_embed_dim, specialization="swish")
-        self.linear_2 = nn.Linear(time_embed_dim, time_embed_dim)
+        self.linear_1 = nn.Linear(
+            channel, time_embed_dim, specialization="swish", dtype=dtype
+        )
+        self.linear_2 = nn.Linear(time_embed_dim, time_embed_dim, dtype=dtype)
 
     def forward(self, sample):
         sample = self.linear_1(sample)
@@ -84,12 +94,19 @@ class TimestepEmbedding(nn.Module):
 
 class Timesteps(nn.Module):
     def __init__(
-        self, num_channels: int, flip_sin_to_cos: bool, downscale_freq_shift: float
+        self,
+        num_channels: int,
+        flip_sin_to_cos: bool,
+        downscale_freq_shift: float,
+        dtype: str = "float16",
+        arange_name="arange",
     ):
         super().__init__()
         self.num_channels = num_channels
         self.flip_sin_to_cos = flip_sin_to_cos
         self.downscale_freq_shift = downscale_freq_shift
+        self.dtype = dtype
+        self.arange_name = arange_name
 
     def forward(self, timesteps):
         t_emb = get_timestep_embedding(
@@ -97,5 +114,7 @@ class Timesteps(nn.Module):
             self.num_channels,
             flip_sin_to_cos=self.flip_sin_to_cos,
             downscale_freq_shift=self.downscale_freq_shift,
+            dtype=self.dtype,
+            arange_name=self.arange_name,
         )
         return t_emb

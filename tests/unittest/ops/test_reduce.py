@@ -45,6 +45,7 @@ class ReduceTestCase(unittest.TestCase):
         keepdim,
         input_type="float16",
         output_type=None,
+        use_fp16_acc=False,
         rtol=1e-2,
         atol=1e-2,
     ):
@@ -54,7 +55,7 @@ class ReduceTestCase(unittest.TestCase):
                 input_shape=input_shape, dim=dim
             )
         )
-        target = detect_target()
+        target = detect_target(use_fp16_acc=use_fp16_acc)
         X = Tensor(shape=input_shape, dtype=input_type, name="input_0", is_input=True)
 
         if keepdim is None:
@@ -95,6 +96,7 @@ class ReduceTestCase(unittest.TestCase):
         keepdim,
         input_type="float16",
         output_type=None,
+        use_fp16_acc=False,
         rtol=1e-2,
         atol=1e-2,
     ):
@@ -107,6 +109,7 @@ class ReduceTestCase(unittest.TestCase):
             keepdim=keepdim,
             input_type=input_type,
             output_type=output_type,
+            use_fp16_acc=use_fp16_acc,
             rtol=rtol,
             atol=atol,
         )
@@ -187,6 +190,16 @@ class ReduceTestCase(unittest.TestCase):
             output_type="float16",
         )
         self._run_reduce_sum(
+            dim=1,
+            input_shape=[5, 4, 3],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+            use_fp16_acc=True,
+            rtol=1e-1,
+            atol=1e-1,
+        )
+        self._run_reduce_sum(
             dim=2,
             input_shape=[5, 4, 3],
             keepdim=False,
@@ -217,6 +230,7 @@ class ReduceTestCase(unittest.TestCase):
         keepdim,
         input_type="float16",
         output_type=None,
+        use_fp16_acc=False,
     ):
         self._run_reduce(
             test_name=f"reduce_mean_{input_type}_{output_type}",
@@ -227,6 +241,7 @@ class ReduceTestCase(unittest.TestCase):
             keepdim=keepdim,
             input_type=input_type,
             output_type=output_type,
+            use_fp16_acc=use_fp16_acc,
         )
 
     def test_reduce_mean(self):
@@ -384,6 +399,14 @@ class ReduceTestCase(unittest.TestCase):
             input_type="float16",
             output_type="float16",
         )
+        self._run_reduce_mean(
+            dim=0,
+            input_shape=[1270, 1223],
+            keepdim=False,
+            input_type="float16",
+            output_type="float16",
+            use_fp16_acc=True,
+        )
 
     def _run_batched_reduce(
         self,
@@ -397,6 +420,7 @@ class ReduceTestCase(unittest.TestCase):
         keepdim,
         input_type="float16",
         output_type=None,
+        use_fp16_acc=False,
     ):
         torch.manual_seed(0)
         _LOGGER.info(f"Test {batch_sizes=}, {non_batch_shape=}, {dim=}")
@@ -447,6 +471,7 @@ class ReduceTestCase(unittest.TestCase):
         keepdim,
         input_type="float16",
         output_type=None,
+        use_fp16_acc=False,
     ):
         self._run_batched_reduce(
             test_name=f"reduce_sum_batched_{input_type}_{output_type}",
@@ -458,6 +483,7 @@ class ReduceTestCase(unittest.TestCase):
             keepdim=keepdim,
             input_type=input_type,
             output_type=output_type,
+            use_fp16_acc=use_fp16_acc,
         )
 
     def test_batched_reduce_sum(self):
@@ -468,6 +494,16 @@ class ReduceTestCase(unittest.TestCase):
             keepdim=True,
             input_type="float16",
             output_type=None,
+            use_fp16_acc=True,
+        )
+        self._run_batched_reduce_sum(
+            dim=1,
+            batch_sizes=[10, 2048],
+            non_batch_shape=[2, 1944],
+            keepdim=True,
+            input_type="float16",
+            output_type=None,
+            use_fp16_acc=False,
         )
 
     @unittest.skipIf(detect_target().name() == "rocm", "fp32 not supported in ROCm")

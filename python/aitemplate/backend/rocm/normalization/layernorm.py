@@ -29,7 +29,9 @@ from aitemplate.compiler.base import IntImm
 
 EXTRA_HEADERS = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/impl/device_normalization_impl.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_normalization_fwd_impl.hpp"
+#include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
+#include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 """
 )
 
@@ -66,6 +68,9 @@ EXEC_TEMPLATE = jinja2.Template(
     """
     std::vector<ck::index_t> i_inStrides;
     std::vector<ck::index_t> i_outStrides;
+    std::vector<ck::index_t> save_mean_strides;
+    save_mean_strides.push_back(1);
+
     {% if input_strides is defined %}
     i_inStrides.push_back({{input_strides[-2]}});
     i_inStrides.push_back({{input_strides[-1]}});
@@ -89,6 +94,8 @@ EXEC_TEMPLATE = jinja2.Template(
         std::vector<ck::index_t>{0, 1},
         std::vector<ck::index_t>{0, 1},
         i_outStrides,
+        save_mean_strides,
+        save_mean_strides,
         {1},
         {{eps}},
         static_cast<ck::half_t *>(input) + {{ input_offset if input_offset is defined else 0 }},

@@ -104,7 +104,7 @@ EXEC_TEMPLATE = jinja2.Template(
 
 HEADER_CODE = jinja2.Template(
     """
-#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_cshuffle.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 """
 )
 
@@ -119,7 +119,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <random>
 #include <rocrand/rocrand.h>
 #include "logging.h"
-#include "include/ck/utility/print.hpp"
+
 #include "library/include/ck/library/utility/device_memory.hpp"
 #include "library/include/ck/library/utility/host_tensor.hpp"
 #include "library/include/ck/library/utility/host_tensor_generator.hpp"

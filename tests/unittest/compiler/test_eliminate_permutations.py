@@ -28,7 +28,6 @@ from aitemplate.testing.test_utils import (
 )
 
 
-@unittest.skip("Skip until we fix the accuracy issue")
 class EliminatePermutationTestCase(unittest.TestCase):
     def test_eliminate_permutation(self):
         dtype = "float"
@@ -189,6 +188,126 @@ class EliminatePermutationTestCase(unittest.TestCase):
         result_graph = module.debug_sorted_graph
         self.assertEqual(len(result_graph), 3)
         self.assertTrue(graph_has_op(result_graph, "permute"))
+
+    def test_do_not_eliminate_permutation_of_strided_input(self):
+        dtype = "float"
+        shape = [3, 2, 4]
+        new_shape = [3, 2 * 2]
+        target = detect_target()
+
+        x = Tensor(shape, name="x", dtype=dtype, is_input=True)
+        s1 = ops.dynamic_slice()(
+            x, start_indices=[0, 0, 2], end_indices=[2147483647, 2147483647, 4]
+        )
+        p1 = ops.permute()(s1, dims=[0, 2, 1])
+        p2 = ops.permute()(p1, dims=[0, 2, 1])
+        z = ops.reshape()(p2, new_shape)
+        z._attrs["is_output"] = True
+        z._attrs["name"] = "z"
+
+        with compile_model(
+            z, target, "./tmp", "test_do_not_eliminate_permutation_of_strided_input"
+        ) as module:
+            # Verify the generated graph.
+            sorted_graph = module.debug_sorted_graph
+            self.assertEqual(len(sorted_graph), 4)
+            self.assertTrue(graph_has_op(sorted_graph, "permute021"))
+
+            x_pt = get_random_torch_tensor(shape, dtype)
+            z_pt = get_torch_empty_tensor(new_shape, dtype)
+
+            module.run_with_tensors({"x": x_pt}, {"z": z_pt})
+
+            self.assertTrue(
+                torch.equal(
+                    torch.reshape(torch.split(x_pt, 2, dim=2)[1], new_shape), z_pt
+                )
+            )
+
+    def test_do_not_eliminate_permutation_of_strided_input2(self):
+        dtype = "float"
+        shape = [3, 4, 2]
+        new_shape = [3, 2 * 2]
+        target = detect_target()
+
+        x = Tensor(shape, name="x", dtype=dtype, is_input=True)
+        p1 = ops.permute()(x, dims=[0, 2, 1])
+        s1 = ops.dynamic_slice()(
+            p1, start_indices=[0, 0, 2], end_indices=[2147483647, 2147483647, 4]
+        )
+        p2 = ops.permute()(s1, dims=[0, 2, 1])
+        z = ops.reshape()(p2, new_shape)
+        z._attrs["is_output"] = True
+        z._attrs["name"] = "z"
+
+        with compile_model(
+            z, target, "./tmp", "test_do_not_eliminate_permutation_of_strided_input2"
+        ) as module:
+            # Verify the generated graph.
+            sorted_graph = module.debug_sorted_graph
+            self.assertEqual(len(sorted_graph), 4)
+            self.assertTrue(graph_has_op(sorted_graph, "permute021"))
+
+            x_pt = get_random_torch_tensor(shape, dtype)
+            z_pt = get_torch_empty_tensor(new_shape, dtype)
+
+            module.run_with_tensors({"x": x_pt}, {"z": z_pt})
+
+            self.assertTrue(
+                torch.equal(
+                    torch.reshape(
+                        torch.permute(
+                            torch.split(torch.permute(x_pt, (0, 2, 1)), 2, dim=2)[1],
+                            (0, 2, 1),
+                        ),
+                        new_shape,
+                    ),
+                    z_pt,
+                )
+            )
+
+    def test_do_not_eliminate_permutation_of_reshaped_input(self):
+        dtype = "float"
+        shape = [3, 2, 4]
+        new_shape = [3, 2, 4]
+        target = detect_target()
+
+        x = Tensor(shape, name="x", dtype=dtype, is_input=True)
+        p1 = ops.permute()(x, dims=[0, 2, 1])
+        r1 = ops.reshape()(p1, new_shape)
+        p2 = ops.permute()(r1, dims=[0, 2, 1])
+        z = ops.dynamic_slice()(
+            p2, start_indices=[0, 0, 1], end_indices=[2147483647, 2147483647, 2]
+        )
+        z._attrs["is_output"] = True
+        z._attrs["name"] = "z"
+
+        with compile_model(
+            z, target, "./tmp", "test_do_not_eliminate_permutation_of_reshaped_input"
+        ) as module:
+            # Verify the generated graph.
+            sorted_graph = module.debug_sorted_graph
+            self.assertEqual(len(sorted_graph), 4)
+            self.assertTrue(graph_has_op(sorted_graph, "permute021"))
+
+            x_pt = get_random_torch_tensor(shape, dtype)
+            z_pt = get_torch_empty_tensor([3, 4, 1], dtype)
+
+            module.run_with_tensors({"x": x_pt}, {"z": z_pt})
+
+            self.assertTrue(
+                torch.equal(
+                    torch.split(
+                        torch.permute(
+                            torch.reshape(torch.permute(x_pt, (0, 2, 1)), new_shape),
+                            (0, 2, 1),
+                        ),
+                        1,
+                        dim=2,
+                    )[1],
+                    z_pt,
+                )
+            )
 
 
 if __name__ == "__main__":

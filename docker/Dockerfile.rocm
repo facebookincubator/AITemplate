@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 # ROCM Docker Image for AITemplate
-FROM docker.io/rocm/pytorch:rocm5.6_ubuntu20.04_py3.8_pytorch_2.0.1
+FROM docker.io/rocm/pytorch:rocm6.0_ubuntu22.04_py3.9_pytorch_2.0.1
 
 # Setup ubsan environment to printstacktrace
 ENV UBSAN_OPTIONS=print_stacktrace=1

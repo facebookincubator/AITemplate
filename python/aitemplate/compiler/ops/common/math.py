@@ -67,8 +67,8 @@ def sigmoid(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("SIGMOID")(tensor)
 
 
-def leaky_relu(tensor: Any) -> Tensor:
-    return OP_REGISTRY.get("LRELU")(tensor)
+def leaky_relu(tensor: Any, negative_slope: Any) -> Tensor:
+    return OP_REGISTRY.get("LRELU")(tensor, negative_slope)
 
 
 def hardtanh(*args, **kwargs) -> Tensor:

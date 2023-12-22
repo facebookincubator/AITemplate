@@ -35,9 +35,7 @@ HEAD_TEMPLATE = """
 def fused_elementwise_gen_function(func_attrs: Dict[str, Any]) -> str:
     """Generates fused_elementwise function definition."""
 
-    custom_libs = Target.current().get_custom_libs(
-        os.path.dirname(__file__), "custom_math.h"
-    )
+    custom_libs = '#include "custom_math.h"'
     return elementwise_common.fused_elementwise_gen_function(
         func_attrs=func_attrs,
         custom_libs=custom_libs,

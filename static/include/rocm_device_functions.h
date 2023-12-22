@@ -21,7 +21,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include "include/ck/tensor_operation/gpu/device/tensor_layout.hpp"
-#include "include/ck/utility/print.hpp"
+
 #include "library/include/ck/library/utility/device_memory.hpp"
 #include "library/include/ck/library/utility/host_tensor.hpp"
 #include "library/include/ck/library/utility/host_tensor_generator.hpp"
@@ -94,7 +94,7 @@ inline std::string PrintInfoDeviceProperties(const DevicePropertyType& prop) {
       << "\n     ASCII string identifying device: " << prop.name
       << "\n     Major compute capability: " << prop.major
       << "\n     Minor compute capability: " << prop.minor
-      << "\n     AMD GCN Arch Value: " << prop.gcnArch
+      << "\n     AMD GCN Arch Value: " << prop.gcnArchName
       << "\n     PCI bus ID of the device: " << prop.pciBusID
       << "\n     PCI device ID of the device: " << prop.pciDeviceID
       << "\n  Memory limits: "
@@ -118,7 +118,7 @@ inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
       << "\n     ASCII string identifying device: " << prop.name
       << "\n     Major compute capability: " << prop.major
       << "\n     Minor compute capability: " << prop.minor
-      << "\n     AMD GCN Arch Value: " << prop.gcnArch
+      << "\n     AMD GCN Arch Value: " << prop.gcnArchName
       << "\n     PCI bus ID of the device: " << prop.pciBusID
       << "\n     PCI device ID of the device: " << prop.pciDeviceID
 

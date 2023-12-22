@@ -291,6 +291,11 @@ static LoadVecType get_input_vec_type(
       break;
     }
   }
+  // We have a full slice for the entire input
+  if (flatten_index == -1) {
+    flatten_index = 0;
+  }
+
   int64_t input_start_offset =
       compute_input_linear_index<Rank>(input_strides,
                                        slice_start_indices,
@@ -348,15 +353,36 @@ void prepare_one_meta_data(
 
   slice_meta_data.num_elems[input_idx] = 1;
   for ({{index_type}}  i = 0; i < Rank; i++) {
-    assert(slice_start_indices[i] >= 0 &&
-           slice_start_indices[i] <= input_shape[i]);
-    assert(slice_end_indices[i] >= 0 && slice_end_indices[i] <= input_shape[i]);
-    assert(slice_start_indices[i] <= slice_end_indices[i]);
+    int64_t slice_start_idx = slice_start_indices[i];
+    int64_t slice_end_idx = slice_end_indices[i];
+    int64_t input_dim = input_shape[i];
 
-    slice_meta_data.num_elems[input_idx] *=
-        slice_end_indices[i] - slice_start_indices[i];
-    slice_meta_data.slice_start_indices[input_idx][i] = slice_start_indices[i];
-    slice_meta_data.slice_end_indices[input_idx][i] = slice_end_indices[i];
+    if (!(slice_start_idx >= 0 && slice_start_idx <= input_dim)) {
+        throw std::runtime_error("invalid slice_start_idx: " +
+            std::to_string(slice_start_idx) +
+            ", input_dim: " +
+            std::to_string(input_dim) +
+            ", i: " + std::to_string(i));
+    }
+    if (!(slice_end_idx >= 0 && slice_end_idx <= input_dim)) {
+        throw std::runtime_error("invalid slice_end_idx: " +
+            std::to_string(slice_end_idx) +
+            ", input_dim: " +
+            std::to_string(input_dim) +
+            ", i: " + std::to_string(i));
+    }
+    if (slice_start_idx > slice_end_idx) {
+        throw std::runtime_error(
+            "expected slice_start_idx <= slice_end_idx but got slice_start_idx: " +
+            std::to_string(slice_start_idx) +
+            " and slice_end_idx: " +
+            std::to_string(slice_end_idx) +
+            ", i: " + std::to_string(i));
+    }
+
+    slice_meta_data.num_elems[input_idx] *= slice_end_idx - slice_start_idx;
+    slice_meta_data.slice_start_indices[input_idx][i] = slice_start_idx;
+    slice_meta_data.slice_end_indices[input_idx][i] = slice_end_idx;
   }
 
   slice_meta_data.dim_sizes[input_idx] =
@@ -383,10 +409,20 @@ void slice_scatter_kernel_launcher(
 
   // meta data for placing sliced output
   scatter_meta_data.output_strides[Rank-1] = 1;
+  if (output_shape[Rank-1] < 0) {
+    throw std::runtime_error("invalid output_shape[Rank-1]: " +
+        std::to_string(output_shape[Rank-1]) +
+        ", Rank: " + std::to_string(Rank));
+  }
   scatter_meta_data.output_shape[Rank-1] = output_shape[Rank-1];
   for ({{index_type}}  i = Rank - 2; i >= 0; i--) {
     scatter_meta_data.output_strides[i] =
         scatter_meta_data.output_strides[i+1] * output_shape[i+1];
+    if (output_shape[i] < 0) {
+      throw std::runtime_error("invalid output_shape[i]: " +
+          std::to_string(output_shape[i]) +
+          ", i: " + std::to_string(i));
+    }
     scatter_meta_data.output_shape[i] = output_shape[i];
   }
 
@@ -421,6 +457,11 @@ void slice_scatter_kernel_launcher(
     if (slice_meta_data.num_elems[i] > max_num_elems) {
       max_num_elems =  slice_meta_data.num_elems[i];
     }
+  }
+
+  if (max_num_elems <= 0) {
+    throw std::runtime_error("invalid max_num_elems: " +
+        std::to_string(max_num_elems));
   }
 
   {{index_type}}  m = max_num_elems % (ThreadsPerBlock * ElemsPerThread) != 0;
@@ -465,6 +506,12 @@ normalize_slice_indices(
   std::vector<int64_t> slice_start_indices(rank);
   std::vector<int64_t> slice_end_indices(rank);
   for ({{index_type}}  i = 0; i < rank; i++) {
+    if (input_shape[i] < 0) {
+        throw std::runtime_error("invalid input_shape: " +
+            std::to_string(input_shape[i]) +
+            ", i: " +
+            std::to_string(i));
+    }
     slice_start_indices[i] = orig_slice_start_indices[i] < 0 ?
                              input_shape[i] + orig_slice_start_indices[i]:
                              orig_slice_start_indices[i];
@@ -548,6 +595,9 @@ void {{func_name}}(
   }
   if (scatter_dim >= rank) {
     throw std::runtime_error("scatter_dim must < rank!");
+  }
+  if (num_inputs < 1) {
+    throw std::runtime_error("num_inputs must be larger than 0!");
   }
 
   // clip slip start and end indices

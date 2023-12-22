@@ -15,6 +15,17 @@
 #ifndef CUSTOM_MATH
 #define CUSTOM_MATH
 
+#include <hip/hip_fp16.h>
+#include <hip/hip_bfloat16.h>
+#include <hip/hip_runtime.h>
+
+using bfloat16 = hip_bfloat16;
+
+
+#include <hip/math_functions.h>
+#include <hip/device_functions.h>
+
+
 #ifndef __HALF2_TO_UI
 #define __HALF2_TO_UI(var) *(reinterpret_cast<unsigned int*>(&(var)))
 #endif

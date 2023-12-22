@@ -36,8 +36,6 @@ from .lower_settings import LowerPrecision, LowerSettings
 logger: logging.Logger = logging.getLogger(__name__)
 Input = Sequence[Any]
 
-torch.ops.load_library("build/libait_model.so")
-
 
 # A list of (function, target) pairs to not apply acc normalization
 # to when scripting. For one reason or another, these targets do

@@ -229,12 +229,11 @@ FUNC_TEMPLATE = jinja2.Template(
 {{head}}
 
 #include "jagged.h"
+{{custom_libs}}
 
 namespace {
 
 {{constant}}
-
-{{custom_libs}}
 
 {{tensor_accessor_lib}}
 

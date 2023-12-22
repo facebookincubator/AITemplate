@@ -38,9 +38,7 @@ HEAD_TEMPLATE = """
 @registry.reg("cuda.fused_elementwise.gen_function")
 def fused_elementwise_gen_function(func_attrs: Dict[str, Any]) -> str:
     """Generates fused_elementwise function definition."""
-    custom_libs = Target.current().get_custom_libs(
-        os.path.dirname(__file__), "custom_math.cuh"
-    )
+    custom_libs = '#include "custom_math.cuh"'
     return elementwise_common.fused_elementwise_gen_function(
         func_attrs=func_attrs,
         custom_libs=custom_libs,

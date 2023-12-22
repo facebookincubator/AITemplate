@@ -36,6 +36,7 @@ class TileDesc:
     beta_src_dim: int
     beta_src_size: int
     out_dst_size: int
+    save_mean_inv_std: int
 
     def __str__(self) -> str:
         values = list(self.__dict__.values())
@@ -78,12 +79,13 @@ class GroupNormOperation:
     def emit(self) -> str:
         template = jinja2.Template(
             """
-using {{name}} = ck::tensor_operation::device::DeviceNormalizationImpl<
+using {{name}} = ck::tensor_operation::device::DeviceNormalizationFwdImpl<
     {{InDType}},
     {{InDType}},
     {{InDType}},
     {{AccDType}},
     {{OutDType}},
+    {{AccDType}},
     YElementOp,
     {{Rank}},
     {{NumReduceDim}},
@@ -113,7 +115,7 @@ if __name__ == "__main__":
         Out=library.DataType.f16,
         Rank=5,
         NumReduceDim=3,
-        tile_desc=TileDesc(256, 8, 32, 1, 8, 1, 8, 1, 8, 1, 8, 8),
+        tile_desc=TileDesc(256, 8, 32, 1, 8, 1, 8, 1, 8, 1, 8, 8, 1),
     )
     print(str(GroupNormOp))
     print(GroupNormOp.emit())

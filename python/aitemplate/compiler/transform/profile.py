@@ -32,6 +32,7 @@ from aitemplate.compiler.ops.gemm_universal.gemm_common import (
     gemm,
     GemmProfilerPostprocessingDelegate,
 )
+from aitemplate.utils.environ import force_profiler_cache
 
 # pylint: disable=C0103,W0613,W0102
 
@@ -56,7 +57,7 @@ def profile(
     workdir="./tmp",
     devices=None,
     dynamic_profiling_strategy=DynamicProfileStrategy.MAX,
-    timeout=300,
+    timeout=500,
 ):
     """Profiles kernels.
 
@@ -79,6 +80,7 @@ def profile(
         devices = [0]
     profiler_dir = os.path.join(workdir)
     start_t = datetime.now()
+    _LOGGER.info(f"Force profiler cache = {force_profiler_cache()}")
     generated_profilers = list(
         codegen.gen_profiler(sorted_graph, profiler_dir, dynamic_profiling_strategy)
     )

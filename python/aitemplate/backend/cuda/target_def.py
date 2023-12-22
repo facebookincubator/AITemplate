@@ -265,6 +265,7 @@ class FBCUDA(CUDA):
     nvcc_option_json = None
     cutlass_path_ = None
     static_compile_options_ = None
+    optimize_for_compilation_time_ = False
 
     def __init__(self, arch="80", remote_cache_bytes=None, **kwargs):
         from libfb.py import parutil
@@ -274,6 +275,15 @@ class FBCUDA(CUDA):
         )
         cub_src_path = parutil.get_dir_path("aitemplate/AITemplate/fb/3rdparty/cub")
         static_files_path = parutil.get_dir_path("aitemplate/AITemplate/static")
+        if "optimize_for_compilation_time" in kwargs:
+            FBCUDA.optimize_for_compilation_time_ = kwargs[
+                "optimize_for_compilation_time"
+            ]
+        _LOGGER.info(
+            "Optimize for compilation time : {}".format(
+                FBCUDA.optimize_for_compilation_time_
+            )
+        )
         self._include_path = None
         if not FBCUDA.cutlass_path_:
             self._include_path = tempfile.mkdtemp()
@@ -403,9 +413,16 @@ class FBCUDA(CUDA):
                     "--expt-relaxed-constexpr",
                     f"-gencode=arch=compute_{nvcc_arch},code=[sm_{nvcc_arch},compute_{nvcc_arch}]",
                     "-Xcompiler=-Wconversion",
-                    environ.get_compiler_opt_level(),
+                    environ.get_compiler_opt_level()
+                    if not FBCUDA.optimize_for_compilation_time_
+                    else "-O1",
                     "-std=c++17",
                 ]
+                + (
+                    ["-DOPTIMIZE_FOR_COMPILATION_TIME"]
+                    if FBCUDA.optimize_for_compilation_time_
+                    else []
+                )
             )
             if environ.enable_ptxas_info():
                 options.extend(

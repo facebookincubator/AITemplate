@@ -767,6 +767,50 @@ def addmm_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
 
 
 @register_custom_acc_mapper_fn(
+    op_and_target=("call_function", torch.addcmul),
+    arg_replacement_tuples=[
+        ("input", "input"),
+        ("tensor1", "tensor1"),
+        ("tensor2", "tensor2"),
+        ("value", "value"),
+    ],
+)
+def addcmul_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
+    """
+    Mapping from torch.addcmul to acc_ops.mul and acc_ops.add. If value is not 1, then we do another acc_ops.mul again.
+    """
+
+    with node.graph.inserting_before(node):
+        mul_kwargs = {"input": node.kwargs["tensor1"], "other": node.kwargs["tensor2"]}
+        mul_node = node.graph.create_node(
+            "call_function", mul, kwargs=mul_kwargs, name=f"{node.name}_mul"
+        )
+        mul_node.meta = node.meta.copy()
+
+        input_node = mul_node
+        if node.kwargs["value"] != 1:
+            value_mul_kwargs = {"input": input_node, "other": node.kwargs["value"]}
+            new_input_node = node.graph.create_node(
+                "call_function",
+                mul,
+                kwargs=value_mul_kwargs,
+                name="{mul_node.name}_value_mul",
+            )
+            new_input_node.meta = input_node.meta.copy()
+            input_node = new_input_node
+
+        add_kwargs = {
+            "input": node.kwargs["input"],
+            "other": input_node,
+        }
+        add_node = node.graph.create_node(
+            "call_function", add, kwargs=add_kwargs, name=f"{node.name}_add"
+        )
+        add_node.meta = node.meta.copy()
+        return add_node
+
+
+@register_custom_acc_mapper_fn(
     op_and_target=("call_function", torch.t),
     arg_replacement_tuples=[
         ("input", "input"),

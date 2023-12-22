@@ -26,20 +26,12 @@ from aitemplate.testing import detect_target
 from fx2ait.acc_tracer import acc_tracer
 from fx2ait.acc_tracer.ait_acc_normalizer import update_acc_op_mappers_for_ait
 from fx2ait.ait_module import AITModule
+from fx2ait.extension import is_oss_ait_model
 from fx2ait.fx2ait import AITInterpreter
 from fx2ait.tensor_spec import TensorSpec
 from torch.fx.node import map_aggregate
 
 logger: logging.Logger = logging.getLogger(__name__)
-
-OSS_AITModel = False
-try:
-    torch.ops.load_library("//deeplearning/ait:AITModel")
-    logger.info("===Load non-OSS AITModel===")
-except Exception:
-    torch.ops.load_library("build/libait_model.so")
-    logger.info("===Load OSS AITModel===")
-    OSS_AITModel = True
 
 
 class LowerPrecision(Enum):
@@ -107,6 +99,7 @@ class AITTestCase(TestCase):
         leaf_module: Callable = None,  # one leaf module
         apply_passes_to_lowered_module_only=False,
         use_fp16_acc=True,
+        fail_on_nan=False,
     ):
         # TODO: add precision to interpreter once AIT supports multiple precision level
         # TODO: @qxy11 remove permute options once AIT supports channels-first format
@@ -114,7 +107,10 @@ class AITTestCase(TestCase):
 
         leaf_module_list = []
         if leaf_module:
-            leaf_module_list.append(leaf_module)
+            if isinstance(leaf_module, list):
+                leaf_module_list.extend(leaf_module)
+            else:
+                leaf_module_list.append(leaf_module)
 
         orig_mod = copy.deepcopy(mod)
         orig_mod.eval()
@@ -165,7 +161,7 @@ class AITTestCase(TestCase):
             interp_result = interp.run()
             sec = time.perf_counter() - start
             logger.info(f"Interpreter run time(s):{sec}")
-            if OSS_AITModel:
+            if is_oss_ait_model():
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
                         interp_result.engine.lib_path,
@@ -216,13 +212,17 @@ class AITTestCase(TestCase):
                     out = map_aggregate(
                         out, lambda output: output.permute(*permute_outputs)
                     )
+                out = out.cpu()
+                if out.numel() != 0:
+                    max_diff = torch.max(torch.abs(out - ref)).item()
+                    logger.info(f"Max diff = {max_diff}")
                 torch.testing.assert_close(
-                    out.cpu(),
+                    out,
                     ref,
                     rtol=rtol,
                     atol=atol,
                     check_dtype=False,
-                    equal_nan=True,
+                    equal_nan=not fail_on_nan,
                 )
 
     def run_test_with_dynamic_shape(
@@ -291,7 +291,7 @@ class AITTestCase(TestCase):
             interp_result = interp.run()
             sec = time.perf_counter() - start
             logger.info(f"Interpreter run time(s):{sec}")
-            if OSS_AITModel:
+            if is_oss_ait_model():
                 ait_mod = AITModule(
                     torch.classes.ait.AITModel(
                         interp_result.engine.lib_path,

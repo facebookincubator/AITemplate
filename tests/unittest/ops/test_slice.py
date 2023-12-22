@@ -76,6 +76,11 @@ class DynamicSliceTestCase(unittest.TestCase):
 
     def test_dynamic_slice(self):
         self._run_dynamic_slice(
+            input_shape=[10, 13],
+            start_indices=[None, None],
+            end_indices=[None, None],
+        )
+        self._run_dynamic_slice(
             input_shape=[1],
             start_indices=[0],
             end_indices=[1],
@@ -224,6 +229,12 @@ class DynamicSliceBatchedTestCase(unittest.TestCase):
         self.test_count += 1
 
     def test_batch_dynamic_slice(self):
+        self._run_batch_dynamic_slice(
+            batch_sizes=[5, 20],
+            input_shape=[2, 3, 4],
+            start_indices=[None, None, None, None],
+            end_indices=[None, None, None, None],
+        )
         self._run_batch_dynamic_slice(
             batch_sizes=[1, 1],
             input_shape=[1],

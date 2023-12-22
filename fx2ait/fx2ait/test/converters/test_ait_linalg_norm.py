@@ -42,6 +42,24 @@ class TestLinalgConverter(AITTestCase):
                 dim=1,
                 keepdims=True,
             ),
+            param(
+                "vector_norm_dim_3",
+                input_shape=[1, 100, 40, 40],
+                dim=3,
+                keepdims=False,
+            ),
+            param(
+                "vector_norm_dim_2",
+                input_shape=[1, 100, 40, 40],
+                dim=2,
+                keepdims=False,
+            ),
+            param(
+                "vector_norm_dim_1",
+                input_shape=[1, 100, 40, 40],
+                dim=-1,
+                keepdims=True,
+            ),
         ]
     )
     def test_linalg_norm(

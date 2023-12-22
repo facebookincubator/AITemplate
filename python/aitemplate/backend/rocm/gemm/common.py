@@ -115,7 +115,7 @@ SRC_TEMPLATE = jinja2.Template(
 #include <random>
 #include <rocrand/rocrand.h>
 #include "logging.h"
-#include "include/ck/utility/print.hpp"
+
 #include "library/include/ck/library/utility/device_memory.hpp"
 #include "library/include/ck/library/utility/host_tensor.hpp"
 #include "library/include/ck/library/utility/host_tensor_generator.hpp"

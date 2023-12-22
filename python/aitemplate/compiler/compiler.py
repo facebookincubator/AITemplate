@@ -160,7 +160,7 @@ def compile_model(
     allocator_kind: Optional[AITemplateAllocatorKind] = None,
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
     do_optimize_graph: bool = True,
-    profile_timeout: int = 300,
+    profile_timeout: int = 500,
 ) -> Model:
     """Compiles a model and generates a .so file.
 

@@ -118,6 +118,7 @@ class ROCM(Target):
         options = [
             environ.get_compiler_opt_level(),
             "-fPIC",
+            "-mcmodel=medium",
             "-fvisibility=hidden",
             "-std=c++17",
             "-w",
@@ -126,14 +127,9 @@ class ROCM(Target):
                 self._pkg_path()
             ),
         ]
-        if self._arch in {"GFX908", "gfx908"}:
-            options.append("-DCK_AMD_GPU_GFX908")
-            options.append("--offload-arch=gfx908")
-        elif self._arch in {"GFX90a", "gfx90a"}:
-            options.append("-DCK_AMD_GPU_GFX90A")
-            options.append("--offload-arch=gfx90a")
-        else:
+        if self._arch.lower() not in {"gfx908", "gfx90a"}:
             raise RuntimeError("Unsupported GPU Arch")
+        options.append("--offload-arch=native")
         for path in ck_paths:
             options.append("-I" + path)
         options.append("-I" + os.path.join(self.static_files_path, "include"))

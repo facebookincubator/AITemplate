@@ -37,7 +37,6 @@ from aitemplate.compiler.transform.name_graph import dedup_symbolic_name, name_g
 from aitemplate.compiler.transform.optimize_graph import optimize_graph
 from aitemplate.compiler.transform.profile import profile
 from aitemplate.compiler.transform.refine_graph import refine_graph
-from aitemplate.compiler.transform.remove_id_ops import remove_id_ops
 from aitemplate.compiler.transform.remove_no_ops import remove_no_ops
 from aitemplate.compiler.transform.remove_unused_ops import remove_unused_ops
 from aitemplate.compiler.transform.split_large_concat_ops import split_large_concat_ops

@@ -6,4 +6,4 @@ pip3 install opencv-python
 pip3 install tqdm
 pip3 install timm
 pip3 install transformers==4.25.0
-pip3 install diffusers==0.11.1
+pip3 install diffusers==0.24.0

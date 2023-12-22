@@ -26,11 +26,6 @@ from fx2ait.ait_module import AITModule
 from fx2ait.converters.converter_registry import AIT_CONVERTERS
 from fx2ait.fx2ait import AITInterpreter
 
-try:
-    torch.ops.load_library("//deeplearning/ait:AITModel")
-except BaseException:
-    torch.ops.load_library("build/libait_model.so")
-
 
 _VIEW_OPS = frozenset(
     (

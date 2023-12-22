@@ -439,10 +439,7 @@ class Target:
             fname_dst, ext = os.path.splitext(fname)
             if ext != ".cpp":
                 continue
-            # TODO: Remove this file when the linker error gets fixed in rocm backend.
-            # All files in csrc should be shared between the ROCM and CUDA backends.
-            if fname == "rocm_hack.cpp" and self.name() != "rocm":
-                continue
+            
             fname_src = os.path.join(csrc, fname)
             fname_dst_cpp = os.path.join(workdir, f"{fname_dst}{self.src_extension()}")
             shutil.copyfile(fname_src, fname_dst_cpp)
