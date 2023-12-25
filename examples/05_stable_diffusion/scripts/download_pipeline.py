@@ -14,7 +14,7 @@
 #
 import click
 import torch
-from diffusers import StableDiffusionPipeline
+from diffusers import DiffusionPipeline
 
 
 @click.command()
@@ -37,7 +37,7 @@ from diffusers import StableDiffusionPipeline
 )
 def download_pipeline_files(model_name, token, save_directory) -> None:
 
-    StableDiffusionPipeline.from_pretrained(
+    DiffusionPipeline.from_pretrained(
         model_name,
         # revision="fp16",
         torch_dtype=torch.float16,

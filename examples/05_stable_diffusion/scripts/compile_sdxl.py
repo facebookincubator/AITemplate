@@ -21,7 +21,7 @@ import click
 import torch
 from aitemplate.testing import detect_target
 from aitemplate.utils.import_path import import_parent
-from diffusers import AutoencoderKL, StableDiffusionXLPipeline
+from diffusers import AutoencoderKL, DiffusionPipeline
 
 if __name__ == "__main__":
     import_parent(filepath=__file__, level=1)
@@ -95,7 +95,7 @@ def compile_diffusers(
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
-    pipe = StableDiffusionXLPipeline.from_pretrained(
+    pipe = DiffusionPipeline.from_pretrained(
         hf_hub_or_path,
         torch_dtype=torch.float16,
     ).to("cuda")
@@ -128,17 +128,17 @@ def compile_diffusers(
     # text_encoder 2
     model_name = f"{model_name_prefix}_text_encoder_2"
     compile_clip(
-        pipe.text_encoder,
+        pipe.text_encoder_2,
         batch_size=batch_size,
-        seqlen=pipe.text_encoder.config.max_position_embeddings,
+        seqlen=pipe.text_encoder_2.config.max_position_embeddings,
         use_fp16_acc=use_fp16_acc,
         convert_conv_to_gemm=convert_conv_to_gemm,
         output_hidden_states=True,
-        text_projection_dim=pipe.text_encoder.config.projection_dim,
-        depth=pipe.text_encoder.config.num_hidden_layers,
-        num_heads=pipe.text_encoder.config.num_attention_heads,
-        dim=pipe.text_encoder.config.hidden_size,
-        act_layer=pipe.text_encoder.config.hidden_act,
+        text_projection_dim=pipe.text_encoder_2.config.projection_dim,
+        depth=pipe.text_encoder_2.config.num_hidden_layers,
+        num_heads=pipe.text_encoder_2.config.num_attention_heads,
+        dim=pipe.text_encoder_2.config.hidden_size,
+        act_layer=pipe.text_encoder_2.config.hidden_act,
         constants=include_constants,
         model_name=model_name,
         work_dir=work_dir,

@@ -83,7 +83,7 @@ TENSOR_DECL_TEMPLATE = jinja2.Template(
 
   // TODO: special pool size for 8M L2 cache
   // need to tune it for other devices
-  int64_t mem_pool_sz = std::max(2,  std::min(64, int((1 << 23) / ptr_sz)));
+  int64_t mem_pool_sz = std::max(1,  std::min(64, int((1 << 23) / ptr_sz)));
 
   memory_pool->AllocateHalfTensor(ptr_sz, mem_pool_sz);  // in: index 0
   memory_pool->AllocateHalfTensor(ptr_sz, mem_pool_sz);  // out: index 1

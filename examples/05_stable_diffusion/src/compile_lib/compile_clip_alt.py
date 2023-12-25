@@ -20,7 +20,9 @@ from aitemplate.testing import detect_target
 
 from ..modeling.clip import CLIPTextTransformer as ait_CLIPTextTransformer
 from .util import torch_dtype_from_str
+import torch
 
+USE_CUDA = detect_target().name() == "cuda"
 
 def map_clip(pt_mod, device="cuda", dtype="float16"):
     pt_params = dict(pt_mod.named_parameters())
@@ -33,12 +35,46 @@ def map_clip(pt_mod, device="cuda", dtype="float16"):
             ait_name = ait_name.replace("out_proj", "proj")
         elif name.endswith("out_proj.bias"):
             ait_name = ait_name.replace("out_proj", "proj")
-        elif "q_proj" in name:
-            ait_name = ait_name.replace("q_proj", "proj_q")
-        elif "k_proj" in name:
-            ait_name = ait_name.replace("k_proj", "proj_k")
-        elif "v_proj" in name:
-            ait_name = ait_name.replace("v_proj", "proj_v")
+        elif USE_CUDA:
+            if "q_proj" in name:
+                ait_name = ait_name.replace("q_proj", "proj_q")
+            elif "k_proj" in name:
+                ait_name = ait_name.replace("k_proj", "proj_k")
+            elif "v_proj" in name:
+                ait_name = ait_name.replace("v_proj", "proj_v")
+        else:
+            if name.endswith("q_proj.weight"):
+                ait_name = ait_name.replace("q_proj", "qkv")
+                prefix = key[: -len("q_proj.weight")]
+                q = pt_params[prefix + "q_proj.weight"]
+                k = pt_params[prefix + "k_proj.weight"]
+                v = pt_params[prefix + "v_proj.weight"]
+                qkv_weight = torch.cat([q, k, v], dim=0).cuda()
+                params_ait[ait_name] = qkv_weight
+                continue
+            elif name.endswith("q_proj.bias"):
+                ait_name = ait_name.replace("q_proj", "qkv")
+                prefix = key[: -len("q_proj.bias")]
+                q = pt_params[prefix + "q_proj.bias"]
+                k = pt_params[prefix + "k_proj.bias"]
+                v = pt_params[prefix + "v_proj.bias"]
+                qkv_bias = torch.cat([q, k, v], dim=0).cuda()
+                params_ait[ait_name] = qkv_bias
+                continue
+            elif name.endswith("k_proj.weight"):
+                continue
+            elif name.endswith("k_proj.bias"):
+                continue
+            elif name.endswith("v_proj.weight"):
+                continue
+            elif name.endswith("v_proj.bias"):
+                continue
+        # elif "q_proj" in name:
+        #     ait_name = ait_name.replace("q_proj", "proj_q")
+        # elif "k_proj" in name:
+        #     ait_name = ait_name.replace("k_proj", "proj_k")
+        # elif "v_proj" in name:
+        #     ait_name = ait_name.replace("v_proj", "proj_v")
         params_ait[ait_name] = arr
     return params_ait
 

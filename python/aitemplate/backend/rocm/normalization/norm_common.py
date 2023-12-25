@@ -141,12 +141,12 @@ struct KernelTimerImpl
     hipGetErrorString(hipEventDestroy(mStart));
     hipGetErrorString(hipEventDestroy(mEnd));
   }
-  void Start() {
+  void Start(hipStream_t stream) {
     hipGetErrorString(hipDeviceSynchronize());
-    hipGetErrorString(hipEventRecord(mStart, nullptr));
+    hipGetErrorString(hipEventRecord(mStart, stream));
   }
-  void End() {
-    hipGetErrorString(hipEventRecord(mEnd, nullptr));
+  void End(hipStream_t stream) {
+    hipGetErrorString(hipEventRecord(mEnd, stream));
     hipGetErrorString(hipEventSynchronize(mEnd));
   }
   float GetElapsedTime() const {
@@ -179,11 +179,11 @@ int main(int argc, char** argv) {
   }
   // run
   KernelTimerImpl timer;
-  timer.Start();
+  timer.Start(stream);
   for(int i = 0; i < 5; ++i) {
     {{func_call}}
   }
-  timer.End();
+  timer.End(stream);
   std::cout << "OP:" << "{{op_name}}" << ",";
   std::cout << "TIME:" << timer.GetElapsedTime() << ",";
   std::cout << "WS:" << GLOBAL_WORKSPACE_SIZE << std::endl;

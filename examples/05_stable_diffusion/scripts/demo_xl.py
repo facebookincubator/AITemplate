@@ -17,12 +17,13 @@ import click
 import torch
 
 from aitemplate.utils.import_path import import_parent
-from diffusers import AutoencoderKL, StableDiffusionXLPipeline
+from diffusers import AutoencoderKL, DiffusionPipeline
 
 if __name__ == "__main__":
     import_parent(filepath=__file__, level=1)
 
 from src.pipeline_stable_diffusion_xl_ait import StableDiffusionXLAITPipeline
+from aitemplate.testing.benchmark_pt import benchmark_torch_function
 
 
 @click.command()
@@ -84,7 +85,7 @@ def run(
     negative_prompt,
     benchmark,
 ):
-    diffusers_pipe = StableDiffusionXLPipeline.from_pretrained(
+    diffusers_pipe = DiffusionPipeline.from_pretrained(
         hf_hub_or_path,
         use_safetensors=True,
         torch_dtype=torch.float16,
@@ -117,6 +118,11 @@ def run(
         height=height,
         width=width,
     ).images
+    if benchmark:
+        t = benchmark_torch_function(10, pipe, prompt, prompt_2=prompt, height=height, width=width)
+        print(
+            f"sd e2e: width={width}, height={height}, batchsize={batch}, latency={t} ms"
+        )
     for i, image in enumerate(images):
         image.save(f"example_ait_{i}.png")
 
