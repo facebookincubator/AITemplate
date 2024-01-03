@@ -87,14 +87,16 @@ def run(
 ):
     diffusers_pipe = DiffusionPipeline.from_pretrained(
         hf_hub_or_path,
-        use_safetensors=True,
+        revision="fp16",
         torch_dtype=torch.float16,
-    )
+    ).to("cuda")
+
     vae = AutoencoderKL.from_pretrained(
         "madebyollin/sdxl-vae-fp16-fix",
         use_safetensors=True,
         torch_dtype=torch.float16,
-    )
+    ).to("cuda")
+
     pipe = StableDiffusionXLAITPipeline(
         vae,
         diffusers_pipe.text_encoder,
@@ -117,14 +119,19 @@ def run(
         prompt_2=prompt,
         height=height,
         width=width,
+        num_inference_steps=20,
+        guidance_scale=8
     ).images
+    
+    for i, image in enumerate(images):
+        image.save(f"example_ait_{i}.png")
+
     if benchmark:
-        t = benchmark_torch_function(10, pipe, prompt, prompt_2=prompt, height=height, width=width)
+        t = benchmark_torch_function(10, pipe, prompt, prompt_2=prompt, height=height, width=width, num_inference_steps=20, guidance_scale=8)
         print(
             f"sd e2e: width={width}, height={height}, batchsize={batch}, latency={t} ms"
         )
-    for i, image in enumerate(images):
-        image.save(f"example_ait_{i}.png")
+
 
 
 if __name__ == "__main__":

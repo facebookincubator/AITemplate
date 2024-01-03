@@ -165,6 +165,9 @@ class StableDiffusionXLAITPipeline(
         self.unet_exe = None
         self.vae_exe = None
         self.timestep_exe = Model(timestep_module_path)
+        self.apply_clip()
+        self.apply_vae()
+        self.apply_unet()
 
     def apply_vae(self):
         self.vae_exe = Model(self.vae_module_path)
@@ -725,7 +728,7 @@ class StableDiffusionXLAITPipeline(
         elif prompt is not None and isinstance(prompt, list):
             batch_size = len(prompt)
 
-        self.apply_clip()
+        
 
         # here `guidance_scale` is defined analog to the guidance weight `w` of equation (2)
         # of the Imagen paper: https://arxiv.org/pdf/2205.11487.pdf . `guidance_scale = 1`
@@ -746,7 +749,7 @@ class StableDiffusionXLAITPipeline(
             negative_prompt_2=negative_prompt_2,
         )
 
-        self.unload_clip()
+        # self.unload_clip()
 
         # 4. Prepare timesteps
         self.scheduler.set_timesteps(num_inference_steps)
@@ -808,7 +811,6 @@ class StableDiffusionXLAITPipeline(
             )
             timesteps = timesteps[:num_inference_steps]
 
-        self.apply_unet()
 
         with self.progress_bar(total=num_inference_steps) as progress_bar:
             for i, t in enumerate(timesteps):
@@ -866,15 +868,15 @@ class StableDiffusionXLAITPipeline(
                     if callback is not None and i % callback_steps == 0:
                         callback(i, t, latents)
 
-        self.unload_unet()
+        # self.unload_unet()
 
-        self.apply_vae()
+        # self.apply_vae()
 
         if not output_type == "latent":
             image = vae_decode_inference(
                 self.vae_exe, latents / self.vae.config.scaling_factor, to_cpu=False
             )["pixels"]
-            self.unload_vae()
+            # self.unload_vae()
         else:
             image = latents
             return StableDiffusionXLPipelineOutput(images=image)

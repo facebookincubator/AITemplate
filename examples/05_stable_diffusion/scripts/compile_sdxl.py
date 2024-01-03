@@ -97,6 +97,7 @@ def compile_diffusers(
 
     pipe = DiffusionPipeline.from_pretrained(
         hf_hub_or_path,
+        revision="fp16",
         torch_dtype=torch.float16,
     ).to("cuda")
     if fp32_vae:
