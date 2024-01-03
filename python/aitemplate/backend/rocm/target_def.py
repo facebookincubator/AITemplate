@@ -127,7 +127,7 @@ class ROCM(Target):
                 self._pkg_path()
             ),
         ]
-        if self._arch.lower() not in {"gfx908", "gfx90a"}:
+        if self._arch.lower() not in {"gfx908", "gfx90a", "gfx940", "gfx941", "gfx942"}:
             raise RuntimeError("Unsupported GPU Arch")
         options.append("--offload-arch=native")
         for path in ck_paths:
