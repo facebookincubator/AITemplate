@@ -362,7 +362,7 @@ class StableDiffusionXLAITPipeline(
                     ]
                 # negative_pooled_prompt_embeds = negative_prompt_embeds[0]
                 # negative_prompt_embeds = negative_prompt_embeds.hidden_states[-2] # -2 because it includes last hidden state, AIT does not so uses -1
-                prompt_embeds = negative_prompt_embeds[
+                negative_prompt_embeds = negative_prompt_embeds[
                     f"hidden_state_{text_encoder.nlayers[-1]}"
                 ]
 
