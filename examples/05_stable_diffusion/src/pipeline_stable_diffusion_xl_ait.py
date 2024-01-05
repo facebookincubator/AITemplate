@@ -28,7 +28,6 @@ from diffusers.schedulers import KarrasDiffusionSchedulers
 from diffusers.utils import is_invisible_watermark_available, logging
 from diffusers.utils.torch_utils import randn_tensor
 from transformers import CLIPTextModel, CLIPTextModelWithProjection, CLIPTokenizer
-from transformers import CLIPTextModel, CLIPTextModelWithProjection, CLIPTokenizer
 
 from .compile_lib.compile_clip_alt import map_clip
 from .compile_lib.compile_unet_alt import map_unet
@@ -283,14 +282,13 @@ class StableDiffusionXLAITPipeline(
                 truncation=True,
                 return_tensors="pt",
             )
-
             text_input_ids = text_inputs.input_ids
 
             # prompt_embeds = text_encoder(
             #     text_input_ids.to(device),
             #     output_hidden_states=True,
             # )
-            prompt_embeds = clip_inference(text_encoder, text_input_ids, to_cpu=False)
+            prompt_embeds = clip_inference(text_encoder, text_input_ids, to_cpu=False, sync=False)
             # We are only ALWAYS interested in the pooled output of the final text encoder
             if "text_embeds" in prompt_embeds.keys():
                 pooled_prompt_embeds = prompt_embeds["text_embeds"]
@@ -351,7 +349,7 @@ class StableDiffusionXLAITPipeline(
                 #     output_hidden_states=True,
                 # )
                 negative_prompt_embeds = clip_inference(
-                    text_encoder, uncond_text_input_ids, to_cpu=False
+                    text_encoder, uncond_text_input_ids, to_cpu=False, sync=False
                 )
                 # We are only ALWAYS interested in the pooled output of the final text encoder
                 if "text_embeds" in negative_prompt_embeds.keys():
@@ -564,7 +562,7 @@ class StableDiffusionXLAITPipeline(
 
         add_time_embeds = []
         for time_id in add_time_ids:
-            time_embed = timestep_inference(self.timestep_exe, time_id, to_cpu=False)[
+            time_embed = timestep_inference(self.timestep_exe, time_id, to_cpu=False, sync=False)[
                 "time_embed"
             ]
             add_time_embeds.append(time_embed)
@@ -840,6 +838,7 @@ class StableDiffusionXLAITPipeline(
                     prompt_embeds,
                     add_embeds=add_embeds,
                     to_cpu=False,
+                    sync=False
                 )["latent_output"]
 
                 # perform guidance
@@ -874,7 +873,7 @@ class StableDiffusionXLAITPipeline(
 
         if not output_type == "latent":
             image = vae_decode_inference(
-                self.vae_exe, latents / self.vae.config.scaling_factor, to_cpu=False
+                self.vae_exe, latents / self.vae.config.scaling_factor, to_cpu=False, graph_mode=True, sync=False
             )["pixels"]
             # self.unload_vae()
         else:

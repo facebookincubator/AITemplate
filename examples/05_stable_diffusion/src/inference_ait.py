@@ -46,8 +46,10 @@ def inference(
     benchmark_repeat: int = 4,
     permute: bool = False,
     to_cpu: bool = False,
+    graph_mode=False,
+    sync=True,
 ):
-    module.run_with_tensors(inputs, outputs, graph_mode=False)
+    module.run_with_tensors(inputs, outputs, graph_mode=graph_mode, sync=sync)
     if permute:
         for name, output in outputs.items():
             if len(output.shape) == 4:
@@ -88,6 +90,8 @@ def timestep_inference(
     dtype: str = "float16",
     benchmark: bool = False,
     to_cpu: bool = False,
+    graph_mode: bool = False,
+    sync: bool = True
 ):
     timestep = torch.tensor([timestep]).to(device)
     inputs = {"timestep": timestep.to(device)}
@@ -96,7 +100,7 @@ def timestep_inference(
             inputs[k] = v.half()
     dims = [1]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, to_cpu=to_cpu)
+    return inference(module, inputs, outputs, benchmark=benchmark, to_cpu=to_cpu, graph_mode=graph_mode, sync=sync)
 
 
 def clip_inference(
@@ -107,6 +111,7 @@ def clip_inference(
     dtype: str = "float16",
     benchmark: bool = False,
     to_cpu: bool = False,
+    sync: bool = True,
 ):
     batch = input_ids.shape[0]
     input_ids = input_ids.to(device)
@@ -117,7 +122,7 @@ def clip_inference(
     }
     dims = [batch]
     outputs = get_outputs(module, dims, device, dtype)
-    return inference(module, inputs, outputs, benchmark=benchmark, to_cpu=to_cpu)
+    return inference(module, inputs, outputs, benchmark=benchmark, to_cpu=to_cpu, sync=sync)
 
 
 def unet_inference(
@@ -133,6 +138,8 @@ def unet_inference(
     dtype: str = "float16",
     benchmark: bool = False,
     to_cpu: bool = False,
+    graph_mode: bool = False,
+    sync: bool = True,
 ):
     batch = latent_model_input.shape[0]
     height, width = latent_model_input.shape[2], latent_model_input.shape[3]
@@ -164,7 +171,7 @@ def unet_inference(
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
     return inference(
-        module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu
+        module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu, graph_mode=graph_mode, sync=sync,
     )
 
 
@@ -176,6 +183,8 @@ def vae_decode_inference(
     benchmark: bool = False,
     factor: int = 8,
     to_cpu: bool = False,
+    graph_mode=False,
+    sync: bool = True,
 ):
     batch = latent.shape[0]
     height, width = latent.shape[2:]
@@ -190,7 +199,7 @@ def vae_decode_inference(
     dims = [batch, height, width]
     outputs = get_outputs(module, dims, device, dtype)
     return inference(
-        module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu
+        module, inputs, outputs, benchmark=benchmark, permute=True, to_cpu=to_cpu, graph_mode=graph_mode, sync=sync
     )
 
 
