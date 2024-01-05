@@ -216,7 +216,7 @@ class ModelBase {
   }
 
   void RunAsGraph(StreamType stream) {
-#ifdef __HIP_PLATFORM_HCC__
+#ifdef __HIP_PLATFORM_AMD__
     if (graph_exec_ == nullptr) {
       DEVICE_CHECK(StreamBeginCapture(graph_capture_stream_, /*global=*/false));
       try {

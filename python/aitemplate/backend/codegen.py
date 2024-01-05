@@ -916,8 +916,6 @@ class ModelContainerGenerator:
         _LOGGER.info(f"Wrote json simple multistream info into {log_filename_json}")
 
     def generate_model(self) -> str:
-        # Disable graph mode on ROCM because the updating operations
-        # are not supported
         target_has_graph_mode = "true"
 
         run_impl_mode = multistream_mode()
