@@ -130,6 +130,20 @@ class SoftmaxTestCase(unittest.TestCase):
                         (6, 8, 3, 3),
                         2,
                     ),
+                    (
+                        "zero_batch_size",
+                        "float16",
+                        (0,),
+                        (3, 3),
+                        0,
+                    ),
+                    (
+                        "empty_tensor",
+                        "float16",
+                        (2,),
+                        (0, 3),
+                        1,
+                    ),
                 ],
                 TestEnv.CUDA_SM80: [
                     ("dim_1_bf16", "bfloat16", (1, 2), (6,), 1),
