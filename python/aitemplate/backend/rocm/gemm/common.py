@@ -451,13 +451,13 @@ int main(int argc, char** argv) {
   {{tensor_decl}}
   // TODO: random init
   // warmup
-  for(int i = 0; i < 3; ++i) {
+  for(int i = 0; i < 5; ++i) {
     {{func_call}}
   }
   // run
   auto timer = new KernelTimerImpl();
   timer->Start();
-  for(int i = 0; i < 5; ++i) {
+  for(int i = 0; i < 10; ++i) {
     {{func_call}}
   }
   timer->End();
@@ -804,7 +804,7 @@ def gen_function(
         has_dynamic_shape = False
         for inp in func_attrs["inputs"]:
             for dim in inp.shape():
-                if isinstance(dim, IntVar):
+                if isinstance(dim, IntVar) and (len(dim._attrs['values']) > 1):
                     has_dynamic_shape = True
         if has_dynamic_shape:
             key = "true"

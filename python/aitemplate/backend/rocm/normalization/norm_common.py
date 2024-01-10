@@ -156,13 +156,13 @@ int main(int argc, char** argv) {
   hipStream_t stream = nullptr;
   {{tensor_decl}}
   // warmup
-  for(int i = 0; i < 3; ++i) {
+  for(int i = 0; i < 5; ++i) {
     {{func_call}}
   }
   // run
   KernelTimerImpl timer;
   timer.Start(stream);
-  for(int i = 0; i < 5; ++i) {
+  for(int i = 0; i < 10; ++i) {
     {{func_call}}
   }
   timer.End(stream);

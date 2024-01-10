@@ -434,13 +434,13 @@ int main(int argc, char** argv) {
   {{tensor_decl}}
   // TODO: random init
   // warmup
-  for(int i = 0; i < 3; ++i) {
+  for(int i = 0; i < 5; ++i) {
     {{func_call}}
   }
   // run
   auto timer = new KernelTimerImpl();
   timer->Start();
-  for(int i = 0; i < 5; ++i) {
+  for(int i = 0; i < 10; ++i) {
     {{func_call}}
   }
   timer->End();
