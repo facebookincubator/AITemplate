@@ -155,7 +155,7 @@ class TestRemoveNoOpConcats(unittest.TestCase):
                 {**inputs_pt, "input_const": c_pt}, {"output_0": Y_ait}
             )
 
-            self.assertEquals(
+            self.assertEqual(
                 graph_has_op(module.debug_sorted_graph, "concatenate"),
                 should_keep_concat,
             )
