@@ -302,6 +302,8 @@ class GemmOperation:
     ds_dtype: List[library.DataType] = None
     ds_layout: List[library.LayoutType] = None
     e_dtype: library.DataType = None
+    loop_scheduler: str = ""
+    pipeline: str = ""
 
     def __str__(self) -> str:
         io_name = "{gemm_kind}_{gemm_specialization}_{a_dtype}{b_dtype}{c_dtype}_{a_layout}{b_layout}{c_layout}".format(
@@ -470,6 +472,12 @@ using {{name}} = {{xdl_op_type}}<
     7, // src_dst_vector_dim
     1 // dst_scalar_per_vector
 {% endif %}
+{% if LoopScheduler %}
+    ,{{LoopScheduler}}
+{% endif %}
+{% if Pipeline %}
+    ,{{Pipeline}}
+{% endif %}
     >;
 """
         )
@@ -513,6 +521,8 @@ using {{name}} = {{xdl_op_type}}<
             EDType=library.DataTypeTag[self.e_dtype]
             if self.e_dtype is not None
             else "",
+            LoopScheduler=self.loop_scheduler,
+            Pipeline=self.pipeline
         )
 
 

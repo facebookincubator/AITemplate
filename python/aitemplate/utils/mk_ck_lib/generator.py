@@ -276,32 +276,42 @@ def CreateGemmRRROperator(manifest):
         gemm.GemmSpecialization.GemmDefault,
         gemm.GemmSpecialization.MNKPadding,
     ]
+    
+    loop_schedulers = ["ck::LoopScheduler::Default", "ck::LoopScheduler::Interwave"]
+    pipelines = ["ck::PipelineVersion::v1", "ck::PipelineVersion::v2"]
+
     operations = []
     for gemm_spec in gemm_specialization:
-        for tile_desc, a_block_desc, b_block_desc, c_block_desc in zip(
-            tile_descriptions,
-            a_block_descriptions,
-            b_block_descriptions,
-            c_block_descriptions,
-        ):
-            new_operation = gemm.GemmOperation(
-                operation_kind=operation_kind,
-                extra_kind=element_op,
-                xdl_op_type=gemm.XdlOpType.DeviceGemmXdl_CShuffle,
-                A=a_element_desc,
-                B=b_element_desc,
-                C=c_element_desc,
-                a_elem_op=element_op,
-                b_elem_op=element_op,
-                epilogue_functor=element_op,
-                gemm_specialization=gemm_spec,
-                tile_desc=tile_desc,
-                a_block_transfer=a_block_desc,
-                b_block_transfer=b_block_desc,
-                c_block_transfer=c_block_desc,
-            )
-            manifest.append(new_operation)
-            operations.append(new_operation)
+        for loop_scheduler in loop_schedulers:
+            for pipeline in pipelines:
+                if pipeline == "ck::PipelineVersion::v2" and loop_scheduler == "ck::LoopScheduler::Interwave":
+                    continue
+                for tile_desc, a_block_desc, b_block_desc, c_block_desc in zip(
+                    tile_descriptions,
+                    a_block_descriptions,
+                    b_block_descriptions,
+                    c_block_descriptions,
+                ):
+                    new_operation = gemm.GemmOperation(
+                        operation_kind=operation_kind,
+                        extra_kind=element_op,
+                        xdl_op_type=gemm.XdlOpType.DeviceGemmXdl_CShuffle,
+                        A=a_element_desc,
+                        B=b_element_desc,
+                        C=c_element_desc,
+                        a_elem_op=element_op,
+                        b_elem_op=element_op,
+                        epilogue_functor=element_op,
+                        gemm_specialization=gemm_spec,
+                        tile_desc=tile_desc,
+                        a_block_transfer=a_block_desc,
+                        b_block_transfer=b_block_desc,
+                        c_block_transfer=c_block_desc,
+                        loop_scheduler=loop_scheduler,
+                        pipeline=pipeline,
+                    )
+                    manifest.append(new_operation)
+                    operations.append(new_operation)
     return operations
 
 
@@ -366,29 +376,39 @@ def CreateGemmRCROperator(manifest):
         gemm.GemmSpecialization.GemmDefault,
         gemm.GemmSpecialization.MNKPadding,
     ]
+
+    loop_schedulers = ["ck::LoopScheduler::Default", "ck::LoopScheduler::Interwave"]
+    pipelines = ["ck::PipelineVersion::v1", "ck::PipelineVersion::v2"]
+
     operations = []
     for gemm_spec in gemm_specialization:
-        for tile_desc, block_desc, c_block_desc in zip(
-            tile_descriptions, block_descriptions, c_block_descriptions
-        ):
-            new_operation = gemm.GemmOperation(
-                operation_kind=operation_kind,
-                extra_kind=element_op,
-                xdl_op_type=gemm.XdlOpType.DeviceGemmXdl_CShuffle,
-                A=a_element_desc,
-                B=b_element_desc,
-                C=c_element_desc,
-                a_elem_op=element_op,
-                b_elem_op=element_op,
-                epilogue_functor=element_op,
-                gemm_specialization=gemm_spec,
-                tile_desc=tile_desc,
-                a_block_transfer=block_desc,
-                b_block_transfer=block_desc,
-                c_block_transfer=c_block_desc,
-            )
-            manifest.append(new_operation)
-            operations.append(new_operation)
+        for loop_scheduler in loop_schedulers:
+            for pipeline in pipelines:
+                if pipeline == "ck::PipelineVersion::v2" and loop_scheduler == "ck::LoopScheduler::Interwave":
+                    continue
+                for tile_desc, block_desc, c_block_desc in zip(
+                    tile_descriptions, block_descriptions, c_block_descriptions
+                ):
+                    new_operation = gemm.GemmOperation(
+                        operation_kind=operation_kind,
+                        extra_kind=element_op,
+                        xdl_op_type=gemm.XdlOpType.DeviceGemmXdl_CShuffle,
+                        A=a_element_desc,
+                        B=b_element_desc,
+                        C=c_element_desc,
+                        a_elem_op=element_op,
+                        b_elem_op=element_op,
+                        epilogue_functor=element_op,
+                        gemm_specialization=gemm_spec,
+                        tile_desc=tile_desc,
+                        a_block_transfer=block_desc,
+                        b_block_transfer=block_desc,
+                        c_block_transfer=c_block_desc,
+                        loop_scheduler=loop_scheduler,
+                        pipeline=pipeline
+                    )
+                    manifest.append(new_operation)
+                    operations.append(new_operation)
     return operations
 
 
@@ -478,32 +498,42 @@ def CreateGemmRCRBilinearOperator(manifest, c_element_op):
         gemm.GemmSpecialization.GemmDefault,
         gemm.GemmSpecialization.MNKPadding,
     ]
+
+    loop_schedulers = ["ck::LoopScheduler::Default", "ck::LoopScheduler::Interwave"]
+    pipelines = ["ck::PipelineVersion::v1", "ck::PipelineVersion::v2"]
+
     operations = []
     for gemm_spec in gemm_specialization:
-        for tile_desc, block_desc, c_block_desc in zip(
-            tile_descriptions, block_descriptions, c_block_descriptions
-        ):
-            new_operation = gemm.GemmOperation(
-                operation_kind=operation_kind,
-                extra_kind=c_element_op,
-                xdl_op_type=gemm.XdlOpType.DeviceGemmMultipleD_Xdl_CShuffle,
-                A=a_element_desc,
-                B=b_element_desc,
-                C=c_element_desc,
-                a_elem_op=element_op,
-                b_elem_op=element_op,
-                epilogue_functor=c_element_op,
-                gemm_specialization=gemm_spec,
-                tile_desc=tile_desc,
-                a_block_transfer=block_desc,
-                b_block_transfer=block_desc,
-                c_block_transfer=c_block_desc,
-                ds_dtype=ds_dtype,
-                ds_layout=ds_layout,
-                e_dtype=e_dtype,
-            )
-            manifest.append(new_operation)
-            operations.append(new_operation)
+        for loop_scheduler in loop_schedulers:
+            for pipeline in pipelines:
+                if pipeline == "ck::PipelineVersion::v2" and loop_scheduler == "ck::LoopScheduler::Interwave":
+                    continue
+                for tile_desc, block_desc, c_block_desc in zip(
+                    tile_descriptions, block_descriptions, c_block_descriptions
+                ):
+                    new_operation = gemm.GemmOperation(
+                        operation_kind=operation_kind,
+                        extra_kind=c_element_op,
+                        xdl_op_type=gemm.XdlOpType.DeviceGemmMultipleD_Xdl_CShuffle,
+                        A=a_element_desc,
+                        B=b_element_desc,
+                        C=c_element_desc,
+                        a_elem_op=element_op,
+                        b_elem_op=element_op,
+                        epilogue_functor=c_element_op,
+                        gemm_specialization=gemm_spec,
+                        tile_desc=tile_desc,
+                        a_block_transfer=block_desc,
+                        b_block_transfer=block_desc,
+                        c_block_transfer=c_block_desc,
+                        ds_dtype=ds_dtype,
+                        ds_layout=ds_layout,
+                        e_dtype=e_dtype,
+                        loop_scheduler=loop_scheduler,
+                        pipeline=pipeline
+                    )
+                    manifest.append(new_operation)
+                    operations.append(new_operation)
 
     if c_element_op in [
         library.TensorOperation.Add,  # gemm_rcr_bias
@@ -511,67 +541,79 @@ def CreateGemmRCRBilinearOperator(manifest, c_element_op):
     ]:
         # N % 8 == 0 && K % 1 == 0
         gemm_spec = gemm.GemmSpecialization.MNKPadding
-        for tile_desc, block_desc, c_block_desc in zip(
-            tile_descriptions, block_descriptions, c_block_descriptions
-        ):
-            c_block_desc = copy.deepcopy(c_block_desc)
-            c_block_desc.scalar_per_vector = 1
-            c_block_desc.m_n_block_wave_per_xdl[1] //= 8
-            c_block_desc.m_n_block_wave_per_xdl[-1] *= 8
-            new_operation = gemm.GemmOperation(
-                operation_kind=operation_kind,
-                extra_kind=c_element_op,
-                xdl_op_type=gemm.XdlOpType.DeviceGemmMultipleD_Xdl_CShuffle,
-                A=a_element_desc,
-                B=b_element_desc,
-                C=c_element_desc,
-                a_elem_op=element_op,
-                b_elem_op=element_op,
-                epilogue_functor=c_element_op,
-                gemm_specialization=gemm_spec,
-                tile_desc=tile_desc,
-                a_block_transfer=block_desc,
-                b_block_transfer=block_desc,
-                c_block_transfer=c_block_desc,
-                ds_dtype=ds_dtype,
-                ds_layout=ds_layout,
-                e_dtype=e_dtype,
-            )
-            manifest.append(new_operation)
-            operations.append(new_operation)
+        for loop_scheduler in loop_schedulers:
+            for pipeline in pipelines:
+                if pipeline == "ck::PipelineVersion::v2" and loop_scheduler == "ck::LoopScheduler::Interwave":
+                    continue
+                for tile_desc, block_desc, c_block_desc in zip(
+                    tile_descriptions, block_descriptions, c_block_descriptions
+                ):
+                    c_block_desc = copy.deepcopy(c_block_desc)
+                    c_block_desc.scalar_per_vector = 1
+                    c_block_desc.m_n_block_wave_per_xdl[1] //= 8
+                    c_block_desc.m_n_block_wave_per_xdl[-1] *= 8
+                    new_operation = gemm.GemmOperation(
+                        operation_kind=operation_kind,
+                        extra_kind=c_element_op,
+                        xdl_op_type=gemm.XdlOpType.DeviceGemmMultipleD_Xdl_CShuffle,
+                        A=a_element_desc,
+                        B=b_element_desc,
+                        C=c_element_desc,
+                        a_elem_op=element_op,
+                        b_elem_op=element_op,
+                        epilogue_functor=c_element_op,
+                        gemm_specialization=gemm_spec,
+                        tile_desc=tile_desc,
+                        a_block_transfer=block_desc,
+                        b_block_transfer=block_desc,
+                        c_block_transfer=c_block_desc,
+                        ds_dtype=ds_dtype,
+                        ds_layout=ds_layout,
+                        e_dtype=e_dtype,
+                        loop_scheduler=loop_scheduler,
+                        pipeline=pipeline
+                    )
+                    manifest.append(new_operation)
+                    operations.append(new_operation)
 
         # N % 4 == 0 && K % 4 == 0
         gemm_spec = gemm.GemmSpecialization.MNKPadding
-        for tile_desc, block_desc, c_block_desc in zip(
-            tile_descriptions, block_descriptions, c_block_descriptions
-        ):
-            block_desc.src_scalar_per_vector = 4
-            block_desc.dst_scalar_per_vector = 4
-            c_block_desc = copy.deepcopy(c_block_desc)
-            c_block_desc.scalar_per_vector = 4
-            c_block_desc.m_n_block_wave_per_xdl[1] //= 2
-            c_block_desc.m_n_block_wave_per_xdl[-1] *= 2
-            new_operation = gemm.GemmOperation(
-                operation_kind=operation_kind,
-                extra_kind=c_element_op,
-                xdl_op_type=gemm.XdlOpType.DeviceGemmMultipleD_Xdl_CShuffle,
-                A=a_element_desc,
-                B=b_element_desc,
-                C=c_element_desc,
-                a_elem_op=element_op,
-                b_elem_op=element_op,
-                epilogue_functor=c_element_op,
-                gemm_specialization=gemm_spec,
-                tile_desc=tile_desc,
-                a_block_transfer=block_desc,
-                b_block_transfer=block_desc,
-                c_block_transfer=c_block_desc,
-                ds_dtype=ds_dtype,
-                ds_layout=ds_layout,
-                e_dtype=e_dtype,
-            )
-            manifest.append(new_operation)
-            operations.append(new_operation)
+        for loop_scheduler in loop_schedulers:
+            for pipeline in pipelines:
+                if pipeline == "ck::PipelineVersion::v2" and loop_scheduler == "ck::LoopScheduler::Interwave":
+                    continue
+                for tile_desc, block_desc, c_block_desc in zip(
+                    tile_descriptions, block_descriptions, c_block_descriptions
+                ):
+                    block_desc.src_scalar_per_vector = 4
+                    block_desc.dst_scalar_per_vector = 4
+                    c_block_desc = copy.deepcopy(c_block_desc)
+                    c_block_desc.scalar_per_vector = 4
+                    c_block_desc.m_n_block_wave_per_xdl[1] //= 2
+                    c_block_desc.m_n_block_wave_per_xdl[-1] *= 2
+                    new_operation = gemm.GemmOperation(
+                        operation_kind=operation_kind,
+                        extra_kind=c_element_op,
+                        xdl_op_type=gemm.XdlOpType.DeviceGemmMultipleD_Xdl_CShuffle,
+                        A=a_element_desc,
+                        B=b_element_desc,
+                        C=c_element_desc,
+                        a_elem_op=element_op,
+                        b_elem_op=element_op,
+                        epilogue_functor=c_element_op,
+                        gemm_specialization=gemm_spec,
+                        tile_desc=tile_desc,
+                        a_block_transfer=block_desc,
+                        b_block_transfer=block_desc,
+                        c_block_transfer=c_block_desc,
+                        ds_dtype=ds_dtype,
+                        ds_layout=ds_layout,
+                        e_dtype=e_dtype,
+                        loop_scheduler=loop_scheduler,
+                        pipeline=pipeline
+                    )
+                    manifest.append(new_operation)
+                    operations.append(new_operation)
 
     return operations
 
@@ -716,31 +758,41 @@ def CreateGemmRCRPermOperator(manifest, c_element_op):
         gemm.GemmSpecialization.GemmDefault,
         gemm.GemmSpecialization.MNKPadding,
     ]
+
+    loop_schedulers = ["ck::LoopScheduler::Default", "ck::LoopScheduler::Interwave"]
+    pipelines = ["ck::PipelineVersion::v1", "ck::PipelineVersion::v2"]
+
     operations = []
-    for gemm_spec in gemm_specialization:
-        for tile_desc, block_desc, c_block_desc in zip(
-            tile_descriptions, block_descriptions, c_block_descriptions
-        ):
-            new_operation = gemm.GemmOperation(
-                operation_kind=operation_kind,
-                extra_kind=c_element_op,
-                xdl_op_type=gemm.XdlOpType.DeviceGemmBiasCPermute_Xdl,
-                A=a_element_desc,
-                B=b_element_desc,
-                C=c_element_desc,
-                a_elem_op=element_op,
-                b_elem_op=element_op,
-                epilogue_functor=c_element_op,
-                gemm_specialization=gemm_spec,
-                tile_desc=tile_desc,
-                a_block_transfer=block_desc,
-                b_block_transfer=block_desc,
-                c_block_transfer=c_block_desc,
-                ds_dtype=ds_dtype,
-                e_dtype=e_dtype,
-            )
-            manifest.append(new_operation)
-            operations.append(new_operation)
+    for loop_scheduler in loop_schedulers:
+        for pipeline in pipelines:
+            if pipeline == "ck::PipelineVersion::v2" and loop_scheduler == "ck::LoopScheduler::Interwave":
+                continue
+            for gemm_spec in gemm_specialization:
+                for tile_desc, block_desc, c_block_desc in zip(
+                    tile_descriptions, block_descriptions, c_block_descriptions
+                ):
+                    new_operation = gemm.GemmOperation(
+                        operation_kind=operation_kind,
+                        extra_kind=c_element_op,
+                        xdl_op_type=gemm.XdlOpType.DeviceGemmBiasCPermute_Xdl,
+                        A=a_element_desc,
+                        B=b_element_desc,
+                        C=c_element_desc,
+                        a_elem_op=element_op,
+                        b_elem_op=element_op,
+                        epilogue_functor=c_element_op,
+                        gemm_specialization=gemm_spec,
+                        tile_desc=tile_desc,
+                        a_block_transfer=block_desc,
+                        b_block_transfer=block_desc,
+                        c_block_transfer=c_block_desc,
+                        ds_dtype=ds_dtype,
+                        e_dtype=e_dtype,
+                        loop_scheduler=loop_scheduler,
+                        pipeline=pipeline
+                    )
+                    manifest.append(new_operation)
+                    operations.append(new_operation)
     return operations
 
 
@@ -829,34 +881,44 @@ def CreateGemmRRRPermOperator(manifest, c_element_op):
         gemm.GemmSpecialization.GemmDefault,
         gemm.GemmSpecialization.MNKPadding,
     ]
+
+    loop_schedulers = ["ck::LoopScheduler::Default", "ck::LoopScheduler::Interwave"]
+    pipelines = ["ck::PipelineVersion::v1", "ck::PipelineVersion::v2"]
+
     operations = []
-    for gemm_spec in gemm_specialization:
-        for tile_desc, a_block_desc, b_block_desc, c_block_desc in zip(
-            tile_descriptions,
-            a_block_descriptions,
-            b_block_descriptions,
-            c_block_descriptions,
-        ):
-            new_operation = gemm.GemmOperation(
-                operation_kind=operation_kind,
-                extra_kind=c_element_op,
-                xdl_op_type=gemm.XdlOpType.DeviceGemmBiasCPermute_Xdl,
-                A=a_element_desc,
-                B=b_element_desc,
-                C=c_element_desc,
-                a_elem_op=element_op,
-                b_elem_op=element_op,
-                epilogue_functor=c_element_op,
-                gemm_specialization=gemm_spec,
-                tile_desc=tile_desc,
-                a_block_transfer=a_block_desc,
-                b_block_transfer=b_block_desc,
-                c_block_transfer=c_block_desc,
-                ds_dtype=ds_dtype,
-                e_dtype=e_dtype,
-            )
-            manifest.append(new_operation)
-            operations.append(new_operation)
+    for loop_scheduler in loop_schedulers:
+        for pipeline in pipelines:
+            if pipeline == "ck::PipelineVersion::v2" and loop_scheduler == "ck::LoopScheduler::Interwave":
+                continue
+            for gemm_spec in gemm_specialization:
+                for tile_desc, a_block_desc, b_block_desc, c_block_desc in zip(
+                    tile_descriptions,
+                    a_block_descriptions,
+                    b_block_descriptions,
+                    c_block_descriptions,
+                ):
+                    new_operation = gemm.GemmOperation(
+                        operation_kind=operation_kind,
+                        extra_kind=c_element_op,
+                        xdl_op_type=gemm.XdlOpType.DeviceGemmBiasCPermute_Xdl,
+                        A=a_element_desc,
+                        B=b_element_desc,
+                        C=c_element_desc,
+                        a_elem_op=element_op,
+                        b_elem_op=element_op,
+                        epilogue_functor=c_element_op,
+                        gemm_specialization=gemm_spec,
+                        tile_desc=tile_desc,
+                        a_block_transfer=a_block_desc,
+                        b_block_transfer=b_block_desc,
+                        c_block_transfer=c_block_desc,
+                        ds_dtype=ds_dtype,
+                        e_dtype=e_dtype,
+                        loop_scheduler=loop_scheduler,
+                        pipeline=pipeline
+                    )
+                    manifest.append(new_operation)
+                    operations.append(new_operation)
     return operations
 
 
@@ -924,6 +986,7 @@ def CreateGemmRCRm2n3PermOperator(manifest, c_element_op):
         gemm.GemmSpecialization.GemmDefault,
         gemm.GemmSpecialization.MNKPadding,
     ]
+
     operations = []
     for gemm_spec in gemm_specialization:
         for tile_desc, block_desc, c_block_desc in zip(
@@ -1016,6 +1079,8 @@ def CreateGemmRCRm3n2PermOperator(manifest, c_element_op):
         gemm.GemmSpecialization.GemmDefault,
         gemm.GemmSpecialization.MNKPadding,
     ]
+
+    
     operations = []
     for gemm_spec in gemm_specialization:
         for tile_desc, block_desc, c_block_desc in zip(
