@@ -201,7 +201,15 @@ ShortLayoutTypeNames = {
     LayoutType.GNWK: "GNWK",
 }
 
+ShortSchedulerNames = {
+    "ck::LoopScheduler::Default": "default",
+    "ck::LoopScheduler::Interwave": "interwave"
+}
 
+ShortPipelineNames = {
+    "ck::PipelineVersion::v1": "v1",
+    "ck::PipelineVersion::v2": "v2"
+}
 #
 class OperationKind(enum.Enum):
     Gemm = auto()

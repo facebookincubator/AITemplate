@@ -327,11 +327,13 @@ class GemmOperation:
         extra_name = (
             "_CM" if library.ShortTensorOperationNames[self.extra_kind] == "CM" else ""
         )
-        return "{io_name}_{tile_name}_{epilogue_functor}".format(
+        return "{io_name}_{tile_name}_{epilogue_functor}_{scheduler}_{pipeline}".format(
             io_name=io_name,
             tile_name=tile_name,
             epilogue_functor=library.ShortTensorOperationNames[self.epilogue_functor]
             + extra_name,
+            scheduler=library.ShortSchedulerNames.get(self.loop_scheduler, "default"),
+            pipeline=library.ShortPipelineNames.get(self.pipeline, "v1"),
         )
 
     def accumulator_type(self):
