@@ -39,6 +39,7 @@ def download_pipeline_files(model_name, token, save_directory) -> None:
 
     DiffusionPipeline.from_pretrained(
         model_name,
+        revision="main" if "xl" in model_name else "fp16",
         torch_dtype=torch.float16,
         use_auth_token=token if len(token) > 5 else token.lower() == "true",
     ).save_pretrained(save_directory)
