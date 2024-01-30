@@ -23,7 +23,7 @@ from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.compiler.op_registry import OP_REGISTRY
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.ops.common.int_elementwise import INT_ELEMENTWISE_FUNC
-
+from aitemplate.compiler.ops.tensor import cast
 from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,C0301,W0223,R1724
@@ -225,12 +225,31 @@ class elementwise(Operator):
                 symbolic_args.append(arg._attrs["int_var"].symbolic_value())
             elif isinstance(arg, Tensor):
                 converted_args.append(arg)
+                arg_dtype = normalize_dtype(arg.dtype())
                 if common_dtype is None:
-                    common_dtype = normalize_dtype(arg.dtype())
-                elif normalize_dtype(arg.dtype()) != common_dtype:
-                    raise NotImplementedError(
-                        f"Type promotions are not supported; got dtype {arg.dtype()}, but expected {common_dtype}"
-                    )
+                    common_dtype = arg_dtype
+                elif arg_dtype != common_dtype:
+                    if arg.dtype() == "bool" and common_dtype != "bool":
+                        # If this arg is bool, and the common is not bool, cast to the common type.
+                        converted_args[-1] = cast()(
+                            x=converted_args[-1], dtype=common_dtype
+                        )
+                    elif (
+                        arg.dtype() != "bool"
+                        and common_dtype == "bool"
+                        and len(converted_args) >= 2
+                    ):
+                        # If this arg is non-bool and the common type is bool,
+                        # cast all previous bool args to the non-bool type.
+                        common_dtype = arg_dtype
+                        for i in range(0, len(converted_args) - 1):
+                            converted_args[i] = cast()(
+                                x=converted_args[i], dtype=common_dtype
+                            )
+                    else:
+                        raise NotImplementedError(
+                            f"Type promotions are not supported; got dtype {arg.dtype()}, but expected {common_dtype}"
+                        )
                 symbolic_args.append(arg._attrs.get("symbolic_value", None))
             else:
                 raise RuntimeError(
