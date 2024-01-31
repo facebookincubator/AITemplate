@@ -376,9 +376,19 @@ def acc_ops_permute(
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
-        raise ValueError(f"Unexpected input for {name}: {input_val}")
+        raise ValueError(f"Unexpected input for {name}: input={input_val}")
 
     permutation = kwargs["permutation"]
+
+    if (
+        isinstance(permutation, (list, tuple))
+        and permutation
+        and isinstance(permutation[0], (list, tuple))
+    ):
+        # If permutation is a nested list or tuple, unwrap one level.
+        # This is needed for some valid invocations of permute like
+        # t.permute((2, 0, 1)).
+        permutation = permutation[0]
 
     return permute()(input_val, permutation)
 
