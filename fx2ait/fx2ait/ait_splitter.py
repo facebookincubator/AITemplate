@@ -85,6 +85,7 @@ def create_ait_operator_support(
         else [
             ops.OpSupports.decline_if_input_dtype(torch.int64),
             ops.OpSupports.decline_if_input_dtype(torch.int32),
+            ops.OpSupports.decline_if_input_dtype(torch.uint8),
         ]
     )
     chained_not_supported_ops += [
