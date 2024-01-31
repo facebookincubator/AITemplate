@@ -86,6 +86,28 @@ def create_binary_op(
         )
         return res
 
+    if (
+        isinstance(rhs, IntVarTensor)
+        and isinstance(rhs._attrs["int_var"], IntImm)
+        and rhs_is_constant
+        and isinstance(lhs, AITTensor)
+        and not isinstance(lhs, IntVarTensor)
+    ):
+        # If rhs is a constant IntVarTensor but lhs is not, proceed
+        rhs = rhs_constant
+        return elementwise(op_type)(lhs, rhs)
+
+    if (
+        isinstance(lhs, IntVarTensor)
+        and isinstance(lhs._attrs["int_var"], IntImm)
+        and lhs_is_constant
+        and isinstance(rhs, AITTensor)
+        and not isinstance(rhs, IntVarTensor)
+    ):
+        # If lhs is a constant IntVarTensor but rhs is not, proceed
+        lhs = lhs_constant
+        return elementwise(op_type)(lhs, rhs)
+
     if isinstance(lhs, IntVarTensor) or isinstance(rhs, IntVarTensor):
         lhs = IntVarTensor(IntImm(lhs)) if isinstance(lhs, int) else lhs
         rhs = IntVarTensor(IntImm(rhs)) if isinstance(rhs, int) else rhs

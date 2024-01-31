@@ -167,3 +167,27 @@ class TestBinaryOpConverter(AITTestCase):
             [torch.randn(2, 4).half().cuda()],
             expected_ops={acc_ops.reshape, acc_ops.mul},
         )
+
+    def test_binary_one_intmm_constant_lhs(self) -> None:
+        class TestModule(torch.nn.Module):
+            def forward(self, input: torch.Tensor) -> torch.Tensor:
+                return torch.add(input, input.size()[0])
+
+        model = TestModule().cuda()
+        self.run_test(
+            model,
+            [torch.randn((1, 1)).half().cuda()],
+            expected_ops={acc_ops.add},
+        )
+
+    def test_binary_one_intmm_constant_rhs(self) -> None:
+        class TestModule(torch.nn.Module):
+            def forward(self, input: torch.Tensor) -> torch.Tensor:
+                return torch.add(input.size()[0], input)
+
+        model = TestModule().cuda()
+        self.run_test(
+            model,
+            [torch.randn((1, 1)).half().cuda()],
+            expected_ops={acc_ops.add},
+        )
