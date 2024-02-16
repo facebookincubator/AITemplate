@@ -668,6 +668,13 @@ def acc_ops_getitem(
         isinstance(idx, Sequence) and any(isinstance(x, slice) for x in idx)
     ):
         return acc_ops_slice(target, args, kwargs, name)
+
+    if isinstance(idx, AITTensor) and idx.dtype() == "bool":
+        # TODO: could do something similar to acc_ops_masked_select
+        raise NotImplementedError(
+            "AIT does not support tensor[boolean_tensor] masking yet"
+        )
+
     if isinstance(input_val, AITTensor):
         return acc_ops_slice(target, args, kwargs, name)
 

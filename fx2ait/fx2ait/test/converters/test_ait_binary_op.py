@@ -154,6 +154,25 @@ class TestBinaryOpConverter(AITTestCase):
             expected_ops={acc_op},
         )
 
+    def test_getitem_boolean_index(self) -> None:
+        """Verify that NotImplementatedError is thrown encountering
+        tensor[boolean_mask_tensor]
+        """
+
+        class TestModule(torch.nn.Module):
+            def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+                return x[mask]
+
+        mod = TestModule().cuda()
+        x = torch.rand(10, 4).half().cuda()
+        mask = (torch.rand((10,)) > 0.5).cuda()
+        mod(x, mask)
+
+        self.assertRaises(
+            NotImplementedError,
+            lambda: self.run_test(mod, [x, mask], expected_ops={}),
+        )
+
     # This is a common binary op combo usage for ads models.
     def test_binary_op_combo(self) -> None:
         class TestModule(torch.nn.Module):
