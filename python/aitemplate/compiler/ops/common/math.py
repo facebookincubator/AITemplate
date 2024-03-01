@@ -47,6 +47,10 @@ def log(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("LOGE")(tensor)
 
 
+def log1p(tensor: Any) -> Tensor:
+    return OP_REGISTRY.get("LOG1P")(tensor)
+
+
 def exp(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("EXP")(tensor)
 

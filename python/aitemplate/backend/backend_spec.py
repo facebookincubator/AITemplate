@@ -183,6 +183,13 @@ class GPUBackendSpec(BackendSpec):
                 "bfloat16": "hlog",
                 "float": "logf",
             },
+            FuncEnum.LOG1P: {
+                "half2": "h2log1p",
+                "bfloat16_2": "h2log1p",
+                "half": "hlog1p",
+                "bfloat16": "hlog1p",
+                "float": "log1pf",
+            },
             FuncEnum.EXP: {
                 "half2": "h2exp",
                 "bfloat16_2": "h2exp",

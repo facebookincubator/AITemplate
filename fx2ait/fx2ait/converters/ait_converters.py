@@ -479,6 +479,20 @@ def acc_ops_log(
     return elementwise(FuncEnum.LOGE)(input_val)
 
 
+@ait_converter(acc_ops.log1p)
+def acc_ops_log1p(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    if not isinstance(input_val, AITTensor):
+        raise RuntimeError(f"Unexpected input for {name}: {input_val}")
+
+    return elementwise(FuncEnum.LOG1P)(input_val)
+
+
 @ait_converter(acc_ops.var)
 def acc_ops_var(
     target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str

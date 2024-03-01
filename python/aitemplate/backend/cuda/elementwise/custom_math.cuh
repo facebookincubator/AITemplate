@@ -1075,4 +1075,28 @@ __device__ bfloat16_2 h2celu(const bfloat16_2 a, const bfloat16_2 alpha) {
 #endif
 }
 
+__device__ half hlog1p(const half a) {
+  return half(log1pf(float(a)));
+}
+
+__device__ bfloat16 hlog1p(const bfloat16 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return bfloat16(log1pf(float(a)));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ half2 h2log1p(const half2 a) {
+  return half2(log1pf(float(a.x)), log1pf(float(a.y)));
+}
+
+__device__ bfloat16_2 h2log1p(const bfloat16_2 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return bfloat16_2(log1pf(float(a.x)), log1pf(float(a.y)));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
 #endif
