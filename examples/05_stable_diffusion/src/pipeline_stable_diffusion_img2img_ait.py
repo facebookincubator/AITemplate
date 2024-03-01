@@ -18,12 +18,9 @@ import inspect
 import os
 from typing import List, Optional, Union
 
-import numpy as np
-
 import PIL
 import torch
 from aitemplate.compiler import Model
-
 from diffusers import (
     AutoencoderKL,
     DDIMScheduler,
@@ -37,16 +34,7 @@ from diffusers.pipelines.stable_diffusion import (
     StableDiffusionSafetyChecker,
 )
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
-
-
-def preprocess(image):
-    w, h = image.size
-    w, h = map(lambda x: x - x % 32, (w, h))  # resize to integer multiple of 32
-    image = image.resize((w, h), resample=PIL.Image.LANCZOS)
-    image = np.array(image).astype(np.float32) / 255.0
-    image = image[None].transpose(0, 3, 1, 2)
-    image = torch.from_numpy(image)
-    return 2.0 * image - 1.0
+from .pipeline_utils import preprocess
 
 
 class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
@@ -78,15 +66,15 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
     """
 
     def __init__(
-        self,
-        vae: AutoencoderKL,
-        text_encoder: CLIPTextModel,
-        tokenizer: CLIPTokenizer,
-        unet: UNet2DConditionModel,
-        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
-        safety_checker: StableDiffusionSafetyChecker,
-        feature_extractor: CLIPFeatureExtractor,
-        requires_safety_checker: bool = True,
+            self,
+            vae: AutoencoderKL,
+            text_encoder: CLIPTextModel,
+            tokenizer: CLIPTokenizer,
+            unet: UNet2DConditionModel,
+            scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
+            safety_checker: StableDiffusionSafetyChecker,
+            feature_extractor: CLIPFeatureExtractor,
+            requires_safety_checker: bool = True,
     ):
         super().__init__(
             vae=vae,
@@ -122,9 +110,9 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         self.batch = 1
 
     def init_ait_module(
-        self,
-        model_name,
-        workdir,
+            self,
+            model_name,
+            workdir,
     ):
         mod = Model(os.path.join(workdir, model_name, "test.so"))
         return mod
@@ -182,16 +170,16 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
 
     @torch.no_grad()
     def __call__(
-        self,
-        prompt: Union[str, List[str]],
-        init_image: Union[torch.FloatTensor, PIL.Image.Image],
-        strength: float = 0.8,
-        num_inference_steps: Optional[int] = 50,
-        guidance_scale: Optional[float] = 7.5,
-        eta: Optional[float] = 0.0,
-        generator: Optional[torch.Generator] = None,
-        output_type: Optional[str] = "pil",
-        return_dict: bool = True,
+            self,
+            prompt: Union[str, List[str]],
+            init_image: Union[torch.FloatTensor, PIL.Image.Image],
+            strength: float = 0.8,
+            num_inference_steps: Optional[int] = 50,
+            guidance_scale: Optional[float] = 7.5,
+            eta: Optional[float] = 0.0,
+            generator: Optional[torch.Generator] = None,
+            output_type: Optional[str] = "pil",
+            return_dict: bool = True,
     ):
         r"""
         Function invoked when calling the pipeline for generation.
@@ -353,7 +341,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             if isinstance(self.scheduler, LMSDiscreteScheduler):
                 sigma = self.scheduler.sigmas[t_index]
                 # the model input needs to be scaled to match the continuous ODE formulation in K-LMS
-                latent_model_input = latent_model_input / ((sigma**2 + 1) ** 0.5)
+                latent_model_input = latent_model_input / ((sigma ** 2 + 1) ** 0.5)
                 latent_model_input = latent_model_input.to(self.unet.dtype)
                 t = t.to(self.unet.dtype)
 
@@ -366,7 +354,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
             if do_classifier_free_guidance:
                 noise_pred_uncond, noise_pred_text = noise_pred.chunk(2)
                 noise_pred = noise_pred_uncond + guidance_scale * (
-                    noise_pred_text - noise_pred_uncond
+                        noise_pred_text - noise_pred_uncond
                 )
 
             # compute the previous noisy sample x_t -> x_t-1
