@@ -66,3 +66,4 @@ class FuncEnum(Enum):
     FLOOR_DIV = 28
     CELU = 29
     FLOOR = 30
+    LOG1P = 31
