@@ -117,3 +117,7 @@ def floor_div(tensor: Any) -> Tensor:
 
 def celu(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("CELU")(tensor)
+
+
+def floor(tensor: Any) -> Tensor:
+    return OP_REGISTRY.get("FLOOR")(tensor)

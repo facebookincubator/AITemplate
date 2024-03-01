@@ -164,6 +164,8 @@ def get_python_op_from_ait_constant_elementwise_op(
         return math.sqrt
     elif op_type == FuncEnum.FLOOR_DIV:
         return operator.floordiv
+    elif op_type == FuncEnum.FLOOR:
+        return math.floor
     else:
         raise RuntimeError(f"{op_type} is not supported yet!")
 

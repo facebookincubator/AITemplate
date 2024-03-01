@@ -65,3 +65,4 @@ class FuncEnum(Enum):
     SOFTSIGN = 27
     FLOOR_DIV = 28
     CELU = 29
+    FLOOR = 30

@@ -1010,7 +1010,34 @@ __device__ half2 floor_div(const half2 a, const half2 b) {
 __device__ bfloat16_2 floor_div(const bfloat16_2 a, const bfloat16_2 b) {
 #if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
   return bfloat16_2(floor_div(a.x, b.x), floor_div(a.y, b.y));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
 
+__device__ float __floor(const float a) {
+  return floor(a);
+}
+
+__device__ half __floor(const half a) {
+  return hfloor(a);
+}
+
+__device__ bfloat16 __floor(const bfloat16 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return hfloor(a);
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ half2 __floor(const half2 a) {
+  return half2(__floor(a.x), __floor(a.y));
+}
+
+__device__ bfloat16_2 __floor(const bfloat16_2 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return bfloat16_2(__floor(a.x), __floor(a.y));
 #else
   NOT_IMPLEMENTED();
 #endif
