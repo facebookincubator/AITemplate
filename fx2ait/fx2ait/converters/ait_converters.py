@@ -155,6 +155,17 @@ def acc_ops_floor_div(
     return create_binary_op(FuncEnum.FLOOR_DIV, args, kwargs, name)
 
 
+@ait_converter(acc_ops.floor)
+def acc_ops_floor(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    return elementwise(FuncEnum.FLOOR)(input_val)
+
+
 @ait_converter(acc_ops.add)
 def acc_ops_add(
     target: Target,
