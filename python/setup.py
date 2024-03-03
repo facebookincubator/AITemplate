@@ -79,8 +79,8 @@ def gen_cutlass_list():
         "aitemplate/3rdparty/cutlass/examples",
         "aitemplate/3rdparty/cutlass/tools/util/include",
     ]
-    f_cond = (
-        lambda x: True
+    f_cond = lambda x: (
+        True
         if x.endswith(".h")
         or x.endswith(".cuh")
         or x.endswith(".hpp")

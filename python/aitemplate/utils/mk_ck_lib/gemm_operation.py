@@ -494,25 +494,27 @@ using {{name}} = {{xdl_op_type}}<
             tile_config=self.tile_desc.emit(),
             a_block_transfer=self.a_block_transfer.emit(),
             b_block_transfer=self.b_block_transfer.emit(),
-            b1_block_transfer=""
-            if self.b1_block_transfer is None
-            else self.b1_block_transfer.emit(),
-            c_block_transfer=self.c_block_transfer.emit()
-            if self.c_block_transfer is not None
-            else "",
-            DsDType=",".join(
-                [library.DataTypeTag[d_dtype] for d_dtype in self.ds_dtype]
-            )
-            if self.ds_dtype is not None
-            else "",
-            DsLayout=",".join(
-                [library.LayoutTag[d_layout] for d_layout in self.ds_layout]
-            )
-            if self.ds_layout is not None
-            else "",
-            EDType=library.DataTypeTag[self.e_dtype]
-            if self.e_dtype is not None
-            else "",
+            b1_block_transfer=(
+                "" if self.b1_block_transfer is None else self.b1_block_transfer.emit()
+            ),
+            c_block_transfer=(
+                self.c_block_transfer.emit()
+                if self.c_block_transfer is not None
+                else ""
+            ),
+            DsDType=(
+                ",".join([library.DataTypeTag[d_dtype] for d_dtype in self.ds_dtype])
+                if self.ds_dtype is not None
+                else ""
+            ),
+            DsLayout=(
+                ",".join([library.LayoutTag[d_layout] for d_layout in self.ds_layout])
+                if self.ds_layout is not None
+                else ""
+            ),
+            EDType=(
+                library.DataTypeTag[self.e_dtype] if self.e_dtype is not None else ""
+            ),
         )
 
 

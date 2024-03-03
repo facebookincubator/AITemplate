@@ -262,9 +262,9 @@ def fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         causal_type=causal_type_to_kernel_str(func_attrs["causal_type"]),
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
-        alpha1_divide_by_seq_len="true"
-        if func_attrs["alpha1_divide_by_seq_len"]
-        else "false",
+        alpha1_divide_by_seq_len=(
+            "true" if func_attrs["alpha1_divide_by_seq_len"] else "false"
+        ),
         activation_functor=activation_functor,
         bias_broadcast=bias_broadcast,
         offset_ptr="nullptr",

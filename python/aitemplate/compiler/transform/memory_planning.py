@@ -423,7 +423,7 @@ def simple_multistream_memory_planning(sorted_graph: List[Tensor]):
 
     # sort all operators by parallel execution order
     ops_by_order = defaultdict(list)
-    for (op, tracking) in time_stats.op_parallel_trackers.items():
+    for op, tracking in time_stats.op_parallel_trackers.items():
         ops_by_order[tracking.execution_order].append(op)
 
     # convert Dict[int, List[Operator]] into List[List[Operator]]

@@ -222,7 +222,7 @@ def get_special_exec_cond_and_kernel(
     """
     exec_conds = []
 
-    for (vector_type, vec_bytesize) in vector_types[input_type]:
+    for vector_type, vec_bytesize in vector_types[input_type]:
         vlen = int(vec_bytesize / bytesize[input_type])
         exec_cond = EXEC_COND_TEMPLATE.render(
             indent="  ",

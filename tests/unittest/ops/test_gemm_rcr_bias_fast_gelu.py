@@ -81,9 +81,11 @@ class GEMMRcrBiasFastGeluTestCase(unittest.TestCase):
             Y,
             detect_target(),
             "./tmp",
-            f"gemm_rcr_bias_fast_gelu_{test_name}"
-            if use_fast_gelu
-            else f"gemm_rcr_bias_gelu_{test_name}",
+            (
+                f"gemm_rcr_bias_fast_gelu_{test_name}"
+                if use_fast_gelu
+                else f"gemm_rcr_bias_gelu_{test_name}"
+            ),
         )
 
         for M in Ms:

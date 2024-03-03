@@ -698,12 +698,12 @@ def gen_profiler(
             weight_ptr="(void *) memory_pool->RequestHalfTensorByIdx(1)",
             out_ptr="(void *) memory_pool->RequestHalfTensorByIdx(2)",
             bias_ptr="(void *) memory_pool->RequestHalfTensorByIdx(3)",
-            d0_ptr="(void *) memory_pool->RequestHalfTensorByIdx(4)"
-            if has_d0_flag
-            else "",
-            d1_ptr="(void *) memory_pool->RequestHalfTensorByIdx(5)"
-            if has_d1_flag
-            else "",
+            d0_ptr=(
+                "(void *) memory_pool->RequestHalfTensorByIdx(4)" if has_d0_flag else ""
+            ),
+            d1_ptr=(
+                "(void *) memory_pool->RequestHalfTensorByIdx(5)" if has_d1_flag else ""
+            ),
             adims=adims,
             bdims=bdims,
             cdims=cdims,

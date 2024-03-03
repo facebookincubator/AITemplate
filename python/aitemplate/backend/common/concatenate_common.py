@@ -789,7 +789,7 @@ def _make_initialization_loops(init_var: str, init_values: List[str]):
 
     loop_ranges = _make_loop_ranges(init_values)
     loop_range_strs = []
-    for (start_idx, end_idx, val) in loop_ranges:
+    for start_idx, end_idx, val in loop_ranges:
         loop_range_strs.append(
             INITIALIZATION_LOOP_TEMPLATE.render(
                 var_name=init_var,

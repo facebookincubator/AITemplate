@@ -1066,9 +1066,9 @@ class ModelContainerGenerator:
         """
         device_functions_header_name = f"{self.target.name()}_device_functions.h"
         result = {}
-        result[
-            "device_functions-generated.h"
-        ] = f'#include "{device_functions_header_name}"'
+        result["device_functions-generated.h"] = (
+            f'#include "{device_functions_header_name}"'
+        )
 
         result["model-generated.h"] = self.generate_model()
 

@@ -42,9 +42,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
     def _prepare_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N),
             ],
@@ -86,9 +88,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
     def _prepare_split_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N),
             ],
@@ -105,9 +109,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
 
         Y0 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch1")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch1")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N),
             ],
@@ -117,9 +123,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         )
         Y1 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch2")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch2")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N),
             ],
@@ -172,9 +180,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
     def _prepare_cat_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=int(self.M / 2)),
                 IntImm(value=self.N),
             ],
@@ -184,9 +194,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         )
         X1 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch1")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch1")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=int(self.M / 2)),
                 IntImm(value=self.N),
             ],
@@ -196,9 +208,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         )
         X2 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch2")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch2")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N + 4),
             ],
@@ -208,9 +222,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         )
         X3 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch3")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch3")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N * 2),
             ],
@@ -268,9 +284,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
     def _prepare_skip_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N),
             ],
@@ -318,9 +336,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
     def _prepare_skip_split_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N),
             ],
@@ -375,9 +395,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
     def _prepare_skip_cat_cat_elimination_graph(self, dtype="float16"):
         X0 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch0")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=int(self.M / 2)),
                 IntImm(value=self.N),
             ],
@@ -387,9 +409,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         )
         X1 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch1")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch1")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=int(self.M / 2)),
                 IntImm(value=self.N),
             ],
@@ -399,9 +423,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         )
         X2 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch2")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch2")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N + 4),
             ],
@@ -411,9 +437,11 @@ class MemoryOpTransformationTestCase(unittest.TestCase):
         )
         X3 = Tensor(
             shape=[
-                IntVar(values=[1, self.BATCH_SIZE], name="input_batch3")
-                if self.USE_DYNAMIC_BATCH
-                else IntImm(value=self.BATCH_SIZE),
+                (
+                    IntVar(values=[1, self.BATCH_SIZE], name="input_batch3")
+                    if self.USE_DYNAMIC_BATCH
+                    else IntImm(value=self.BATCH_SIZE)
+                ),
                 IntImm(value=self.M),
                 IntImm(value=self.N * 2),
             ],

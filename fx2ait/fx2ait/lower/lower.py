@@ -208,9 +208,11 @@ class AitLowerer:
                 lowering_start_time = datetime.datetime.now()
 
                 self.lower_settings.additional_inputs = (
-                    additional_submodule_inputs[submod_name]
-                    if additional_submodule_inputs
-                    else None,
+                    (
+                        additional_submodule_inputs[submod_name]
+                        if additional_submodule_inputs
+                        else None
+                    ),
                 )
 
                 lowered_module = self.lower_pass(

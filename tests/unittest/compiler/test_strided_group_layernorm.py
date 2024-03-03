@@ -64,15 +64,19 @@ def build_ait_module(
         n.shape()[-n_normalize_over_last_dims:] for n in sliced_inputs
     ]
     gammas = [
-        None
-        if gamma_is_none
-        else Tensor(shape=shape, dtype=ait_dtype, name=f"gamma_{i}", is_input=True)
+        (
+            None
+            if gamma_is_none
+            else Tensor(shape=shape, dtype=ait_dtype, name=f"gamma_{i}", is_input=True)
+        )
         for i, shape in enumerate(layernorm_weight_shapes)
     ]
     betas = [
-        None
-        if beta_is_none
-        else Tensor(shape=shape, dtype=ait_dtype, name=f"beta_{i}", is_input=True)
+        (
+            None
+            if beta_is_none
+            else Tensor(shape=shape, dtype=ait_dtype, name=f"beta_{i}", is_input=True)
+        )
         for i, shape in enumerate(layernorm_weight_shapes)
     ]
     layernorm_op = (

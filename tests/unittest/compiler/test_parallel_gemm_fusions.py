@@ -720,7 +720,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
                 module.run_with_tensors([x_pt], out)
 
                 # Do comparisons.
-                for (out_ait, out_pt) in zip(out, cat_output_pt):
+                for out_ait, out_pt in zip(out, cat_output_pt):
                     self.assertTrue(
                         torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2)
                     )
@@ -803,7 +803,7 @@ class SingleSourceParallelGemmFusionTestCase(unittest.TestCase):
             module.run_with_tensors([x_pt], outs)
 
         # Do comparisons.
-        for (out_ait, out_pt) in zip(outs, Ys_pt):
+        for out_ait, out_pt in zip(outs, Ys_pt):
             self.assertTrue(torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2))
 
     def test_gemm_rcr_bias(self, dtype: str = "float16"):
@@ -881,7 +881,7 @@ class SingleSourceParallelGemmFusionTestCase(unittest.TestCase):
             module.run_with_tensors([x_pt], outs)
 
         # Do comparisons.
-        for (out_ait, out_pt) in zip(outs, Ys_pt):
+        for out_ait, out_pt in zip(outs, Ys_pt):
             self.assertTrue(torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2))
 
     def test_mix_gemm(self, dtype: str = "float16"):
@@ -971,7 +971,7 @@ class SingleSourceParallelGemmFusionTestCase(unittest.TestCase):
             module.run_with_tensors([x_pt], outs)
 
         # Do comparisons.
-        for (out_ait, out_pt) in zip(outs, Ys_pt):
+        for out_ait, out_pt in zip(outs, Ys_pt):
             self.assertTrue(torch.allclose(out_ait, out_pt, atol=5e-2, rtol=5e-2))
 
 

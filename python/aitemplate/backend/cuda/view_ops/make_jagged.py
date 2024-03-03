@@ -260,15 +260,19 @@ def make_jagged_gen_function(func_attrs):
     offsets_struct_type = jagged_int_var.offsets_struct_type()
 
     jagged_dim_min_values = [
-        dim.min_value().value()
-        if isinstance(dim.min_value(), IntImm)
-        else dim.min_value()._attrs["name"]
+        (
+            dim.min_value().value()
+            if isinstance(dim.min_value(), IntImm)
+            else dim.min_value()._attrs["name"]
+        )
         for dim in jagged_int_var.jagged_dims()
     ]
     jagged_dim_max_values = [
-        dim.max_value().value()
-        if isinstance(dim.max_value(), IntImm)
-        else dim.max_value()._attrs["name"]
+        (
+            dim.max_value().value()
+            if isinstance(dim.max_value(), IntImm)
+            else dim.max_value()._attrs["name"]
+        )
         for dim in jagged_int_var.jagged_dims()
     ]
 

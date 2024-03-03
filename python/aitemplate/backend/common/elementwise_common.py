@@ -591,9 +591,11 @@ def _get_input_alignments(
 
     # Cap alignments based on global_max_alignment.
     alignments = [
-        min(alignment, global_max_alignment)
-        if alignment is not None
-        else global_max_alignment
+        (
+            min(alignment, global_max_alignment)
+            if alignment is not None
+            else global_max_alignment
+        )
         for alignment in alignments
     ]
     return alignments

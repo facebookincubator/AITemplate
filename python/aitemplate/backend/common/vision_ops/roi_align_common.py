@@ -407,9 +407,9 @@ def gen_function_call(func_attrs, backend_spec, indent="  "):
         sampling_ratio=func_attrs["sampling_ratio"],
         spatial_scale=func_attrs["spatial_scale"],
         position_sensitive="true" if func_attrs["position_sensitive"] else "false",
-        continuous_coordinate="true"
-        if func_attrs["continuous_coordinate"]
-        else "false",
+        continuous_coordinate=(
+            "true" if func_attrs["continuous_coordinate"] else "false"
+        ),
         backend_spec=backend_spec,
         indent=indent,
     )

@@ -149,9 +149,11 @@ class AITTestCase(TestCase):
         mod.to(torch_dtype)
         inputs = map_aggregate(
             inputs,
-            lambda inp: inp.to(torch_dtype).contiguous()
-            if inp.dtype not in (torch.bool, torch.int64)
-            else inp.contiguous(),
+            lambda inp: (
+                inp.to(torch_dtype).contiguous()
+                if inp.dtype not in (torch.bool, torch.int64)
+                else inp.contiguous()
+            ),
         )
         interp = AITInterpreter(
             mod,
@@ -427,9 +429,11 @@ def benchmark_function(
     mod.to(torch_dtype)
     inputs = map_aggregate(
         inputs,
-        lambda inp: inp.to(torch_dtype).contiguous()
-        if inp.dtype not in (torch.bool, torch.int64)
-        else inp.contiguous(),
+        lambda inp: (
+            inp.to(torch_dtype).contiguous()
+            if inp.dtype not in (torch.bool, torch.int64)
+            else inp.contiguous()
+        ),
     )
     interp = AITInterpreter(
         mod,

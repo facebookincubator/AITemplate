@@ -934,24 +934,36 @@ def gen_function_call(
         p_out_batch="&" + yshape[0]._attrs["name"],
         p_out_h="&" + yshape[1]._attrs["name"],
         p_out_w="&" + yshape[2]._attrs["name"],
-        strideh=func_attrs["stride"]
-        if isinstance(func_attrs["stride"], int)
-        else func_attrs["stride"][0],
-        dilationh=func_attrs["dilate"]
-        if isinstance(func_attrs["dilate"], int)
-        else func_attrs["dilate"][0],
-        padh=func_attrs["pad"]
-        if isinstance(func_attrs["pad"], int)
-        else func_attrs["pad"][0],
-        stridew=func_attrs["stride"]
-        if isinstance(func_attrs["stride"], int)
-        else func_attrs["stride"][1],
-        dilationw=func_attrs["dilate"]
-        if isinstance(func_attrs["dilate"], int)
-        else func_attrs["dilate"][1],
-        padw=func_attrs["pad"]
-        if isinstance(func_attrs["pad"], int)
-        else func_attrs["pad"][1],
+        strideh=(
+            func_attrs["stride"]
+            if isinstance(func_attrs["stride"], int)
+            else func_attrs["stride"][0]
+        ),
+        dilationh=(
+            func_attrs["dilate"]
+            if isinstance(func_attrs["dilate"], int)
+            else func_attrs["dilate"][0]
+        ),
+        padh=(
+            func_attrs["pad"]
+            if isinstance(func_attrs["pad"], int)
+            else func_attrs["pad"][0]
+        ),
+        stridew=(
+            func_attrs["stride"]
+            if isinstance(func_attrs["stride"], int)
+            else func_attrs["stride"][1]
+        ),
+        dilationw=(
+            func_attrs["dilate"]
+            if isinstance(func_attrs["dilate"], int)
+            else func_attrs["dilate"][1]
+        ),
+        padw=(
+            func_attrs["pad"]
+            if isinstance(func_attrs["pad"], int)
+            else func_attrs["pad"][1]
+        ),
         indent=indent,
     )
 

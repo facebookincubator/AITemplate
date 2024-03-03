@@ -433,9 +433,11 @@ class FBCUDA(CUDA):
                     "--expt-relaxed-constexpr",
                     f"-gencode=arch=compute_{nvcc_arch},code=[sm_{nvcc_arch},compute_{nvcc_arch}]",
                     "-Xcompiler=-Wconversion",
-                    environ.get_compiler_opt_level()
-                    if not FBCUDA.optimize_for_compilation_time_
-                    else "-O1",
+                    (
+                        environ.get_compiler_opt_level()
+                        if not FBCUDA.optimize_for_compilation_time_
+                        else "-O1"
+                    ),
                     "-std=c++17",
                     "-DCUTLASS_DEBUG_TRACE_LEVEL="
                     + environ.get_cutlass_debug_trace_level(),

@@ -957,14 +957,16 @@ def acc_ops_conv_transpose2d(
                     ),
                     f"{name}.weight.slice_{i}",
                 ),
-                None
-                if bias is None
-                else make_slice(  # bias[wgs*i:wgs*i + wgs,]
-                    bias,
-                    get_batch_dim_slice_idx(
-                        i * w_group_size, i * w_group_size + w_group_size, 1
-                    ),
-                    f"{name}.bias.slice_{i}",
+                (
+                    None
+                    if bias is None
+                    else make_slice(  # bias[wgs*i:wgs*i + wgs,]
+                        bias,
+                        get_batch_dim_slice_idx(
+                            i * w_group_size, i * w_group_size + w_group_size, 1
+                        ),
+                        f"{name}.bias.slice_{i}",
+                    )
                 ),
                 transposed=True,
             )
@@ -1435,14 +1437,16 @@ def acc_ops_conv2d(
                     ),
                     f"{name}.weight.slice_{i}",
                 ),
-                None
-                if bias is None
-                else make_slice(  # bias[wgs*i:wgs*i + wgs,]
-                    bias,
-                    get_batch_dim_slice_idx(
-                        i * w_group_size, i * w_group_size + w_group_size, 1
-                    ),
-                    f"{name}.bias.slice_{i}",
+                (
+                    None
+                    if bias is None
+                    else make_slice(  # bias[wgs*i:wgs*i + wgs,]
+                        bias,
+                        get_batch_dim_slice_idx(
+                            i * w_group_size, i * w_group_size + w_group_size, 1
+                        ),
+                        f"{name}.bias.slice_{i}",
+                    )
                 ),
                 transposed=False,
             )

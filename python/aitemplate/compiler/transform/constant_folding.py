@@ -271,9 +271,9 @@ def _constant_folding_impl(
                 is_output=name in original_output_tensors,
             )
             if name in model_container_generator.output_name_to_idx:
-                new_tensor._attrs[
-                    "constant_folding_output_idx"
-                ] = model_container_generator.output_name_to_idx[name]
+                new_tensor._attrs["constant_folding_output_idx"] = (
+                    model_container_generator.output_name_to_idx[name]
+                )
             new_tensors[name] = new_tensor
 
     return new_tensors, file_pairs, constant_folding_inputs

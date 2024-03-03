@@ -137,9 +137,9 @@ def grouped_fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         num_heads="num_heads",
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
-        alpha1_divide_by_seq_len="true"
-        if func_attrs["alpha1_divide_by_seq_len"]
-        else "false",
+        alpha1_divide_by_seq_len=(
+            "true" if func_attrs["alpha1_divide_by_seq_len"] else "false"
+        ),
         activation_functor=activation_functor,
         bias_broadcast=bias_broadcast,
         offset_ptr="offset",

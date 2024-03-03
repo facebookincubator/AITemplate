@@ -255,9 +255,11 @@ def get_src_input(tensor: Tensor) -> str:
 
 def get_shape(shape: List[IntVar], dim_to_value_dict: Dict[str, int]):
     res = [
-        dim.value()
-        if isinstance(dim, IntImm)
-        else dim_to_value_dict[dim._attrs["name"]]
+        (
+            dim.value()
+            if isinstance(dim, IntImm)
+            else dim_to_value_dict[dim._attrs["name"]]
+        )
         for dim in shape
     ]
     return res

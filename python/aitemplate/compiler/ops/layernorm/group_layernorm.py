@@ -64,7 +64,7 @@ class group_layernorm(layernorm):
             == len(self._attrs["normalized_shape"])
         )
 
-        for (x, gamma, beta, normalized_shape) in zip(
+        for x, gamma, beta, normalized_shape in zip(
             inputs, gammas, betas, self._attrs["normalized_shape"]
         ):
             (x_shape, gamma_shape, beta_shape) = layernorm.get_input_shapes(

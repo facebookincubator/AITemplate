@@ -157,9 +157,9 @@ class GPUBackendSpec(BackendSpec):
                 "half2": "h2sin",
                 "bfloat16_2": "h2sin",
                 "half": "hsin" if Target.current().name() == "cuda" else "hsin_custom",
-                "bfloat16": "hsin"
-                if Target.current().name() == "cuda"
-                else "hsin_custom",
+                "bfloat16": (
+                    "hsin" if Target.current().name() == "cuda" else "hsin_custom"
+                ),
                 "float": "sinf",
             },
             FuncEnum.TANH: {
