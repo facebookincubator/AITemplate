@@ -486,6 +486,9 @@ class TensorSpec:
             if len(shape) < 2:
                 # By pass for rank-1 tensors. MRS model has rank-1 tensor carry no batch_size info
                 continue
+            if shape[0] == 0:
+                # We expect that 1 is the minimum batch size value anyways.
+                continue
             # Dedup shape value for single tensor
             first_dims.add(shape[0])
             seen_dims = set()
