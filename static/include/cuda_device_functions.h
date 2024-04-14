@@ -85,8 +85,7 @@ inline std::string GetUUIDToString(const char bytes[16]) {
 
 inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
   std::ostringstream oss;
-  oss << "Hardware accelerator device properties: "
-      << "\n  Device: "
+  oss << "Hardware accelerator device properties: " << "\n  Device: "
       << "\n     ASCII string identifying device: " << prop.name
       << "\n     Major compute capability: " << prop.major
       << "\n     Minor compute capability: " << prop.minor
@@ -121,9 +120,8 @@ inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
       << "\n     Peak global memory bandwidth (GByte/s): "
       << (prop.memoryClockRate / 1e6) * (prop.memoryBusWidth / 8) * 2
 
-      << "\n  Thread limits: "
-      << "\n     Warp size in threads: " << prop.warpSize
-      << "\n     Maximum size of each dimension of a grid: "
+      << "\n  Thread limits: " << "\n     Warp size in threads: "
+      << prop.warpSize << "\n     Maximum size of each dimension of a grid: "
       << prop.maxGridSize[0] << " " << prop.maxGridSize[1] << " "
       << prop.maxGridSize[2]
       << "\n     Maximum size of each dimension of a block: "
@@ -145,8 +143,7 @@ inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
       << "\n     Max clock frequency of the multiProcessors in khz: "
       << prop.clockRate
 
-      << "\n  Device features: "
-      << "\n     Device has ECC support enabled: "
+      << "\n  Device features: " << "\n     Device has ECC support enabled: "
       << (prop.ECCEnabled ? "yes" : "no")
       << "\n     Device can map host memory with cudaHostAlloc/cudaHostGetDevicePointer: "
       << (prop.canMapHostMemory ? "yes" : "no")
@@ -185,9 +182,8 @@ inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
       << "\n     Device shares a unified address space with the host: "
       << (prop.unifiedAddressing ? "yes" : "no")
 
-      << "\n  Texture limits: "
-      << "\n     Maximum 1D surface size: " << prop.maxSurface1D
-      << "\n     Maximum 1D layered surface dimensions: "
+      << "\n  Texture limits: " << "\n     Maximum 1D surface size: "
+      << prop.maxSurface1D << "\n     Maximum 1D layered surface dimensions: "
       << prop.maxSurface1DLayered[0] << " " << prop.maxSurface1DLayered[1]
       << "\n     Maximum 2D surface dimensions: " << prop.maxSurface2D[0] << " "
       << prop.maxSurface2D[1]
@@ -234,8 +230,7 @@ inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
 
 inline std::string PrintInfoDeviceProperties(const DevicePropertyType& prop) {
   std::ostringstream oss;
-  oss << "Hardware accelerator device properties: "
-      << "\n  Device: "
+  oss << "Hardware accelerator device properties: " << "\n  Device: "
       << "\n     ASCII string identifying device: " << prop.name
       << "\n     Major compute capability: " << prop.major
       << "\n     Minor compute capability: " << prop.minor

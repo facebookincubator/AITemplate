@@ -593,7 +593,7 @@ DispatchLayerNormWarpImplCols(
     return cudaErrorInvalidValue;
   }
 #define DEFINE_ONE_ELIF(thread_group_width)                                 \
-  else if (cols <= (thread_group_width)*pack_size) {                        \
+  else if (cols <= (thread_group_width) * pack_size) {                      \
     if (rows % 2 == 0) {                                                    \
       return DispatchLayerNormWarpImplPadding<                              \
           LOAD,                                                             \
@@ -622,7 +622,7 @@ DispatchLayerNormWarpImplCols(
   DEFINE_ONE_ELIF(32)
 #undef DEFINE_ONE_ELIF
 #define DEFINE_ONE_ELIF(max_col, min_col)                                 \
-  else if (cols <= (max_col)*kWarpSize) {                                 \
+  else if (cols <= (max_col) * kWarpSize) {                               \
     return DispatchLayerNormWarpImplPadding<                              \
         LOAD,                                                             \
         STORE,                                                            \
@@ -663,7 +663,7 @@ DispatchLayerNormWarpImplCols(
     return cudaErrorInvalidValue;
   }
 #define DEFINE_ONE_ELIF(thread_group_width)                                 \
-  else if (cols <= (thread_group_width)*pack_size) {                        \
+  else if (cols <= (thread_group_width) * pack_size) {                      \
     if (rows % 2 == 0) {                                                    \
       return DispatchLayerNormWarpImplPadding<                              \
           LOAD,                                                             \
@@ -691,17 +691,18 @@ DispatchLayerNormWarpImplCols(
   DEFINE_ONE_ELIF(16)
   DEFINE_ONE_ELIF(32)
 #undef DEFINE_ONE_ELIF
-#define DEFINE_ONE_ELIF(max_col, min_col)                                   \
-  else if ((cols <= (max_col)*kWarpSize) && (cols > (min_col)*kWarpSize)) { \
-    return DispatchLayerNormWarpImplPadding<                                \
-        LOAD,                                                               \
-        STORE,                                                              \
-        ComputeType,                                                        \
-        pack_size,                                                          \
-        max_col,                                                            \
-        min_col,                                                            \
-        kWarpSize,                                                          \
-        1>(stream, load, store, rows, cols, epsilon, mean, inv_variance);   \
+#define DEFINE_ONE_ELIF(max_col, min_col)                                  \
+  else if (                                                                \
+      (cols <= (max_col) * kWarpSize) && (cols > (min_col) * kWarpSize)) { \
+    return DispatchLayerNormWarpImplPadding<                               \
+        LOAD,                                                              \
+        STORE,                                                             \
+        ComputeType,                                                       \
+        pack_size,                                                         \
+        max_col,                                                           \
+        min_col,                                                           \
+        kWarpSize,                                                         \
+        1>(stream, load, store, rows, cols, epsilon, mean, inv_variance);  \
   }
   DEFINE_ONE_ELIF(4, 2)
   DEFINE_ONE_ELIF(8, 4)

@@ -89,8 +89,7 @@ inline std::string PrintArchFeatureFlags(const hipDeviceArch_t& arch) {
 
 inline std::string PrintInfoDeviceProperties(const DevicePropertyType& prop) {
   std::ostringstream oss;
-  oss << "Hardware accelerator device properties: "
-      << "\n  Device: "
+  oss << "Hardware accelerator device properties: " << "\n  Device: "
       << "\n     ASCII string identifying device: " << prop.name
       << "\n     Major compute capability: " << prop.major
       << "\n     Minor compute capability: " << prop.minor
@@ -113,8 +112,7 @@ inline std::string PrintInfoDeviceProperties(const DevicePropertyType& prop) {
 
 inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
   std::ostringstream oss;
-  oss << "Hardware accelerator device properties: "
-      << "\n  Device: "
+  oss << "Hardware accelerator device properties: " << "\n  Device: "
       << "\n     ASCII string identifying device: " << prop.name
       << "\n     Major compute capability: " << prop.major
       << "\n     Minor compute capability: " << prop.minor
@@ -138,9 +136,8 @@ inline std::string PrintDebugDeviceProperties(const DevicePropertyType& prop) {
       << "\n     Peak global memory bandwidth (GByte/s): "
       << (prop.memoryClockRate / 1e6) * (prop.memoryBusWidth / 8) * 2
 
-      << "\n  Thread limits: "
-      << "\n     Warp size in threads: " << prop.warpSize
-      << "\n     Maximum size of each dimension of a grid: "
+      << "\n  Thread limits: " << "\n     Warp size in threads: "
+      << prop.warpSize << "\n     Maximum size of each dimension of a grid: "
       << prop.maxGridSize[0] << " " << prop.maxGridSize[1] << " "
       << prop.maxGridSize[2]
       << "\n     Maximum size of each dimension of a block: "

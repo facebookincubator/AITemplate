@@ -280,8 +280,8 @@ struct components {
 };
 } // namespace double_
 __attribute__((device)) static inline constexpr int get_sign_bit(double x) {
-  return (
-      int)(double_::with_bit_access::wrap(x).U >> (double_::size_in_bits - 1));
+  return (int)(double_::with_bit_access::wrap(x).U >>
+               (double_::size_in_bits - 1));
 }
 __attribute__((device)) static inline int get_exp2(double x) {
   return double_::with_bit_access::wrap(x).exp2();
@@ -472,8 +472,9 @@ __attribute__((device)) static void print_integer(
   } else {
     do {
       const char digit = (char)(value % base);
-      buf[len++] =
-          (char)(digit < 10 ? '0' + digit : (flags & flags::uppercase ? 'A' : 'a') + digit - 10);
+      buf[len++] = (char)(digit < 10 ? '0' + digit
+                                     : (flags & flags::uppercase ? 'A' : 'a') +
+                                  digit - 10);
       value /= base;
     } while (value && (len < detail_::printf::integer_buffer_size));
   }

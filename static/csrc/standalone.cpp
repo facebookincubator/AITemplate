@@ -433,11 +433,9 @@ struct AITStandaloneTestcase {
 
       inputs.push_back(AITData(gpu_data_owner.back().get(), shape, dtype));
     }
-    std::cout << "Finished loading testcase inputs."
-              << "\n";
+    std::cout << "Finished loading testcase inputs." << "\n";
     if (fh.peek() == std::ifstream::traits_type::eof()) {
-      std::cout << "No expected outputs in testcase."
-                << "\n";
+      std::cout << "No expected outputs in testcase." << "\n";
       return;
     }
     if (inputs.size() != num_inputs) {
