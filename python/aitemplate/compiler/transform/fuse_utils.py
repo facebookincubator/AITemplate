@@ -80,6 +80,12 @@ def _find_fusion_root(tensor: Tensor, fusion_patterns: List[Any]) -> int:
                 fusion_idx = idx
                 break
 
+            if curr_tensor._attrs["is_output"]:
+                # if we don't break here, the curr_tensor will be
+                # eliminated as an intermediate tensor in the linear
+                # op pattern, but we can't eliminate a graph output
+                break
+
             dst_op = extract_only_one_op(curr_tensor._attrs["dst_ops"])
             if dst_op is None:
                 break
