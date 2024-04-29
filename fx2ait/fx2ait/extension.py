@@ -43,14 +43,18 @@ def _get_extension_path(lib_name):
     return ext_specs.origin
 
 
-try:
-    torch.ops.load_library("//deeplearning/ait:AITModel")
-    logger.info("===Load non-OSS AITModel===")
+if torch.version.hip is None:
+    # For Meta internal workloads, we don't have an active plan to apply AITemplate on AMD GPUs.
+    # As such, for AMD build we skip all AITemplate related supports. T186819748 is used to
+    # track the plans/strategies for AITemplate enablement on AMD GPUs if needed in the future.
+    try:
+        torch.ops.load_library("//deeplearning/ait:AITModel")
+        logger.info("===Load non-OSS AITModel===")
 
-except (ImportError, OSError):
-    lib_path = _get_extension_path("libait_model")
-    torch.ops.load_library(lib_path)
-    logger.info("===Load OSS AITModel===")
+    except (ImportError, OSError):
+        lib_path = _get_extension_path("libait_model")
+        torch.ops.load_library(lib_path)
+        logger.info("===Load OSS AITModel===")
 
-    def is_oss_ait_model():  # noqa: F811
-        return True
+        def is_oss_ait_model():  # noqa: F811
+            return True
