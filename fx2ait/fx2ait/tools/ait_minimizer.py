@@ -75,12 +75,12 @@ class AITMinimizer(net_min_base._MinimizerBase):
         self.curr_iter = 0  # We use this counter to prevent duplicate .so naming
         super().__init__(module, sample_input, compare_fn, settings)
 
-    def run_a(self, mod, inputs):
+    def run_a(self, mod, inputs, _report_idx=-1):
         mod.eval()
         with torch.no_grad():
             return mod(*inputs)
 
-    def run_b(self, mod, inputs):
+    def run_b(self, mod, inputs, _report_idx=-1):
         mod.eval()
         dll_name = f"{self.name}_{self.curr_iter}.so"
         self.curr_iter += 1
