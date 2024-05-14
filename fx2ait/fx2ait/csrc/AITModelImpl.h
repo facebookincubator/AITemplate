@@ -43,8 +43,8 @@ class AITModelImpl {
       const std::string& model_path,
       std::vector<std::string> input_names,
       std::vector<std::string> output_names,
-      c10::optional<at::ScalarType> input_dtype,
-      c10::optional<at::ScalarType> output_dtype,
+      std::optional<at::ScalarType> input_dtype,
+      std::optional<at::ScalarType> output_dtype,
       int64_t num_runtimes = 2,
       bool use_cuda_graph = false);
 
@@ -102,11 +102,11 @@ class AITModelImpl {
     return output_names_;
   }
 
-  const c10::optional<at::ScalarType> floatingPointInputDtype() const {
+  const std::optional<at::ScalarType> floatingPointInputDtype() const {
     return floating_point_input_dtype_;
   }
 
-  const c10::optional<at::ScalarType> floatingPointOutputDtype() const {
+  const std::optional<at::ScalarType> floatingPointOutputDtype() const {
     return floating_point_output_dtype_;
   }
 
@@ -182,8 +182,8 @@ class AITModelImpl {
   const std::string library_path_;
   const std::vector<std::string> input_names_;
   const std::vector<std::string> output_names_;
-  const c10::optional<at::ScalarType> floating_point_input_dtype_;
-  const c10::optional<at::ScalarType> floating_point_output_dtype_;
+  const std::optional<at::ScalarType> floating_point_input_dtype_;
+  const std::optional<at::ScalarType> floating_point_output_dtype_;
 #ifdef FBCODE_AIT
   folly::F14FastMap<const char*, size_t> input_name_to_index_;
   folly::F14FastMap<const char*, size_t> output_name_to_index_;

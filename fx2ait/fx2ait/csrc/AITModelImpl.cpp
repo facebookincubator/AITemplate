@@ -133,8 +133,8 @@ AITModelImpl::AITModelImpl(
     const std::string& model_path,
     std::vector<std::string> input_names,
     std::vector<std::string> output_names,
-    c10::optional<at::ScalarType> input_dtype,
-    c10::optional<at::ScalarType> output_dtype,
+    std::optional<at::ScalarType> input_dtype,
+    std::optional<at::ScalarType> output_dtype,
     int64_t num_runtimes,
     bool use_cuda_graph)
     : handle_(dlopen(model_path.c_str(), RTLD_NOW | RTLD_LOCAL)),
