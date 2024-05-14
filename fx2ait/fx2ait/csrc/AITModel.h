@@ -25,8 +25,8 @@ class AITModel : public torch::CustomClassHolder {
       const std::string& model_path,
       std::vector<std::string> input_names,
       std::vector<std::string> output_names,
-      c10::optional<at::ScalarType> input_dtype,
-      c10::optional<at::ScalarType> output_dtype,
+      std::optional<at::ScalarType> input_dtype,
+      std::optional<at::ScalarType> output_dtype,
       int64_t num_runtimes = 2,
       bool use_cuda_graph = false)
       : aitModelImpl_(

@@ -62,8 +62,8 @@ static auto registerAITModel =
              std::string,
              std::vector<std::string>,
              std::vector<std::string>,
-             c10::optional<at::ScalarType>,
-             c10::optional<at::ScalarType>,
+             std::optional<at::ScalarType>,
+             std::optional<at::ScalarType>,
              int64_t>())
         .def("forward", &AITModel::forward)
         .def("profile", &AITModel::profile)
