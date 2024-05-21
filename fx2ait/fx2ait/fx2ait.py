@@ -354,7 +354,7 @@ class AITInterpreter(torch.fx.Interpreter):
         if ait_friendly_name in self._loaded_params:
             existing_tensor = self._loaded_params[ait_friendly_name]
             assert existing_tensor._attrs["dtype"] == ait_dtype
-            assert existing_tensor._attrs["data"].tensor == ait_val
+            assert torch.all(existing_tensor._attrs["data"].tensor == ait_val)
             return existing_tensor
 
         data = _TorchConstantTensorData(ait_val)
