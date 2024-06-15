@@ -191,7 +191,12 @@ class ConcatenateTestCase(unittest.TestCase):
         y = torch.empty_like(y_pt)
         module.run_with_tensors(inputs, [y])
 
-        split_sections = [shape[dim] for shape in input_shapes]
+        split_sections = []
+        for shape in input_shapes:
+            if len(shape) == 1 and shape[0] == 0:
+                split_sections.append(0)
+            else:
+                split_sections.append(shape[dim])
 
         ys_pt = torch.split(y_pt, split_sections, dim=dim)
         ys = torch.split(y, split_sections, dim=dim)
@@ -252,6 +257,21 @@ class ConcatenateTestCase(unittest.TestCase):
         )
 
     def test_cat(self):
+        self._run_concatenate(
+            concatenate_op=ops.concatenate(),
+            input_shapes=([0], [2, 2, 2]),
+            dim=2,
+        )
+        self._run_concatenate(
+            concatenate_op=ops.concatenate(),
+            input_shapes=([2, 0, 4], [2, 3, 4], [0], [2, 2, 4]),
+            dim=1,
+        )
+        self._run_concatenate(
+            concatenate_op=ops.concatenate(),
+            input_shapes=([0], [2, 3, 4], [0], [2, 2, 4]),
+            dim=1,
+        )
         self._run_concatenate(
             concatenate_op=ops.concatenate(), input_shapes=([1], [1]), dim=0
         )
@@ -357,6 +377,13 @@ class ConcatenateTestCase(unittest.TestCase):
         )
 
     def test_masked_cat(self):
+        self._run_masked_concatenate(
+            concatenate_op=ops.concatenate(),
+            input_shapes=([0], [2, 2, 2]),
+            input_masks=[False, True],
+            dim=2,
+            optimize_args=True,
+        )
         self._run_masked_concatenate(
             concatenate_op=ops.concatenate(),
             input_shapes=([2, 2, 2], [2, 2, 2], [2, 2, 2]),

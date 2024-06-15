@@ -15,12 +15,13 @@
 """
 Concatenate.
 """
+from copy import deepcopy
 from functools import reduce
-from typing import List, Sequence, Union
+from typing import List, Optional, Sequence, Tuple, Union
 
 from aitemplate import backend
 from aitemplate.backend import registry
-from aitemplate.compiler.base import IntVar, Operator, Tensor
+from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.utils import shape_utils
 from aitemplate.utils.tensor_utils import wrap_dim
@@ -58,12 +59,37 @@ class concatenate(Operator):
         return sorted(set(vector))
 
     @staticmethod
+    def get_rank(inputs: List[Tensor]) -> Optional[int]:
+        input_rank = None
+        for inp in inputs:
+            if not shape_utils.is_empty_rank1_tensor(inp._attrs["shape"]):
+                input_rank = inp._rank()
+                break
+        return input_rank
+
+    @staticmethod
+    def get_first_non_empty_input_if_any(inputs: List[Tensor]) -> Tuple[Tensor, int]:
+        """Return the first non-empty input and its index from the list.
+        If all inputs are empty, return the first input.
+        """
+        assert len(inputs) > 0, "len(inputs) must be > 0!"
+        t = None
+        idx = 0
+        for i, inp in enumerate(inputs):
+            if not shape_utils.is_empty_rank1_tensor(inp._attrs["shape"]):
+                return (inp, i)
+        if t is None:
+            t = inputs[0]
+        return (t, idx)
+
+    @staticmethod
     def check_rank(inputs: List[Tensor], dim) -> bool:
         """check if the rank is valid"""
         if len(inputs) < 1:
             raise RuntimeError("expected a list of Tensors")
-        x = inputs[0]
-        rank = len(x._attrs["shape"])
+        rank = concatenate.get_rank(inputs)
+        if rank is None:
+            return
         if rank <= 0:
             raise RuntimeError("expected a non-scalar tensor")
         if dim >= rank:
@@ -71,6 +97,8 @@ class concatenate(Operator):
                 f"concat_dim ({dim}) expected to be less than rank ({rank})"
             )
         for t in inputs:
+            if shape_utils.is_empty_rank1_tensor(t._attrs["shape"]):
+                continue
             r = len(t._attrs["shape"])
             if r != rank:
                 raise RuntimeError(
@@ -81,8 +109,22 @@ class concatenate(Operator):
     def _infer_shapes(self, inputs: List[Tensor], dim) -> List[IntVar]:
         """Infers shapes for concatenate."""
         concatenate.check_rank(inputs, dim)
+        rank = concatenate.get_rank(inputs)
+        # all inputs are empty
+        if rank is None:
+            return [IntImm(0)]
 
-        input_shapes = [i._attrs["shape"] for i in inputs]
+        ref_input, _ = concatenate.get_first_non_empty_input_if_any(inputs)
+        # reference shape should come from a non-empty tensor
+        ref_input_shape = ref_input._attrs["shape"]
+        input_shapes = []
+        for t in inputs:
+            if shape_utils.is_empty_rank1_tensor(t._attrs["shape"]):
+                shape = deepcopy(ref_input_shape)
+                shape[dim] = IntImm(0)
+            else:
+                shape = t._attrs["shape"]
+            input_shapes.append(shape)
         output_shape = []
         input_shape_values = [
             [d._attrs["values"] for d in shape] for shape in input_shapes
@@ -103,8 +145,11 @@ class concatenate(Operator):
                 )
                 output_shape.append(shape_var)
             else:
-                output_dim = input_shapes[0][idx]
+                output_dim = ref_input_shape[idx]
                 for shape in input_shapes:
+                    # the corresponding input tensor is empty
+                    if shape_utils.is_empty_rank1_tensor(shape):
+                        continue
                     # if output_dim != shape[idx]:
                     if output_dim._attrs["values"] != shape[idx]._attrs["values"]:
                         raise RuntimeError(
@@ -128,8 +173,12 @@ class concatenate(Operator):
         self._attrs["original_inputs"] = list(inputs)
         # True means the corresponding tensor will be copied by the concat backend.
         self._attrs["input_masks"] = [True] * len(inputs)
-        input_rank = inputs[0]._rank()
-        dim = wrap_dim(dim, input_rank)
+        input_rank = concatenate.get_rank(inputs)
+        if input_rank is not None:
+            dim = wrap_dim(dim, input_rank)
+        else:
+            # force dim to be 0
+            dim = 0
         self._attrs["concat_dim"] = dim
         self._set_depth()
         output_shape = self._infer_shapes(inputs, dim)
