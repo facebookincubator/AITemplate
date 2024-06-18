@@ -234,3 +234,12 @@ def get_static_stride(shape, dim) -> Optional[int]:
             return None
         stride *= d.value()
     return stride
+
+
+def is_empty_rank1_tensor(shape) -> bool:
+    """
+    Return True if the input shape is empty
+    """
+    from aitemplate.compiler.base import IntImm
+
+    return len(shape) == 1 and isinstance(shape[0], IntImm) and shape[0].value() == 0

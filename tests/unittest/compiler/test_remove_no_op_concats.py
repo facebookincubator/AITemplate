@@ -106,7 +106,7 @@ class TestRemoveNoOpConcats(unittest.TestCase):
         # AIT expects all concat inputs to have the same rank.
         with self.assertRaises(RuntimeError):
             self._test_remove_no_op_concats_impl(
-                input_shapes=[[2, 4], [0]],
+                input_shapes=[[2, 4], [1]],
                 should_keep_concat=False,
                 test_name="test_remove_no_op_concats_same_rank",
             )

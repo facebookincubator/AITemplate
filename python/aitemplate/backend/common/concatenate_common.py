@@ -15,6 +15,7 @@
 """
 backend concatenate function common templates.
 """
+from copy import deepcopy
 from typing import List
 
 import jinja2
@@ -24,6 +25,7 @@ from aitemplate.backend.target import Target
 
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.tensor import concatenate
+from aitemplate.utils.shape_utils import is_empty_rank1_tensor
 
 FUNC_DECL_TEMPLATE = jinja2.Template(
     """
@@ -685,7 +687,7 @@ def gen_function(
     inputs = func_attrs["inputs"]
     original_inputs = func_attrs["original_inputs"]
     concatenate.check_rank(original_inputs, func_attrs["concat_dim"])
-    orig_x = original_inputs[0]
+    orig_x = concatenate.get_first_non_empty_input_if_any(original_inputs)
     y = func_attrs["outputs"][0]
     x_shape = orig_x._attrs["shape"]
 
@@ -830,7 +832,7 @@ def gen_function_call(
     )
     original_inputs = func_attrs["original_inputs"]
     concatenate.check_rank(original_inputs, func_attrs["concat_dim"])
-    orig_x = original_inputs[0]
+    orig_x, _ = concatenate.get_first_non_empty_input_if_any(original_inputs)
     y = func_attrs["outputs"][0]
     concat_dim = func_attrs["concat_dim"]
 
@@ -857,9 +859,17 @@ def gen_function_call(
         ]
         return ",".join(dim_vals)
 
+    non_empty_input, non_empty_idx = concatenate.get_first_non_empty_input_if_any(
+        inputs
+    )
+    non_empty_input_accessor = input_accessors[non_empty_idx]
     for idx, (i, input_accessor) in enumerate(zip(inputs, input_accessors)):
         input_shape_name = f'{i._attrs["name"]}_shape_{idx}'
         orig_input_shape = input_accessor.original_shapes
+        if is_empty_rank1_tensor(orig_input_shape):
+            orig_dim = orig_input_shape[0]
+            orig_input_shape = deepcopy(non_empty_input_accessor.original_shapes)
+            orig_input_shape[concat_dim] = orig_dim
         dims = ", ".join([dim._attrs["name"] for dim in orig_input_shape])
         dims_key = _make_dims_key(orig_input_shape)
         seen_shape_name = seen_input_shape_dims.get(dims_key, None)
@@ -883,14 +893,22 @@ def gen_function_call(
     input_masks = func_attrs["input_masks"]
     input_indices = [idx for idx, m in enumerate(input_masks) if m is True]
     assert len(inputs) == len(input_indices)
-    concat_dim_sizes = [
-        "-1" if mask else str(original_inputs[idx]._attrs["shape"][concat_dim].value())
-        for idx, mask in enumerate(input_masks)
-    ]
+    concat_dim_sizes = []
+    for idx, mask in enumerate(input_masks):
+        if is_empty_rank1_tensor(original_inputs[idx]._attrs["shape"]):
+            d = "0"
+        elif mask:
+            d = "-1"
+        else:
+            d = str(original_inputs[idx]._attrs["shape"][concat_dim].value())
+        concat_dim_sizes.append(d)
 
     # update dim size for real inputs
     for input_accessor, input_index in zip(input_accessors, input_indices):
-        dim = input_accessor.original_shapes[concat_dim]._attrs["name"]
+        if is_empty_rank1_tensor(input_accessor.original_shapes):
+            dim = input_accessor.original_shapes[0]._attrs["name"]
+        else:
+            dim = input_accessor.original_shapes[concat_dim]._attrs["name"]
         concat_dim_sizes[input_index] = dim
 
     input_mask_values = ["true" if mask is True else "false" for mask in input_masks]

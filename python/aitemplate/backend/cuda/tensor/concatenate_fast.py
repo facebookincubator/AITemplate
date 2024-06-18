@@ -128,7 +128,7 @@ def gen_function(
     inputs = func_attrs["inputs"]
     original_inputs = func_attrs["original_inputs"]
     concatenate.check_rank(original_inputs, func_attrs["concat_dim"])
-    orig_x = original_inputs[0]
+    orig_x, _ = concatenate.get_first_non_empty_input_if_any(original_inputs)
     y = func_attrs["outputs"][0]
     x_shape = orig_x._attrs["shape"]
 
