@@ -18,7 +18,7 @@ Perform operator fusions.
 import collections
 import itertools
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set
 
 from aitemplate.compiler.base import Operator, Tensor
@@ -76,7 +76,7 @@ class SimpleDisjointSet:
         return node_groups
 
 
-def _find_fusable_elementwise_ops(op: Operator) -> Set[Operator]:
+def _find_fusable_elementwise_ops(src_op: Operator) -> Set[Operator]:
     """
     Given an elementwise op, returns a list of parent elementwise ops
     which can be fused with this elementwise op.
@@ -84,7 +84,7 @@ def _find_fusable_elementwise_ops(op: Operator) -> Set[Operator]:
 
     # Get parent ops.
     dependent_ops = set()
-    for input_tensor in op._attrs["inputs"]:
+    for input_tensor in src_op._attrs["inputs"]:
         dependent_ops.update(input_tensor._attrs["src_ops"])
     original_ops = set(dependent_ops)
 
@@ -148,16 +148,23 @@ class FusedElementwiseInfo:
     external_outputs: List[Tensor]
 
 
-def _partition_subgraphs(ops: Set[Operator]) -> Dict[str, Set[Operator]]:
+@dataclass
+class SubgraphInfo:
+    partitioned_ops: Set[Operator] = field(default_factory=set)
+    external_outputs: Set[Tensor] = field(default_factory=set)
+
+
+def _partition_subgraphs(ops: Set[Operator]) -> Dict[str, SubgraphInfo]:
     """
     Given ops of candidate graph of fused_elementwise op graph and partition
     into subgraph based on output shape, returns dict of
-    {output shape: ops to form subgraph based on the shape}
+    {output shape: ops to form subgraph based on the shape and external outputs of the subgraph}
     """
     # Partition graph of elementwise into subgraph based on output shape.
-    output_op_map = collections.defaultdict(set)
+    subgraph_info_map = collections.defaultdict(SubgraphInfo)
     for op in ops:
         shapes = []
+        external_outputs = []
         # Find output nodes
         for output_tensor in op._attrs["outputs"]:
             if (
@@ -165,16 +172,19 @@ def _partition_subgraphs(ops: Set[Operator]) -> Dict[str, Set[Operator]]:
                 or len(output_tensor._attrs["dst_ops"] - ops) > 0
             ):
                 shapes.append("_".join(map(str, output_tensor._attrs["shape"])))
+                external_outputs.append(output_tensor)
         # Find anscestor of output node.
         # Outputs with the same shape should form the same graph
         if shapes:
             key = "|".join(shapes)
-            op_set = output_op_map[key]
+            subgraph_info = subgraph_info_map[key]
+            subgraph_info.external_outputs.update(external_outputs)
+            op_set = subgraph_info.partitioned_ops
             for anc_op in ops:
                 if transform_utils.is_ancestor(anc_op, op):
                     op_set.add(anc_op)
             op_set.add(op)
-    return output_op_map
+    return subgraph_info_map
 
 
 def _get_inputs_outputs(
@@ -232,7 +242,7 @@ def _get_inputs_outputs(
 
 
 def _collect_info(
-    output_op_map: Dict[str, Set[Operator]],
+    subgraph_info_map: Dict[str, SubgraphInfo],
     all_ops: Set[Operator],
     sorted_graph: List[Tensor],
 ) -> List[FusedElementwiseInfo]:
@@ -246,9 +256,10 @@ def _collect_info(
         their external input/output, serving as input/output of fused_elementwise op.
     """
     info_list = []
-    for op_set in output_op_map.values():
+    for subgraph_info in subgraph_info_map.values():
         # Toposort the op_set into op_list
         # because fuse_elementwise stores elementwise ops in topological order
+        op_set = subgraph_info.partitioned_ops
         topo_set = set()
         op_list = []
         for tensor in sorted_graph:
@@ -264,8 +275,15 @@ def _collect_info(
         ), "Unable to find topological order of op list for fused_elementwise!"
         # Get all inputs/outputs of elementwise ops and their external input/output,
         # which will serve as input/output of fused_elementwise op.
-        inputs_outputs = _get_inputs_outputs(op_list, all_ops)
-        fused_op_info = FusedElementwiseInfo(op_list, *inputs_outputs)
+        tmp_inputs, tmp_outputs, external_inputs, _ = _get_inputs_outputs(
+            op_list, all_ops
+        )
+        # Use the external outputs we already collected because the external outputs returned by
+        # _get_inputs_outputs may have different shapes.
+        external_outputs = subgraph_info.external_outputs
+        fused_op_info = FusedElementwiseInfo(
+            op_list, tmp_inputs, tmp_outputs, external_inputs, external_outputs
+        )
         info_list.append(fused_op_info)
     return info_list
 
@@ -326,9 +344,9 @@ def fuse_elementwise(sorted_graph: List[Tensor], workdir: str = None) -> List[Te
 
     for ops in to_be_fused_op_groups:
         # Partition subgraph based on output shape.
-        output_op_map = _partition_subgraphs(ops)
+        subgraph_info_map = _partition_subgraphs(ops)
         # Collect information to create fuse ops.
-        info_list = _collect_info(output_op_map, ops, sorted_graph)
+        info_list = _collect_info(subgraph_info_map, ops, sorted_graph)
         # Create fuse ops.
         _create_fuse_ops(info_list)
 
@@ -358,10 +376,9 @@ def process_singleton_elementwise(
 
     for ops in to_be_fused_op_groups:
         # Partition subgraph based on output shape.
-        # output_op_map = {op._attrs["op"]: set(op) for op in ops}
-        output_op_map = _partition_subgraphs(ops)
+        subgraph_info_map = _partition_subgraphs(ops)
         # Collect information to create fuse ops.
-        info_list = _collect_info(output_op_map, set(ops), sorted_graph)
+        info_list = _collect_info(subgraph_info_map, set(ops), sorted_graph)
         # Create fuse ops.
         _create_fuse_ops(info_list)
 
