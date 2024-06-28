@@ -204,6 +204,7 @@ class SplitTestCase(unittest.TestCase):
         self._run_split(input_shape=[2, 0, 4], split_size_or_sections=0, dim=-2)
         self._run_split(input_shape=[2, 0, 4], split_size_or_sections=2, dim=-1)
         self._run_split(input_shape=[2, 0, 7], split_size_or_sections=[2, 3, 2], dim=-1)
+        self._run_split(input_shape=[32, 8], split_size_or_sections=[8, 0, 0], dim=-1)
 
     def test_split_with_mask(self):
         self._run_split(

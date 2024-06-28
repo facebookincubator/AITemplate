@@ -386,7 +386,7 @@ void {{func_name}}(
     throw std::runtime_error("input is NULL!");
   }
   for (int i = 0; i < real_num_splits; i++) {
-    if (!outputs[i]) {
+    if (split_sizes[i] && !outputs[i]) {
       throw std::runtime_error("NULL output found at: " + std::to_string(i));
     }
   }
