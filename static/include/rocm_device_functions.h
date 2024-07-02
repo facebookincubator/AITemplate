@@ -28,7 +28,7 @@
 
 namespace ait {
 
-inline thread_local bool target_has_graph_mode = false;
+inline thread_local bool target_has_graph_mode = true;
 
 using DeviceError = hipError_t;
 using DevicePropertyType = hipDeviceProp_t;
@@ -57,7 +57,7 @@ inline std::string PrintArchFeatureFlags(const hipDeviceArch_t& arch) {
       << "\n     Has 32-bit integer atomics for shared memory: "
       << (arch.hasSharedInt32Atomics ? "yes" : "no")
       << "\n     Has 32-bit float atomic exch for shared memory: "
-      << (arch.hasSharedFloatAtomicExch ? "yes" : "no"
+      << (arch.hasSharedFloatAtomicExch ? "yes" : "no")
       << "\n     Has 32-bit float atomic add in global and shared memory: "
       << (arch.hasFloatAtomicAdd ? "yes" : "no")
       << "\n     Has 64-bit integer atomics for global memory: "
@@ -67,9 +67,9 @@ inline std::string PrintArchFeatureFlags(const hipDeviceArch_t& arch) {
       << "\n     Has double-precision floating point: "
       << (arch.hasDoubles ? "yes" : "no")
       << "\n     Has warp vote instructions (__any, __all): "
-      << (arch.hasWarpVote: ? "yes" : "no")
+      << (arch.hasWarpVote ? "yes" : "no")
       << "\n     Has warp ballot instructions (__ballot): "
-      << (arch.hasWarpBallot: ? "yes" : "no")
+      << (arch.hasWarpBallot ? "yes" : "no")
       << "\n     Has warp shuffle operations. (__shfl_*): "
       << (arch.hasWarpShuffle ? "yes" : "no")
       << "\n     Has funnel two words into one with shift&mask caps: "
@@ -184,7 +184,7 @@ inline DeviceError StreamDestroy(StreamType stream) {
 }
 
 inline DeviceError StreamWaitEvent(StreamType stream, EventType event) {
-  return hipStreamWaitEvent(stream, event);
+  return hipStreamWaitEvent(stream, event, 0);
 }
 
 inline DeviceError GraphInstantiate(
@@ -199,7 +199,8 @@ inline DeviceError GraphDestroy(GraphType graph) {
 
 inline DeviceError GraphExecUpdate(GraphExecType graph_exec, GraphType graph) {
   // We don't have hipGraphExecUpdate in some versions of rocm
-  return hipErrorUnknown;
+  hipGraphExecUpdateResult update;
+  return hipGraphExecUpdate(graph_exec, graph, nullptr, &update);
 }
 
 inline DeviceError GraphExecDestroy(GraphExecType graph_exec) {
@@ -311,7 +312,7 @@ inline DeviceError QueryEvent(EventType event) {
   return hipEventQuery(event);
 }
 
-inline const char* GetErrorString(DeviceError err) {
+inline std::string GetErrorString(DeviceError err) {
   return hipGetErrorString(err);
 }
 
