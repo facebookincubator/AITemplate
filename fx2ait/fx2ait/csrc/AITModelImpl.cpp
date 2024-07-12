@@ -145,7 +145,9 @@ AITModelImpl::AITModelImpl(
       floating_point_input_dtype_(input_dtype),
       floating_point_output_dtype_(output_dtype),
       use_cuda_graph_(use_cuda_graph) {
-  LOG(INFO) << "Loading .so lib " << model_path;
+  LOG(INFO) << "AITModelImpl: loading .so lib " << model_path;
+  LOG(INFO) << "AITModelImpl: num_runtimes: " << num_runtimes
+            << ",use_cuda_graph: " << use_cuda_graph;
   TORCH_CHECK(handle_, "could not dlopen ", model_path, ": ", dlerror());
   TORCH_CHECK(num_runtimes > 0, "num_runtimes must be positive");
 

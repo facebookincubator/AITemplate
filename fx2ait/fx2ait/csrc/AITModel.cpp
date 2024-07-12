@@ -64,7 +64,8 @@ static auto registerAITModel =
              std::vector<std::string>,
              std::optional<at::ScalarType>,
              std::optional<at::ScalarType>,
-             int64_t>())
+             int64_t,
+             bool>())
         .def("forward", &AITModel::forward)
         .def("profile", &AITModel::profile)
         .def("get_library_path", &AITModel::libraryPath)

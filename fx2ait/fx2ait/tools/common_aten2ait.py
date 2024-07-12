@@ -163,6 +163,7 @@ class DispatchTestCase(TestCase):
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
+                False,
             ),
             interp_result,
         )
@@ -256,6 +257,7 @@ class DispatchTestCase(TestCase):
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
+                False,
             ),
             interp_result,
         )
@@ -375,6 +377,7 @@ class DispatchTestCase(TestCase):
                     torch.float16,
                     torch.float,
                     1,  #  num_runtimes
+                    False,
                 ),
                 interp_result,
             )

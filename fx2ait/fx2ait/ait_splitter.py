@@ -218,6 +218,7 @@ class AITSplitter(splitter_base._SplitterBase):
                 torch.float16,
                 torch.float,
                 1,  # num_runtimes
+                False,
             ),
             interpreter_result,
         )

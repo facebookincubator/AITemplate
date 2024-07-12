@@ -68,6 +68,7 @@ class TestAITModule(unittest.TestCase):
                 torch.float16,
                 torch.float16,
                 1,  # num_runtimes
+                False,
             )
         )
         ait_mod.engine.use_cuda_graph = test_cuda_graph
@@ -140,6 +141,7 @@ class TestAITModule(unittest.TestCase):
                 torch.float16,
                 torch.float16,
                 1,  # num_runtimes
+                False,
             ),
             interp_result,
         )
