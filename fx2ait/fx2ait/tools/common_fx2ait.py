@@ -187,6 +187,7 @@ class AITTestCase(TestCase):
                         torch_dtype,
                         torch.float,
                         1,  #  num_runtimes
+                        False,
                     ),
                     interp_result,
                 )
@@ -199,6 +200,7 @@ class AITTestCase(TestCase):
                         torch_dtype,
                         torch.float,
                         1,  #  num_runtimes
+                        False,
                     ),
                     interp_result,
                 )
@@ -317,6 +319,7 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
+                        False,
                     ),
                     interp_result,
                 )
@@ -329,6 +332,7 @@ class AITTestCase(TestCase):
                         torch.float16,
                         torch.float,
                         1,  #  num_runtimes
+                        False,
                     ),
                     interp_result,
                 )
@@ -467,6 +471,7 @@ def benchmark_function(
                 torch.float16,
                 torch.float,
                 1,  #  num_runtimes
+                False,
             ),
             interp_result,
         )

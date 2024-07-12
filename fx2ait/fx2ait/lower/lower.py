@@ -129,6 +129,7 @@ def default_lower_pass(
                 _precision_to_torch_type(lower_settings.precision),
                 _precision_to_torch_type(lower_settings.output_precision),
                 1,  # num_runtimes
+                False,
             ),
             interp_res,
             lower_settings.trace_ait_module,
