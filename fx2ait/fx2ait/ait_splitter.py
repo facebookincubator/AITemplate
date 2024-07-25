@@ -172,9 +172,7 @@ class AITSplitter(splitter_base._SplitterBase):
             settings = AITSplitterSettings()
         if not operator_support:
             if settings.debug_operator_range:
-                min_range, max_range = tuple(
-                    int(x) for x in settings.debug_operator_range.split(",")
-                )
+                min_range, max_range = settings.debug_operator_range
                 operator_support = _range_operator_support(
                     module=module,
                     start=min_range,
