@@ -26,6 +26,7 @@ from aitemplate.testing.test_utils import (
     filter_test_cases_by_params,
     get_random_torch_tensor,
     get_torch_empty_tensor,
+    get_torch_full_tensor,
     TestEnv,
 )
 from aitemplate.utils import graph_utils
@@ -370,6 +371,66 @@ class RefineGraphTestCase(unittest.TestCase):
         self.assertTrue(torch.allclose(Y2_pt, y2, atol=1e-1, rtol=1e-1))
         self.assertTrue(torch.allclose(Y1_pt, outputs["y3"], atol=1e-1, rtol=1e-1))
         self.assertTrue(torch.allclose(Y2_pt, outputs["y4"], atol=1e-1, rtol=1e-1))
+
+    @parameterized.expand(
+        **filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_SM80: [
+                    (0, [10, 20], [10, 20], 1.0, 1.0, "float16", "float16"),
+                    (1, [10, 20], [100, 20], 1.0, 1.0, "float16", "float16"),
+                    (2, [10, 20], [10, 20], 1.0, 3.14, "float16", "float16"),
+                    (3, [10, 20], [100, 20], 1.0, 3.14, "float16", "float16"),
+                    (4, [10, 20], [10, 20], 1.0, 1.0, "float16", "float32"),
+                    (5, [10, 20], [100, 20], 1.0, 1.0, "float16", "float32"),
+                    (6, [10, 20], [10, 20], 1.0, 3.14, "float16", "float32"),
+                    (7, [10, 20], [100, 20], 1.0, 3.14, "float16", "float32"),
+                ],
+            }
+        )
+    )
+    def test_refine_graph_full(
+        self,
+        test_id,
+        shape1,
+        shape2,
+        fill_value1,
+        fill_value2,
+        dtype1,
+        dtype2,
+    ):
+        Y1 = ops.full()(
+            shape=shape1,
+            fill_value=fill_value1,
+            dtype=dtype1,
+        )
+        Y2 = ops.full()(
+            shape=shape2,
+            fill_value=fill_value2,
+            dtype=dtype2,
+        )
+        Y1._attrs["name"] = "Y1"
+        Y1._attrs["is_output"] = True
+        Y2._attrs["name"] = "Y2"
+        Y2._attrs["is_output"] = True
+
+        module = compile_model(
+            [Y1, Y2],
+            detect_target(),
+            "./tmp",
+            f"test_refine_graph_full_{test_id}",
+        )
+
+        inputs = {}
+        outputs = {}
+        outputs["Y1"] = get_torch_empty_tensor(shape1, dtype1)
+        outputs["Y2"] = get_torch_empty_tensor(shape2, dtype2)
+
+        module.run_with_tensors(inputs, outputs)
+        y1 = get_torch_full_tensor(shape1, fill_value1, dtype1)
+        y2 = get_torch_full_tensor(shape2, fill_value2, dtype2)
+
+        torch.testing.assert_close(y1, outputs["Y1"])
+        torch.testing.assert_close(y2, outputs["Y2"])
 
 
 if __name__ == "__main__":

@@ -64,6 +64,12 @@ class full(Operator):
         self._attrs["inputs"] = []
         self._attrs["fill_value"] = fill_value
 
+        # although not used downstream, these attrs
+        # are necessary to avoid erroneously deduping
+        # legitimately different fill op instances
+        self._attrs["shape"] = shape
+        self._attrs["dtype"] = dtype
+
         self._set_depth()
         output = Tensor(
             shape, src_ops={self}, dtype=dtype, skip_constant_folding=not static_shape
