@@ -250,3 +250,56 @@ class TestSplit(AITTestCase):
             dict(split_results_relu_allowed.split_module.named_children()).keys(),
             {"_run_on_acc_0"},
         )
+
+    def test_fail_if_exceed_max_acc_split_limit(self):
+        class TestModule(torch.nn.Module):
+            def forward(self, a):
+                b = torch.sin(a)
+                c = torch.relu(b)
+                d = torch.cos(c)
+                e = torch.sigmoid(d)
+                f = torch.tanh(e)
+                return f
+
+        # Support all ops
+        _support_dict = {
+            "acc_ops.sin": None,
+            "acc_ops.cos": None,
+            "acc_ops.relu": None,
+            "acc_ops.sigmoid": None,
+            "acc_ops.tanh": None,
+        }
+        custom_op_support = op_support.OperatorSupport(_support_dict)
+
+        # With no ops excluded, the entire module should be lowered
+        # into one acc graph
+        mod = acc_tracer.trace(TestModule(), [torch.randn(2, 3)])
+        settings = AITSplitterSettings(min_acc_module_size=0, max_acc_splits=1)
+        splitter = AITSplitter(
+            mod,
+            (torch.randn(2, 3),),
+            custom_op_support,
+            settings,
+        )
+
+        res_all_nodes_supported = splitter.generate_split_results()
+        split_named_mods = dict(res_all_nodes_supported.split_module.named_children())
+        self.assertEqual(len(split_named_mods), 1)
+        self.assertIn("_run_on_acc_0", split_named_mods)
+
+        # Add "relu" to exclude_support_node_name
+        # The graph should be split into 3 parts now(_run_on_acc_0, _run_on_gpu_1, _run_on_acc_2)
+        mod = acc_tracer.trace(TestModule(), [torch.randn(2, 3)])
+        settings.exclude_support_node_name.add("relu_1")
+        splitter = AITSplitter(
+            mod,
+            (torch.randn(2, 3),),
+            custom_op_support,
+            settings,
+        )
+        # Split should fail now
+        with self.assertRaisesRegex(
+            ValueError,
+            "Cannot fulfill max_acc_splits limit. This may cause split fragmentation and result in performance issues.",
+        ):
+            splitter.generate_split_results()

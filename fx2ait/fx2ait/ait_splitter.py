@@ -115,12 +115,14 @@ class AITSplitterSettings(splitter_base._SplitterSettingBase):
         min_acc_module_size=DEFAULT_MIN_ACC_MODULE_SIZE,
         allow_int_inputs=False,
         debug_operator_range=None,
+        max_acc_splits=-1,
     ):
         super().__init__()
         self.min_acc_module_size = min_acc_module_size
         self.exclude_support_node_name: set = set()
         self.allow_int_inputs: bool = allow_int_inputs
         self.debug_operator_range = debug_operator_range
+        self.max_acc_splits = max_acc_splits
 
 
 class SelectedOperatorSupport(ops.OperatorSupportBase):

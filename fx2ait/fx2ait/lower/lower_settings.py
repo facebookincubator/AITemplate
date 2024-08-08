@@ -61,6 +61,9 @@ class LowerSettings:
 
     max_batch_size: int = 2048
     min_acc_module_size: int = 10
+    # Maximum number of splits for lowered module
+    # (eg. if lowered module is split into _run_on_gpu_0(unlowered submodule) and _run_on_acc_1(lowered submodule) it has 2 splits)
+    max_acc_splits: int = -1
     workdir: str = ""
     name: str = ""
     dll_name: str = "ait_engine.so"

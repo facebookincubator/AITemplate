@@ -100,6 +100,7 @@ def default_split_function(
     settings = AITSplitterSettings(
         min_acc_module_size=lower_settings.min_acc_module_size,
         allow_int_inputs=lower_settings.allow_int_inputs,
+        max_acc_splits=lower_settings.max_acc_splits,
     )
     splitter = AITSplitter(model, inputs, settings=settings)
     splitter.node_support_preview()
