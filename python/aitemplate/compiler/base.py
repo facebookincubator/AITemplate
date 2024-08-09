@@ -738,7 +738,7 @@ class Tensor(Node):
     def __init__(
         self,
         shape: List[IntVar],
-        name: str = None,
+        name: Optional[str] = None,
         src_ops: Iterable[Node] = None,
         dst_ops: Iterable[Node] = None,
         dtype: str = "float16",

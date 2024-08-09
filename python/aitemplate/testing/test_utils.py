@@ -53,7 +53,7 @@ def _SM90_filter(method_name: str) -> bool:
     return method_name.endswith("sm90")
 
 
-_TEST_ENV_TO_FILTER_METHOD: Dict[str, Callable[[str], bool]] = {
+_TEST_ENV_TO_FILTER_METHOD: Dict[TestEnv, Callable[[str], bool]] = {
     TestEnv.CUDA_LESS_THAN_SM80: (
         lambda method_name: not (
             _SM80_filter(method_name)
@@ -71,9 +71,16 @@ _TEST_ENV_TO_FILTER_METHOD: Dict[str, Callable[[str], bool]] = {
 # it (value). "compatible" means that a tests that can run in *any*
 # env in the value Set[TestEnv] can also run in the key TestEnv.
 _COMPATIBLE_TEST_ENVS: Dict[TestEnv, Set[TestEnv]] = {
-    TestEnv.ROCM: {TestEnv.ROCM},
-    TestEnv.CUDA_LESS_THAN_SM80: {TestEnv.CUDA_LESS_THAN_SM80},
-    TestEnv.CUDA_SM80: {TestEnv.CUDA_LESS_THAN_SM80, TestEnv.CUDA_SM80},
+    TestEnv.ROCM: {
+        TestEnv.ROCM,
+    },
+    TestEnv.CUDA_LESS_THAN_SM80: {
+        TestEnv.CUDA_LESS_THAN_SM80,
+    },
+    TestEnv.CUDA_SM80: {
+        TestEnv.CUDA_LESS_THAN_SM80,
+        TestEnv.CUDA_SM80,
+    },
     TestEnv.CUDA_SM90: {
         TestEnv.CUDA_LESS_THAN_SM80,
         TestEnv.CUDA_SM80,
@@ -82,8 +89,8 @@ _COMPATIBLE_TEST_ENVS: Dict[TestEnv, Set[TestEnv]] = {
 }
 
 
-def _get_test_env(target) -> str:
-    test_env = ""
+def _get_test_env(target) -> TestEnv:
+    test_env = None
     if target.name() == "cuda":
         if int(target._arch) < 80:
             test_env = TestEnv.CUDA_LESS_THAN_SM80
@@ -117,21 +124,16 @@ def _test_runnable_in_env(test_name: str, env: TestEnv) -> bool:
 def filter_test_cases_by_params(params: Dict[TestEnv, List[Tuple[Any]]]):
     """Filters test cases to run by given params.
 
-    In CI, only the params corresponding to the CI's test env are kept.
-    Outside CI, the params corresponding to any test env compatible with
+    The params corresponding to any test env compatible with
     the local test env are kept.
     """
     target = detect_target()
     test_env = _get_test_env(target)
-    input_ = (
-        params.get(test_env, [])
-        if target.in_ci_env()
-        else list(
-            itertools.chain.from_iterable(
-                values
-                for env, values in params.items()
-                if env in _COMPATIBLE_TEST_ENVS[test_env]
-            )
+    input_ = list(
+        itertools.chain.from_iterable(
+            values
+            for env, values in params.items()
+            if env in _COMPATIBLE_TEST_ENVS[test_env]
         )
     )
     return {
@@ -143,8 +145,7 @@ def filter_test_cases_by_params(params: Dict[TestEnv, List[Tuple[Any]]]):
 def filter_test_cases_by_test_env(cls: Type[unittest.TestCase]):
     """Filters test cases to run by test case names implicitly.
 
-    In CI, only the test cases filtered by the CI's test env are kept.
-    Outside CI, the test cases filtered by any test env compatible with
+    The test cases filtered by any test env compatible with
     the local test env are kept.
     """
     target = detect_target()
@@ -152,10 +153,7 @@ def filter_test_cases_by_test_env(cls: Type[unittest.TestCase]):
     for attr in list(cls.__dict__.keys()):
         if attr.startswith("test_"):
             test_name = attr
-            if target.in_ci_env():
-                if not _TEST_ENV_TO_FILTER_METHOD[test_env](test_name):
-                    delattr(cls, attr)
-            elif not _test_runnable_in_env(test_name, test_env):
+            if not _test_runnable_in_env(test_name, test_env):
                 delattr(cls, attr)
 
 
@@ -238,7 +236,7 @@ def gen_input_tensor(
     return tensor
 
 
-def get_src_op(tensor: Tensor) -> str:
+def get_src_op(tensor: Tensor) -> Operator:
     assert len(tensor._attrs["src_ops"]) == 1
     return list(tensor._attrs["src_ops"])[0]
 
@@ -247,7 +245,7 @@ def get_src_op_name(tensor: Tensor) -> str:
     return get_src_op(tensor)._attrs["op"]
 
 
-def get_src_input(tensor: Tensor) -> str:
+def get_src_input(tensor: Tensor) -> Tensor:
     src_op = get_src_op(tensor)
     assert len(src_op._attrs["inputs"]) >= 1
     return src_op._attrs["inputs"][0]
@@ -281,7 +279,7 @@ def epilogue_math_name_to_torch_fn(epilogue_math_name: str) -> Callable[[Any], A
 
 
 def get_attn_mask_per_causal_type(
-    m: int, n: int, causal_type: CausalType, torch_dtype: str
+    m: int, n: int, causal_type: CausalType, torch_dtype: torch.dtype
 ) -> torch.Tensor:
     if causal_type == CausalType.NO_CAUSAL:
         invalid_attn_mask = torch.ones((m, n), dtype=torch_dtype, device="cuda")
@@ -310,11 +308,11 @@ def init_random_weights(m):
     if hasattr(m, "weight"):
         torch.nn.init.uniform_(m.weight)
     elif (
-        type(m) == torch.nn.Sequential
-        or type(m) == torch.nn.ModuleList
-        or type(m) == torch.nn.SiLU
-        or type(m) == torch.nn.Dropout
-        or type(m) == torch.nn.Identity
+        type(m) is torch.nn.Sequential
+        or type(m) is torch.nn.ModuleList
+        or type(m) is torch.nn.SiLU
+        or type(m) is torch.nn.Dropout
+        or type(m) is torch.nn.Identity
     ):
         pass
     else:
@@ -323,8 +321,8 @@ def init_random_weights(m):
 
 def benchmark_module(
     name: str,
-    inputs: Tensor,
-    outputs: Tensor,
+    inputs: torch.Tensor,
+    outputs: torch.Tensor,
     pt_mod: torch.nn.Module,
     ait_mod: AITModule,
     iters: int = 100,
@@ -347,14 +345,14 @@ def benchmark_module(
     # warm up
     inputs = inputs.permute(permute_inputs).contiguous() if permute_inputs else inputs
     graph_mode = False
-    t, _, __ = ait_mod.benchmark_with_tensors(
+    t, _, __ = ait_mod.benchmark_with_tensors(  # pyre-ignore
         [inputs],
         [outputs],
         count=iters,
         graph_mode=graph_mode,
     )
     # benchmark
-    t_ait, _, __ = ait_mod.benchmark_with_tensors(
+    t_ait, _, __ = ait_mod.benchmark_with_tensors(  # pyre-ignore
         [inputs],
         [outputs],
         count=iters,
