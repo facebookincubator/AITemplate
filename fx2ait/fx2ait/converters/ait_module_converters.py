@@ -63,6 +63,7 @@ def multi_head_attention_module(
     )
 
     # Bind constant tensor for MHA module
+    q_w, k_w, v_w = None, None, None
     qkv_weight, qkv_bias = None, None
     for k, v in submod.named_parameters():
         ait_data = _TorchConstantTensorData(v.data.contiguous().cuda().half())
@@ -81,6 +82,27 @@ def multi_head_attention_module(
                     name=make_str_ait_friendly(f"{target}.{k}"),
                 )
                 qkv_bias._bind_data(ait_data)
+        elif k == "q_proj_weight":
+            q_w = Tensor(
+                shape=v.shape,
+                dtype="float16",
+                name=make_str_ait_friendly(f"{target}.{k}"),
+            )
+            q_w._bind_data(ait_data)
+        elif k == "k_proj_weight":
+            k_w = Tensor(
+                shape=v.shape,
+                dtype="float16",
+                name=make_str_ait_friendly(f"{target}.{k}"),
+            )
+            k_w._bind_data(ait_data)
+        elif k == "v_proj_weight":
+            v_w = Tensor(
+                shape=v.shape,
+                dtype="float16",
+                name=make_str_ait_friendly(f"{target}.{k}"),
+            )
+            v_w._bind_data(ait_data)
         elif "out_proj" in k:
             if "weight" in k:
                 tensor = attn.proj.weight.tensor()
@@ -90,7 +112,15 @@ def multi_head_attention_module(
             tensor._bind_data(ait_data)
 
     # Swap out qkv tensor used by nn.CrossAttention.
-    q_w, k_w, v_w = chunk()(qkv_weight, 3)
+    if qkv_weight is not None:
+        assert q_w is None
+        assert k_w is None
+        assert v_w is None
+        q_w, k_w, v_w = chunk()(qkv_weight, 3)
+    else:
+        assert q_w is not None
+        assert k_w is not None
+        assert v_w is not None
     q_b, k_b, v_b = chunk()(qkv_bias, 3)
 
     attn.proj_q.weight._tensor = q_w
