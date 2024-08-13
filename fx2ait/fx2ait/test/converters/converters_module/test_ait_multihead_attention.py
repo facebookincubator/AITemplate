@@ -18,7 +18,7 @@ from fx2ait.tools.common_fx2ait import AITTestCase
 
 
 class TestMultiHeadAttentionConverter(AITTestCase):
-    def test_multihead_attention_cross_attenytion(self):
+    def test_multihead_attention_cross_attention(self):
         class TestModule(torch.nn.Module):
             def __init__(self, dim, nheads):
                 super().__init__()
@@ -74,6 +74,40 @@ class TestMultiHeadAttentionConverter(AITTestCase):
         self.run_test(
             model,
             [x],
+            expected_ops={torch.nn.MultiheadAttention},
+            leaf_module=torch.nn.MultiheadAttention,
+        )
+
+    def test_multihead_attention_different_kv_dims(self):
+        class TestModule(torch.nn.Module):
+            def __init__(self, qdim, kdim, vdim, nheads):
+                super().__init__()
+                self.attn = torch.nn.MultiheadAttention(
+                    embed_dim=qdim,
+                    num_heads=nheads,
+                    batch_first=True,
+                    kdim=kdim,
+                    vdim=vdim,
+                )
+
+            def forward(self, q, k, v):
+                return self.attn(query=q, key=k, value=v)
+
+        batch_size = 2
+        seqlen = 4
+        qdim = 512
+        kdim = 128
+        vdim = 128
+        num_heads = 8
+
+        q = torch.ones(batch_size, seqlen, qdim).cuda().half()
+        k = torch.ones(batch_size, seqlen, kdim).cuda().half()
+        v = torch.ones(batch_size, seqlen, vdim).cuda().half()
+        model = TestModule(qdim, kdim, vdim, num_heads).eval().half().cuda()
+
+        self.run_test(
+            model,
+            [q, k, v],
             expected_ops={torch.nn.MultiheadAttention},
             leaf_module=torch.nn.MultiheadAttention,
         )
