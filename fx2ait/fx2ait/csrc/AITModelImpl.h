@@ -14,7 +14,11 @@
 //
 #pragma once
 
-#include "model_interface.h" // @manual=//aitemplate/AITemplate/static/include:aitemplate
+#ifdef FBCODE_AIT
+#include "aitemplate/AITemplate/static/include/model_interface.h" // @manual=//aitemplate/AITemplate/static/include:aitemplate
+#else
+#include "model_interface.h" // @manual
+#endif
 
 #include <dlfcn.h>
 #include <torch/torch.h> // @manual=//caffe2:torch-cpp
