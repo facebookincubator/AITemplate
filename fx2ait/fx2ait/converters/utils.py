@@ -166,6 +166,8 @@ def get_python_op_from_ait_constant_elementwise_op(
         return operator.floordiv
     elif op_type == FuncEnum.FLOOR:
         return math.floor
+    elif op_type == FuncEnum.RECIPROCAL:
+        return math.reciprocal
     else:
         raise RuntimeError(f"{op_type} is not supported yet!")
 

@@ -45,6 +45,7 @@ TORCH_EQUIVALENTS = {
     FuncEnum.RELU: torch.relu,
     FuncEnum.CELU: torch.celu,
     FuncEnum.FLOOR: torch.floor,
+    FuncEnum.RECIPROCAL: torch.reciprocal,
 }
 
 
@@ -432,6 +433,38 @@ class FusedElementwiseTestCase(unittest.TestCase):
         x1_pt = get_random_torch_tensor(input_size, dtype)
         OP_pt = torch.nn.GELU(approximate="tanh")
         x2_pt = OP_pt(x1_pt)
+
+        x2 = torch.empty_like(x2_pt)
+        module.run_with_tensors([x1_pt], [x2])
+        torch.testing.assert_close(x2, x2_pt, atol=1e-2, rtol=1e-2)
+
+    def _test_reciprocal(
+        self,
+        input_size,
+        test_name="reciprocal",
+        copy_op=False,
+        dtype="float16",
+    ):
+        assert len(input_size) == 2
+        X1 = Tensor(
+            shape=[IntImm(input_size[0]), IntImm(input_size[1])],
+            dtype=dtype,
+            name="input0",
+            is_input=True,
+        )
+        X2_op = ops.elementwise(FuncEnum.RECIPROCAL)
+
+        if copy_op:
+            X2_op = ops.elementwise(**X2_op._get_op_attributes())
+        X2 = X2_op(X1)
+        X2._attrs["is_output"] = True
+        X2._attrs["name"] = "output0"
+
+        target = detect_target()
+        module = compile_model(X2, target, "./tmp", f"{test_name}_{dtype}")
+
+        x1_pt = get_random_torch_tensor(input_size, dtype)
+        x2_pt = torch.floor(x1_pt)
 
         x2 = torch.empty_like(x2_pt)
         module.run_with_tensors([x1_pt], [x2])
@@ -919,6 +952,27 @@ class FusedElementwiseTestCase(unittest.TestCase):
         self._test_fast_gelu([128, 256], test_name="fast_gelu_3", dtype=dtype)
         self._test_fast_gelu(
             [256, 128], test_name="fast_gelu_4_copy_op", copy_op=True, dtype=dtype
+        )
+
+    @parameterized.expand(
+        **filter_test_cases_by_params(
+            {
+                TestEnv.CUDA_LESS_THAN_SM80: [("float16"), ("float32")],
+                TestEnv.CUDA_SM80: [("bfloat16")],
+                TestEnv.ROCM: [("float16")],
+            }
+        )
+    )
+    def test_reciprocal(self, dtype):
+        self._test_simple_function(
+            [32, 128], FuncEnum.RECIPROCAL, test_name="reciprocal", dtype=dtype
+        )
+        self._test_simple_function(
+            [32, 128],
+            FuncEnum.RECIPROCAL,
+            test_name="reciprocal_copy_op",
+            copy_op=True,
+            dtype=dtype,
         )
 
 

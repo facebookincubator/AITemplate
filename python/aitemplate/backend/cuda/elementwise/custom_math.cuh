@@ -1043,6 +1043,34 @@ __device__ bfloat16_2 __floor(const bfloat16_2 a) {
 #endif
 }
 
+__device__ float __reciprocal(const float a) {
+  return 1.0f / a;
+}
+
+__device__ half __hreciprocal(const half a) {
+  return __hdiv(1.0f, a);
+}
+
+__device__ bfloat16 __breciprocal(const bfloat16 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return __hdiv(1.0f, a);
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
+__device__ half2 __h2reciprocal(const half2 a) {
+  return half2(__hdiv(1.0f, a.x), __hdiv(1.0f, a.y));
+}
+
+__device__ bfloat16_2 __b2reciprocal(const bfloat16_2 a) {
+#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)
+  return bfloat16_2(__hdiv(1.0f, a.x), __hdiv(1.0f, a.y));
+#else
+  NOT_IMPLEMENTED();
+#endif
+}
+
 __device__ float fcelu(const float a, const float alpha) {
   return a > 0.f ? a : alpha * (expf(a / alpha) - 1.0f);
 }

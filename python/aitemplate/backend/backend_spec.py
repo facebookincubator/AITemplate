@@ -326,6 +326,13 @@ class GPUBackendSpec(BackendSpec):
                 "bfloat16": "__floor",
                 "bfloat16_2": "__floor",
             },
+            FuncEnum.RECIPROCAL: {
+                "float": "__reciprocal",
+                "half": "__hreciprocal",
+                "half2": "__h2reciprocal",
+                "bfloat16": "__breciprocal",
+                "bfloat16_2": "__b2reciprocal",
+            },
             FuncEnum.CELU: {
                 "float": "fcelu",
                 "half": "hcelu",
