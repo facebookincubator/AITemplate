@@ -125,3 +125,7 @@ def celu(tensor: Any) -> Tensor:
 
 def floor(tensor: Any) -> Tensor:
     return OP_REGISTRY.get("FLOOR")(tensor)
+
+
+def reciprocal(tensor: Any) -> Tensor:
+    return OP_REGISTRY.get("RECIPROCAL")(tensor)
