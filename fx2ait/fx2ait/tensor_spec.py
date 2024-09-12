@@ -477,10 +477,14 @@ class TensorSpec:
         inputs: Any,
         can_non_first_dim_be_dynamic: bool = True,
         can_dim_value_one_be_dynamic: bool = True,
+        dynamic_size: int = -1,
         # pyre-fixme Invalid type [31]
     ) -> []:
         return find_batch_size_dim_impl(
-            inputs, can_non_first_dim_be_dynamic, can_dim_value_one_be_dynamic
+            inputs,
+            can_non_first_dim_be_dynamic,
+            can_dim_value_one_be_dynamic,
+            dynamic_size,
         )
 
     @classmethod
