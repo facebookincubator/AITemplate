@@ -68,6 +68,7 @@ class LowerSettings:
     name: str = ""
     dll_name: str = "ait_engine.so"
     dynamic_profile_strategy: DynamicProfileStrategy = DynamicProfileStrategy.MAX
+    dynamic_size: int = -1
     profile_devs: Any = None
     # If None, infer the dtypes from the sample inputs.
     precision: Optional[LowerPrecision] = LowerPrecision.FP16
