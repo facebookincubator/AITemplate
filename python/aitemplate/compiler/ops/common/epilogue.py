@@ -67,3 +67,4 @@ class FuncEnum(Enum):
     CELU = 29
     FLOOR = 30
     LOG1P = 31
+    RECIPROCAL = 32

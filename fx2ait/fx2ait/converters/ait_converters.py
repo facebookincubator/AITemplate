@@ -166,6 +166,17 @@ def acc_ops_floor(
     return elementwise(FuncEnum.FLOOR)(input_val)
 
 
+@ait_converter(acc_ops.reciprocal)
+def acc_ops_reciprocal(
+    target: Target,
+    args: Tuple[Argument, ...],
+    kwargs: Dict[str, Argument],
+    name: str,
+) -> ConverterOutput:
+    input_val = kwargs["input"]
+    return elementwise(FuncEnum.RECIPROCAL)(input_val)
+
+
 @ait_converter(acc_ops.add)
 def acc_ops_add(
     target: Target,
