@@ -15,6 +15,7 @@
 """
 attention kernel codegen for ROCM.
 """
+
 from typing import Any, Dict
 
 import jinja2

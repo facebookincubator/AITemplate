@@ -22,6 +22,7 @@ Batched Gemm ROCM backend for
 
 This is used for `ops.bmm_softmax_bmm_permute`.
 """
+
 import jinja2
 
 from aitemplate.backend import registry

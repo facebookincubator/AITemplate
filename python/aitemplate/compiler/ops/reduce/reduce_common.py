@@ -15,6 +15,7 @@
 """
 Base operator definition for reduce-family ops.
 """
+
 import itertools
 import logging
 

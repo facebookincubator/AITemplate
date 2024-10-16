@@ -15,6 +15,7 @@
 """
 Unittests for elementwise fusion out-of-order cases.
 """
+
 import unittest
 
 import torch

@@ -15,6 +15,7 @@
 """
 Perform operator fusions.
 """
+
 import collections
 import itertools
 import logging

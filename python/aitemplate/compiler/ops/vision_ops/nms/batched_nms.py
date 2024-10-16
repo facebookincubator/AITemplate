@@ -15,6 +15,7 @@
 """
 Batched nms.
 """
+
 import itertools
 from typing import List
 

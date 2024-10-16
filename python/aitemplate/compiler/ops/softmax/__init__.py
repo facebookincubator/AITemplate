@@ -15,6 +15,7 @@
 """
 softmax module init
 """
+
 from aitemplate.compiler.ops.softmax.softmax import softmax
 
 

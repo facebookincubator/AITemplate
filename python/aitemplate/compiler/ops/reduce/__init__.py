@@ -15,6 +15,7 @@
 """
 Reduce module init.
 """
+
 from aitemplate.compiler.ops.reduce.reduce_max import reduce_max
 from aitemplate.compiler.ops.reduce.reduce_mean import reduce_mean
 from aitemplate.compiler.ops.reduce.reduce_min import reduce_min

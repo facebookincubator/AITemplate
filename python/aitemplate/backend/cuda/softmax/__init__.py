@@ -15,6 +15,7 @@
 """
 (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 """
+
 from aitemplate.backend.cuda.softmax import softmax
 
 __all__ = ["softmax"]

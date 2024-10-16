@@ -15,6 +15,7 @@
 """
 Common template for softmax.
 """
+
 import os
 import re
 from hashlib import sha1

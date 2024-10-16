@@ -18,6 +18,7 @@ c[m, n] = Sigmoid(a[m, k] * b[n, k] + bias[n])
 This is used for `torch.nn.functional.linear + sigmoid`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
+
 import jinja2
 
 from aitemplate.backend import registry

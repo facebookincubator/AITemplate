@@ -15,6 +15,7 @@
 """
 Unittests for StableSet.
 """
+
 import unittest
 
 from aitemplate.compiler.stable_set import StableSet

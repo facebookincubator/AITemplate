@@ -15,6 +15,7 @@
 """
 CUDA pool2d module init
 """
+
 from aitemplate.backend.cuda.pool2d import avg_pool2d, max_pool2d
 
 __all__ = ["avg_pool2d", "max_pool2d"]

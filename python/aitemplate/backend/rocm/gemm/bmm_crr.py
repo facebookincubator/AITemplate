@@ -17,6 +17,7 @@ Batched Gemm ROCM backend for A[ColumnMajor], B[RowMajor], C[RowMajor], i.e.
 c[b, m, n] = bmm(a[b, k, m], b[b, k, n])
 This is used for `ops.bmm_crr`.
 """
+
 import jinja2
 
 from aitemplate.backend import registry

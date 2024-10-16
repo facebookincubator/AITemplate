@@ -15,6 +15,7 @@
 """
 Perform fusions for permute+bmm operators.
 """
+
 from typing import Callable, List, Optional, Set, Tuple, Type, Union
 
 from aitemplate.compiler import ops

@@ -15,6 +15,7 @@
 """
 Eliminate elementwise no-ops (*/1, +-0)
 """
+
 from typing import Callable, Dict, List
 
 from aitemplate.compiler.base import Tensor
@@ -67,7 +68,6 @@ def remove_elementwise_no_ops(
 ) -> List[Tensor]:
     """elementwise no-ops (*/1, +-0)"""
     for tensor in sorted_graph:
-
         src_ops = tensor._attrs["src_ops"]
         if len(src_ops) != 1:
             continue

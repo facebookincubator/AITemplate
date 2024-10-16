@@ -15,6 +15,7 @@
 """
 View-related modules.
 """
+
 from aitemplate.compiler.ops import flatten, reshape
 from aitemplate.frontend.nn.module import Module
 

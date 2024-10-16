@@ -15,6 +15,7 @@
 """
 Int elementwise operator definition, for integer calcuation on tensor dimensions.
 """
+
 import functools
 from functools import reduce
 

@@ -15,6 +15,7 @@
 """
 Softmax codegen for CUDA.
 """
+
 from __future__ import annotations
 
 import math

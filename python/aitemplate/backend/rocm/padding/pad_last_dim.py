@@ -15,6 +15,7 @@
 """
 Codegen functions for pad_last_dim.
 """
+
 import jinja2
 
 from ... import registry

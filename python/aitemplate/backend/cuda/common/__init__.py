@@ -16,4 +16,5 @@
 """
 CUDA Common module init
 """
+
 from aitemplate.backend.cuda.common.dummy_op import *

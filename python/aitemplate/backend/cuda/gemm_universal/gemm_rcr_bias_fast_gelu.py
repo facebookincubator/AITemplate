@@ -16,6 +16,7 @@
 GEMM Specialization for C = fast_gelu(GeMM(A, B) + bias)
 where A[RowMajor][M, K], B[ColMajor][N, K], bias[RowMajor][K], C[RowMajor][M, N]
 """
+
 import jinja2
 
 from aitemplate.backend import registry

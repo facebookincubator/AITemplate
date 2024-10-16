@@ -15,6 +15,7 @@
 """
 Common functions/classes for GEMM ops
 """
+
 import itertools
 import logging
 import math

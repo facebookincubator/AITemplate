@@ -17,6 +17,7 @@ GEMM Specialization for
 C = permute(elu(GeMM(A, B) + bias) + 1.0)
 where A[RowMajor][M, K], B[ColMajor][N, K], bias[RowMajor][N]
 """
+
 import jinja2
 
 from aitemplate.backend import registry

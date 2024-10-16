@@ -15,6 +15,7 @@
 """
 Common ROCM template for conv2d.
 """
+
 import os
 import re
 from collections import OrderedDict

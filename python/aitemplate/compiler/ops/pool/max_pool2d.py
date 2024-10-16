@@ -15,6 +15,7 @@
 """
 Max_pool2d op.
 """
+
 from aitemplate.compiler.ops.pool.pool2d import pool2d_base
 
 

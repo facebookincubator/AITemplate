@@ -16,6 +16,7 @@
 """
 reduce module init
 """
+
 from aitemplate.compiler.ops.tensor.argmax import argmax
 from aitemplate.compiler.ops.tensor.batch_gather import batch_gather
 from aitemplate.compiler.ops.tensor.cast import cast

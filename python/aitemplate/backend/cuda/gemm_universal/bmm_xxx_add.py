@@ -23,7 +23,6 @@ func_call, and filter for each layout combination under names like
 "cuda.bmm_rcr_add.func_call".
 """
 
-
 from aitemplate.backend import registry
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.cuda.gemm_universal import bmm_common, common

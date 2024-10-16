@@ -28,6 +28,7 @@ The main responsibilities of the make_jagged backend are:
   of the constraints can be checked on the device, in which
   case an std::runtime_error is thrown on violation.
 """
+
 from typing import Set
 
 import jinja2

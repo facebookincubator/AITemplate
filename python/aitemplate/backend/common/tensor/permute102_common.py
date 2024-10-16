@@ -36,6 +36,7 @@ write of the whole d2-sized block. The cutoff of > 16 is chosen, as
 starting from 17 items, the approach #1 corresponds to the same data
 movement, just through the SMEM and with more index computation.
 """
+
 from typing import Any, Dict
 
 import jinja2
