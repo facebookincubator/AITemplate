@@ -16,6 +16,7 @@
 vector_norm op implementation that simulates pytorch's linalg.vector_norm.
 Currently, we only support L2 norm.
 """
+
 from aitemplate.compiler.ops.reduce.reduce_common import reduce_base
 
 # pylint: disable=C0103

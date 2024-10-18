@@ -26,6 +26,7 @@ For each, we have shared memory of size (TILE_SIZE, TILE_SIZE+1)
 The 4 for thread blocks indicates each thread is responsible of 4 elements.
 We use TILE_SIZE = 32 for the time being.
 """
+
 from typing import Any, Dict
 
 import jinja2

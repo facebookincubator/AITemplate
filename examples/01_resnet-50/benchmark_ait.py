@@ -45,7 +45,6 @@ def mark_output(y):
 
 
 def compile_module(model_name, batch_size, **kwargs):
-
     if model_name != "resnet50":
         raise NotImplementedError
 

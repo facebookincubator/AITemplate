@@ -15,6 +15,7 @@
 """
 Slice backend common implementation.
 """
+
 import jinja2
 
 

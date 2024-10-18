@@ -15,6 +15,7 @@
 """
 Operator definition for gemm_rcr_bias_softmax.
 """
+
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.gemm_epilogue_vistor.gemm_rcr_softmax import (
     gemm_rcr_softmax,

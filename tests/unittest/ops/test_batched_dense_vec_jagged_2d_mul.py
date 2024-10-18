@@ -15,6 +15,7 @@
 """
 Unittests for batched_dense_vec_jagged_2d_mul Operator.
 """
+
 import unittest
 from typing import List
 

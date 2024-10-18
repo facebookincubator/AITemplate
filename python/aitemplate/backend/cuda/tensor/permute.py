@@ -15,6 +15,7 @@
 """
 permute for cuda
 """
+
 import os
 from typing import Any, Dict
 

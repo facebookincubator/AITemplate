@@ -16,6 +16,7 @@
 Common functions and templates for perm021_ccr_bias_permute, which computes
 (A.permute(0, 2, 1)[col] @ B[col] + Bias).permute(0, 2, 1)
 """
+
 from aitemplate.backend import registry
 
 from aitemplate.backend.cuda.gemm_universal import (

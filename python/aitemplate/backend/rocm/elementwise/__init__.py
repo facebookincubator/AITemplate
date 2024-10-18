@@ -15,6 +15,7 @@
 """
 (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 """
+
 from aitemplate.backend.rocm.elementwise import fused_elementwise
 
 __all__ = ["fused_elementwise"]

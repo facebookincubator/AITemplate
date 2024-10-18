@@ -17,6 +17,7 @@ This transformation splits a concat with a large number of inputs into multiple
 concat ops, which share the same inputs with correct input_masks and the same
 output.
 """
+
 import copy
 import logging
 

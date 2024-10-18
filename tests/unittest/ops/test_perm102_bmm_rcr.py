@@ -20,7 +20,6 @@ in torch it is
 #      self._1085_1133, _2905_2929, self._1084_1132) # baddbmm(bias, X, W)
 """
 
-
 import unittest
 
 import torch

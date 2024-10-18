@@ -15,6 +15,7 @@
 """
 Extra cutlass enum, mainly for epilogue
 """
+
 import jinja2
 
 

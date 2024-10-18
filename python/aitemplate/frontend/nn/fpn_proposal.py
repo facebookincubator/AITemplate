@@ -15,6 +15,7 @@
 """
 FPNProposal module.
 """
+
 import numpy as np
 
 from aitemplate.compiler import ops

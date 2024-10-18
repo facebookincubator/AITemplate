@@ -18,6 +18,7 @@ Markdown table generator
 Original Project: https://github.com/hvalev/markdownTable
 Accessed: Jul 16, 2022
 """
+
 import math
 
 

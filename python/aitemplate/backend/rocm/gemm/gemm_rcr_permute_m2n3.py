@@ -19,6 +19,7 @@ where m = M0 * M1 , n = N1 * N0 * N2
 c = c.reshape(M0, M1, N0, N1, N2)
 output = torch.permute(c, [2, 0, 3, 1, 4])
 """
+
 import jinja2
 
 from aitemplate.backend import registry

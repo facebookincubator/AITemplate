@@ -15,6 +15,7 @@
 """
 Target object for AITemplate.
 """
+
 import logging
 import os
 import pathlib

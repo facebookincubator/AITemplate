@@ -16,6 +16,7 @@
 """
 Base class for conv3d.
 """
+
 import itertools
 import logging
 import os

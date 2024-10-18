@@ -15,6 +15,7 @@
 """
 Fused conv2d_bias_activation op.
 """
+
 from typing import Tuple
 
 from aitemplate.compiler.base import Tensor

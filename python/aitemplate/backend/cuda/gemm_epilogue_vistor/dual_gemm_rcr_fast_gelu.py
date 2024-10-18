@@ -17,6 +17,7 @@ GEMM Specialization for
 C = FAST_GELU(GEMM_RCR(A, B)) * GEMM_RCR(A, B1)
 where A[RowMajor][M, K], B[ColMajor][N, K], B1[ColMajor][N, K]
 """
+
 import jinja2
 
 from aitemplate.backend import registry

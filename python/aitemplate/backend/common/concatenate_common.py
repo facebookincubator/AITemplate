@@ -15,6 +15,7 @@
 """
 backend concatenate function common templates.
 """
+
 from copy import deepcopy
 from typing import List
 

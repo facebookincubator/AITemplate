@@ -15,6 +15,7 @@
 """
 Unittests for argmax Operator.
 """
+
 import unittest
 
 import torch

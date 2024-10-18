@@ -16,6 +16,7 @@
 This transformation splits a slice_scatter or slice_reshape_scatter with a large
 number of inputs into multiple slice_scatter or slice_reshape_scatter ops.
 """
+
 import copy
 import logging
 

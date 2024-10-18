@@ -15,6 +15,7 @@
 """
 Graph pass to assign names to a sorted graph.
 """
+
 import logging
 import re
 from typing import List

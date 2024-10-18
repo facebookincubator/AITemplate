@@ -27,7 +27,6 @@ def is_oss_ait_model():
 
 
 def _get_extension_path(lib_name):
-
     lib_dir = os.path.dirname(__file__)
 
     loader_details = (

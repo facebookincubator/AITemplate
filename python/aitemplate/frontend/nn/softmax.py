@@ -15,6 +15,7 @@
 """
 softmax Module.
 """
+
 from typing import Optional
 
 from aitemplate.compiler import ops

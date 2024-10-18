@@ -15,6 +15,7 @@
 """
 Unittests for b2b bmm Operators.
 """
+
 import itertools
 import logging
 import unittest

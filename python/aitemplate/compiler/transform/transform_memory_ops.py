@@ -15,6 +15,7 @@
 """
 Perform memory operator related transformations.
 """
+
 import copy
 from typing import List
 

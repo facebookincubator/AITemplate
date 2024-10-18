@@ -15,6 +15,7 @@
 """
 Frontend for vanilla attention module
 """
+
 from functools import partial
 
 from aitemplate.compiler import ops

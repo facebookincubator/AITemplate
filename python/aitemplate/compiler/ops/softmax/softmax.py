@@ -15,6 +15,7 @@
 """
 Softmax op implementation
 """
+
 import logging
 import os
 import re

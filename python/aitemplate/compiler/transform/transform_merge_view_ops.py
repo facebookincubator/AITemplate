@@ -15,6 +15,7 @@
 """
 This file implements a pass that merges consecutive view ops if possible.
 """
+
 from typing import List, Set
 
 from aitemplate.compiler import ops

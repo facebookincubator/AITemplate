@@ -15,6 +15,7 @@
 """
 Concatenate.
 """
+
 from copy import deepcopy
 from functools import reduce
 from typing import List, Optional, Sequence, Tuple, Union

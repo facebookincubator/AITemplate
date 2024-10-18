@@ -16,6 +16,7 @@
 """
 The front-end definition of the padded_dense_to_jagged op.
 """
+
 from typing import List
 
 from aitemplate.backend import registry

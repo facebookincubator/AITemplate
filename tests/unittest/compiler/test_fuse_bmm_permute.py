@@ -67,7 +67,6 @@ class FuseBmmPermuteCase(unittest.TestCase):
         orig_layout: str,
         dtype: str = "float16",
     ):
-
         is_row_major_a = orig_layout[0] == "r"
         is_row_major_b = orig_layout[1] == "r"
         is_row_major_c = orig_layout[2] == "r"

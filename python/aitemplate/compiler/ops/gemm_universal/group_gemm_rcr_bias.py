@@ -15,6 +15,7 @@
 """
 Grouped GEMM Specialization: GEMM_RCR(A, B) + Bias
 """
+
 from collections import OrderedDict
 from typing import List
 

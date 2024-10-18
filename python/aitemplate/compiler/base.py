@@ -15,6 +15,7 @@
 """
 Basic data types of AITemplate.
 """
+
 from __future__ import annotations
 
 import copy

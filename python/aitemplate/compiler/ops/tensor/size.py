@@ -15,6 +15,7 @@
 """
 Op to return the size of a tensor.
 """
+
 from typing import List, Union
 
 from aitemplate import backend

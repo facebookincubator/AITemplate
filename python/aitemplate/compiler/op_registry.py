@@ -16,6 +16,7 @@
 """
 Registry for basic operators and math functions.
 """
+
 from typing import Callable, Dict
 
 # OP_REGISTRY defines a mapping from a FuncEnum name to a function to create this elementwise operator.

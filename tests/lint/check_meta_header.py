@@ -12,8 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-"""Check Python source code contains Meta copyright header
-"""
+"""Check Python source code contains Meta copyright header"""
 
 from __future__ import annotations
 

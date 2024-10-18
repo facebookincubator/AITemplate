@@ -15,6 +15,7 @@
 """
 Unittests for debug utils.
 """
+
 import numpy as np
 import pytest
 

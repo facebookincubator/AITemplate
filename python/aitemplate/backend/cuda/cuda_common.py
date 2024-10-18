@@ -15,6 +15,7 @@
 """
 CUDA common functions for codegen.
 """
+
 from typing import Dict
 
 DTYPE_TO_CUDATYPE: Dict[str, str] = {

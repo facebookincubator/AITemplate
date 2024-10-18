@@ -18,6 +18,7 @@ C = Relu(Add(Add(GeMM(A, B) + bias, D0), D1)),
 where A[RowMajor][M, K], B[ColMajor][N, K], C[RowMajor][M, N]
 bias[RowMajor][N], D0[RowMajor][M, N], D1[RowMajor][M, N]
 """
+
 import jinja2
 
 from aitemplate.backend import registry

@@ -15,6 +15,7 @@
 """
 Transform permute to reshape wherever applicable.
 """
+
 from typing import List
 
 from aitemplate.compiler.base import IntImm, Operator, Tensor

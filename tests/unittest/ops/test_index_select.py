@@ -15,6 +15,7 @@
 """
 Unittests for masked_select Operator.
 """
+
 import logging
 import random
 import unittest
@@ -57,7 +58,6 @@ class IndexSelectTest(unittest.TestCase):
         benchmark=False,
         dim_idxs=None,
     ):
-
         X1 = Tensor(
             shape=shape if x_shape is None else x_shape,
             dtype=dtype,

@@ -35,6 +35,7 @@ new_var = IntVar(..., symbolic_value=new_sym)
 
 For more advanced usage on Sympy, check: https://docs.sympy.org/latest/tutorials/intro-tutorial/intro.html
 """
+
 from __future__ import annotations
 
 import itertools

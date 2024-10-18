@@ -15,6 +15,7 @@
 """
 Unittests for group norm Operator.
 """
+
 import logging
 import unittest
 

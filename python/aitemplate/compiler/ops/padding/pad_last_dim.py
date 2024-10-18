@@ -15,6 +15,7 @@
 """
 Pad last dimension.
 """
+
 from typing import List
 
 import jinja2

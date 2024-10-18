@@ -15,6 +15,7 @@
 """
 helper functions to benchmark fx-trt
 """
+
 from aitemplate.testing.benchmark_pt import benchmark_torch_function  # usort:skip
 from torch_tensorrt.fx import lower
 from torch_tensorrt.fx.utils import LowerPrecision

@@ -15,6 +15,7 @@
 """
 nms kernel template.
 """
+
 import jinja2
 
 KERNEL_TEMPLATE = jinja2.Template(

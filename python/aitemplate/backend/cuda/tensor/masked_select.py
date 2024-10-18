@@ -15,6 +15,7 @@
 """
 Define masked_select codegen and CUDA kernel
 """
+
 from typing import List
 
 import jinja2

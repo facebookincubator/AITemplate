@@ -16,6 +16,7 @@
 This pass move any view op between two concatenate ops to the front of the
 first concatenate op if possible.
 """
+
 import copy
 from typing import Callable, List, Optional, Tuple
 

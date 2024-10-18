@@ -17,6 +17,7 @@ Batched Gemm ROCM backend A[RowMajor], B[RowMajor], C[RowMajor], i.e.
 c[b, m, n] = a[b, m, k] * b[b, k, n]
 This is used for `ops.bmm_rrr_add`.
 """
+
 import jinja2
 
 from ... import registry

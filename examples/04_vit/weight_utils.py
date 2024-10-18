@@ -12,8 +12,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-"""script for converting vit model from timm to ait
-"""
+"""script for converting vit model from timm to ait"""
+
 import pickle
 
 import click

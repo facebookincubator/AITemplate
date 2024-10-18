@@ -462,7 +462,10 @@ def _rewrite(
                 for k, v in orig.__dict__.items():
                     if k == "_modules":
                         for mod_k, mod_v in v.items():
-                            if getattr(mod_v, "_base_class_origin", type(mod_v)) in leaf_module_list:  # type: ignore[operator]
+                            if (
+                                getattr(mod_v, "_base_class_origin", type(mod_v))
+                                in leaf_module_list
+                            ):  # type: ignore[operator]
                                 _LOGGER.info(
                                     f"Skip rewriting leaf module {type(mod_v)}"
                                 )

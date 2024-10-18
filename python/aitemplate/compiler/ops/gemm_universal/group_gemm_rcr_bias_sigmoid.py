@@ -12,8 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-"""Grouped GEMM Specialization: Sigmoid(GEMM_RCR(A, B) + Bias)
-"""
+"""Grouped GEMM Specialization: Sigmoid(GEMM_RCR(A, B) + Bias)"""
 
 from aitemplate.compiler.ops.gemm_universal import group_gemm_rcr_bias
 

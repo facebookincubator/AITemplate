@@ -29,6 +29,7 @@ Also, even if the passes in this file avoided sanitize_sorted_graph,
 many other unrelated passes use sanitize_sorted_graph. We don't need to
 call the passes in this file more than once.
 """
+
 from typing import List
 
 from aitemplate.compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Tensor

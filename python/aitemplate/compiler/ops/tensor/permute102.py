@@ -16,6 +16,7 @@
 Permute(1, 0, 2) op.
 Change the dimension of dim0 and dim1 of input 3d tensor.
 """
+
 from typing import List
 
 from aitemplate import backend

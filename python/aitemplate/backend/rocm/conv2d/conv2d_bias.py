@@ -15,6 +15,7 @@
 """
 ROCM codegen functions for Conv2dBias: conv2d(w, x) + b
 """
+
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.conv2d import common
 

@@ -15,6 +15,7 @@
 """
 Util functions for CUDA codegen.
 """
+
 import logging
 
 from aitemplate.backend import registry

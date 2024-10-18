@@ -651,9 +651,7 @@ class ModelContainerGenerator:
         elif external_tensor is not None:
             # Special view cases for outputs; we can hit this case if the output
             # is a view of a constant, input, or another output.
-            assert (
-                is_view
-            ), f"orig_tensor is not None, but node {name} is not marked as a view! Node: {tensor}"
+            assert is_view, f"orig_tensor is not None, but node {name} is not marked as a view! Node: {tensor}"
             self.set_inputs.append(
                 check_not_null(tensor, output_idx, skip_if_lower_bound_is_zero=True)
             )

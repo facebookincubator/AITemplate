@@ -15,6 +15,7 @@
 """
 Codegen for conv2d_depthwise.
 """
+
 from collections import OrderedDict
 
 from aitemplate.backend import registry
@@ -85,7 +86,6 @@ def extract_config(func_attrs, dtype="float16"):
             and op.accumulator_type() == acc_type
             and op.group_mode == cutlass_lib.library.GroupMode.NoneGroup
         ):
-
             op = copy.deepcopy(op)
             # set epilogue
             epilogue_name = func_attrs["epilogue"]

@@ -15,6 +15,7 @@
 """
 Common template for bmm
 """
+
 import jinja2
 
 from aitemplate.backend.rocm.gemm import common

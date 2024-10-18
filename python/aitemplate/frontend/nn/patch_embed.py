@@ -15,6 +15,7 @@
 """
 patch_embed Module.
 """
+
 from typing import Callable, Tuple
 
 from aitemplate.compiler import ops

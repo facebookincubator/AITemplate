@@ -16,7 +16,6 @@
 dtype definitions and utility functions of AITemplate
 """
 
-
 _DTYPE2BYTE = {
     "bool": 1,
     "float16": 2,

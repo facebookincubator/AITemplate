@@ -23,6 +23,7 @@ This pass performs the following fusion:
 The basic idea behind the transformation is that we leverage bmm's
 broadcasting capability to achieve the same functionality as expand.
 """
+
 from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor

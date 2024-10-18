@@ -15,6 +15,7 @@
 """
 Reduce_mean op implementation.
 """
+
 from aitemplate.compiler.ops.reduce.reduce_common import reduce_base
 
 # pylint: disable=C0103

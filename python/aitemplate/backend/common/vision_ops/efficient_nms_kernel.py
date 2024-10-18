@@ -15,6 +15,7 @@
 """
 efficient_nms function gpu kernel.
 """
+
 import jinja2
 
 kernel = jinja2.Template(

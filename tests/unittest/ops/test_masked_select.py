@@ -15,6 +15,7 @@
 """
 Unittests for masked_select Operator.
 """
+
 import unittest
 
 import torch

@@ -15,6 +15,7 @@
 """
 Base class for conv2d.
 """
+
 import itertools
 import logging
 import os

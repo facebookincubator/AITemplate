@@ -15,6 +15,7 @@
 """
 flash attention module init
 """
+
 from aitemplate.compiler.ops.attention.flash_attention import flash_attention
 from aitemplate.compiler.ops.attention.mem_eff_attention import mem_eff_attention
 

@@ -15,6 +15,7 @@
 """
 Slice reshape scatter CUDA implementation.
 """
+
 import jinja2
 
 from aitemplate.backend import registry

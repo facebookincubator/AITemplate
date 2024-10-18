@@ -15,6 +15,7 @@
 """
 Graph pass for topological sort.
 """
+
 import heapq
 from typing import List, Tuple, Union
 

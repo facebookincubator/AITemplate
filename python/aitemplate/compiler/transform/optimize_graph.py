@@ -15,6 +15,7 @@
 """
 Applies graph transformations.
 """
+
 from typing import List
 
 from aitemplate.compiler.base import Tensor

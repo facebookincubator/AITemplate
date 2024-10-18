@@ -15,6 +15,7 @@
 """
 Fused special_conv2d_bias_activation op.
 """
+
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.conv.conv2d import conv2d
 from aitemplate.compiler.ops.padding import nhwc3to4, nhwc3to8

@@ -15,6 +15,7 @@
 """
 A common place for holding AIT-related env control variables
 """
+
 import logging
 import os
 from typing import Optional

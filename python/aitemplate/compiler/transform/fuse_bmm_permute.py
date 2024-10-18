@@ -17,6 +17,7 @@ Perform fusions for bmm + permute021 operators:
     bmm_xxc + permute021 -> bmm_xxr
     bmm_xxr + permute021 -> bmm_xxc
 """
+
 from typing import List
 
 from aitemplate.compiler.base import Tensor

@@ -71,8 +71,8 @@ class where(Operator):
                 if common_dtype is None:
                     common_dtype = normalize_dtype(tensor.dtype())
                 else:
-                    assert common_dtype == normalize_dtype(
-                        tensor.dtype()
+                    assert (
+                        common_dtype == normalize_dtype(tensor.dtype())
                     ), f"Expect tensor of the same dtype, got {common_dtype} and {normalize_dtype(tensor.dtype())}"
                 inputs.append(tensor)
 

@@ -15,6 +15,7 @@
 """
 CUDA target specialization
 """
+
 import json
 import logging
 import os
@@ -161,15 +162,17 @@ class CUDA(Target):
             "-DCUTLASS_DEBUG_TRACE_LEVEL=" + environ.get_cutlass_debug_trace_level(),
         ]
         if environ.enable_ptxas_info():
-            options.extend(
-                [
-                    "--keep",  # Keep the intermediate files for debugging (including ptx, sass, cubin etc.)
-                    "--ptxas-options=--warn-on-local-memory-usage",  # warn us if local memory is used in CUDA Kernels
-                    "--ptxas-options=--warn-on-spills",  # warn us if register spilling happens in CUDA Kernels
-                    "--resource-usage",  # Report on CUDA resource usage (shared mem, registers etc.)
-                    "--source-in-ptx",
-                ]
-            ),  # Annotate the ptx file with source information
+            (
+                options.extend(
+                    [
+                        "--keep",  # Keep the intermediate files for debugging (including ptx, sass, cubin etc.)
+                        "--ptxas-options=--warn-on-local-memory-usage",  # warn us if local memory is used in CUDA Kernels
+                        "--ptxas-options=--warn-on-spills",  # warn us if register spilling happens in CUDA Kernels
+                        "--resource-usage",  # Report on CUDA resource usage (shared mem, registers etc.)
+                        "--source-in-ptx",
+                    ]
+                ),
+            )  # Annotate the ptx file with source information
         options.extend(self._get_nvcc_debug_options())
         if self._ndebug == 1:
             options.append("-DNDEBUG")
@@ -449,15 +452,17 @@ class FBCUDA(CUDA):
                 )
             )
             if environ.enable_ptxas_info():
-                options.extend(
-                    [
-                        "--keep",  # Keep the intermediate files for debugging (including ptx, sass, cubin etc.)
-                        "--ptxas-options=--warn-on-local-memory-usage",  # warn us if local memory is used in CUDA Kernels
-                        "--ptxas-options=--warn-on-spills",  # warn us if register spilling happens in CUDA Kernels
-                        "--resource-usage",  # Report on CUDA resource usage (shared mem, registers etc.)
-                        "--source-in-ptx",  # Annotate the ptx file with source information
-                    ]
-                ),
+                (
+                    options.extend(
+                        [
+                            "--keep",  # Keep the intermediate files for debugging (including ptx, sass, cubin etc.)
+                            "--ptxas-options=--warn-on-local-memory-usage",  # warn us if local memory is used in CUDA Kernels
+                            "--ptxas-options=--warn-on-spills",  # warn us if register spilling happens in CUDA Kernels
+                            "--resource-usage",  # Report on CUDA resource usage (shared mem, registers etc.)
+                            "--source-in-ptx",  # Annotate the ptx file with source information
+                        ]
+                    ),
+                )
             options.extend(self._get_nvcc_debug_options())
             if self._ndebug == 1:
                 options.append("-DNDEBUG")

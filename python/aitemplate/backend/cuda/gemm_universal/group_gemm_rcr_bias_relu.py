@@ -15,6 +15,7 @@
 """
 Codegen functions for group_gemm_rcr_bias_relu.
 """
+
 from aitemplate.backend import registry
 from aitemplate.backend.cuda.gemm_universal import (
     common,

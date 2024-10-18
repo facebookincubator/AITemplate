@@ -15,6 +15,7 @@
 """
 Horizontal fusion pass to group ops together.
 """
+
 import collections
 import logging
 import os

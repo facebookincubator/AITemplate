@@ -15,6 +15,7 @@
 """
 CUDA reduce common functions
 """
+
 import jinja2
 
 from aitemplate.backend.backend_spec import CUDASpec

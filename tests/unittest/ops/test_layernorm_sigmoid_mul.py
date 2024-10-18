@@ -15,6 +15,7 @@
 """
 Unittests for FusedLayernormSigmoidMul Operator.
 """
+
 import logging
 import unittest
 
@@ -130,7 +131,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
                     inputs["beta"] = x3_pt
                 x6 = torch.empty_like(x6_pt)
                 module.run_with_tensors(inputs, [x6])
-                torch.testing.assert_close(x6, x6_pt, atol=atol, rtol=rtol),
+                (torch.testing.assert_close(x6, x6_pt, atol=atol, rtol=rtol),)
 
     def test_fused_layernorm_sigmoid_mul_fp16(self):
         for eps in (1e-5, 1e-1):

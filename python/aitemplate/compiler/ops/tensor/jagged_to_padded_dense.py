@@ -16,6 +16,7 @@
 """
 Define jagged_to_padded_dense op
 """
+
 import logging
 from typing import List
 

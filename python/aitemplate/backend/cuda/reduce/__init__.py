@@ -15,6 +15,7 @@
 """
 CUDA reduce module init
 """
+
 from aitemplate.backend.cuda.reduce import (
     reduce_3d,
     reduce_common,

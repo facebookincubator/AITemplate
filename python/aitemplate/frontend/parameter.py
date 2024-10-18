@@ -15,6 +15,7 @@
 """
 Parameter definition.
 """
+
 from aitemplate.compiler.base import Tensor
 
 

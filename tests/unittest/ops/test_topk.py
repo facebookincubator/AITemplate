@@ -15,6 +15,7 @@
 """
 Unittests for topk Operator.
 """
+
 import unittest
 
 import numpy as np
@@ -46,7 +47,6 @@ class topkTestCase(unittest.TestCase):
         copy_op=False,
         dtype="float16",
     ):
-
         o_shape = list(shape)
         o_shape[-1] = topK
 

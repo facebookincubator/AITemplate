@@ -15,6 +15,7 @@
 """
 Frontend for attention module
 """
+
 from aitemplate.compiler import ops
 from aitemplate.compiler.ops import flash_attention
 from aitemplate.compiler.ops.common.epilogue import FuncEnum

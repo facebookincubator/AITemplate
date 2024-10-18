@@ -15,6 +15,7 @@
 """
 Operator definition for bert_embeddings.
 """
+
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, Operator, Tensor
@@ -79,10 +80,13 @@ class bert_embeddings(Operator):
             "int64",
         ], f"Expected dtype int/int32/int64 for index, got dtype {dtype_input_ids}"
 
-        assert dtype_word_embeddings in [
-            "float16",
-            "float32",
-        ], f"Expected dtype float16/float32 for embeddings, got dtype {dtype_word_embeddings}"
+        assert (
+            dtype_word_embeddings
+            in [
+                "float16",
+                "float32",
+            ]
+        ), f"Expected dtype float16/float32 for embeddings, got dtype {dtype_word_embeddings}"
 
         # expecting all three ids to have the same shapes
         assert shape_utils.is_same_shape(input_ids.shape(), token_type_ids.shape()), (

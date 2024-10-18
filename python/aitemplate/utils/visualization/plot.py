@@ -15,6 +15,7 @@
 """
 Graph visualization tool for AITemplate
 """
+
 import json
 import os
 

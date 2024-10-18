@@ -15,6 +15,7 @@
 """
 Softmax cache entry.
 """
+
 from dataclasses import dataclass
 
 # pylint: disable=C0103

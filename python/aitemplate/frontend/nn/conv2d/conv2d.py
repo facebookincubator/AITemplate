@@ -15,6 +15,7 @@
 """
 conv2d Module.
 """
+
 from aitemplate.compiler.ops import conv2d
 from aitemplate.frontend.nn.module import Module
 from aitemplate.frontend.nn.parameter import Parameter

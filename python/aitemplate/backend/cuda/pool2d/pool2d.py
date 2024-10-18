@@ -15,6 +15,7 @@
 """
 CUDA pool2d common functions
 """
+
 import jinja2
 
 FUNC_DECL_TEMPLATE = jinja2.Template(

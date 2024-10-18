@@ -15,6 +15,7 @@
 """
 Remove useless operators from a sorted_graph.
 """
+
 from collections import deque
 from typing import List
 

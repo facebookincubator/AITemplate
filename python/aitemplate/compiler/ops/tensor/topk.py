@@ -15,6 +15,7 @@
 """
 Topk.
 """
+
 import itertools
 import logging
 import os

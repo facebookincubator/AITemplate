@@ -16,6 +16,7 @@
 Codegen functions for perm102_bmm_rcr_bias, which computes
 C[m, b, n](row) = bmm(A[m, b, k](row), B[b, n, k](col)) + bias[n].
 """
+
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.gemm_universal import (

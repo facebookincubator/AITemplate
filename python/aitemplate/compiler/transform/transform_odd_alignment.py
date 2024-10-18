@@ -15,6 +15,7 @@
 """
 Add permute for gemm/bmm if alignment is odd.
 """
+
 from math import inf
 from typing import Dict, List, Tuple
 

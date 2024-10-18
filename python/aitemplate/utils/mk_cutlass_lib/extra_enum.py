@@ -15,6 +15,7 @@
 """
 Extra cutlass enum, mainly for epilogue
 """
+
 import jinja2
 
 SRC_TEMPLATE = jinja2.Template(

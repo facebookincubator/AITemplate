@@ -15,6 +15,7 @@
 """
 Backend for AITemplate.
 """
+
 from aitemplate.backend import (  # noqa
     backend_spec,
     builder,

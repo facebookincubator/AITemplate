@@ -15,6 +15,7 @@
 """
 Unittests for grouped b2b bmm Operators.
 """
+
 import logging
 import os
 

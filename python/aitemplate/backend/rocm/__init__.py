@@ -16,6 +16,7 @@
 """
 Rocm backend init.
 """
+
 from aitemplate.backend.rocm import lib_template, target_def, utils
 from aitemplate.backend.rocm.attention import *
 from aitemplate.backend.rocm.common import *

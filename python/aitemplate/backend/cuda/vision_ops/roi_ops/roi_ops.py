@@ -15,6 +15,7 @@
 """
 Codegen functions for roi ops.
 """
+
 import jinja2
 
 FUNC_DECL_TEMPLATE = jinja2.Template(

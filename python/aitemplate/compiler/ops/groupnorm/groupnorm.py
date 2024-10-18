@@ -15,6 +15,7 @@
 """
 Operator definition for groupnorm.
 """
+
 import itertools
 import logging
 import os

@@ -15,6 +15,7 @@
 """
 BMM_RCR + Softmax + BMM_RRR + Permute Specialization
 """
+
 from typing import Tuple
 
 from aitemplate.compiler.base import IntImm, Tensor

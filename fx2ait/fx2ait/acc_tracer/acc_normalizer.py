@@ -283,7 +283,10 @@ def move_kwargs_to_acc_out_ty(
 
     for kwarg_replacement_tuple in normalization_info.kwargs_to_move_to_acc_out_ty:
         if len(kwarg_replacement_tuple) == 2:
-            orig_kwarg_name, tmd_field_name, move_to_qparams = *kwarg_replacement_tuple, False  # type: ignore[misc]
+            orig_kwarg_name, tmd_field_name, move_to_qparams = (
+                *kwarg_replacement_tuple,
+                False,
+            )  # type: ignore[misc]
         else:
             assert len(kwarg_replacement_tuple) == 3
             orig_kwarg_name, tmd_field_name, move_to_qparams = kwarg_replacement_tuple  # type: ignore[misc]
@@ -331,9 +334,7 @@ def get_normalized_kwargs(
                 new_kwargs[new_kwarg_name] = node.args[i]
             else:
                 # Verify the arg we're trying to normalize was optional.
-                assert (
-                    is_optional
-                ), f"Cannot normalize {orig_kwargs_names} to {new_kwarg_name} for {node.name}"
+                assert is_optional, f"Cannot normalize {orig_kwargs_names} to {new_kwarg_name} for {node.name}"
         else:
             new_kwargs[new_kwarg_name] = node.kwargs[orig_kwargs_name]
 

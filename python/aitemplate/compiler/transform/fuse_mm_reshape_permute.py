@@ -15,6 +15,7 @@
 """
 Fuse GEMM + reshape + permute0213
 """
+
 from typing import List, Sequence
 
 from aitemplate.compiler.base import IntImm, Operator, Tensor

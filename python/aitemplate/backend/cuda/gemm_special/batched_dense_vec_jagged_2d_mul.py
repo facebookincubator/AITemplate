@@ -15,6 +15,7 @@
 """
 Define batched_dense_vec_jagged_2d_mul codegen and CUDA kernel
 """
+
 from typing import Any, Dict
 
 import jinja2
