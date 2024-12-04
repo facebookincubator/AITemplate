@@ -15,6 +15,7 @@
 """
 Python bindings to the AIT runtime.
 """
+
 import ctypes
 import enum
 import logging
@@ -161,8 +162,8 @@ def _reshape_tensor(tensor: TorchTensor, shape: List[int]) -> TorchTensor:
     Reinterpret a blob of contiguous memory as some shape. Used to convert
     outputs in RunWithTensors.
     """
-    assert tensor.ndim == len(
-        shape
+    assert (
+        tensor.ndim == len(shape)
     ), f"Expected output tensor's ndim to match the length of Run()'s return value: {tensor.ndim=} != {len(shape)=}"
     numel = math.prod(shape)
     new_tensor = tensor.flatten()[:numel]

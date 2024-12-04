@@ -17,6 +17,7 @@ x: [b, m, n]
 gamma: [b, n]
 beta: [b, n]
 """
+
 from typing import List
 
 from aitemplate.compiler.base import IntImm

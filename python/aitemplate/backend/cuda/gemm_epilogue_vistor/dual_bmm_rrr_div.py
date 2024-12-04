@@ -17,6 +17,7 @@ Batch GEMM Specialization for
 C = BMM_RRR(A, B0) / BMM_RRR(A, B1)
 where A[RowMajor][M, K], B[RowMajor][K, N], B1[RowMajor][K, N]
 """
+
 import jinja2
 
 from aitemplate.backend import registry

@@ -15,6 +15,7 @@
 """
 Slice reshape backend common implementation.
 """
+
 import functools
 
 import jinja2

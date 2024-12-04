@@ -25,7 +25,6 @@ Users don't have to download a COCO json (which contains metadata), in order to 
 COCO model (with correct class names and colors).
 """
 
-
 # All coco categories, together with their nice-looking visualization colors
 # It's from https://github.com/cocodataset/panopticapi/blob/master/panoptic_coco_categories.json
 COCO_CATEGORIES = [

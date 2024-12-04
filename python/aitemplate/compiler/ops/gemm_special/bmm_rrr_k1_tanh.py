@@ -15,6 +15,7 @@
 """
 Operator definition for bmm_rrr_k1_tanh.
 """
+
 from typing import List
 
 from aitemplate.compiler.base import IntVar, Tensor

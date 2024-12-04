@@ -15,6 +15,7 @@
 """
 Attention kernel codegen for CUDA.
 """
+
 from typing import Any, Dict
 
 import jinja2

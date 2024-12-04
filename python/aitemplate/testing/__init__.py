@@ -15,6 +15,7 @@
 """
 testing module
 """
+
 from aitemplate.testing import benchmark_ait, benchmark_pt
 from aitemplate.testing.detect_target import detect_target
 from aitemplate.testing.profile import profile_callable

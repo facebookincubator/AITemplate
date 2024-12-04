@@ -15,6 +15,7 @@
 """
 Common template for bmm
 """
+
 import jinja2
 
 EXTRA_HEADER_TEMPLATE = jinja2.Template(

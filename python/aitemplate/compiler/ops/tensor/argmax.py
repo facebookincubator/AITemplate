@@ -15,6 +15,7 @@
 """
 Argmax.
 """
+
 import itertools
 import logging
 import os

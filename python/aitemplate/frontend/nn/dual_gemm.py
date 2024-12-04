@@ -15,6 +15,7 @@
 """
 Frontend for attention module
 """
+
 from aitemplate.compiler import ops
 from aitemplate.frontend.nn.linear import Linear
 from aitemplate.frontend.nn.module import Module

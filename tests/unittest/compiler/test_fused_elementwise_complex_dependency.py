@@ -15,6 +15,7 @@
 """
 Unittests for elementwise fusion with complex dependencies.
 """
+
 import unittest
 
 import torch

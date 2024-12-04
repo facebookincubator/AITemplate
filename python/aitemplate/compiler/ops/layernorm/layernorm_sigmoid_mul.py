@@ -15,6 +15,7 @@
 """
 Operator definition for layernorm_sigmoid_mul.
 """
+
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import Operator

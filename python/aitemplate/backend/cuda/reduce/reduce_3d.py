@@ -20,6 +20,7 @@ respectively. So, this common kernel can be used to implement a family of
 reduction ops such as reduce_mean and norm where we need to apply a scalar-op
 to each final element.
 """
+
 import bisect
 
 import jinja2

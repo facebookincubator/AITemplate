@@ -15,6 +15,7 @@
 """
 common module for conv_bias_act subgraph
 """
+
 from aitemplate.compiler import ops
 from aitemplate.frontend.nn.module import Module
 from aitemplate.frontend.nn.parameter import Parameter

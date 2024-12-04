@@ -15,6 +15,7 @@
 """
 ROCM avg_pool2d funcs
 """
+
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.pool2d import pool2d
 

@@ -15,6 +15,7 @@
 """
 Deduplicate make_jagged ops in the graph.
 """
+
 import logging
 from dataclasses import dataclass
 from typing import Dict, List, Set

@@ -15,6 +15,7 @@
 """
 Unittests for fused_elementwise Operator with strided outputs.
 """
+
 import unittest
 
 from typing import List

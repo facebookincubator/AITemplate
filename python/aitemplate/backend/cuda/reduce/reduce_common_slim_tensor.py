@@ -17,7 +17,6 @@ A simply reduction implementation for "slim" tensors. Currently only reduction
 along dim=1 for 3D tensors is supported.
 """
 
-
 from typing import List
 
 import jinja2

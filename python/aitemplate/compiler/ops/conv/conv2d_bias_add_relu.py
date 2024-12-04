@@ -15,6 +15,7 @@
 """
 fused conv2d_bias_relu_add op, for residual block
 """
+
 from aitemplate.compiler.ops.conv.common_conv2d_bias_add_activation import (
     conv2d_bias_add_activation,
 )

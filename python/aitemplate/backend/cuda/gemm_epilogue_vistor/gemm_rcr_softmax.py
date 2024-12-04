@@ -18,6 +18,7 @@ This is special in template based gemm solution
 This is used for `torch.nn.functional.linear`
 When use for `linear`, need set A->Data, B->Weight
 """
+
 import jinja2
 
 from aitemplate.backend import registry

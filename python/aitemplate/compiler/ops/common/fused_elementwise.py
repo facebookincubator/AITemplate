@@ -15,6 +15,7 @@
 """
 Fused elementwise operator definition.
 """
+
 from typing import Iterable, List
 
 from aitemplate import backend

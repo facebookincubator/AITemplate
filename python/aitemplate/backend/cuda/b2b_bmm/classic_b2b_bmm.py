@@ -15,6 +15,7 @@
 """
 classic_b2b_bmm kernel codegen for CUDA.
 """
+
 from typing import Any, Dict
 
 import jinja2

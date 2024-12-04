@@ -16,6 +16,7 @@
 """
 Define batched_dense_vec_jagged_2d_mul op
 """
+
 from typing import List
 
 from aitemplate.backend import registry

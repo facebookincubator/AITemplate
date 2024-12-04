@@ -15,6 +15,7 @@
 """
 CUDA codegen for nhwc3to8 op
 """
+
 import jinja2
 
 from ... import registry

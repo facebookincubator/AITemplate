@@ -15,6 +15,7 @@
 """
 conv2d depthwise bias module
 """
+
 from aitemplate.frontend.nn.conv2d.common_conv2d_bias_act import Conv2dBiasAct
 
 

@@ -36,7 +36,6 @@ from diffusers import StableDiffusionPipeline
     help="Pipeline files local directory.",
 )
 def download_pipeline_files(model_name, token, save_directory) -> None:
-
     StableDiffusionPipeline.from_pretrained(
         model_name,
         revision="fp16",

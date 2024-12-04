@@ -15,6 +15,7 @@
 """
 Cache entry for conv2d.
 """
+
 from dataclasses import dataclass
 
 # pylint: disable=C0103

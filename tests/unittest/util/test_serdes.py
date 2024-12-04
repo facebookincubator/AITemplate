@@ -15,6 +15,7 @@
 """
 Unittests for special activation Operator.
 """
+
 import logging
 import unittest
 

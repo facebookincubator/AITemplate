@@ -15,6 +15,7 @@
 """
 Common NDHWC3to8 padding op
 """
+
 import itertools
 from typing import List
 

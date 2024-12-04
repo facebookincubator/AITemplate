@@ -15,6 +15,7 @@
 """
 Backend-agnostic function templates for split.
 """
+
 import jinja2
 
 FUNC_DECL_TEMPLATE = jinja2.Template(

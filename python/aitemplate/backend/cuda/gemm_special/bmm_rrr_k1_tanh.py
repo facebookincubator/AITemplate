@@ -20,6 +20,7 @@ A[RowMajor]: [B, M, 1]
 B[RowMajor]: [B, 1, N]
 C[RowMajor]: [B, M, N]
 """
+
 import jinja2
 
 from aitemplate.backend import registry

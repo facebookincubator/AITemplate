@@ -15,6 +15,7 @@
 """
 GEMM Specialization: GEMM_RCR(A, B) + Bias
 """
+
 from aitemplate.compiler.base import IntImm, Tensor
 from aitemplate.compiler.ops.gemm_universal import gemm_rcr
 from aitemplate.compiler.tensor_accessor import TensorAccessor

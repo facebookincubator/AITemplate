@@ -15,6 +15,7 @@
 """
 Identity module.
 """
+
 from aitemplate.frontend.nn.module import Module
 
 # pylint: disable=C0103

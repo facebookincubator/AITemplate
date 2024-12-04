@@ -15,6 +15,7 @@
 """
 SQLite backend for conv/gemm profiling cache
 """
+
 import enum
 import logging
 import sqlite3

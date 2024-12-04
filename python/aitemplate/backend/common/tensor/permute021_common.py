@@ -21,6 +21,7 @@ For higher-rank input, treat the first n-2 dims as a single flat dim.
 i.e. Output[d0, ..., dn-3, dn-1, dn-2] = Input[d0, ..., dn-3, dn-2, dn-1]
 
 """
+
 from typing import Any, Dict
 
 import jinja2

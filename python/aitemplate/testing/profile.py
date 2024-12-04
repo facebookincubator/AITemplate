@@ -15,6 +15,7 @@
 """
 Torch module profiling utility.
 """
+
 import logging
 from operator import itemgetter
 from typing import Callable, List, Tuple
