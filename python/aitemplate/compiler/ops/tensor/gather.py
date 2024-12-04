@@ -15,6 +15,7 @@
 """
 Operator definition for gather.
 """
+
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import Operator, Tensor

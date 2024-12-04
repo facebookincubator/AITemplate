@@ -15,6 +15,7 @@
 """
 Graph pass to invoke profiling with dynamic shapes.
 """
+
 import logging
 from collections import OrderedDict
 from copy import deepcopy

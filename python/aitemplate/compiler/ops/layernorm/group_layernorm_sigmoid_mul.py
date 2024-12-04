@@ -15,6 +15,7 @@
 """
 Operator definition for group_layernorm_sigmoid_mul.
 """
+
 from typing import List
 
 from aitemplate.compiler.base import IntImm

@@ -15,6 +15,7 @@
 """
 Unittests for fused_elementwise broadcast.
 """
+
 import itertools
 import unittest
 

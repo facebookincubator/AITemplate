@@ -15,6 +15,7 @@
 """
 Dump/Read sorted_graph to/from python code.
 """
+
 import copy
 import logging
 import os

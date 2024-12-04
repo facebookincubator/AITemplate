@@ -920,8 +920,8 @@ def acc_ops_conv_transpose2d(
         # Grouped conv doesn't currently work on AIT CUDA, manually map
         groups = kwargs["groups"]
         assert (
-            w_last_dim * groups
-        ) % 8 == 0, f"cutlass needs weight output channel={w_last_dim*groups} is not divisble by 8! This restriction may be not valid in newer version"
+            (w_last_dim * groups) % 8 == 0
+        ), f"cutlass needs weight output channel={w_last_dim*groups} is not divisble by 8! This restriction may be not valid in newer version"
 
         group_size = input_val.shape()[3]._attrs["values"][0] // groups
         w_group_size = weight.shape()[0]._attrs["values"][0] // groups
@@ -1767,7 +1767,7 @@ def acc_ops_to_dtype(
     input_val = kwargs["input"]
 
     def _get_cast_to_dtype_from_kwargs(
-        kwargs: Dict[str, Argument]
+        kwargs: Dict[str, Argument],
     ) -> Optional[torch.dtype]:
         torch_dtype_to_ait_dtype_str = {
             torch.float: "float32",

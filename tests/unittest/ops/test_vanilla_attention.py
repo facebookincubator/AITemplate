@@ -15,6 +15,7 @@
 """
 Unittests for vanilla_attention.
 """
+
 import logging
 import math
 import os

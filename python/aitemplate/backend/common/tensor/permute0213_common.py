@@ -23,6 +23,7 @@ is added as a blockIdx.z for the tiled kernel launch and encoded
 in the blockIdx.z for the direct kernel launch. The input and output
 pointers are shifted accordingly in the kernel code.
 """
+
 from typing import Any, Dict
 
 import jinja2

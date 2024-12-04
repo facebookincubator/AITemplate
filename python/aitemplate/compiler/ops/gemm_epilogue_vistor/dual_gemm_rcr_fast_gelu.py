@@ -15,6 +15,7 @@
 """
 GEMM Specialization: FAST_GELU(GEMM_RCR(A, B)) * GEMM_RCR(A, B1)
 """
+
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.gemm_universal.gemm_rcr import gemm_rcr
 from aitemplate.compiler.tensor_accessor import TensorAccessor

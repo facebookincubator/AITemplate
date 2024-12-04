@@ -15,6 +15,7 @@
 """
 Concatenate_tanh
 """
+
 from aitemplate.compiler.ops.tensor import concatenate
 
 # pylint: disable=C0103

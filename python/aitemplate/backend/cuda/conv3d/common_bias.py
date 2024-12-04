@@ -15,6 +15,7 @@
 """
 CUDA conv3d common functions
 """
+
 import re
 from hashlib import sha1
 from typing import List

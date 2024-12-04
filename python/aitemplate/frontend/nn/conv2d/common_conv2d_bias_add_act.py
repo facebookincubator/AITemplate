@@ -15,6 +15,7 @@
 """
 common module for conv2d bias act residual add
 """
+
 from aitemplate.compiler import ops
 from aitemplate.frontend.nn.module import Module
 from aitemplate.frontend.nn.parameter import Parameter

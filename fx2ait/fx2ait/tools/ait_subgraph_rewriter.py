@@ -348,7 +348,6 @@ def _replace_pattern(
     replacement: Union[Callable, GraphModule],
     match_filters: List[Callable[["InternalMatch", Graph, Graph], bool]] = None,  # type: ignore[name-defined]
 ) -> List[ReplacedPatterns]:
-
     if match_filters is None:
         match_filters = []
 
@@ -392,7 +391,6 @@ def _replace_pattern(
 
     match_and_replacements = []
     for match in _matches:
-
         # Build connecting between replacement graph's input and original graph input producer node
 
         # Initialize `val_map` with mappings from placeholder nodes in
@@ -458,7 +456,6 @@ def _replace_pattern(
                 and node.op != "output"
                 and node.target != torch.ops.aten.sym_size
             ):
-
                 gn = match.nodes_map[node]
                 gm.graph.erase_node(gn)
         match_and_replacements.append(

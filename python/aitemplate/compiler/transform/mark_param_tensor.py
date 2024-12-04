@@ -15,6 +15,7 @@
 """
 mark tensors which are parameters
 """
+
 from typing import List
 
 from aitemplate.compiler.base import Tensor

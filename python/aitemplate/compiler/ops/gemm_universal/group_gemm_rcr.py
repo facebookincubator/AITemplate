@@ -15,6 +15,7 @@
 """
 Grouped GEMM Specialization for A[RowMajor], B[ColMajor], C[RowMajor]
 """
+
 import logging
 import re
 from collections import OrderedDict

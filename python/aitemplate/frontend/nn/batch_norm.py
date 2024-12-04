@@ -15,6 +15,7 @@
 """
 Frontend for attention module
 """
+
 from aitemplate.compiler.public import elementwise, FuncEnum, permute
 from aitemplate.frontend.nn.module import Module
 from aitemplate.frontend.nn.parameter import Parameter

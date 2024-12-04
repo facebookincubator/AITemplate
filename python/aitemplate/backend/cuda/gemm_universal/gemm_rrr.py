@@ -17,6 +17,7 @@ GEMM Specialization for
 C = GeMM(A, B)
 where A[RowMajor][M, K], B[RowMajor][K, N]
 """
+
 import jinja2
 
 from aitemplate.backend import registry

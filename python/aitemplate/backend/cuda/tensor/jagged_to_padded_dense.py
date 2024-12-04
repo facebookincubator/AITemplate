@@ -15,6 +15,7 @@
 """
 The back-end bindings of the jagged_to_padded_dense op.
 """
+
 from typing import Any, Dict
 
 import jinja2

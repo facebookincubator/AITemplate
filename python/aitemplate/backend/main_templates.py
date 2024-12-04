@@ -15,6 +15,7 @@
 """
 This file contains class definitions used in the generated main.cu file.
 """
+
 import jinja2
 
 MODEL_TEMPLATE = jinja2.Template(

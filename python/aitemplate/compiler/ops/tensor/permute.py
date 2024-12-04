@@ -15,6 +15,7 @@
 """
 permute op
 """
+
 from typing import List, Sequence
 
 from aitemplate import backend

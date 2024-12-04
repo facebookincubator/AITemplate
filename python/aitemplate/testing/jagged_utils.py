@@ -370,9 +370,7 @@ def batched_dense_vec_jagged_2d_mul_ref(
     return torch.matmul(
         vectors.unsqueeze(dim=2),  # [B, H, 1, N]
         padded_matrices.permute([0, 2, 1, 3]),  # [B, H, N, D]
-    ).squeeze(
-        dim=2
-    )  # [B, H, D]
+    ).squeeze(dim=2)  # [B, H, D]
 
 
 def add_jagged_dense_ref(

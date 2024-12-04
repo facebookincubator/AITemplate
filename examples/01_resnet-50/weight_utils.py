@@ -17,7 +17,6 @@ script for converting model from timm to aitemplate
 Only tested on resnet50
 """
 
-
 import pickle
 import re
 

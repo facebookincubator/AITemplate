@@ -40,6 +40,7 @@ Num threads = 256.
 Blocks are(N + threads - 1) / threads;
 
 """
+
 import jinja2
 
 from aitemplate.backend import registry

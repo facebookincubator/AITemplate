@@ -19,6 +19,7 @@ It also tries to preserve the original element order as much as possible, which 
 potentially make debugging (e.g. comparison with the original graph, comparison between
 AIT GPU trace and other GPU traces) easier.
 """
+
 from collections import abc
 from typing import Any, Iterable
 

@@ -15,6 +15,7 @@
 """
 Conv1d Module.
 """
+
 from aitemplate.compiler.ops import conv2d, conv2d_bias, squeeze, unsqueeze
 from aitemplate.frontend import Tensor
 from aitemplate.frontend.nn.module import Module

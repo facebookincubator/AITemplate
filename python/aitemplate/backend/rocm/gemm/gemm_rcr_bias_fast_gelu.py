@@ -18,6 +18,7 @@ c[m, n] = fast_gelu(a[m, k] * b[n, k] + bias[n])
 This is used for `torch.nn.functional.linear + swish`
 When used for `linear`, need to set A->Data, B->Weight, C->Bias
 """
+
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.gemm import common
 from aitemplate.backend.rocm.gemm.layout import RCR

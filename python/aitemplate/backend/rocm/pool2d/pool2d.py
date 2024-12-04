@@ -15,6 +15,7 @@
 """
 ROCM codegen functions for pool2d.
 """
+
 from hashlib import sha1
 
 import jinja2
