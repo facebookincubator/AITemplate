@@ -341,6 +341,8 @@ class FBCUDA(CUDA):
                 FBCUDA.nvcc_option_json = json.load(nvcc_option_json)
         self.nvcc_options_json = FBCUDA.nvcc_option_json
         cuda_version = self.nvcc_option_json.get("cuda_version", None)
+        if cuda_version is None:
+            _LOGGER.warning("CUDA version is not specified in nvcc_option_json")
 
         self.remote_cache_bytes = remote_cache_bytes
         super().__init__(
