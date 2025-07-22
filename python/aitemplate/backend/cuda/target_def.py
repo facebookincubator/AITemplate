@@ -19,13 +19,13 @@ CUDA target specialization
 import json
 import logging
 import os
-import pipes
 import re
 import shutil
 import sys
 import tempfile
 
 from pathlib import Path
+from shlex import quote
 from typing import List
 
 from aitemplate.backend import registry
@@ -41,7 +41,6 @@ from aitemplate.backend.target import (
 
 from aitemplate.utils import environ
 from aitemplate.utils.misc import is_debug, is_linux
-
 # pylint: disable=C0415,W0707,W0611,W0702,W1401
 
 
@@ -414,7 +413,7 @@ class FBCUDA(CUDA):
             pp_args = self.nvcc_options_json["pp_args"]
             with open(fb_include_path, "w") as fb_include:
                 for arg in pp_args:
-                    fb_include.write(pipes.quote(arg) + "\n")
+                    fb_include.write(quote(arg) + "\n")
 
             nvcc_arch = self._arch
             if nvcc_arch == "90":
