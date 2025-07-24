@@ -102,10 +102,12 @@ struct __string_view {
 template <class T>
 constexpr __string_view __get_type_name() {
   char const* p = __PRETTY_FUNCTION__;
-  while (*p++ != '=')
+  while (*p++ != '=') {
     ;
-  for (; *p == ' '; ++p)
+  }
+  for (; *p == ' '; ++p) {
     ;
+  }
   char const* p2 = p;
   int count = 1;
   for (;; ++p2) {
@@ -115,8 +117,9 @@ constexpr __string_view __get_type_name() {
         break;
       case ']':
         --count;
-        if (!count)
+        if (!count) {
           return {p, std::size_t(p2 - p)};
+        }
     }
   }
   return {};
