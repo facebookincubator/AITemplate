@@ -17,7 +17,6 @@ Define masked_select op
 """
 
 import logging
-from typing import List
 
 from aitemplate.backend import registry
 
@@ -57,7 +56,7 @@ class masked_select(Operator):
         self._attrs["workspace"] = 0
         self._attrs["max_shape"] = None
 
-    def _infer_shape(self, x: Tensor, mask: Tensor) -> List[IntVar]:
+    def _infer_shape(self, x: Tensor, mask: Tensor) -> list[IntVar]:
         input_shape = x._attrs["shape"]
         mask_shape = mask._attrs["shape"]
         broadcastable, max_shape = shape_utils.get_broadcast_max_shape(
@@ -96,10 +95,10 @@ class masked_select(Operator):
         self,
         x: Tensor,
         mask: Tensor,
-    ) -> List[Tensor]:
+    ) -> list[Tensor]:
         dtype = mask._attrs["dtype"]
         if dtype != "bool":
-            raise RuntimeError("Expected mask of dtype bool, but got {}".format(dtype))
+            raise RuntimeError(f"Expected mask of dtype bool, but got {dtype}")
         self._attrs["inputs"] = [x, mask]
         self._set_depth()
         output_shape = self._infer_shape(x, mask)

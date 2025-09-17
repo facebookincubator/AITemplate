@@ -16,8 +16,6 @@
 Define jagged_lengths_to_offsets op
 """
 
-from typing import List
-
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import IntVar, Operator, Tensor
@@ -40,7 +38,7 @@ class jagged_lengths_to_offsets(Operator):
         self._attrs["op"] = "jagged_lengths_to_offsets"
         self._attrs["has_profiler"] = False
 
-    def _infer_shape(self, lengths: Tensor) -> List[IntVar]:
+    def _infer_shape(self, lengths: Tensor) -> list[IntVar]:
         batch_size = lengths.shape()[0]
         # the offsets are 1 element longer than the lengths
         offsets_size = IntVar(

@@ -22,7 +22,7 @@ import re
 from collections import OrderedDict
 from hashlib import sha1
 from operator import itemgetter
-from typing import Any, List, Union
+from typing import Any
 
 import jinja2
 
@@ -67,7 +67,7 @@ class layernorm(Operator):
     Gamma/Beta, if not None, have the same shape as normalized_shape.
     """
 
-    def __init__(self, normalized_shape: List[IntImm] = None) -> None:
+    def __init__(self, normalized_shape: list[IntImm] = None) -> None:
         super().__init__()
         self._attrs["op"] = "layernorm"
         self._attrs["has_profiler"] = False
@@ -107,7 +107,7 @@ class layernorm(Operator):
         _check_param_shapes(x_shapes, normalized_shape, "normalized")
 
     @staticmethod
-    def get_input_shapes(x, gamma, beta) -> List[List[Union[IntVar, IntImm]]]:
+    def get_input_shapes(x, gamma, beta) -> list[list[IntVar | IntImm]]:
         """
         Return a list of shapes for x, gamma and beta, where gamma_shape and
         beta_shape may be None if gamma and beta are None, respectively.
@@ -153,7 +153,7 @@ class layernorm(Operator):
         x: Tensor,
         gamma: Tensor = None,
         beta: Tensor = None,
-        normalized_shape: List[Any] = None,
+        normalized_shape: list[Any] = None,
         eps: float = 1e-5,
     ) -> Tensor:
         inputs = [x]
@@ -232,9 +232,7 @@ class layernorm(Operator):
             elif len(values) > 1:
                 key_strs.append(f"{name} >= {values[0]} && {name} <= {values[-1]}")
             else:
-                raise RuntimeError(
-                    "Softmax input has empty dim values: {}".format(values)
-                )
+                raise RuntimeError(f"Softmax input has empty dim values: {values}")
         return " && ".join(key_strs)
 
     def _extract_exec_path(self, dynamic_profiling_strategy=DynamicProfileStrategy.MAX):

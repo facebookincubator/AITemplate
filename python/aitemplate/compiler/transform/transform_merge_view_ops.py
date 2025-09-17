@@ -16,8 +16,6 @@
 This file implements a pass that merges consecutive view ops if possible.
 """
 
-from typing import List, Set
-
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.transform import transform_utils
@@ -32,7 +30,7 @@ def _is_inout(t: Tensor):
     return t._attrs["is_input"] or t._attrs["is_output"]
 
 
-def _merge_view_ops_for(graph: List[Tensor], tensor: Tensor) -> List[Tensor]:
+def _merge_view_ops_for(graph: list[Tensor], tensor: Tensor) -> list[Tensor]:
     """
     `tensor` should have exactly 1 src op, and that op must be a view op. We
     will look for view ops in the dst ops and merge them with the src view op
@@ -41,7 +39,7 @@ def _merge_view_ops_for(graph: List[Tensor], tensor: Tensor) -> List[Tensor]:
     src_op = tensor._attrs["src_ops"][0]
     in_tensor = src_op._attrs["inputs"][0]
     dst_ops = tensor._attrs["dst_ops"]
-    removed_ops: Set[Operator] = set()
+    removed_ops: set[Operator] = set()
     for op in dst_ops:
         if op._attrs["op"] not in _VIEW_OPS:
             continue
@@ -69,7 +67,7 @@ def _merge_view_ops_for(graph: List[Tensor], tensor: Tensor) -> List[Tensor]:
     return graph
 
 
-def merge_view_ops(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
+def merge_view_ops(sorted_graph: list[Tensor], workdir: str = None) -> list[Tensor]:
     """
     Merge consecutive view ops.
     """

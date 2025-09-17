@@ -16,7 +16,7 @@
 permute op
 """
 
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from aitemplate import backend
 from aitemplate.backend import registry
@@ -37,7 +37,7 @@ class permute(Operator):
         super().__init__()
         self._attrs["op"] = "permute"
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         """Infers shapes for permute."""
 
         output_shapes = []

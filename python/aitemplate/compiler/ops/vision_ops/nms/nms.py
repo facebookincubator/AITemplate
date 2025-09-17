@@ -22,7 +22,6 @@ import os
 import re
 from collections import OrderedDict
 from operator import itemgetter
-from typing import List
 
 import jinja2
 
@@ -98,7 +97,7 @@ class nms(Operator):
         self.exec_key_template = EXEC_KEY_TEMPLATE
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
 
-    def _infer_shape(self, x: List[int], w: List[int]):
+    def _infer_shape(self, x: list[int], w: list[int]):
         """Infer the output shape"""
         eval_func = self.shape_eval_template.render(
             indent="",
@@ -199,7 +198,7 @@ class nms(Operator):
         cmd.append(x_shape[0])
         cmd.append(x_shape[1])
         command = [str(x) for x in cmd]
-        _LOGGER.info("profiling cmd: {}".format(command))
+        _LOGGER.info(f"profiling cmd: {command}")
         return command
 
     def _profile_single_workload(self, profiler_prefix, exec_key, devices):

@@ -16,8 +16,6 @@
 Fused transposed_conv2d_bias op.
 """
 
-from typing import Tuple
-
 from aitemplate.compiler.base import Tensor
 
 from aitemplate.compiler.ops.conv.common_conv2d_bias_activation import (
@@ -107,5 +105,5 @@ class transposed_conv2d_bias(transposed_conv2d):
         return output
 
     @staticmethod
-    def is_valid_inputs(x: Tensor, w: Tensor, b: Tensor) -> Tuple[bool, str]:
+    def is_valid_inputs(x: Tensor, w: Tensor, b: Tensor) -> tuple[bool, str]:
         return conv2d_bias_activation.is_valid_inputs(x, w, b)

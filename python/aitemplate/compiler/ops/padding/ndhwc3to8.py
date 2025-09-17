@@ -17,7 +17,6 @@ Common NDHWC3to8 padding op
 """
 
 import itertools
-from typing import List
 
 import jinja2
 
@@ -64,7 +63,7 @@ class ndhwc3to8(Operator):
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
         self.shape_save_template = SHAPE_ASSIGNMENT_TEMPLATE
 
-    def _infer_shape(self, x: List[int]):
+    def _infer_shape(self, x: list[int]):
         eval_func = self.shape_eval_template.render(
             indent="",
             dtype="",
@@ -105,7 +104,7 @@ class ndhwc3to8(Operator):
         ]
         return output_shape
 
-    def __call__(self, x: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor) -> list[Tensor]:
         self._attrs["inputs"] = [x]
         self._set_depth()
         output_shape = self._infer_shapes(x)

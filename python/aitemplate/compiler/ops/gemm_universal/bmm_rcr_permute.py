@@ -16,8 +16,6 @@
 Batch GEMM specialization for A[RowMajor], B[ColMajor], C[RowMajor] with permutation on output.
 """
 
-from typing import Tuple
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common.view_ops import reshape
 from aitemplate.compiler.ops.gemm_universal.bmm_xxx import bmm_rcr
@@ -45,7 +43,7 @@ class bmm_rcr_permute(bmm_rcr):
         Y_pt = torch.permute(Y_r, [0, 2, 1, 3])
     """
 
-    def __init__(self, shape: Tuple[int], layout="0213"):
+    def __init__(self, shape: tuple[int], layout="0213"):
         """Constructor for bmm_rcr_permute
 
         Parameters
@@ -59,7 +57,7 @@ class bmm_rcr_permute(bmm_rcr):
         super().__init__()
         self._attrs["op"] = "bmm_rcr_permute"
         self._attrs["shape"] = shape
-        self._attrs["layout"] = "Permute4DBMM_{}".format(layout)
+        self._attrs["layout"] = f"Permute4DBMM_{layout}"
         self._attrs["permute_shape"] = "_".join(map(str, shape))
 
     def __call__(self, a: Tensor, b: Tensor) -> Tensor:

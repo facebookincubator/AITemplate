@@ -18,7 +18,6 @@ Graph pass to assign names to a sorted graph.
 
 import logging
 import re
-from typing import List
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, JaggedIntVar, Tensor
 from aitemplate.utils import graph_utils
@@ -61,7 +60,7 @@ def unique_name(name):
         return name
 
 
-def name_graph(sorted_graph: List[Tensor]) -> None:
+def name_graph(sorted_graph: list[Tensor]) -> None:
     """Provide each tensor and operator with a unique valid C variable name
 
     Parameters
@@ -122,7 +121,7 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
             if dim._attrs["name"] is not None:
                 user_provided_dim.add(dim._attrs["name"])
             if dim._attrs["name"] is None and not isinstance(dim, JaggedIntVar):
-                dim_name = "{tname}_dim_{idx}".format(tname=tensor_name, idx=i)
+                dim_name = f"{tensor_name}_dim_{i}"
                 dim._attrs["name"] = dim_name
 
     for tensor in sorted_graph:
@@ -150,7 +149,7 @@ def name_graph(sorted_graph: List[Tensor]) -> None:
     )
 
 
-def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
+def dedup_symbolic_name(sorted_graph: list[Tensor]) -> None:
     """Rename all shape variable that are identical to the same name.
     Parameters
     ----------
@@ -179,7 +178,7 @@ def dedup_symbolic_name(sorted_graph: List[Tensor]) -> None:
         dim._attrs["name"] = symbolic_to_name[dim_sym]
 
 
-def _all_dims_in_graph(sorted_graph: List[Tensor]):
+def _all_dims_in_graph(sorted_graph: list[Tensor]):
     dim_idx = 0
     for node in sorted_graph:
         for dim in node._attrs["shape"]:

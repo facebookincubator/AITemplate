@@ -20,7 +20,7 @@ import collections
 import itertools
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.ops.common import elementwise, fused_elementwise
@@ -40,9 +40,9 @@ _LOGGER = logging.getLogger(__name__)
 
 class SimpleDisjointSet:
     def __init__(self):
-        self.node_to_set_mapping: Dict[Any, Set[Any]] = {}
+        self.node_to_set_mapping: dict[Any, set[Any]] = {}
 
-    def add(self, node: Any, dependent_nodes: Optional[Set[Any]]) -> None:
+    def add(self, node: Any, dependent_nodes: set[Any] | None) -> None:
         if node in self.node_to_set_mapping:
             return
 
@@ -66,7 +66,7 @@ class SimpleDisjointSet:
                 self.node_to_set_mapping[new_node] = current_set
         self.node_to_set_mapping[node] = current_set
 
-    def get_node_groups(self) -> List[Set[Any]]:
+    def get_node_groups(self) -> list[set[Any]]:
         node_groups = []
         visited = set()
         for group in self.node_to_set_mapping.values():
@@ -77,7 +77,7 @@ class SimpleDisjointSet:
         return node_groups
 
 
-def _find_fusable_elementwise_ops(op: Operator) -> Set[Operator]:
+def _find_fusable_elementwise_ops(op: Operator) -> set[Operator]:
     """
     Given an elementwise op, returns a list of parent elementwise ops
     which can be fused with this elementwise op.
@@ -142,14 +142,14 @@ def _find_fusable_elementwise_ops(op: Operator) -> Set[Operator]:
 
 @dataclass
 class FusedElementwiseInfo:
-    partitioned_ops: List[Operator]
-    inputs: List[Tensor]
-    outputs: List[Tensor]
-    external_inputs: List[Tensor]
-    external_outputs: List[Tensor]
+    partitioned_ops: list[Operator]
+    inputs: list[Tensor]
+    outputs: list[Tensor]
+    external_inputs: list[Tensor]
+    external_outputs: list[Tensor]
 
 
-def _partition_subgraphs(ops: Set[Operator]) -> Dict[str, Set[Operator]]:
+def _partition_subgraphs(ops: set[Operator]) -> dict[str, set[Operator]]:
     """
     Given ops of candidate graph of fused_elementwise op graph and partition
     into subgraph based on output shape, returns dict of
@@ -179,8 +179,8 @@ def _partition_subgraphs(ops: Set[Operator]) -> Dict[str, Set[Operator]]:
 
 
 def _get_inputs_outputs(
-    partitioned_ops: Set[Operator], all_ops: Set[Operator]
-) -> List[List[Tensor]]:
+    partitioned_ops: set[Operator], all_ops: set[Operator]
+) -> list[list[Tensor]]:
     """
     Given ops of a partitioned subgraph based on output shape, and ops of full graph
     to form a complete graph with fused_elementwise op, returns all inputs/outputs of
@@ -233,10 +233,10 @@ def _get_inputs_outputs(
 
 
 def _collect_info(
-    output_op_map: Dict[str, Set[Operator]],
-    all_ops: Set[Operator],
-    sorted_graph: List[Tensor],
-) -> List[FusedElementwiseInfo]:
+    output_op_map: dict[str, set[Operator]],
+    all_ops: set[Operator],
+    sorted_graph: list[Tensor],
+) -> list[FusedElementwiseInfo]:
     """
     Collects information for each fused_elementwise op:
         1. Provide op_list in topological order so fuse_elementwise backend can emit operations in order.
@@ -271,7 +271,7 @@ def _collect_info(
     return info_list
 
 
-def _create_fuse_ops(info_list: List[FusedElementwiseInfo]) -> None:
+def _create_fuse_ops(info_list: list[FusedElementwiseInfo]) -> None:
     """
     Creates fused ops based on info we collected.
     First is to update elementwise ops' inputs/outputs within the subgraph;
@@ -290,7 +290,7 @@ def _create_fuse_ops(info_list: List[FusedElementwiseInfo]) -> None:
         )
 
 
-def _detect_cycle(group: Set[Operator]) -> bool:
+def _detect_cycle(group: set[Operator]) -> bool:
     """
     Given a group of ops, to detect if they would form cycles, i.e.
       --> group_ops
@@ -307,7 +307,7 @@ def _detect_cycle(group: Set[Operator]) -> bool:
     return False
 
 
-def fuse_elementwise(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
+def fuse_elementwise(sorted_graph: list[Tensor], workdir: str = None) -> list[Tensor]:
     """
     Given a sorted graph, returns a sorted graph with fused_elementwise ops on fusable elementwise ops.
     """
@@ -338,8 +338,8 @@ def fuse_elementwise(sorted_graph: List[Tensor], workdir: str = None) -> List[Te
 
 
 def process_singleton_elementwise(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """
     A dummy pass which enables codegen for any elementwise op without fusing it with neighbors
     """
@@ -370,7 +370,7 @@ def process_singleton_elementwise(
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_layernorm_sigmoid_mul(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_layernorm_sigmoid_mul(sorted_graph: list[Tensor]) -> list[Tensor]:
     to_be_fused_op_groups = []
     for tensor in sorted_graph:
         src_ops = tensor._attrs["src_ops"]
@@ -420,7 +420,7 @@ def _fuse_layernorm_sigmoid_mul(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_groupnorm_sigmoid_mul(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_groupnorm_sigmoid_mul(sorted_graph: list[Tensor]) -> list[Tensor]:
     fusion_patterns = [
         (
             (
@@ -435,7 +435,7 @@ def _fuse_groupnorm_sigmoid_mul(sorted_graph: List[Tensor]) -> List[Tensor]:
     return graph
 
 
-def fuse_ops(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
+def fuse_ops(sorted_graph: list[Tensor], workdir: str = None) -> list[Tensor]:
     funcs = [
         _fuse_layernorm_sigmoid_mul,
         _fuse_groupnorm_sigmoid_mul,

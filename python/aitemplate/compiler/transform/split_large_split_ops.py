@@ -19,8 +19,6 @@ splitt ops, which share the same input with correct output_masks.
 
 import logging
 
-from typing import List
-
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
 
@@ -51,7 +49,7 @@ def _split_kernel_single_input_output_param_size(op: Operator):
     return total_params_size
 
 
-def split_large_split_ops(sorted_graph: List[Tensor], _: str) -> List[Tensor]:
+def split_large_split_ops(sorted_graph: list[Tensor], _: str) -> list[Tensor]:
     """
     Our split CUDA kernel takes an output meta argument whose size
     is proportional to the number of outputs. In extreme cases, the total size

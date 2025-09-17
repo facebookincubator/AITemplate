@@ -20,7 +20,6 @@ import itertools
 import logging
 import re
 from collections import OrderedDict
-from typing import List
 
 import jinja2
 
@@ -118,7 +117,7 @@ class roi_ops_base(Operator):
         self.shape_save_template = SHAPE_ASSIGNMENT_TEMPLATE
         self.exec_cond_template = EXEC_COND_TEMPLATE
 
-    def _infer_shape(self, x: List[int]):
+    def _infer_shape(self, x: list[int]):
         eval_func = self.shape_eval_template.render(
             indent="",
             dtype="",
@@ -190,7 +189,7 @@ class roi_ops_base(Operator):
         )
         return signature
 
-    def __call__(self, x: Tensor, rois: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor, rois: Tensor) -> list[Tensor]:
         self._attrs["inputs"] = [x, rois]
         self._set_depth()
         self._extract_exec_path(x)

@@ -23,7 +23,7 @@ import re
 from collections import OrderedDict
 from hashlib import sha1
 from operator import itemgetter
-from typing import Any, List, Union
+from typing import Any
 
 import jinja2
 
@@ -106,7 +106,7 @@ class group_norm(Operator):
         return
 
     @staticmethod
-    def get_input_shapes(x, gamma, beta) -> List[List[Union[IntVar, IntImm]]]:
+    def get_input_shapes(x, gamma, beta) -> list[list[IntVar | IntImm]]:
         """
         Return a list of shapes for x, gamma and beta, where gamma_shape and
         beta_shape may be None if gamma and beta are None, respectively.
@@ -131,7 +131,7 @@ class group_norm(Operator):
         """Infer shapes for groupnorm."""
         return x._attrs["shape"]
 
-    def _infer_shape(self, x: List[int]):
+    def _infer_shape(self, x: list[int]):
         eval_func = self.shape_eval_template.render(
             indent="",
             dtype="",
@@ -180,7 +180,7 @@ class group_norm(Operator):
         x: Tensor,
         gamma: Tensor = None,
         beta: Tensor = None,
-        normalized_shape: List[Any] = None,
+        normalized_shape: list[Any] = None,
         eps: float = 1e-5,
     ) -> Tensor:
         inputs = [x]

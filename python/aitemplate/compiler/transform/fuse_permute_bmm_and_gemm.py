@@ -16,7 +16,7 @@
 Perform fusions for permute+bmm operators.
 """
 
-from typing import Callable, List, Optional, Set, Tuple, Type, Union
+from collections.abc import Callable
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
@@ -48,7 +48,7 @@ from aitemplate.utils import alignment
 # pylint: disable=C0103,W0612
 
 
-def _try_extract_one_mm_op(ops: Set[Union[None, Operator]]) -> Union[None, Operator]:
+def _try_extract_one_mm_op(ops: set[None | Operator]) -> None | Operator:
     """
     Helper function that returns the matmul op from src_ops() or dst_ops() call.
     Return None if there's no bmm ops
@@ -64,12 +64,12 @@ def _try_extract_one_mm_op(ops: Set[Union[None, Operator]]) -> Union[None, Opera
 
 
 def _fuse_permute_impl(
-    sorted_graph: List[Tensor],
-    source: List[Type[Operator]],
-    targets: List[Union[None, Type[Operator]]],
-    gemm_condition: Optional[Callable],
-    permute_condition: Optional[Callable],
-) -> Tuple[bool, List[Tensor]]:
+    sorted_graph: list[Tensor],
+    source: list[type[Operator]],
+    targets: list[None | type[Operator]],
+    gemm_condition: Callable | None,
+    permute_condition: Callable | None,
+) -> tuple[bool, list[Tensor]]:
     """
     Function that fuses [permute021 + bmm] into corresponding bmm op.
 
@@ -188,8 +188,8 @@ def _fuse_permute_impl(
 
 
 def fuse_permute_bmm_and_gemm(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Fuse [permute021 + bmm] and [permute(0, 1) + gemm].
 
     Note that for the latter fusion, we require that this pass takes
@@ -216,7 +216,7 @@ def fuse_permute_bmm_and_gemm(
         # cannot exceeds 65535
         MAX_B_DIM_VAL = 65535
 
-        def _valid_shape(shape: List[Union[IntImm, IntVar]]):
+        def _valid_shape(shape: list[IntImm | IntVar]):
             b_dim = shape[0]
             if isinstance(b_dim, IntImm):
                 b_dim_val = b_dim.value()

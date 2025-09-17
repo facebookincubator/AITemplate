@@ -16,8 +16,6 @@
 Define masked_select op
 """
 
-from typing import List
-
 from aitemplate.backend import registry
 
 from aitemplate.backend.target import Target
@@ -69,7 +67,7 @@ class index_select(Operator):
         self,
         x: Tensor,
         dim_idxs: Tensor,
-    ) -> List[Tensor]:
+    ) -> list[Tensor]:
         self._attrs["inputs"] = [x, dim_idxs]
         if len(dim_idxs._attrs["shape"]) != 1:
             raise RuntimeError("index tensor must be 1 dimensional.")

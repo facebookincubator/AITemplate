@@ -16,8 +16,6 @@
 identity op
 """
 
-from typing import List
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
@@ -32,7 +30,7 @@ class identity(Operator):
         super().__init__()
         self._attrs["op"] = "identity"
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         return x.shape()
 
     def __call__(self, x: Tensor) -> Tensor:

@@ -16,8 +16,6 @@
 Multi level roi_align.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.vision_ops.roi_ops.roi_ops import roi_ops_base
 
@@ -83,7 +81,7 @@ class multi_level_roi_align(roi_ops_base):
         self._attrs["op"] = "multi_level_roi_align"
         self._attrs["im_shape"] = im_shape
 
-    def _infer_shape(self, x: List[int]):
+    def _infer_shape(self, x: list[int]):
         eval_func = self.shape_eval_template.render(
             indent="",
             dtype="",
@@ -108,7 +106,7 @@ class multi_level_roi_align(roi_ops_base):
 
     def __call__(
         self, p2: Tensor, p3: Tensor, p4: Tensor, p5: Tensor, rois: Tensor
-    ) -> List[Tensor]:
+    ) -> list[Tensor]:
         self._attrs["inputs"] = [p2, p3, p4, p5, rois]
         x = p2
         self._set_depth()

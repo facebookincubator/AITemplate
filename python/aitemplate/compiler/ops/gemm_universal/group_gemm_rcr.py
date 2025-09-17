@@ -19,7 +19,6 @@ Grouped GEMM Specialization for A[RowMajor], B[ColMajor], C[RowMajor]
 import logging
 import re
 from collections import OrderedDict
-from typing import List
 
 import jinja2
 
@@ -174,23 +173,23 @@ class group_gemm_rcr(common.gemm):
 
     @staticmethod
     def _one_input_accessors(
-        input_accessors: List[TensorAccessor], num_inputs_per_group: int, idx: int
-    ) -> List[TensorAccessor]:
+        input_accessors: list[TensorAccessor], num_inputs_per_group: int, idx: int
+    ) -> list[TensorAccessor]:
         return [
             a for i, a in enumerate(input_accessors) if i % num_inputs_per_group == idx
         ]
 
-    def input_a_accessors(self) -> List[TensorAccessor]:
+    def input_a_accessors(self) -> list[TensorAccessor]:
         return self._one_input_accessors(
             self._attrs["input_accessors"], num_inputs_per_group=2, idx=0
         )
 
-    def input_b_accessors(self) -> List[TensorAccessor]:
+    def input_b_accessors(self) -> list[TensorAccessor]:
         return self._one_input_accessors(
             self._attrs["input_accessors"], num_inputs_per_group=2, idx=1
         )
 
-    def __call__(self, operand_groups: List[List[Tensor]], output_stride_dim=None):
+    def __call__(self, operand_groups: list[list[Tensor]], output_stride_dim=None):
         # FIXME: when output_stride_dim is specified, we will concat the outputs of the
         # grouped gemm along the output_stride_dim axis. It's a temporary solution for
         # a pattern where the outputs of a grouped gemm can be concatenated

@@ -19,7 +19,6 @@ Graph pass to invoke profiling with dynamic shapes.
 import logging
 from collections import OrderedDict
 from copy import deepcopy
-from typing import List
 
 from aitemplate.backend import builder, codegen
 from aitemplate.compiler.base import Tensor
@@ -30,7 +29,7 @@ from aitemplate.compiler.base import Tensor
 _LOGGER = logging.getLogger(__name__)
 
 
-def profile_dynamic_dim(sorted_graph: List[Tensor], workdir="./tmp"):
+def profile_dynamic_dim(sorted_graph: list[Tensor], workdir="./tmp"):
     _LOGGER.info("Current dynamic profiler supports ONLY ONE dynamic dim.")
     generated_profilers = list(codegen.gen_profiler(sorted_graph, workdir))
     generated_profilers = [p for p in generated_profilers if p is not None]

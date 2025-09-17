@@ -16,8 +16,6 @@
 permute(0, 2, 1) op
 """
 
-from typing import List
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
@@ -54,7 +52,7 @@ class permute021(Operator):
         super().__init__()
         self._attrs["op"] = "permute021"
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         """Infers shapes for permute021."""
         x_shape = x._attrs["shape"]
         return x_shape[:-2] + [x_shape[-1], x_shape[-2]]

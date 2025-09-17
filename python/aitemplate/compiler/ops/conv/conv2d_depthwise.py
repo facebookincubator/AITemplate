@@ -16,8 +16,6 @@
 Fused conv2d_depthwise op.
 """
 
-from typing import List, Tuple
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.conv.conv2d import conv2d
 
@@ -68,13 +66,13 @@ class conv2d_depthwise(conv2d):
         self._attrs["outputs"] = [output]
         return output
 
-    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+    def _infer_shape(self, x: list[int], w: list[int]) -> list[int]:
         if w[0] != self._attrs["group"]:
             raise RuntimeError("W Shape mismatch for conv2d_depthwise")
         return super()._infer_shape(x, w)
 
     @staticmethod
-    def is_valid_inputs(x: Tensor, w: Tensor) -> Tuple[bool, str]:
+    def is_valid_inputs(x: Tensor, w: Tensor) -> tuple[bool, str]:
         x_shape = x._attrs["shape"]
         if len(x_shape) != 4:
             return False, f"x should be 4D: {x_shape=}"

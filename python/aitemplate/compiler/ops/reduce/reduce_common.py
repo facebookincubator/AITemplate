@@ -19,8 +19,6 @@ Base operator definition for reduce-family ops.
 import itertools
 import logging
 
-from typing import List
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
@@ -75,7 +73,7 @@ class reduce_base(Operator):
         self._attrs["output_type"] = dtype
         self._attrs["has_profiler"] = False
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         """Infers shapes for reduce ops."""
 
         input_dims = x._attrs["shape"]
@@ -95,7 +93,7 @@ class reduce_base(Operator):
 
     def _compute_ws_size_strided(
         self,
-        extent: List[int],
+        extent: list[int],
         reduction_axis: int,
         vector_length: int,
         accumulation_type: str,
@@ -148,7 +146,7 @@ class reduce_base(Operator):
 
     def _compute_workspace_size(
         self,
-        shape: List[IntVar],
+        shape: list[IntVar],
         reduction_axis: int,
         input_type: str,
     ) -> int:

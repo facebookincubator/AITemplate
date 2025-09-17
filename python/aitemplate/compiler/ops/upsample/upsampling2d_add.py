@@ -16,8 +16,6 @@
 Upsampling2d_add op.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.upsample.upsampling_common import upsampling2d_base
 
@@ -47,7 +45,7 @@ class upsampling2d_add(upsampling2d_base):
         self._attrs["op"] = "upsampling2d_add"
         self._attrs["mode"] = mode
 
-    def __call__(self, x: Tensor, r: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor, r: Tensor) -> list[Tensor]:
         self._attrs["inputs"] = [x, r]
         self._set_depth()
         self._extract_exec_path(x)

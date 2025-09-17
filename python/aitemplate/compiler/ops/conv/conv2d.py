@@ -23,7 +23,7 @@ import re
 from collections import OrderedDict
 from hashlib import sha1
 from operator import itemgetter
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any
 
 import jinja2
 
@@ -217,7 +217,7 @@ class conv2d(Operator):
         )
         return params_factory
 
-    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+    def _infer_shape(self, x: list[int], w: list[int]) -> list[int]:
         if x[3] != w[3] * self._attrs["group"]:
             raise RuntimeError("X/W Shape mismatch for conv2d")
 
@@ -243,7 +243,7 @@ class conv2d(Operator):
             int(output["CO"]),
         ]
 
-    def _infer_shapes(self, x: Tensor, w: Tensor) -> List[int]:
+    def _infer_shapes(self, x: Tensor, w: Tensor) -> list[int]:
         x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
         x_shapes = itertools.product(*x_shape_values)
         w_shape = [var._attrs["values"][0] for var in w._attrs["shape"]]
@@ -286,7 +286,7 @@ class conv2d(Operator):
         tmp = re.findall(r"(\d+)", key)
         return [int(x) for x in tmp]
 
-    def _gen_exec_key(self, shape: List[int]):
+    def _gen_exec_key(self, shape: list[int]):
         return self.exec_key_template.render(
             x_dim0=shape[0], x_dim1=shape[1], x_dim2=shape[2], x_dim3=shape[3]
         ).replace("\n", "")
@@ -320,7 +320,7 @@ class conv2d(Operator):
             key = self._gen_exec_key(x_shape)
             self._attrs["exec_path"][key] = ""
 
-    def _extract_epilogue_alignment(self, output_shape: List[IntVar]) -> None:
+    def _extract_epilogue_alignment(self, output_shape: list[IntVar]) -> None:
         epilogue_dim = output_shape[-1]
         if not isinstance(epilogue_dim, IntImm):
             raise RuntimeError("Conv output last dimension must be static!")
@@ -329,7 +329,7 @@ class conv2d(Operator):
             dtype=self._attrs["inputs"][0]._attrs["dtype"],
         )
 
-    def __call__(self, x: Tensor, w: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor, w: Tensor) -> list[Tensor]:
         """Call conv2d with tensors x, w
 
         Parameters
@@ -353,7 +353,7 @@ class conv2d(Operator):
         self._attrs["outputs"] = [output]
         return output
 
-    def _get_op_attributes(self) -> Dict[str, Any]:
+    def _get_op_attributes(self) -> dict[str, Any]:
         target_attrs = ["dilate", "group", "pad", "stride"]
         attr = {}
 
@@ -789,7 +789,7 @@ class conv2d(Operator):
         )
 
 
-def _maybe_int_to_tuple(x: Union[int, Tuple[int, int]], name: str) -> Tuple[int, int]:
+def _maybe_int_to_tuple(x: int | tuple[int, int], name: str) -> tuple[int, int]:
     if isinstance(x, int):
         return x, x
     if isinstance(x, tuple) and len(x) == 2:

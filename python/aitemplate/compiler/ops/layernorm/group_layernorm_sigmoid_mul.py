@@ -16,8 +16,6 @@
 Operator definition for group_layernorm_sigmoid_mul.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.layernorm.group_layernorm import group_layernorm
 
@@ -33,7 +31,7 @@ class group_layernorm_sigmoid_mul(group_layernorm):
     Every input in the groups must have the same [M0, M1, ..., Mp] dims.
     """
 
-    def __init__(self, normalized_shape: List[List[IntImm]] = None) -> None:
+    def __init__(self, normalized_shape: list[list[IntImm]] = None) -> None:
         super().__init__(normalized_shape)
         self._attrs["op"] = "group_layernorm_sigmoid_mul"
         self._attrs["has_profiler"] = False

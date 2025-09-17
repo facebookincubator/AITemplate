@@ -16,8 +16,6 @@
 Operator definition for bmm_rrr_k1_tanh.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.compiler.ops.gemm_universal import bmm_rrr
 
@@ -31,7 +29,7 @@ class bmm_rrr_k1_tanh(bmm_rrr):
         self._attrs["f_ab_alignment"] = True
         self._attrs["has_profiler"] = False
 
-    def _infer_shapes(self, a: Tensor, b: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, a: Tensor, b: Tensor) -> list[IntVar]:
         """Given input tensors, infers output tensor shapes."""
 
         a_shapes = a._attrs["shape"]
@@ -70,7 +68,7 @@ class bmm_rrr_k1_tanh(bmm_rrr):
         c_shapes = [batch_size_a, a_shapes[1], b_shapes[2]]
         return c_shapes
 
-    def __call__(self, a: Tensor, b: Tensor) -> List[Tensor]:
+    def __call__(self, a: Tensor, b: Tensor) -> list[Tensor]:
         self._attrs["inputs"] = [a, b]
         self._set_depth()
         output_shape = self._infer_shapes(a, b)

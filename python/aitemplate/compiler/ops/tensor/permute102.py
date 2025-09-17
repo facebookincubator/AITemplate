@@ -17,8 +17,6 @@ Permute(1, 0, 2) op.
 Change the dimension of dim0 and dim1 of input 3d tensor.
 """
 
-from typing import List
-
 from aitemplate import backend
 
 from aitemplate.backend import registry
@@ -56,7 +54,7 @@ class permute102(Operator):
         super().__init__()
         self._attrs["op"] = "permute102"
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         """Infers shapes for permute021."""
 
         x_shape = x._attrs["shape"]

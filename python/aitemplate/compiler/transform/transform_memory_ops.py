@@ -17,7 +17,6 @@ Perform memory operator related transformations.
 """
 
 import copy
-from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor
 
@@ -30,7 +29,7 @@ from aitemplate.compiler.transform.transform_merge_slice_ops import merge_slice_
 from aitemplate.utils import graph_utils, shape_utils
 
 
-def _eliminate_cat(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _eliminate_cat(sorted_graph: list[Tensor]) -> list[Tensor]:
     # If we only have a single cat op in the graph, let's keep it.
     # This almost always comes from unit tests.
     if len(graph_utils.get_sorted_ops(sorted_graph)) <= 1:
@@ -343,7 +342,7 @@ def _try_merge_split_cat(split_op: Operator, cat: Operator) -> bool:
 FIRST_OP_CANDIDATES = {"split", "concatenate"}
 
 
-def _merge_split_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noqa: C901
+def _merge_split_and_cat(sorted_graph: list[Tensor]) -> list[Tensor]:  # noqa: C901
     to_be_merged_ops = []
     visited = set()
     for tensor in sorted_graph:
@@ -428,7 +427,7 @@ def _merge_split_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noqa: C
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _eliminate_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _eliminate_split_full_idx(sorted_graph: list[Tensor]) -> list[Tensor]:
     for tensor in sorted_graph:
         src_ops = tensor._attrs["src_ops"]
         if len(src_ops) != 1:
@@ -458,8 +457,8 @@ def _eliminate_split_full_idx(sorted_graph: List[Tensor]) -> List[Tensor]:
 
 
 def transform_memory_ops(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """
     Eliminates unnecessary cat / split ops.
     """

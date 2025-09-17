@@ -18,7 +18,6 @@ Deduplicate make_jagged ops in the graph.
 
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Set
 
 from aitemplate.compiler.base import IntVar, JaggedIntVar, Operator, Tensor
 
@@ -39,15 +38,15 @@ _LOGGER = logging.getLogger(__name__)
 @dataclass
 class MakeJaggedMetaData:
     op: Operator
-    sources_list: List[Tensor]
-    offsets_list: List[Tensor]
-    outputs: List[Tensor]
+    sources_list: list[Tensor]
+    offsets_list: list[Tensor]
+    outputs: list[Tensor]
     jagged_int_var: JaggedIntVar
 
 
 def _get_make_jagged_metadata(
-    sorted_graph: List[Tensor],
-) -> Dict[IntVar, List[MakeJaggedMetaData]]:
+    sorted_graph: list[Tensor],
+) -> dict[IntVar, list[MakeJaggedMetaData]]:
     """Collect metadata about the existing make_jagged ops in the graph.
 
     The MakeJaggedMetaData instances, one per make_jagged op, are grouped
@@ -78,9 +77,9 @@ def _get_make_jagged_metadata(
 
 
 def _remove_make_jagged_ops(
-    make_jagged_metadata: Dict[IntVar, List[MakeJaggedMetaData]],
-    graph_inputs: Set[Tensor],
-    graph_outputs: Set[Tensor],
+    make_jagged_metadata: dict[IntVar, list[MakeJaggedMetaData]],
+    graph_inputs: set[Tensor],
+    graph_outputs: set[Tensor],
 ):
     """Remove the make_jagged ops from the graph where possible.
 
@@ -160,10 +159,10 @@ def _remove_make_jagged_ops(
 
 
 def _apply_make_jagged_to_inputs(
-    make_jagged_metadata: Dict[IntVar, List[MakeJaggedMetaData]],
-    sorted_graph: List[Tensor],
-    graph_inputs: Set[Tensor],
-) -> Dict[IntVar, JaggedIntVar]:
+    make_jagged_metadata: dict[IntVar, list[MakeJaggedMetaData]],
+    sorted_graph: list[Tensor],
+    graph_inputs: set[Tensor],
+) -> dict[IntVar, JaggedIntVar]:
     """Apply new make_jagged ops to the (bundled) input source Tensors.
 
     For each group of make_jagged ops that removed from the graph,
@@ -228,9 +227,9 @@ def _apply_make_jagged_to_inputs(
 
 
 def _replace_total_length_with_jagged_int_var(
-    new_jagged_int_vars: Dict[IntVar, JaggedIntVar],
-    sorted_graph: List[Tensor],
-    graph_inputs: Set[Tensor],
+    new_jagged_int_vars: dict[IntVar, JaggedIntVar],
+    sorted_graph: list[Tensor],
+    graph_inputs: set[Tensor],
 ):
     """Replace total_length dimensions by the new JaggedIntVars.
 
@@ -252,9 +251,9 @@ def _replace_total_length_with_jagged_int_var(
 
 
 def dedup_make_jagged_ops(
-    sorted_graph: List[Tensor],
+    sorted_graph: list[Tensor],
     workdir: str = None,
-) -> List[Tensor]:
+) -> list[Tensor]:
     """Deduplicate make_jagged ops in the graph.
 
     The rationale is to eliminate redundant offset validation as

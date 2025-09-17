@@ -16,7 +16,7 @@
 Fuse parallel gemms into bmm op.
 """
 
-from typing import Callable, List, Tuple
+from collections.abc import Callable
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
@@ -108,14 +108,14 @@ def _get_row_length(cat_input: Tensor):
 
 # find groups of parallel gemm ops with identical shapes
 def _find_parallel_gemm_ops(
-    cat_inputs: List[Tensor], f_check_src_op: Callable
-) -> List[Tuple[List[Operator], int]]:
+    cat_inputs: list[Tensor], f_check_src_op: Callable
+) -> list[tuple[list[Operator], int]]:
     all_groups = []
     gemm_ops = []
 
     def add_gemm_groups(gemm_ops):
         if len(gemm_ops) >= 2:
-            all_groups.append((gemm_ops.copy()))
+            all_groups.append(gemm_ops.copy())
 
     for cat_input in cat_inputs:
         if not _is_valid_gemm_op(cat_input, f_check_src_op):
@@ -139,7 +139,7 @@ def _find_parallel_gemm_ops(
     return all_groups
 
 
-def _group_gemm_inputs(gemm_ops: List[Operator]) -> Tuple[List[Tensor]]:
+def _group_gemm_inputs(gemm_ops: list[Operator]) -> tuple[list[Tensor]]:
     inputs = []
     weights = []
     bias = []
@@ -152,7 +152,7 @@ def _group_gemm_inputs(gemm_ops: List[Operator]) -> Tuple[List[Tensor]]:
     return inputs, weights, bias
 
 
-def _clear_gemm_inputs_dst_ops(gemm_ops: List[Operator]):
+def _clear_gemm_inputs_dst_ops(gemm_ops: list[Operator]):
     for gemm_op in gemm_ops:
         gemm_inputs = gemm_op._attrs["inputs"]
         for input in gemm_inputs:
@@ -168,7 +168,7 @@ def _get_gemm_output_idx_in_cat_inputs(gemm_op, cat_op):
 
 
 def _merge_parallel_gemm_concat(
-    gemm_ops: List[Operator], cat_op: Operator, sorted_graph: List[Tensor]
+    gemm_ops: list[Operator], cat_op: Operator, sorted_graph: list[Tensor]
 ):
     """merge parallel gemm ops and the following concat op together"""
     # clear gemm_inputs dst_ops
@@ -247,7 +247,7 @@ def _check_cat_op(op: Operator) -> bool:
     return True
 
 
-def _fuse_parallel_gemm_concat(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_parallel_gemm_concat(sorted_graph: list[Tensor]) -> list[Tensor]:
     """This pass fuses patterns like
     # x1: [m, k], w1: [n, k], b1: [n]
     y1 = gemm_rcr_bias()(x1, w1, b1)
@@ -340,7 +340,7 @@ def _is_split_op(op: Operator) -> bool:
     return True
 
 
-def _from_same_src_op(gemm_ops: List[Operator], op_type: str) -> bool:
+def _from_same_src_op(gemm_ops: list[Operator], op_type: str) -> bool:
     """
     Check that the first input of all the ops in gemm_ops come from the same exact op.
     Returns true if they all come from the same op, and false otherwise.
@@ -362,7 +362,7 @@ def _from_same_src_op(gemm_ops: List[Operator], op_type: str) -> bool:
     return True
 
 
-def _fuse_split_parallel_gemm_concat(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_split_parallel_gemm_concat(sorted_graph: list[Tensor]) -> list[Tensor]:
     """This pass fuses patterns like
     # x: [m, b * k], w1: [n, k], b1: [n]
     x1, x2 = split()(x, k, dim=-1)
@@ -442,8 +442,8 @@ def _fuse_split_parallel_gemm_concat(sorted_graph: List[Tensor]) -> List[Tensor]
 
 
 def fuse_parallel_gemms(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Fuse parallel gemms into a single gemm op.
     Currently, we only support the following patterns:
 
@@ -472,8 +472,8 @@ def fuse_parallel_gemms(
 
 
 def _fuse_single_source_parallel_gemms(
-    sorted_graph: List[Tensor],
-) -> Tuple[bool, List[Tensor]]:
+    sorted_graph: list[Tensor],
+) -> tuple[bool, list[Tensor]]:
     _fusing_ops = {"gemm_rcr", "gemm_rcr_bias"}
 
     for tensor in sorted_graph:
@@ -537,8 +537,8 @@ def _fuse_single_source_parallel_gemms(
 
 
 def fuse_single_source_parallel_gemms(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """This pass fuses patterns like
     # x: [m, k], w_i: [n_i, k], b_i: [n_i]
     y1 = gemm_rcr_bias()(x, w1, b1)

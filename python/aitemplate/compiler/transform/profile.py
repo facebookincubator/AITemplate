@@ -21,7 +21,6 @@ import os
 from collections import OrderedDict
 from copy import deepcopy
 from datetime import datetime
-from typing import List
 
 from aitemplate.backend import builder, codegen
 
@@ -53,7 +52,7 @@ def _splitter(data, pred=bool):
 
 
 def profile(
-    sorted_graph: List[Tensor],
+    sorted_graph: list[Tensor],
     workdir="./tmp",
     devices=None,
     dynamic_profiling_strategy=DynamicProfileStrategy.MAX,

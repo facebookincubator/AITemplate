@@ -41,7 +41,7 @@ from __future__ import annotations
 import itertools
 
 from numbers import Number
-from typing import Any, List, Optional, Set
+from typing import Any
 
 import sympy
 
@@ -52,8 +52,8 @@ _k_symbolic_value = {}
 
 
 def create_new_symbol(
-    name: Optional[str] = None,
-    values: Optional[List[int]] = None,
+    name: str | None = None,
+    values: list[int] | None = None,
     check_duplicate: bool = False,
 ) -> sympy.Symbol:
     """
@@ -117,7 +117,7 @@ def is_integer(sym_val: Any) -> bool:
     return False
 
 
-def get_global_symbol_set() -> Set:
+def get_global_symbol_set() -> set:
     global _k_symbolic_value
     return set(_k_symbolic_value.keys())
 

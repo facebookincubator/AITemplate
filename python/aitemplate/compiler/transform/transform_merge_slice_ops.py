@@ -16,8 +16,6 @@
 This file implements a pass that merges consecutive slice ops if possible.
 """
 
-from typing import List, Optional
-
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 
 from aitemplate.compiler.ops.tensor.dynamic_slice import MAX_INT32
@@ -81,7 +79,7 @@ def _check_slice_op(slice_op: Operator, slice_dim: int) -> bool:
     return True
 
 
-def _get_rightmost_non_dynamic_dim(shape: List[IntVar]) -> Optional[int]:
+def _get_rightmost_non_dynamic_dim(shape: list[IntVar]) -> int | None:
     """
     Return the index of the rightmost non-dynamic dim. For example, given
     a shape [3, dyn_dim, 4, 1], it would return 2, which is the index of the
@@ -98,7 +96,7 @@ def _get_rightmost_non_dynamic_dim(shape: List[IntVar]) -> Optional[int]:
     return len(shape) - idx
 
 
-def merge_slice_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
+def merge_slice_ops(sorted_graph: list[Tensor]) -> list[Tensor]:
     # a list of tuple(first_slice, second_slice, slice_dim)
     to_be_merged = []
     for tensor in sorted_graph:

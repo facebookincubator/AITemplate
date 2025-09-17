@@ -16,13 +16,11 @@
 Bind all user-provided constants to the graph.
 """
 
-from typing import Dict, List
-
 from aitemplate.compiler.base import _TorchConstantTensorData, Tensor
 from aitemplate.compiler.model import TorchTensor
 
 
-def bind_constants(graph: List[Tensor], constants: Dict[str, TorchTensor]) -> None:
+def bind_constants(graph: list[Tensor], constants: dict[str, TorchTensor]) -> None:
     """Bind all user-provided constants to the graph. Internally, the constants are
     represented as ConstantTensors. These can be folded, and are packaged into
     the final *.so.

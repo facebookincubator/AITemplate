@@ -18,8 +18,6 @@ chunk
 
 import math
 
-from typing import List
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.tensor.split import split
 
@@ -47,7 +45,7 @@ class chunk(split):
         super().__init__()
         self._attrs["op"] = "split"
 
-    def __call__(self, input: Tensor, chunks: int, dim: int = 0) -> List[Tensor]:
+    def __call__(self, input: Tensor, chunks: int, dim: int = 0) -> list[Tensor]:
         if chunks < 1:
             raise RuntimeError(f"chunks must be >= 1 but got {chunks=}")
         input_shape = input._attrs["shape"]

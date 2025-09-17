@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 
-from typing import List
 
 from aitemplate import backend
 from aitemplate.backend import registry
@@ -43,7 +42,7 @@ class full(Operator):
 
     def __call__(
         self,
-        shape: List[IntVar],
+        shape: list[IntVar],
         fill_value: float,
         dtype: str = "float16",
     ) -> Tensor:

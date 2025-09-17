@@ -17,7 +17,6 @@ Perform transformations on ops which support strided inputs / outputs.
 """
 
 import logging
-from typing import List
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 
@@ -43,8 +42,8 @@ def _can_fuse_split_op(split_op: Operator):
 
 
 def _fuse_split_and_group_gemm(  # noqa: C901
-    sorted_graph: List[Tensor],
-) -> List[Tensor]:
+    sorted_graph: list[Tensor],
+) -> list[Tensor]:
     """
     This pass detects patterns like below:
       [x1, x2, x3] = split(x, dim=1)
@@ -154,7 +153,7 @@ def get_stride(t: Tensor, dim: int):
     return stride
 
 
-def _check_dim_alignment(shape: List[IntVar], dim_idx: int, dtype: str) -> bool:
+def _check_dim_alignment(shape: list[IntVar], dim_idx: int, dtype: str) -> bool:
     k_dim = shape[dim_idx]
     # skip dynamic dim
     if not isinstance(k_dim, IntImm):
@@ -209,7 +208,7 @@ def _check_alignment(op: Operator, offset: int, total_elems_from_split_dim: int)
     raise RuntimeError(f'Unexpected op type: {op._attrs["op"]}')
 
 
-def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_split_and_strided_op(sorted_graph: list[Tensor]) -> list[Tensor]:
     """Fuse split and any op that supports strided inputs. This pass requires
     that all of the outputs can be fused into the next ops so that split op
     can be eliminated. Partial fusion is not supported yet.

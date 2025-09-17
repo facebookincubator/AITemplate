@@ -17,8 +17,6 @@ Permute(2, 1, 0) op.
 Swap the dimension of dim0 and dim2 of input 3d tensor.
 """
 
-from typing import List
-
 from aitemplate import backend
 
 from aitemplate.backend import registry
@@ -56,7 +54,7 @@ class permute210(Operator):
         super().__init__()
         self._attrs["op"] = "permute210"
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         """Infers shapes for permute210.
 
         Parameters

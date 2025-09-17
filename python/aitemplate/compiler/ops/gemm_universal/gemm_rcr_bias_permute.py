@@ -16,8 +16,6 @@
 gemm rcr with bias + permute
 """
 
-from typing import Tuple
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common.view_ops import reshape
 from aitemplate.compiler.ops.gemm_universal import gemm_rcr_bias
@@ -29,7 +27,7 @@ from aitemplate.testing import detect_target
 
 
 class gemm_rcr_bias_permute(gemm_rcr_bias):
-    def __init__(self, shape: Tuple[int], layout="20314"):
+    def __init__(self, shape: tuple[int], layout="20314"):
         super().__init__()
         if layout == "20314":
             self._attrs["op"] = "gemm_rcr_bias_permute"
@@ -38,9 +36,9 @@ class gemm_rcr_bias_permute(gemm_rcr_bias):
         elif layout == "m3n2":
             self._attrs["op"] = "gemm_rcr_bias_permute_m3n2"
         else:
-            raise NotImplementedError("{} is not implemented!".format(layout))
+            raise NotImplementedError(f"{layout} is not implemented!")
         self._attrs["shape"] = shape
-        self._attrs["layout"] = "Permute5D_{}".format(layout)
+        self._attrs["layout"] = f"Permute5D_{layout}"
         self._attrs["permute_shape"] = "_".join(map(str, shape))
 
     def __call__(self, a: Tensor, b: Tensor, bias: Tensor) -> Tensor:

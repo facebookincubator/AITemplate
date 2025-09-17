@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Any, List, Optional, Set
+from typing import Any
 
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.transform.toposort import toposort
@@ -26,7 +26,7 @@ from aitemplate.compiler.transform.transform_utils import (
 # pylint: disable=C0103,C0415,W0612
 
 
-def extract_only_one_op(ops: Set[Optional[Operator]]) -> Optional[Operator]:
+def extract_only_one_op(ops: set[Operator | None]) -> Operator | None:
     """
     Helper function that returns the op from src_ops() or dst_ops() call.
     Return None if there are no ops or if there's more than one op.
@@ -55,7 +55,7 @@ def _is_same_op_type(op_A: Operator, op_B: Operator):
     return True
 
 
-def _find_fusion_root(tensor: Tensor, fusion_patterns: List[Any]) -> int:
+def _find_fusion_root(tensor: Tensor, fusion_patterns: list[Any]) -> int:
     fusion_idx = -1
 
     src_op = extract_only_one_op(tensor._attrs["src_ops"])
@@ -102,8 +102,8 @@ def _find_fusion_root(tensor: Tensor, fusion_patterns: List[Any]) -> int:
 
 
 def transform_simple_fusion_patterns(
-    sorted_graph: List[Tensor], fusion_patterns: List[Any]
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], fusion_patterns: list[Any]
+) -> list[Tensor]:
     output_tensors = []
     to_remove = set()
     has_modified = False

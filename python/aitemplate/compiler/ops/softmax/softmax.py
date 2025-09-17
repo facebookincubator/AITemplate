@@ -22,7 +22,6 @@ import re
 from collections import OrderedDict
 from hashlib import sha1
 from operator import itemgetter
-from typing import Dict, List, Union
 
 import jinja2
 
@@ -86,7 +85,7 @@ class softmax(Operator):
         if detect_target().name() == "rocm":
             self._attrs["has_profiler"] = True
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         """Infer output shape for the softmax op.
 
         Parameters
@@ -122,7 +121,7 @@ class softmax(Operator):
                 res.append(int(item))
         return res
 
-    def _gen_exec_key(self, name_value_mapping: Dict[str, Union[int, List[int]]]):
+    def _gen_exec_key(self, name_value_mapping: dict[str, int | list[int]]):
         """Generate execution key from the name value mapping.
 
         Parameters
@@ -141,9 +140,7 @@ class softmax(Operator):
             elif len(values) > 1:
                 key_strs.append(f"{name} >= {values[0]} && {name} <= {values[-1]}")
             else:
-                raise RuntimeError(
-                    "Softmax input has empty dim values: {}".format(values)
-                )
+                raise RuntimeError(f"Softmax input has empty dim values: {values}")
         return " && ".join(key_strs)
 
     def _extract_exec_path(self, dynamic_profiling_strategy=DynamicProfileStrategy.MAX):
