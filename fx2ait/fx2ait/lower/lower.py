@@ -16,7 +16,8 @@ import dataclasses as dc
 import datetime
 import logging
 import operator
-from typing import Any, Callable, List, Optional, Sequence
+from collections.abc import Callable, Sequence
+from typing import Any
 
 import fx2ait.acc_tracer.acc_tracer as acc_tracer
 
@@ -58,7 +59,7 @@ class AitLowerInterpreter:
         self,
         module_name: str,
         mod: fx.GraphModule,
-        inputs: List[torch.Tensor],
+        inputs: list[torch.Tensor],
     ) -> AITInterpreterResult:
         (additional_inputs,) = self.lower_settings.additional_inputs
         if additional_inputs is None:
@@ -191,7 +192,7 @@ class AitLowerer:
         )
 
     def lower_func(
-        self, split_result: SplitResult, additional_inputs: Optional[Input] = None
+        self, split_result: SplitResult, additional_inputs: Input | None = None
     ) -> nn.Module:
         if additional_inputs:
             additional_submodule_inputs = generate_inputs_for_submodules(
@@ -231,7 +232,7 @@ class AitLowerer:
         self,
         module: nn.Module,
         inputs: Input,
-        additional_inputs: Optional[Input] = None,
+        additional_inputs: Input | None = None,
     ) -> nn.Module:
         module.eval()
         module = acc_tracer.trace(
@@ -244,8 +245,8 @@ class AitLowerer:
 
 
 def _precision_to_torch_type(
-    precision: Optional[LowerPrecision],
-) -> Optional[torch.dtype]:
+    precision: LowerPrecision | None,
+) -> torch.dtype | None:
     if precision == LowerPrecision.FP16:
         return torch.float16
     elif precision == LowerPrecision.FP32:

@@ -17,8 +17,6 @@
 Implementations are translated from https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/attention.py.
 """
 
-from typing import Optional
-
 from aitemplate.compiler.ops import reshape
 from aitemplate.frontend import nn, Tensor
 
@@ -46,7 +44,7 @@ class AttentionBlock(nn.Module):
         height: int,
         width: int,
         channels: int,
-        num_head_channels: Optional[int] = None,
+        num_head_channels: int | None = None,
         num_groups: int = 32,
         rescale_output_factor: float = 1.0,
         eps: float = 1e-5,

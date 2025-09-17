@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import List
 
 import torch
 from fx2ait.acc_tracer import acc_ops
@@ -34,7 +33,7 @@ class TestReshapeConverter(AITTestCase):
             [[2, 3, 4], [-1]],
         ]
     )
-    def test_simple(self, original_shape: List[int], final_shape: List[int]) -> None:
+    def test_simple(self, original_shape: list[int], final_shape: list[int]) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return torch.reshape(x, final_shape)

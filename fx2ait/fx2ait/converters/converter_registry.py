@@ -12,11 +12,12 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 
 from torch.fx.node import Target
 
-AIT_CONVERTERS: Dict[Target, Any] = {}
+AIT_CONVERTERS: dict[Target, Any] = {}
 
 
 def ait_converter(key: Target, enabled: bool = True) -> Callable[[Any], Any]:

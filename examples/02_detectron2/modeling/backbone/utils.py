@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -24,7 +23,7 @@ class ShapeSpec:
     to complement the lack of shape inference ability among pytorch modules.
     """
 
-    channels: Optional[int] = None
-    height: Optional[int] = None
-    width: Optional[int] = None
-    stride: Optional[int] = None
+    channels: int | None = None
+    height: int | None = None
+    width: int | None = None
+    stride: int | None = None

@@ -14,7 +14,6 @@
 #
 import itertools
 import os
-from typing import Tuple
 
 import cv2
 import numpy as np
@@ -117,7 +116,7 @@ class Predictor:
     @staticmethod
     def get_output_shape(
         oldh: int, oldw: int, short_edge_length: int, max_size: int
-    ) -> Tuple[int, int]:
+    ) -> tuple[int, int]:
         """
         Compute the output size given input size and target short edge length.
         """

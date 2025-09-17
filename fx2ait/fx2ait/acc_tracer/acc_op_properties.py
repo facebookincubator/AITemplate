@@ -13,8 +13,9 @@
 #  limitations under the License.
 #
 from collections import defaultdict
+from collections.abc import Callable
 from enum import auto, Flag
-from typing import Callable, DefaultDict, Set
+from typing import DefaultDict
 
 import torch
 import torch.fx
@@ -38,8 +39,8 @@ class AccOpProperty(Flag):
     unary = auto()
 
 
-acc_op_properties: DefaultDict[Callable, Set[AccOpProperty]] = defaultdict(set)
-acc_ops_with_property: DefaultDict[AccOpProperty, Set[Callable]] = defaultdict(set)
+acc_op_properties: DefaultDict[Callable, set[AccOpProperty]] = defaultdict(set)
+acc_ops_with_property: DefaultDict[AccOpProperty, set[Callable]] = defaultdict(set)
 
 
 def register_acc_op_properties(*properties: AccOpProperty):

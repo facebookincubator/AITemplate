@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Tuple
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
@@ -70,7 +69,7 @@ class BertAttention(nn.Module):
     def forward(
         self,
         hidden_states: Tensor,
-    ) -> Tuple[Tensor]:
+    ) -> tuple[Tensor]:
         self_output = self.self(hidden_states, hidden_states)
         attention_output = self.output(self_output)
         outputs = (attention_output,)

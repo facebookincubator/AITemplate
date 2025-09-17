@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import List, Union
 
 import torch
 from fx2ait.acc_tracer import ait_acc_ops
@@ -32,7 +31,7 @@ class TestSplitConverter(AITTestCase):
         ]
     )
     def test_with_dim(
-        self, input_shape: List[int], split_size_or_sections: Union[int, List[int]]
+        self, input_shape: list[int], split_size_or_sections: int | list[int]
     ) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -52,7 +51,7 @@ class TestSplitConverter(AITTestCase):
         ]
     )
     def test_without_dim(
-        self, input_shape: List[int], split_size_or_sections: Union[int, List[int]]
+        self, input_shape: list[int], split_size_or_sections: int | list[int]
     ) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -72,7 +71,7 @@ class TestSplitConverter(AITTestCase):
         ]
     )
     def test_tensor_split_with_dim(
-        self, input_shape: List[int], split_size_or_sections: Union[int, List[int]]
+        self, input_shape: list[int], split_size_or_sections: int | list[int]
     ) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -92,7 +91,7 @@ class TestSplitConverter(AITTestCase):
         ]
     )
     def test_tensor_split_without_dim(
-        self, input_shape: List[int], split_size_or_sections: Union[int, List[int]]
+        self, input_shape: list[int], split_size_or_sections: int | list[int]
     ) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:

@@ -14,7 +14,7 @@
 #
 import dataclasses as dc
 from enum import Enum
-from typing import Any, List, Optional, Set, Type
+from typing import Any
 
 import torch
 
@@ -71,20 +71,20 @@ class LowerSettings:
     dynamic_size: int = -1
     profile_devs: Any = None
     # If None, infer the dtypes from the sample inputs.
-    precision: Optional[LowerPrecision] = LowerPrecision.FP16
+    precision: LowerPrecision | None = LowerPrecision.FP16
     use_fp16_acc: bool = True  # only valid for precision == FP16
     use_fast_math: bool = True  # Whether to use fast math in CUDA kernels
     allow_int_inputs: bool = False  # If AIT acc subgraph accept integer inputs
-    ast_rewriter_allow_list: Optional[Set[Type[nn.Module]]] = None
-    leaf_module_list: Optional[Set[Type[nn.Module]]] = None
+    ast_rewriter_allow_list: set[type[nn.Module]] | None = None
+    leaf_module_list: set[type[nn.Module]] | None = None
     # If None, infer the dtypes from the sample inputs.
-    output_precision: Optional[LowerPrecision] = LowerPrecision.FP16
-    additional_inputs: Optional[List[torch.Tensor]] = None
-    remote_cache_file_path: Optional[str] = None
-    save_remote_cache: Optional[bool] = None
-    dump_ait_dir: Optional[str] = None
-    keep_constants: Optional[bool] = None
-    load_ait_dir: Optional[str] = None
+    output_precision: LowerPrecision | None = LowerPrecision.FP16
+    additional_inputs: list[torch.Tensor] | None = None
+    remote_cache_file_path: str | None = None
+    save_remote_cache: bool | None = None
+    dump_ait_dir: str | None = None
+    keep_constants: bool | None = None
+    load_ait_dir: str | None = None
     # jit.trace AITModule
     trace_ait_module: bool = True
     # If True, optimize for compilation time (ie. compile w/ -O1 rather than -O3 and skip profiling codegen)

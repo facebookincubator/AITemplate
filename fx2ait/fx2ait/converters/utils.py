@@ -14,7 +14,8 @@
 #
 import math
 import operator
-from typing import Any, Callable, Dict, List, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor
 
@@ -42,7 +43,7 @@ def get_positive_dim(dim: int, dim_size: int) -> int:
 
 
 def create_reduce_op(
-    op_type: Any, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    op_type: Any, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> AITTensor:
     input_val = kwargs["input"]
     # TODO: remove once multiple reduction axes are supported
@@ -66,8 +67,8 @@ def create_reduce_op(
 
 def create_binary_op(
     op_type: FuncEnum,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> AITTensor:
     lhs = kwargs["input"]
@@ -121,8 +122,8 @@ def create_binary_op(
 
 def create_unary_op(
     op_type: FuncEnum,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> AITTensor:
     input = kwargs["input"] if "input" in kwargs else args[0]
@@ -185,11 +186,11 @@ def identical_elem_tuple_to_int(param):
     return param[0]
 
 
-def nchw2nhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
+def nchw2nhwc(shape: list[int | IntVar]) -> list[int | IntVar]:
     return [shape[0], shape[2], shape[3], shape[1]]
 
 
-def ncdhw2ndhwc(shape: List[Union[int, IntVar]]) -> List[Union[int, IntVar]]:
+def ncdhw2ndhwc(shape: list[int | IntVar]) -> list[int | IntVar]:
     return [shape[0], shape[2], shape[3], shape[4], shape[1]]
 
 

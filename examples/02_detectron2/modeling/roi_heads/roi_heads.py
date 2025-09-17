@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Dict
 
 from aitemplate.compiler import ops
 
@@ -58,7 +57,7 @@ class StandardROIHeads(nn.Module):
         shape = [it.value() for it in x._attrs["shape"]]
         return shape
 
-    def forward(self, features: Dict[str, Tensor], rois: Tensor, proposals: Tensor):
+    def forward(self, features: dict[str, Tensor], rois: Tensor, proposals: Tensor):
         box_features = [features[f] for f in self.in_features]
         roi_feat = self.box_head(box_features, rois)
         detections = self.box_predictor(roi_feat, proposals)

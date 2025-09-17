@@ -16,7 +16,6 @@
 # flakes8: noqa
 import inspect
 import os
-from typing import List, Optional, Union
 
 import numpy as np
 
@@ -83,7 +82,7 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
         text_encoder: CLIPTextModel,
         tokenizer: CLIPTokenizer,
         unet: UNet2DConditionModel,
-        scheduler: Union[DDIMScheduler, PNDMScheduler, LMSDiscreteScheduler],
+        scheduler: DDIMScheduler | PNDMScheduler | LMSDiscreteScheduler,
         safety_checker: StableDiffusionSafetyChecker,
         feature_extractor: CLIPFeatureExtractor,
         requires_safety_checker: bool = True,
@@ -183,14 +182,14 @@ class StableDiffusionImg2ImgAITPipeline(StableDiffusionImg2ImgPipeline):
     @torch.no_grad()
     def __call__(
         self,
-        prompt: Union[str, List[str]],
-        init_image: Union[torch.FloatTensor, PIL.Image.Image],
+        prompt: str | list[str],
+        init_image: torch.FloatTensor | PIL.Image.Image,
         strength: float = 0.8,
-        num_inference_steps: Optional[int] = 50,
-        guidance_scale: Optional[float] = 7.5,
-        eta: Optional[float] = 0.0,
-        generator: Optional[torch.Generator] = None,
-        output_type: Optional[str] = "pil",
+        num_inference_steps: int | None = 50,
+        guidance_scale: float | None = 7.5,
+        eta: float | None = 0.0,
+        generator: torch.Generator | None = None,
+        output_type: str | None = "pil",
         return_dict: bool = True,
     ):
         r"""

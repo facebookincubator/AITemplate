@@ -15,7 +15,8 @@
 import logging
 import math
 import operator
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from collections.abc import Sequence
+from typing import Union
 
 import torch
 
@@ -97,14 +98,14 @@ from .utils import (
 )
 
 logger: logging.Logger = logging.getLogger(__name__)
-ConverterOutput = Union[AITTensor, Tuple[AITTensor, ...], List[IntVar], IntVar]
+ConverterOutput = Union[AITTensor, tuple[AITTensor, ...], list[IntVar], IntVar]
 
 
 @ait_converter(acc_ops.sigmoid)
 def acc_ops_sigmoid(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -116,8 +117,8 @@ def acc_ops_sigmoid(
 @ait_converter(acc_ops.mul)
 def acc_ops_mul(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_binary_op(FuncEnum.MUL, args, kwargs, name)
@@ -126,8 +127,8 @@ def acc_ops_mul(
 @ait_converter(acc_ops.square)
 def acc_ops_square(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     new_kwargs = dict(kwargs.copy())
@@ -138,8 +139,8 @@ def acc_ops_square(
 @ait_converter(acc_ops.div)
 def acc_ops_div(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_binary_op(FuncEnum.DIV, args, kwargs, name)
@@ -148,8 +149,8 @@ def acc_ops_div(
 @ait_converter(acc_ops.floor_div)
 def acc_ops_floor_div(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_binary_op(FuncEnum.FLOOR_DIV, args, kwargs, name)
@@ -158,8 +159,8 @@ def acc_ops_floor_div(
 @ait_converter(acc_ops.floor)
 def acc_ops_floor(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -169,8 +170,8 @@ def acc_ops_floor(
 @ait_converter(acc_ops.reciprocal)
 def acc_ops_reciprocal(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -180,8 +181,8 @@ def acc_ops_reciprocal(
 @ait_converter(acc_ops.add)
 def acc_ops_add(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_binary_op(FuncEnum.ADD, args, kwargs, name)
@@ -190,8 +191,8 @@ def acc_ops_add(
 @ait_converter(acc_ops.sub)
 def acc_ops_sub(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_binary_op(FuncEnum.SUB, args, kwargs, name)
@@ -200,8 +201,8 @@ def acc_ops_sub(
 @ait_converter(acc_ops.tanh)
 def acc_ops_tanh(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -211,8 +212,8 @@ def acc_ops_tanh(
 @ait_converter(acc_ops.sin)
 def acc_ops_sin(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -222,8 +223,8 @@ def acc_ops_sin(
 @ait_converter(acc_ops.cos)
 def acc_ops_cos(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -233,8 +234,8 @@ def acc_ops_cos(
 @ait_converter(acc_ops.sqrt)
 def acc_ops_sqrt(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -244,8 +245,8 @@ def acc_ops_sqrt(
 @ait_converter(acc_ops.clone)
 def acc_ops_clone(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -261,8 +262,8 @@ def acc_ops_clone(
 @ait_converter(acc_ops.sum)
 def acc_ops_sum(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_reduce_op(reduce_sum, args, kwargs, name)
@@ -271,8 +272,8 @@ def acc_ops_sum(
 @ait_converter(acc_ops.mean)
 def acc_ops_mean(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_reduce_op(reduce_mean, args, kwargs, name)
@@ -281,8 +282,8 @@ def acc_ops_mean(
 @ait_converter(acc_ops.amax)
 def acc_ops_amax(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_reduce_op(reduce_max, args, kwargs, name)
@@ -291,8 +292,8 @@ def acc_ops_amax(
 @ait_converter(acc_ops.amin)
 def acc_ops_amin(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     return create_reduce_op(reduce_min, args, kwargs, name)
@@ -301,8 +302,8 @@ def acc_ops_amin(
 @ait_converter(acc_ops.linear)
 def acc_ops_linear(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -323,8 +324,8 @@ def acc_ops_linear(
 @ait_converter(acc_ops.unsqueeze)
 def acc_ops_unsqueeze(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -341,8 +342,8 @@ def acc_ops_unsqueeze(
 @ait_converter(acc_ops.clamp)
 def acc_ops_clamp(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -358,8 +359,8 @@ def acc_ops_clamp(
 @ait_converter(acc_ops.linalg_norm)
 def acc_ops_linalg_norm(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -392,8 +393,8 @@ def acc_ops_linalg_norm(
 @ait_converter(acc_ops.permute)
 def acc_ops_permute(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -418,8 +419,8 @@ def acc_ops_permute(
 @ait_converter(acc_ops.cat)
 def acc_ops_cat(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     tensors = kwargs["tensors"]
@@ -437,8 +438,8 @@ def acc_ops_cat(
 @ait_converter(acc_ops.sign)
 def acc_ops_sign(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -451,8 +452,8 @@ def acc_ops_sign(
 @ait_converter(acc_ops.abs)
 def acc_ops_abs(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -465,8 +466,8 @@ def acc_ops_abs(
 @ait_converter(acc_ops.exp)
 def acc_ops_exp(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -479,8 +480,8 @@ def acc_ops_exp(
 @ait_converter(acc_ops.log)
 def acc_ops_log(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -493,8 +494,8 @@ def acc_ops_log(
 @ait_converter(acc_ops.log1p)
 def acc_ops_log1p(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -506,7 +507,7 @@ def acc_ops_log1p(
 
 @ait_converter(acc_ops.var)
 def acc_ops_var(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -524,8 +525,8 @@ def acc_ops_var(
 @ait_converter(acc_ops.softmax)
 def acc_ops_softmax(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -537,7 +538,7 @@ def acc_ops_softmax(
 
 @ait_converter(acc_ops.relu)
 def acc_ops_relu(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -548,7 +549,7 @@ def acc_ops_relu(
 
 @ait_converter(acc_ops.elu)
 def acc_ops_elu(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -573,7 +574,7 @@ def acc_ops_elu(
 
 @ait_converter(acc_ops.leaky_relu)
 def acc_ops_leaky_relu(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -584,7 +585,7 @@ def acc_ops_leaky_relu(
 
 @ait_converter(acc_ops.squeeze)
 def acc_ops_squeeze(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -598,8 +599,8 @@ def acc_ops_squeeze(
 @ait_converter(acc_ops.size)
 def acc_ops_size(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -617,8 +618,8 @@ def acc_ops_size(
 @ait_converter(acc_ops.unbind)
 def acc_ops_unbind(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -646,8 +647,8 @@ def acc_ops_unbind(
 @ait_converter(acc_ops.getitem)
 def acc_ops_getitem(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # operator.getitem does not have kwargs. We copy args to kwargs so the downstream like acc_ops_slice can use it.
@@ -726,8 +727,8 @@ def acc_ops_getitem(
 @ait_converter(acc_ops.slice_tensor)
 def acc_ops_slice(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -806,8 +807,8 @@ def acc_ops_slice(
 @ait_converter(acc_ops.reshape)
 def acc_ops_reshape(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -828,8 +829,8 @@ def acc_ops_reshape(
 @ait_converter(acc_ops.topk)
 def acc_ops_topk(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -864,8 +865,8 @@ def acc_ops_topk(
 @ait_converter(acc_ops.tuple_construct)
 def acc_ops_tuple_construct(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     tensors = kwargs["tensors"]
@@ -875,8 +876,8 @@ def acc_ops_tuple_construct(
 @ait_converter(acc_ops.conv_transpose2d)
 def acc_ops_conv_transpose2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     output_padding = identical_elem_tuple_to_int(kwargs["output_padding"])
@@ -991,8 +992,8 @@ def acc_ops_conv_transpose2d(
 @ait_converter(acc_ops.nan_to_num)
 def acc_ops_nan_to_num(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1030,8 +1031,8 @@ def acc_ops_nan_to_num(
 @ait_converter(acc_ops.group_norm)
 def acc_ops_group_norm(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1051,8 +1052,8 @@ def acc_ops_group_norm(
 @ait_converter(acc_ops.layer_norm)
 def acc_ops_layer_norm(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1079,8 +1080,8 @@ def acc_ops_layer_norm(
 @ait_converter(acc_ops.flatten)
 def acc_ops_flatten(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1096,8 +1097,8 @@ def acc_ops_flatten(
 @ait_converter(acc_ops.matmul)
 def acc_ops_matmul(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     lhs = kwargs["input"]
@@ -1163,8 +1164,8 @@ def acc_ops_matmul(
 @ait_converter(acc_ops.chunk)
 def acc_ops_chunk(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1184,8 +1185,8 @@ def acc_ops_chunk(
 @ait_converter(ait_acc_ops.split)
 def ait_acc_ops_split(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1211,8 +1212,8 @@ def ait_acc_ops_split(
 @ait_converter(acc_ops.expand)
 def ait_acc_ops_expand(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1242,8 +1243,8 @@ def ait_acc_ops_expand(
 @ait_converter(acc_ops.interpolate)
 def ait_acc_ops_interpolate(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1268,8 +1269,8 @@ def ait_acc_ops_interpolate(
 @ait_converter(acc_ops.batch_norm)
 def acc_ops_batch_norm(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1374,8 +1375,8 @@ def _choose_conv2d_op(
 @ait_converter(acc_ops.conv2d)
 def acc_ops_conv2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = ait_nchw2nhwc(kwargs["input"])
@@ -1513,8 +1514,8 @@ def _choose_conv3d_op(
 @ait_converter(acc_ops.conv3d)
 def acc_ops_conv3d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = ait_ncdhw2ndhwc(kwargs["input"])
@@ -1544,8 +1545,8 @@ def acc_ops_conv3d(
 @ait_converter(acc_ops.max_pool3d)
 def acc_ops_max_pool3d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1610,8 +1611,8 @@ def acc_ops_max_pool3d(
 @ait_converter(acc_ops.max_pool2d)
 def acc_ops_max_pool2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = ait_nchw2nhwc(kwargs["input"])
@@ -1638,8 +1639,8 @@ def acc_ops_max_pool2d(
 @ait_converter(acc_ops.avg_pool2d)
 def acc_ops_avg_pool2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = ait_nchw2nhwc(kwargs["input"])
@@ -1667,8 +1668,8 @@ def acc_ops_avg_pool2d(
 @ait_converter(acc_ops.avg_pool3d)
 def acc_ops_avg_pool3d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1715,8 +1716,8 @@ def acc_ops_avg_pool3d(
 @ait_converter(acc_ops.adaptive_avg_pool2d)
 def acc_ops_adaptive_avg_pool2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = ait_nchw2nhwc(kwargs["input"])
@@ -1744,8 +1745,8 @@ def acc_ops_adaptive_avg_pool2d(
 @ait_converter(acc_ops.contiguous)
 def acc_ops_contiguous(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1756,8 +1757,8 @@ def acc_ops_contiguous(
 @ait_converter(acc_ops.dtype)
 def acc_ops_to_dtype(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # We suppose to bypass this op but in extreme case like
@@ -1767,8 +1768,8 @@ def acc_ops_to_dtype(
     input_val = kwargs["input"]
 
     def _get_cast_to_dtype_from_kwargs(
-        kwargs: Dict[str, Argument],
-    ) -> Optional[torch.dtype]:
+        kwargs: dict[str, Argument],
+    ) -> torch.dtype | None:
         torch_dtype_to_ait_dtype_str = {
             torch.float: "float32",
             torch.half: "float16",
@@ -1803,8 +1804,8 @@ def acc_ops_to_dtype(
 @ait_converter(acc_ops.gelu)
 def acc_ops_gelu(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1822,8 +1823,8 @@ def acc_ops_gelu(
 @ait_converter(acc_ops.pow)
 def acc_ops_pow(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1837,8 +1838,8 @@ def acc_ops_pow(
 @ait_converter(acc_ops.tile)
 def acc_ops_tile(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = kwargs["input"]
@@ -1867,14 +1868,14 @@ def acc_ops_tile(
 
 @ait_converter(math.sqrt)
 def math_sqrt(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     return create_unary_op(FuncEnum.SQRT, args, kwargs, name)
 
 
 @ait_converter(acc_ops.neg)
 def acc_ops_neg(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1893,7 +1894,7 @@ def acc_ops_neg(
 
 @ait_converter(acc_ops.new_full)
 def acc_ops_new_full(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1910,7 +1911,7 @@ def acc_ops_new_full(
 
 @ait_converter(acc_ops.full_like)
 def acc_ops_full_like(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1921,7 +1922,7 @@ def acc_ops_full_like(
 
 @ait_converter(acc_ops.new_ones)
 def acc_ops_new_ones(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1937,7 +1938,7 @@ def acc_ops_new_ones(
 
 @ait_converter(acc_ops.ones_like)
 def acc_ops_ones_like(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1947,7 +1948,7 @@ def acc_ops_ones_like(
 
 @ait_converter(acc_ops.new_zeros)
 def acc_ops_new_zeros(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1963,7 +1964,7 @@ def acc_ops_new_zeros(
 
 @ait_converter(acc_ops.zeros_like)
 def acc_ops_zeros_like(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1973,7 +1974,7 @@ def acc_ops_zeros_like(
 
 @ait_converter(acc_ops.masked_select)
 def acc_ops_masked_select(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = kwargs["input"]
     if not isinstance(input_val, AITTensor):
@@ -1986,8 +1987,8 @@ def acc_ops_masked_select(
 @ait_converter(acc_ops.index_select)
 def acc_ops_index_select(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0] if len(args) >= 1 else kwargs["input"]

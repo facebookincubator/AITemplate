@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import operator
-from typing import Callable, List, Tuple, Union
+from collections.abc import Callable
 
 import torch
 
@@ -79,7 +79,7 @@ class TestBinaryOpConverter(AITTestCase):
         name: str,
         op: Callable,
         acc_op: Callable,
-        inputs: List[Tuple[torch.Tensor, torch.Tensor]],
+        inputs: list[tuple[torch.Tensor, torch.Tensor]],
     ) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
@@ -102,7 +102,7 @@ class TestBinaryOpConverter(AITTestCase):
         ]
     )
     def test_scalar_operand(
-        self, name: str, scalar: Union[int, float], op: Callable, acc_op: Callable
+        self, name: str, scalar: int | float, op: Callable, acc_op: Callable
     ) -> None:
         class TestModuleScalarLhs(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -137,8 +137,8 @@ class TestBinaryOpConverter(AITTestCase):
     def test_constant_operand(
         self,
         name: str,
-        x: Union[int, float],
-        y: Union[int, float],
+        x: int | float,
+        y: int | float,
         op: Callable,
         acc_op: Callable,
     ) -> None:

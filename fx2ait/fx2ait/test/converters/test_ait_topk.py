@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import List
 
 import torch
 from fx2ait.acc_tracer import acc_ops
@@ -29,7 +28,7 @@ class TestTopkConverter(AITTestCase):
             [[6], 6],
         ]
     )
-    def test_simple(self, input: List[int], k: int) -> None:
+    def test_simple(self, input: list[int], k: int) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:
                 return torch.topk(x, k)
@@ -50,7 +49,7 @@ class TestTopkConverter(AITTestCase):
         ]
     )
     def test_multi_dimensional(
-        self, input: List[int], k: int, dtype: torch.dtype
+        self, input: list[int], k: int, dtype: torch.dtype
     ) -> None:
         class TestModule(torch.nn.Module):
             def forward(self, x: torch.Tensor) -> torch.Tensor:

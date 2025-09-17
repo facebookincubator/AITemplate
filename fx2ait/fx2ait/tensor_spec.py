@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, Dict, List, Optional, Set, Union
+from typing import Any
 
 import torch
 from aitemplate.compiler.public import IntImm, IntVar
@@ -24,7 +24,7 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 class TensorSpec:
-    def __init__(self, shape: List[IntVar], dtype: torch.dtype) -> None:
+    def __init__(self, shape: list[IntVar], dtype: torch.dtype) -> None:
         self.shape = shape
         self.dtype = dtype
 
@@ -51,9 +51,9 @@ class TensorSpec:
     @classmethod
     def from_two_input_lists(
         cls,
-        inputs1: List[Union[torch.Tensor, List[torch.Tensor]]],
-        inputs2: List[Union[torch.Tensor, List[torch.Tensor]]],
-    ) -> List["TensorSpec"]:
+        inputs1: list[torch.Tensor | list[torch.Tensor]],
+        inputs2: list[torch.Tensor | list[torch.Tensor]],
+    ) -> list["TensorSpec"]:
         """
         This function is useful when we expect multiple dynamic dims.
 
@@ -74,7 +74,7 @@ class TensorSpec:
                 f"Different number of inputs: {len(inputs1)} vs {len(inputs2)}"
             )
 
-        result: List[TensorSpec] = []
+        result: list[TensorSpec] = []
 
         for t1, t2 in zip(inputs1, inputs2):
             if isinstance(t1, list):
@@ -86,7 +86,7 @@ class TensorSpec:
                 raise ValueError(
                     f"Different tensor sizes: {len(t1.shape)} vs {len(t2.shape)}"
                 )
-            shape: List[IntVar] = []
+            shape: list[IntVar] = []
             for i, (d1, d2) in enumerate(zip(t1.shape, t2.shape)):
                 if d1 == d2:
                     shape.append(IntImm(d1))
@@ -98,8 +98,8 @@ class TensorSpec:
 
     @classmethod
     def from_two_input_lists_jagged_tensor(
-        cls, inputs1: List[torch.Tensor], inputs2: List[torch.Tensor]
-    ) -> List["TensorSpec"]:
+        cls, inputs1: list[torch.Tensor], inputs2: list[torch.Tensor]
+    ) -> list["TensorSpec"]:
         """
         This function is useful when we expect multiple dynamic dims.
 
@@ -120,7 +120,7 @@ class TensorSpec:
                 f"Different number of inputs: {len(inputs1)} vs {len(inputs2)}"
             )
 
-        result: List[TensorSpec] = []
+        result: list[TensorSpec] = []
         dynamic_dict = {}
         num_dynamic = 0
         for t1, t2 in zip(inputs1, inputs2):
@@ -130,7 +130,7 @@ class TensorSpec:
                 raise ValueError(
                     f"Different tensor sizes: {len(t1.shape)} vs {len(t2.shape)}"
                 )
-            shape: List[IntVar] = []
+            shape: list[IntVar] = []
             for _, (d1, d2) in enumerate(zip(t1.shape, t2.shape)):
                 if d1 == d2:
                     shape.append(IntImm(d1))
@@ -168,10 +168,10 @@ class TensorSpec:
         elif vmin < vmax:
             return IntVar([vmin, vmax], name=name)
         else:
-            raise RuntimeError("Unsupported int var definition: {}".format(values))
+            raise RuntimeError(f"Unsupported int var definition: {values}")
 
     @classmethod
-    def create_spec_from_int_vars(cls, int_vars: List[IntVar], dtype_list: torch.dtype):
+    def create_spec_from_int_vars(cls, int_vars: list[IntVar], dtype_list: torch.dtype):
         if len(int_vars) != len(dtype_list):
             raise ValueError(
                 f"Different number of int_var and dtype_list: {len(int_vars)} vs {len(dtype_list)}"
@@ -183,8 +183,8 @@ class TensorSpec:
 
     @classmethod
     def create_spec_from_shapes(
-        cls, inputs_min: List[int], inputs_max: List[int], dtype_list: torch.dtype
-    ) -> List["TensorSpec"]:
+        cls, inputs_min: list[int], inputs_max: list[int], dtype_list: torch.dtype
+    ) -> list["TensorSpec"]:
         if len(inputs_min) != len(inputs_max):
             raise ValueError(
                 f"Different number of inputs: {len(inputs_min)} vs {len(inputs_max)}"
@@ -196,7 +196,7 @@ class TensorSpec:
                     f"Different number of input dims: {len(shape1)} vs {len(shape2)}"
                 )
 
-            shape: List[IntVar] = []
+            shape: list[IntVar] = []
             for i, (d1, d2) in enumerate(zip(shape1, shape2)):
                 if d1 == d2:
                     shape.append(IntImm(d1))
@@ -225,7 +225,7 @@ class TensorSpec:
 
     @classmethod
     def create_inputs_from_specs(
-        cls, input_specs: List["TensorSpec"], use_lower_bound: bool, specify_num=None
+        cls, input_specs: list["TensorSpec"], use_lower_bound: bool, specify_num=None
     ) -> torch.Tensor:
         result = []
         for inp in input_specs:
@@ -240,19 +240,19 @@ class TensorSpec:
 
     @classmethod
     def from_input_list_with_batch_size(
-        cls, inputs: List[torch.Tensor], max_batch_size: int, batch_dim: int = 0
-    ) -> List["TensorSpec"]:
+        cls, inputs: list[torch.Tensor], max_batch_size: int, batch_dim: int = 0
+    ) -> list["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
 
         We make an assumption that inferred lowerable subgraph inputs will have
         a single batch dimension with the same max batch size.
         """
-        result: List[TensorSpec] = []
+        result: list[TensorSpec] = []
 
         bs_dim = cls.find_batch_size_dim(inputs)
         for index, t in enumerate(inputs):
-            shape: List[IntVar] = []
+            shape: list[IntVar] = []
             for i, d in enumerate(t.shape):
                 if i == bs_dim[index]:
                     shape.append(IntVar([1, max_batch_size], "batch_size"))
@@ -264,9 +264,9 @@ class TensorSpec:
 
     @staticmethod
     def _get_max_seq_lens_from_offsets(
-        inputs: List[torch.Tensor],
-        jagged_offsets_batch_dims: Set[int],
-    ) -> Dict[int, int]:
+        inputs: list[torch.Tensor],
+        jagged_offsets_batch_dims: set[int],
+    ) -> dict[int, int]:
         """
         Get the maximum sequence length encoded in each offsets tensor.
 
@@ -311,10 +311,10 @@ class TensorSpec:
     @classmethod
     def try_getting_jagged_tensor_map(
         cls,
-        inputs: List[torch.Tensor],
-        jagged_tensor_batch_dims: Set[int],
-        fx_inputs: Optional[List[torch.fx.Node]] = None,
-    ) -> Optional[Dict[int, int]]:
+        inputs: list[torch.Tensor],
+        jagged_tensor_batch_dims: set[int],
+        fx_inputs: list[torch.fx.Node] | None = None,
+    ) -> dict[int, int] | None:
         """
         Try getting a map associating each jagged tensor input with the offsets.
 
@@ -366,16 +366,16 @@ class TensorSpec:
     @classmethod
     def from_input_list_with_batch_size_jagged_tensor(
         cls,
-        inputs: List[torch.Tensor],
+        inputs: list[torch.Tensor],
         max_batch_size: int,
         max_sequence_length: int,
-        jagged_tensor_batch_dims: Set[int],
-        jagged_offsets_batch_dims: Set[int],
-        additional_inputs: List[torch.Tensor] = None,
+        jagged_tensor_batch_dims: set[int],
+        jagged_offsets_batch_dims: set[int],
+        additional_inputs: list[torch.Tensor] = None,
         infer_max_seq_lens_from_offsets: bool = False,
-        fx_inputs: List[torch.fx.Node] = None,
-        jagged_tensor_map: Optional[Dict[int, int]] = None,
-    ) -> List["TensorSpec"]:
+        fx_inputs: list[torch.fx.Node] = None,
+        jagged_tensor_map: dict[int, int] | None = None,
+    ) -> list["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
 
@@ -389,11 +389,11 @@ class TensorSpec:
                 jagged_offsets_batch_dims=jagged_offsets_batch_dims,
             )
 
-        result: List = []
-        result_unsorted: List = []
-        left_inputs: List = []
-        left_inputs_ind: List = []
-        left_additional_inputs: List = []
+        result: list = []
+        result_unsorted: list = []
+        left_inputs: list = []
+        left_inputs_ind: list = []
+        left_additional_inputs: list = []
         for ind, t in enumerate(inputs):
             batch_dim: int = t.shape[0]
             batch_dim_lower_bound: int = 0
@@ -422,7 +422,7 @@ class TensorSpec:
                 batch_dim_name = f"batch_size_jagged_offsets_{batch_dim}"
 
             if batch_dim_upper_bound > 0:
-                shape: List[IntVar] = []
+                shape: list[IntVar] = []
                 for i, d in enumerate(t.shape):
                     if i == 0:
                         shape.append(
@@ -457,7 +457,7 @@ class TensorSpec:
         else:
             bs_dim = cls.find_batch_size_dim(left_inputs)
             for index, t in enumerate(left_inputs):
-                shape: List[IntVar] = []
+                shape: list[IntVar] = []
                 for i, d in enumerate(t.shape):
                     if i == bs_dim[index]:
                         shape.append(IntVar([1, max_batch_size], "batch_size"))
@@ -489,18 +489,18 @@ class TensorSpec:
 
     @classmethod
     def from_input_list_with_batch_size_static_batch(
-        cls, inputs: List[torch.Tensor], max_batch_size: int, batch_dim: int = 0
-    ) -> List["TensorSpec"]:
+        cls, inputs: list[torch.Tensor], max_batch_size: int, batch_dim: int = 0
+    ) -> list["TensorSpec"]:
         """
         Most of the recommendation models will work fine using this function.
 
         We make an assumption that inferred lowerable subgraph inputs will have
         a single batch dimension with the same max batch size.
         """
-        result: List[TensorSpec] = []
+        result: list[TensorSpec] = []
 
         for t in inputs:
-            shape: List[IntVar] = []
+            shape: list[IntVar] = []
             for _, d in enumerate(t.shape):
                 shape.append(IntImm(d))
             result.append(TensorSpec(shape, t.dtype))

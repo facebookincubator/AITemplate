@@ -12,55 +12,52 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import NamedTuple
 
 
 class AitAccOpMapper(NamedTuple):
     new_fn_target: Callable
-    arg_replacement_tuples: Optional[
-        List[
-            Union[
-                Tuple[Union[str, Tuple[str, ...]], str],
-                Tuple[Union[str, Tuple[str, ...]], str, bool],
+    arg_replacement_tuples: (
+        None
+        | (
+            list[
+                (
+                    tuple[str | tuple[str, ...], str]
+                    | tuple[str | tuple[str, ...], str, bool]
+                )
             ]
-        ]
-    ]
-    kwargs_to_move_to_acc_out_ty: Optional[
-        List[Union[Tuple[str, str, bool], Tuple[str, str]]]
-    ]
+        )
+    )
+    kwargs_to_move_to_acc_out_ty: None | (list[tuple[str, str, bool] | tuple[str, str]])
 
 
 class CustomAitAccOpMapper(NamedTuple):
     custom_mapping_fn: Callable
-    arg_replacement_tuples: List[
-        Union[
-            Tuple[Union[str, Tuple[str, ...]], str],
-            Tuple[Union[str, Tuple[str, ...]], str, bool],
-        ]
+    arg_replacement_tuples: list[
+        (tuple[str | tuple[str, ...], str] | tuple[str | tuple[str, ...], str, bool])
     ]
     needs_shapes_for_normalization: bool
     allow_normalize_from_torch_package: bool
 
 
-_AIT_ACC_OP_MAPPERS: Dict[Tuple[str, Union[str, Callable]], AitAccOpMapper] = {}
-_CUSTOM_AIT_ACC_OP_MAPPERS: Dict[
-    Tuple[str, Union[str, Callable]], CustomAitAccOpMapper
-] = {}
+_AIT_ACC_OP_MAPPERS: dict[tuple[str, str | Callable], AitAccOpMapper] = {}
+_CUSTOM_AIT_ACC_OP_MAPPERS: dict[tuple[str, str | Callable], CustomAitAccOpMapper] = {}
 
 
 def ait_register_acc_op_mapping(
-    op_and_target: Tuple[str, Union[str, Callable]],
-    arg_replacement_tuples: Optional[
-        List[
-            Union[
-                Tuple[Union[str, Tuple[str, ...]], str],
-                Tuple[Union[str, Tuple[str, ...]], str, bool],
-            ]
+    op_and_target: tuple[str, str | Callable],
+    arg_replacement_tuples: None
+    | (
+        list[
+            (
+                tuple[str | tuple[str, ...], str]
+                | tuple[str | tuple[str, ...], str, bool]
+            )
         ]
-    ] = None,
-    kwargs_to_move_to_acc_out_ty: Optional[
-        List[Union[Tuple[str, str, bool], Tuple[str, str]]]
-    ] = None,
+    ) = None,
+    kwargs_to_move_to_acc_out_ty: None
+    | (list[tuple[str, str, bool] | tuple[str, str]]) = None,
 ):
     def insert(new_fn_target: Callable):
         _AIT_ACC_OP_MAPPERS[op_and_target] = AitAccOpMapper(
@@ -74,12 +71,9 @@ def ait_register_acc_op_mapping(
 
 
 def ait_register_custom_acc_mapper_fn(
-    op_and_target: Tuple[str, Union[str, Callable]],
-    arg_replacement_tuples: List[
-        Union[
-            Tuple[Union[str, Tuple[str, ...]], str],
-            Tuple[Union[str, Tuple[str, ...]], str, bool],
-        ]
+    op_and_target: tuple[str, str | Callable],
+    arg_replacement_tuples: list[
+        (tuple[str | tuple[str, ...], str] | tuple[str | tuple[str, ...], str, bool])
     ],
     needs_shapes_for_normalization=False,
     allow_normalize_from_torch_package=False,
@@ -96,11 +90,11 @@ def ait_register_custom_acc_mapper_fn(
     return insert
 
 
-def get_ait_acc_op_mappers() -> Dict[Tuple[str, Union[str, Callable]], AitAccOpMapper]:
+def get_ait_acc_op_mappers() -> dict[tuple[str, str | Callable], AitAccOpMapper]:
     return _AIT_ACC_OP_MAPPERS
 
 
 def get_custom_ait_acc_op_mappers() -> (
-    Dict[Tuple[str, Union[str, Callable]], CustomAitAccOpMapper]
+    dict[tuple[str, str | Callable], CustomAitAccOpMapper]
 ):
     return _CUSTOM_AIT_ACC_OP_MAPPERS

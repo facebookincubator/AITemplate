@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Tuple
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn
@@ -32,7 +31,7 @@ class FastRCNNConvFCHead(nn.Module):
         feat_dim: int,
         fc_dim: int,
         pooled_size: int,
-        im_shape: Tuple[int, int],
+        im_shape: tuple[int, int],
     ):
         super().__init__()
         self.num_rois = num_rois

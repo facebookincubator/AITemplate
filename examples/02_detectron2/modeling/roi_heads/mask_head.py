@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Tuple
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn
@@ -31,7 +30,7 @@ class MaskRCNNConvUpsampleHead(nn.Module):
         feat_dim: int,
         conv_dim: int,
         pooled_size: int,
-        im_shape: Tuple[int, int],
+        im_shape: tuple[int, int],
     ):
         super().__init__()
         HH, WW = im_shape
