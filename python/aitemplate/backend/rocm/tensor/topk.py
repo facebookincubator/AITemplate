@@ -16,7 +16,7 @@
 topk kernel codegen for ROCM.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import ROCMSpec
@@ -32,12 +32,12 @@ header_files = """
 
 
 @registry.reg("rocm.topk.gen_function")
-def topk_gen_function(func_attrs: Dict[str, Any]) -> str:
+def topk_gen_function(func_attrs: dict[str, Any]) -> str:
     return topk_common.gen_function(func_attrs, header_files, ROCMSpec())
 
 
 @registry.reg("rocm.topk.func_decl")
-def topk_gen_function_decl(func_attrs: Dict[str, Any]):
+def topk_gen_function_decl(func_attrs: dict[str, Any]):
     return topk_common.gen_function_decl(func_attrs, ROCMSpec())
 
 

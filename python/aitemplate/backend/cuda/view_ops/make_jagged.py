@@ -29,8 +29,6 @@ The main responsibilities of the make_jagged backend are:
   case an std::runtime_error is thrown on violation.
 """
 
-from typing import Set
-
 import jinja2
 
 from aitemplate.backend import registry
@@ -233,7 +231,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def _get_jagged_dynamic_bound_dims(jagged_int_var: JaggedIntVar) -> Set[IntVar]:
+def _get_jagged_dynamic_bound_dims(jagged_int_var: JaggedIntVar) -> set[IntVar]:
     """Get the set of dynamic dims in JaggedIntVar's JaggedDims' min / max values."""
     return set(
         [

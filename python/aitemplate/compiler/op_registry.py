@@ -17,8 +17,8 @@
 Registry for basic operators and math functions.
 """
 
-from typing import Callable, Dict
+from collections.abc import Callable
 
 # OP_REGISTRY defines a mapping from a FuncEnum name to a function to create this elementwise operator.
 # This object is initialized in elementwise.py, and referenced in base.py and math.py.
-OP_REGISTRY: Dict[str, Callable] = {}
+OP_REGISTRY: dict[str, Callable] = {}

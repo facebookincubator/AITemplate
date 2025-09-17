@@ -17,7 +17,7 @@ group LayerNorm_Sigmoid_Mul codegen for CUDA.
 """
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -148,7 +148,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 @registry.reg("cuda.group_layernorm.gen_function")
 @registry.reg("cuda.group_layernorm_sigmoid_mul.gen_function")
-def group_layernorm_sigmoid_mul_gen_function(func_attrs: Dict[str, Any]) -> str:
+def group_layernorm_sigmoid_mul_gen_function(func_attrs: dict[str, Any]) -> str:
     output_accessor_decls_str = "\n    ".join(
         tensor_accessor_codegen.TENSOR_ACCESSOR_TEMPLATE.render(
             name=f"output_accessor_{i}", tensor_accessor=output_accessor
@@ -229,7 +229,7 @@ def group_layernorm_sigmoid_mul_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 @registry.reg("cuda.group_layernorm.func_decl")
 @registry.reg("cuda.group_layernorm_sigmoid_mul.func_decl")
-def group_layernorm_sigmoid_mul_gen_function_decl(func_attrs: Dict[str, Any]):
+def group_layernorm_sigmoid_mul_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )

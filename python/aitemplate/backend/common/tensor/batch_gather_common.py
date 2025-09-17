@@ -16,7 +16,7 @@
 batch_gather kernel codegen.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -151,7 +151,7 @@ void batch_gather_launcher(
 )
 
 
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ", is_cuda=False) -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent="  ", is_cuda=False) -> str:
     output_name = ""
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 2
@@ -199,7 +199,7 @@ def gen_function_call(func_attrs: Dict[str, Any], indent="  ", is_cuda=False) ->
     )
 
 
-def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) -> str:
+def gen_function(func_attrs: dict[str, Any], header_files: str, backend_spec) -> str:
     index_type = backend_spec.index_type
     prefix = backend_spec.prefix
     return FUNC_TEMPLATE.render(
@@ -214,7 +214,7 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function_decl(func_attrs: dict[str, Any], backend_spec) -> str:
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"],

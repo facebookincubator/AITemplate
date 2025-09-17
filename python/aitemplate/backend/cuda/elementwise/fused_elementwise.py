@@ -17,7 +17,7 @@ Elementwise codegen for CUDA.
 """
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
@@ -36,7 +36,7 @@ HEAD_TEMPLATE = """
 
 
 @registry.reg("cuda.fused_elementwise.gen_function")
-def fused_elementwise_gen_function(func_attrs: Dict[str, Any]) -> str:
+def fused_elementwise_gen_function(func_attrs: dict[str, Any]) -> str:
     """Generates fused_elementwise function definition."""
     custom_libs = Target.current().get_custom_libs(
         os.path.dirname(__file__), "custom_math.cuh"

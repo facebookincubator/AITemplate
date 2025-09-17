@@ -19,7 +19,6 @@ Flash attention.
 import itertools
 import logging
 from collections import OrderedDict
-from typing import List, Optional, Tuple
 
 import jinja2
 import numpy as np
@@ -84,7 +83,7 @@ class mem_eff_attention(Operator):
         self.exec_key_template = EXEC_KEY_TEMPLATE
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
 
-    def _infer_shape(self, x: List[int], w: List[int]):
+    def _infer_shape(self, x: list[int], w: list[int]):
         eval_func = self.shape_eval_template.render(
             indent="",
             dtype="",
@@ -131,8 +130,8 @@ class mem_eff_attention(Operator):
         q: Tensor,
         k: Tensor,
         v: Tensor,
-        lengths_kv: Optional[Tensor] = None,
-        lengths_q: Optional[Tensor] = None,
+        lengths_kv: Tensor | None = None,
+        lengths_q: Tensor | None = None,
     ) -> Tensor:
         """call the op
 
@@ -176,9 +175,9 @@ class mem_eff_attention(Operator):
 
     def _compute_required_workspace(
         self,
-        output_shape: Tuple[IntVar, IntVar, IntVar, IntVar],
-        q_shape: Tuple[IntVar, IntVar, IntVar, IntVar],
-        k_shape: Tuple[IntVar, IntVar, IntVar, IntVar],
+        output_shape: tuple[IntVar, IntVar, IntVar, IntVar],
+        q_shape: tuple[IntVar, IntVar, IntVar, IntVar],
+        k_shape: tuple[IntVar, IntVar, IntVar, IntVar],
     ) -> int:
         """
         Compute workspace size required for attention op.

@@ -16,7 +16,7 @@
 Common functions for layernorm kernels
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 
@@ -61,7 +61,7 @@ def generate_n_shape_func(input_shapes, norm_ndim, n_name, indent):
     )
 
 
-def gamma_beta_const_defs(func_attrs: Dict[str, Any]) -> str:
+def gamma_beta_const_defs(func_attrs: dict[str, Any]) -> str:
     """
     Return rendered code string where we define the default gamma (1.0) and
     beta (0.0) values, respectively.
@@ -79,7 +79,7 @@ def gamma_beta_const_defs(func_attrs: Dict[str, Any]) -> str:
     )
 
 
-def get_input_names(func_attrs: Dict[str, Any]) -> List[str]:
+def get_input_names(func_attrs: dict[str, Any]) -> list[str]:
     """
     Return a list of rendered name strings for inputs. It returns nullptr
     for gamma and beta if they are None.

@@ -20,7 +20,7 @@ import os
 import re
 from collections import OrderedDict
 from hashlib import sha1
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -301,7 +301,7 @@ def extract_config_name(config):
 
 
 def gen_profiler(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     workdir: str,
     rank: int,
     shape_eval_template: jinja2.Template,
@@ -400,7 +400,7 @@ def gen_profiler(
 
 # no longer used by layernorm
 def gen_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     exec_template: jinja2.Template,
     extra_header_template: jinja2.Template,
     get_func_signature: Any,

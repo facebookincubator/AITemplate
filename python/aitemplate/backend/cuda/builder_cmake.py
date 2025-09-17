@@ -25,7 +25,6 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 import jinja2
 
@@ -164,7 +163,7 @@ set_target_properties(profiler PROPERTIES LINKER_LANGUAGE CXX CXX_STANDARD 17)
 """
 
 
-def _run_cmd(command_line: str, timeout, custom_env: Optional[Dict[str, str]] = None):
+def _run_cmd(command_line: str, timeout, custom_env: dict[str, str] | None = None):
     _LOGGER.info(f"Executing {command_line}")
     if custom_env is not None:
         for key, value in custom_env.items():
@@ -198,13 +197,13 @@ def _run_cmd(command_line: str, timeout, custom_env: Optional[Dict[str, str]] = 
             _LOGGER.debug(f"command stderr:\n\n{stderr}")
 
 
-def _render_path(path: Union[Path, str]) -> str:
+def _render_path(path: Path | str) -> str:
     # shlex.quote is designed for unit
     p = Path(path).as_posix()
     return '"' + str(p) + '"'
 
 
-def _files_as_str(filenames: Union[Path, str, List[Union[Path, str]]]) -> str:
+def _files_as_str(filenames: Path | str | list[Path | str]) -> str:
     if isinstance(filenames, str) or isinstance(filenames, Path):
         return _render_path(filenames)
     elif isinstance(filenames, list):
@@ -222,7 +221,7 @@ class BuilderCMake:
         self._timeout = timeout
         self._n_cpus = n_cpus
 
-    def _build_compile_options(self) -> List[str]:
+    def _build_compile_options(self) -> list[str]:
         # I don't want to move this functionality to target_def.py,
         # because target_def.py is about GNU and GNU only.
 

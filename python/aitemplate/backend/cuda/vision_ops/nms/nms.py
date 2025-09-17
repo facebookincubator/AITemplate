@@ -16,7 +16,7 @@
 nms kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
@@ -33,12 +33,12 @@ header_files = """
 
 
 @registry.reg("cuda.nms.gen_function")
-def nms_gen_function(func_attrs: Dict[str, Any]) -> str:
+def nms_gen_function(func_attrs: dict[str, Any]) -> str:
     return nms_common.gen_function(func_attrs, header_files, CUDASpec())
 
 
 @registry.reg("cuda.nms.func_decl")
-def nms_gen_function_decl(func_attrs: Dict[str, Any]):
+def nms_gen_function_decl(func_attrs: dict[str, Any]):
     return nms_common.gen_function_decl(func_attrs, CUDASpec())
 
 

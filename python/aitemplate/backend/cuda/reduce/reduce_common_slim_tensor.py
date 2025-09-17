@@ -17,8 +17,6 @@ A simply reduction implementation for "slim" tensors. Currently only reduction
 along dim=1 for 3D tensors is supported.
 """
 
-from typing import List
-
 import jinja2
 
 from aitemplate.compiler.base import IntVar
@@ -168,7 +166,7 @@ def meets_special_kernel_conditions(func_attrs, input_type, output_type) -> bool
     ):
         return False
 
-    input_shape: List[IntVar] = func_attrs["inputs"][0].shape()
+    input_shape: list[IntVar] = func_attrs["inputs"][0].shape()
     reduction_axes = func_attrs["reduction_axes"]
     reduction_axis = reduction_axes[0]
     if not (

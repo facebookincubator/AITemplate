@@ -17,7 +17,7 @@ Elementwise operator definition, which covers UNARY / Binary / Ternary operators
 """
 
 import functools
-from typing import Any, List
+from typing import Any
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 from aitemplate.compiler.dtype import normalize_dtype
@@ -30,7 +30,7 @@ from aitemplate.utils import shape_utils
 # pylint: disable=C0103,W0221,W0102,C0301,W0223,R1724
 
 
-def _discover_implicit_jagged_inputs(inputs: List[Tensor]):
+def _discover_implicit_jagged_inputs(inputs: list[Tensor]):
     """
     Convert implicit jagged Tensor inputs into explicit jagged Tensors.
 
@@ -65,7 +65,7 @@ def _discover_implicit_jagged_inputs(inputs: List[Tensor]):
                     shape[0] = total_length_map[shape[0]]
 
 
-def _broadcast_dense_shapes(shapes: List[List[IntVar]]) -> List[IntVar]:
+def _broadcast_dense_shapes(shapes: list[list[IntVar]]) -> list[IntVar]:
     if len(shapes) == 1:
         return list(shapes[0])
 
@@ -86,7 +86,7 @@ def _broadcast_dense_shapes(shapes: List[List[IntVar]]) -> List[IntVar]:
     return max_shape
 
 
-def _broadcast_jagged_shapes(shapes: List[List[IntVar]]) -> List[IntVar]:
+def _broadcast_jagged_shapes(shapes: list[list[IntVar]]) -> list[IntVar]:
     if len(shapes) == 1:
         return list(shapes[0])
 
@@ -125,9 +125,9 @@ def _broadcast_jagged_shapes(shapes: List[List[IntVar]]) -> List[IntVar]:
 
 
 def _broadcast_dense_and_jagged_shape(
-    dense_shape: List[IntVar],
-    jagged_shape: List[IntVar],
-) -> List[IntVar]:
+    dense_shape: list[IntVar],
+    jagged_shape: list[IntVar],
+) -> list[IntVar]:
     jagged_first_dim = jagged_shape[0]
     jagged_suffix_shape = jagged_shape[1:]
     dense_suffix_shape = dense_shape[-len(jagged_suffix_shape) :]
@@ -177,7 +177,7 @@ class elementwise(Operator):
         self._attrs["func"] = func_enum
         self._attrs["has_profiler"] = False
 
-    def _infer_shapes(self, *args: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, *args: Tensor) -> list[IntVar]:
         """Offline shape inference."
 
         Parameters

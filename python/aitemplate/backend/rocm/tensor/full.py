@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -98,7 +98,7 @@ void invoke_{{func_name}}(
 
 
 @registry.reg("rocm.full.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     y = func_attrs["outputs"][0]
     backend_spec = ROCMSpec()
 
@@ -131,7 +131,7 @@ def gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("rocm.full.func_decl")
-def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def gen_function_decl(func_attrs: dict[str, Any]) -> str:
     backend_spec = ROCMSpec()
     return FUNC_DECL.render(
         func_name=func_attrs["name"],
@@ -140,7 +140,7 @@ def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("rocm.full.func_call")
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],
         output=func_attrs["outputs"][0]._attrs["name"],

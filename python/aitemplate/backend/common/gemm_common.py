@@ -17,8 +17,6 @@
 Backend-agnostic functions for gemm codegen.
 """
 
-from typing import Dict
-
 import jinja2
 
 from aitemplate.compiler.ops.gemm_universal.gemm_common import DimInfo, Source
@@ -48,7 +46,7 @@ def gen_dim_calculator(dim_info: DimInfo, is_ptr: bool) -> str:
 
 
 def gen_shape_eval_code(
-    indent: int, dtype: str, dim_info_dict: Dict[str, DimInfo], is_ptr: bool
+    indent: int, dtype: str, dim_info_dict: dict[str, DimInfo], is_ptr: bool
 ) -> str:
     shape_eval_list = []
     for name, dim_info_list in dim_info_dict.items():

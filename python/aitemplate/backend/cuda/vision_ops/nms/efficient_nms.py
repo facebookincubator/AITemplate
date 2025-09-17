@@ -16,7 +16,7 @@
 efficient_nms kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
@@ -41,12 +41,12 @@ profiler_header_files = """
 
 
 @registry.reg("cuda.efficient_nms.gen_function")
-def efficient_nms_gen_function(func_attrs: Dict[str, Any]) -> str:
+def efficient_nms_gen_function(func_attrs: dict[str, Any]) -> str:
     return efficient_nms_common.gen_function(func_attrs, func_header_files, CUDASpec())
 
 
 @registry.reg("cuda.efficient_nms.func_decl")
-def efficient_nms_gen_function_decl(func_attrs: Dict[str, Any]):
+def efficient_nms_gen_function_decl(func_attrs: dict[str, Any]):
     return efficient_nms_common.gen_function_decl(func_attrs, CUDASpec())
 
 

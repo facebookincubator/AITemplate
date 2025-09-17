@@ -16,7 +16,7 @@
 batch_gather kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
@@ -32,15 +32,15 @@ header_files = """
 
 
 @registry.reg("cuda.batch_gather.gen_function")
-def batch_gather_gen_function(func_attrs: Dict[str, Any]) -> str:
+def batch_gather_gen_function(func_attrs: dict[str, Any]) -> str:
     return batch_gather_common.gen_function(func_attrs, header_files, CUDASpec())
 
 
 @registry.reg("cuda.batch_gather.func_decl")
-def batch_gather_gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def batch_gather_gen_function_decl(func_attrs: dict[str, Any]) -> str:
     return batch_gather_common.gen_function_decl(func_attrs, CUDASpec())
 
 
 @registry.reg("cuda.batch_gather.func_call")
-def batch_gather_gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def batch_gather_gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     return batch_gather_common.gen_function_call(func_attrs, indent, True)

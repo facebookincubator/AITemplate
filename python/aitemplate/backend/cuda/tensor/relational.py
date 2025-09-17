@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -141,7 +141,7 @@ void invoke_{{func_name}}(
 
 
 @registry.reg("cuda.relational.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     inputs = func_attrs["inputs"]
     backend_spec = CUDASpec()
 
@@ -181,7 +181,7 @@ def gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.relational.func_decl")
-def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def gen_function_decl(func_attrs: dict[str, Any]) -> str:
     backend_spec = CUDASpec()
     return FUNC_DECL.render(
         func_name=func_attrs["name"],
@@ -192,7 +192,7 @@ def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.relational.func_call")
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     y = func_attrs["outputs"][0]
     backend_spec = CUDASpec()
     args = func_attrs["args"]

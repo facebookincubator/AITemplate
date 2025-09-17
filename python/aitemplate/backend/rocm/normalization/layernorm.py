@@ -18,7 +18,7 @@ Layernorm codegen for ROCM.
 
 from collections import OrderedDict
 from hashlib import sha1
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -177,7 +177,7 @@ def extract_config(func_attrs):
     func_attrs["op_instance"] = layernorm_ops
 
 
-def get_func_signature_profiler(func_attrs: Dict[str, Any]) -> str:
+def get_func_signature_profiler(func_attrs: dict[str, Any]) -> str:
     return FUNC_SIGNATURE.render(
         func_name=func_attrs["name"],
         dtype="void",
@@ -187,7 +187,7 @@ def get_func_signature_profiler(func_attrs: Dict[str, Any]) -> str:
 
 @registry.reg("rocm.layernorm.gen_profiler")
 def layernorm_gen_profiler(
-    func_attrs: Dict[str, Any], workdir: str, indent: str = "  "
+    func_attrs: dict[str, Any], workdir: str, indent: str = "  "
 ) -> str:
     """Generates standalone executables for profiler.
 
@@ -226,7 +226,7 @@ def layernorm_gen_profiler(
 # due to the change to the profiler exec_key
 # TODO: merge with norm_common.gen_function after fixing softmax
 def gen_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     shape_eval_template: jinja2.Template,
     exec_template: jinja2.Template,
     extra_header_template: jinja2.Template,
@@ -311,7 +311,7 @@ def gen_function(
 
 
 @registry.reg("rocm.layernorm.gen_function")
-def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
+def layernorm_gen_function(func_attrs: dict[str, Any]) -> str:
     """Generate function body.
 
     Parameters
@@ -340,7 +340,7 @@ def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     )
 
 
-def get_func_signature(func_attrs: Dict[str, Any]) -> str:
+def get_func_signature(func_attrs: dict[str, Any]) -> str:
     input_ndim = func_attrs["inputs"][0]._rank()
     return FUNC_SIGNATURE.render(
         func_name=func_attrs["name"],
@@ -350,7 +350,7 @@ def get_func_signature(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("rocm.layernorm.func_decl")
-def layernorm_gen_function_decl(func_attrs: Dict[str, Any]):
+def layernorm_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(func_signature=get_func_signature(func_attrs))
 
 

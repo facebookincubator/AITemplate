@@ -13,7 +13,7 @@
 #  limitations under the License.
 #
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -114,7 +114,7 @@ CAST_FUNCS = {
 
 
 @registry.reg("cuda.cast.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     input_ = func_attrs["inputs"][0]
     output = func_attrs["outputs"][0]
     backend_spec = CUDASpec()
@@ -138,7 +138,7 @@ def gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.cast.func_decl")
-def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def gen_function_decl(func_attrs: dict[str, Any]) -> str:
     backend_spec = CUDASpec()
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_attrs["name"],
@@ -148,7 +148,7 @@ def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.cast.func_call")
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     backend_spec = CUDASpec()
     return FUNC_CALL_TEMPLATE.render(
         func_name=func_attrs["name"],

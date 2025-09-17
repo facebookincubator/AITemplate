@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 
@@ -24,15 +24,15 @@ from aitemplate.backend.cuda.groupnorm.groupnorm_common import (
 
 
 @registry.reg("cuda.groupnorm.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     return groupnorm_gen_function(func_attrs)
 
 
 @registry.reg("cuda.groupnorm.func_decl")
-def func_decl(func_attrs: Dict[str, Any]) -> str:
+def func_decl(func_attrs: dict[str, Any]) -> str:
     return groupnorm_gen_func_decl(func_attrs)
 
 
 @registry.reg("cuda.groupnorm.func_call")
-def gen_func_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_func_call(func_attrs: dict[str, Any], indent="  ") -> str:
     return groupnorm_gen_func_call(func_attrs, indent)

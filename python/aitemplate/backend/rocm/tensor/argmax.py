@@ -16,7 +16,7 @@
 argmax kernel codegen for ROCM.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import ROCMSpec
@@ -32,12 +32,12 @@ header_files = """
 
 
 @registry.reg("rocm.argmax.gen_function")
-def argmax_gen_function(func_attrs: Dict[str, Any]) -> str:
+def argmax_gen_function(func_attrs: dict[str, Any]) -> str:
     return argmax_common.gen_function(func_attrs, header_files, ROCMSpec())
 
 
 @registry.reg("rocm.argmax.func_decl")
-def argmax_gen_function_decl(func_attrs: Dict[str, Any]):
+def argmax_gen_function_decl(func_attrs: dict[str, Any]):
     return argmax_common.gen_function_decl(func_attrs, ROCMSpec())
 
 

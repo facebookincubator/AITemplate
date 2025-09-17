@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 
@@ -31,20 +31,20 @@ def extract_config(func_attrs):
 
 
 @registry.reg("rocm.groupnorm_swish.gen_profiler")
-def gen_profiler(func_attrs: Dict[str, Any], workdir: str, indent: str = "  ") -> str:
+def gen_profiler(func_attrs: dict[str, Any], workdir: str, indent: str = "  ") -> str:
     return groupnorm_gen_profiler(func_attrs, workdir, indent, use_swish=True)
 
 
 @registry.reg("rocm.groupnorm_swish.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     return groupnorm_gen_function(func_attrs, use_swish=True)
 
 
 @registry.reg("rocm.groupnorm_swish.func_decl")
-def func_decl(func_attrs: Dict[str, Any]) -> str:
+def func_decl(func_attrs: dict[str, Any]) -> str:
     return groupnorm_gen_func_decl(func_attrs)
 
 
 @registry.reg("rocm.groupnorm_swish.func_call")
-def gen_func_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_func_call(func_attrs: dict[str, Any], indent="  ") -> str:
     return groupnorm_gen_func_call(func_attrs, indent)

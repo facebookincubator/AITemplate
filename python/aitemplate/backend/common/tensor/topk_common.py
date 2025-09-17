@@ -17,7 +17,7 @@ topk kernel codegen.
 """
 
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 import jinja2
 
@@ -678,7 +678,7 @@ void topk_launcher(
 )
 
 
-def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) -> str:
+def gen_function(func_attrs: dict[str, Any], header_files: str, backend_spec) -> str:
     """Generates function.
 
     Parameters
@@ -708,7 +708,7 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function_decl(func_attrs: dict[str, Any], backend_spec) -> str:
     """Generates function decl.
 
     Parameters
@@ -732,7 +732,7 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
     ).strip()
 
 
-def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], backend_spec, indent="  ") -> str:
     """Generates function call.
 
     Parameters
@@ -781,7 +781,7 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> 
 
 
 def add_profiler(
-    file_pairs: List[Tuple[str, str]],
+    file_pairs: list[tuple[str, str]],
     workdir: str,
     op_type: str,
     output_name: str,
@@ -800,7 +800,7 @@ def add_profiler(
 
 
 def gen_profiler(
-    func_attrs: Dict[str, Any], workdir: str, header_files: str, backend_spec
+    func_attrs: dict[str, Any], workdir: str, header_files: str, backend_spec
 ):
     """Generates code for topk profiling.
 

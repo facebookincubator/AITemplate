@@ -28,7 +28,7 @@ import logging
 import os
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import jinja2
 
@@ -56,7 +56,7 @@ from aitemplate.utils.misc import is_debug
 
 _LOGGER = logging.getLogger(__name__)
 
-DTYPE_TO_POINTERTYPE: Dict[str, str] = {
+DTYPE_TO_POINTERTYPE: dict[str, str] = {
     "float32": "float*",
     "float": "float*",
     "int": "int32_t*",
@@ -70,7 +70,7 @@ CONSTANT_FOLDER_MODEL_NAME = "ConstantFolder"
 MODEL_NAME = "Model"
 
 
-def gen_profiler(sorted_graph: List[Tensor], workdir: str, dynamic_profiling_strategy):
+def gen_profiler(sorted_graph: list[Tensor], workdir: str, dynamic_profiling_strategy):
     """Generate operator profiler source code files for the given graph
 
     Parameters
@@ -93,8 +93,8 @@ def gen_profiler(sorted_graph: List[Tensor], workdir: str, dynamic_profiling_str
 
 
 def gen_function_src(
-    sorted_graph: List[Tensor], workdir: str, model_name: str = ""
-) -> List[Tuple[str, str]]:
+    sorted_graph: list[Tensor], workdir: str, model_name: str = ""
+) -> list[tuple[str, str]]:
     """Generate functions source code files for the given graph
 
     Parameters
@@ -132,7 +132,7 @@ def gen_function_src(
 def map_set(
     map_name: str,
     key_name: str,
-    value_name: Optional[str] = None,
+    value_name: str | None = None,
     indent: str = "    ",
 ) -> str:
     """Generate a string setting a value in a map.
@@ -209,7 +209,7 @@ def count_inputs_outputs(graph):
 
 def check_not_null(
     tensor: Tensor,
-    tensor_idx: Optional[int] = None,
+    tensor_idx: int | None = None,
     skip_if_lower_bound_is_zero: bool = False,
 ) -> str:
     """
@@ -296,8 +296,8 @@ def device_copy(dst_tensor: Tensor, src_tensor: Tensor, dst_idx: int) -> str:
 
 
 def _construct_output_name_to_index_map(
-    sorted_graph: List[Tensor], output_tensors: List[Tensor]
-) -> Dict[str, int]:
+    sorted_graph: list[Tensor], output_tensors: list[Tensor]
+) -> dict[str, int]:
     """
     Use the given output ordering to construct a name -> index map
     to be used for constructing an internal ordering during codegen.
@@ -327,13 +327,13 @@ class ModelContainerGenerator:
         max_blob_size: int,
         max_constant_blob_size: int,
         workspace: Workspace,
-        constants_data_file: Optional[io.BytesIO],
-        graph: List[Tensor],
-        output_tensors: List[Tensor],
+        constants_data_file: io.BytesIO | None,
+        graph: list[Tensor],
+        output_tensors: list[Tensor],
         model_name: str = MODEL_NAME,
-        additional_unbound_constants: Optional[List[Tensor]] = None,
-        debug_settings: Optional[AITDebugSettings] = None,
-        model_dir: Optional[str] = None,
+        additional_unbound_constants: list[Tensor] | None = None,
+        debug_settings: AITDebugSettings | None = None,
+        model_dir: str | None = None,
     ):
         self.target = Target.current()
         self.f_var_decl = registry.get(self.target.name() + ".lib.var_decl")
@@ -418,9 +418,9 @@ class ModelContainerGenerator:
         self.extra_owned_constant_size = 0
 
         # This is a temporary dictionary that holds the rendered C++ code for operators.
-        self._rendered_func_code: Dict[Operator, str] = {}
+        self._rendered_func_code: dict[Operator, str] = {}
         # This is a temporary list that holds rendered C++ code for checks.
-        self._rendered_checks_func_code: List[str] = []
+        self._rendered_checks_func_code: list[str] = []
 
     def _tensor_slice_func(
         self,
@@ -688,7 +688,7 @@ class ModelContainerGenerator:
 
         self._record_param_tensor_info(tensor, output_idx)
 
-    def _process_dims(self, shape: List[IntVar]) -> None:
+    def _process_dims(self, shape: list[IntVar]) -> None:
         for dim in shape:
             if dim._attrs["name"] in self.visited_dims:
                 continue
@@ -738,7 +738,7 @@ class ModelContainerGenerator:
         self._process_dims(node._attrs["shape"])
 
     def _process_dims_for_tensor_accessors(
-        self, tensor_accessors: List[TensorAccessor]
+        self, tensor_accessors: list[TensorAccessor]
     ) -> None:
         if tensor_accessors is None:
             return
@@ -892,7 +892,7 @@ class ModelContainerGenerator:
 
     def _generate_simple_multistream_ops(
         self,
-    ) -> List[List[Operator]]:
+    ) -> list[list[Operator]]:
         from aitemplate.utils.graph_utils import track_graph_timings
 
         # track the sequence
@@ -911,7 +911,7 @@ class ModelContainerGenerator:
         return ops
 
     def _write_simple_multistream_debug_info(
-        self, par_ops_seq: List[List[Operator]]
+        self, par_ops_seq: list[list[Operator]]
     ) -> None:
         # store simple multistream information to log
 
@@ -1057,7 +1057,7 @@ class ModelContainerGenerator:
             )
         return constant_offsets
 
-    def generate_source(self) -> Dict[str, str]:
+    def generate_source(self) -> dict[str, str]:
         """
         Perform the codegen after adding all tensors.
         The dictionary returned is a map from filename -> contents.
@@ -1159,16 +1159,16 @@ _DEBUG_SETTINGS = AITDebugSettings()
 
 
 def gen_library_src(  # noqa: C901
-    sorted_graph: List[Tensor],
+    sorted_graph: list[Tensor],
     max_blob_size: int,
     max_constant_blob_size: int,
     workspace: Workspace,
     workdir: str,
-    output_tensors: List[Tensor],
+    output_tensors: list[Tensor],
     model_name: str = "",
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
-    additional_unbound_constants: Optional[List[Tensor]] = None,
-) -> List[Tuple[str, str]]:
+    additional_unbound_constants: list[Tensor] | None = None,
+) -> list[tuple[str, str]]:
     """Generate model driver source code files for the given graph
 
     Parameters

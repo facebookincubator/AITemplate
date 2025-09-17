@@ -34,8 +34,6 @@ Internally this implementation stores the results of Q@K in shared memory.
 It supports larger N0 / N1 compared to the classic_b2b_bmm implementation.
 """
 
-from typing import Optional
-
 import numpy as np
 
 from aitemplate.backend import registry, target
@@ -139,7 +137,7 @@ class fmha_style_b2b_bmm(b2b_bmm_base):
         q: Tensor,
         k: Tensor,
         v: Tensor,
-        bias: Optional[Tensor] = None,
+        bias: Tensor | None = None,
     ) -> Tensor:
         """call the op
 

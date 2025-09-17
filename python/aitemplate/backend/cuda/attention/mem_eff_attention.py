@@ -16,7 +16,7 @@
 Attention kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -686,7 +686,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 
 @registry.reg("cuda.mem_eff_attention.gen_function")
-def mem_eff_attention_gen_function(func_attrs: Dict[str, Any]) -> str:
+def mem_eff_attention_gen_function(func_attrs: dict[str, Any]) -> str:
     """the function for generating attention kernel"""
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_lib_type(
@@ -712,7 +712,7 @@ def mem_eff_attention_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.mem_eff_attention.func_decl")
-def mem_eff_attention_gen_function_decl(func_attrs: Dict[str, Any]):
+def mem_eff_attention_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )

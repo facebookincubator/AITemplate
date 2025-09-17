@@ -16,7 +16,7 @@
 Syntax sugar ops to support List/Tuples in the IR. These ops don't generate any code.
 """
 
-from typing import Any, List, Tuple, Union
+from typing import Any
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 
@@ -28,7 +28,7 @@ from aitemplate.utils.tensor_utils import wrap_dim
 class getitem(Operator):
     """Retrieve a single element from a list of tuple at a certain index."""
 
-    def __call__(self, vals: Union[List[Any], Tuple[Any]], index: int) -> Any:
+    def __call__(self, vals: list[Any] | tuple[Any], index: int) -> Any:
         assert isinstance(vals, (tuple, list))
         assert len(vals) > 0
 
@@ -38,14 +38,14 @@ class getitem(Operator):
             return val
         else:
             raise NotImplementedError(
-                "getitem op does not support this val type: {}".format(val)
+                f"getitem op does not support this val type: {val}"
             )
 
 
 class tuple_construct(Operator):
     """Construct a tuple of tensors."""
 
-    def __call__(self, *args: Union[Tensor, IntVar]) -> Tuple[Tensor]:
+    def __call__(self, *args: Tensor | IntVar) -> tuple[Tensor]:
         outputs = tuple(args)
         return outputs
 
@@ -53,6 +53,6 @@ class tuple_construct(Operator):
 class list_construct(Operator):
     """Construct a list of tensors."""
 
-    def __call__(self, *args: Union[Tensor, IntVar]) -> List[Tensor]:
+    def __call__(self, *args: Tensor | IntVar) -> list[Tensor]:
         outputs = list(args)
         return outputs

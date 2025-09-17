@@ -22,7 +22,7 @@ i.e. Output[d0, ..., dn-3, dn-1, dn-2] = Input[d0, ..., dn-3, dn-2, dn-1]
 
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 from aitemplate.backend.common import tensor_accessor_codegen
@@ -281,7 +281,7 @@ void {{function_name}} (
 
 
 def gen_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     template_path: str,
     header_files: str,
     backend_spec,
@@ -325,7 +325,7 @@ def gen_function(
 
 
 def gen_function_decl(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     backend_spec,
 ) -> str:
     """
@@ -349,7 +349,7 @@ def gen_function_decl(
 
 
 def gen_function_call(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     backend_spec,
     indent="  ",
 ) -> str:

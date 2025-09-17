@@ -17,7 +17,7 @@ permute for cuda
 """
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -106,7 +106,7 @@ void {{func_name}}(
 
 
 @registry.reg("cuda.permute.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     """
     Parameters
     ----------
@@ -143,7 +143,7 @@ def gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.permute.func_decl")
-def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def gen_function_decl(func_attrs: dict[str, Any]) -> str:
     """
     Parameters
     ----------
@@ -168,7 +168,7 @@ def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.permute.func_call")
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     """
     Parameters
     ----------

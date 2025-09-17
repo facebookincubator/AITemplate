@@ -17,7 +17,6 @@ backend concatenate function common templates.
 """
 
 from copy import deepcopy
-from typing import List
 
 import jinja2
 
@@ -771,8 +770,8 @@ def gen_function(
     )
 
 
-def _make_initialization_loops(init_var: str, init_values: List[str]):
-    def _make_loop_ranges(init_values: List[str]):
+def _make_initialization_loops(init_var: str, init_values: list[str]):
+    def _make_loop_ranges(init_values: list[str]):
         """
         For the given list, return a list of tuples, where each tuple contains
         (start_idx, end_idx, val). It means that in the input list, all the elements
