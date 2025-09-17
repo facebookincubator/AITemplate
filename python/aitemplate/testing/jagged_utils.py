@@ -14,7 +14,6 @@
 #
 import random
 from itertools import product
-from typing import List, Tuple
 
 import torch
 
@@ -23,7 +22,7 @@ from aitemplate.utils.torch_utils import string_to_torch_dtype, torch_dtype_to_s
 
 
 def _check_offsets(
-    offsets_list: List[List[int]],
+    offsets_list: list[list[int]],
 ) -> None:
     offsets_len = len(offsets_list[0])
     for offsets in offsets_list:
@@ -36,8 +35,8 @@ def _check_offsets(
 
 def _get_preceding_offset_idx(
     idx: int,
-    offsets: List[int],
-) -> Tuple[int, int]:
+    offsets: list[int],
+) -> tuple[int, int]:
     result = None
     left, right = 0, len(offsets) - 1
     while left <= right:
@@ -54,8 +53,8 @@ def _get_preceding_offset_idx(
 
 def _jagged_idx_to_dense_idx(
     jagged_idx: int,
-    offsets_list: List[List[int]],
-) -> List[int]:
+    offsets_list: list[list[int]],
+) -> list[int]:
     assert jagged_idx < offsets_list[-1][-1]
 
     result = []
@@ -73,8 +72,8 @@ def _jagged_idx_to_dense_idx(
 
 def jagged_to_dense(
     jagged: torch.Tensor,
-    offsets_list: List[torch.Tensor],
-    dense_shape: List[int],
+    offsets_list: list[torch.Tensor],
+    dense_shape: list[int],
     padding_value: float = 0.0,
 ) -> torch.Tensor:
     """
@@ -153,8 +152,8 @@ def jagged_to_dense(
 
 
 def _dense_idx_to_jagged_idx(
-    dense_idx: List[int],
-    offsets_list: List[List[int]],
+    dense_idx: list[int],
+    offsets_list: list[list[int]],
 ) -> int:
     assert len(dense_idx) == 1 + len(offsets_list)
 
@@ -172,7 +171,7 @@ def _dense_idx_to_jagged_idx(
 
 def dense_to_jagged(
     dense: torch.Tensor,
-    offsets_list: List[torch.Tensor],
+    offsets_list: list[torch.Tensor],
     padding_value: float = 0.0,
 ) -> torch.Tensor:
     """
@@ -375,9 +374,9 @@ def batched_dense_vec_jagged_2d_mul_ref(
 
 def add_jagged_dense_ref(
     jagged: torch.Tensor,
-    offsets_list: List[torch.Tensor],
+    offsets_list: list[torch.Tensor],
     dense: torch.Tensor,
-    jagged_max_shape: List[int] = None,
+    jagged_max_shape: list[int] = None,
 ) -> torch.Tensor:
     """The reference function for jagged / dense elementwise add."""
     if jagged_max_shape is None:
