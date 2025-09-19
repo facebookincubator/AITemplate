@@ -18,8 +18,6 @@ Perform transformations on ops which support strided inputs / outputs.
 
 import functools
 
-from typing import List
-
 from aitemplate.compiler.base import IntImm, Operator, Tensor
 from aitemplate.compiler.ops.tensor.slice_reshape_scatter import slice_reshape_scatter
 from aitemplate.compiler.ops.tensor.slice_scatter import slice_scatter
@@ -42,7 +40,7 @@ from aitemplate.utils import graph_utils, shape_utils
 # pylint: disable=W0612
 
 
-def _fuse_slices_concat(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_slices_concat(sorted_graph: list[Tensor]) -> list[Tensor]:
     for tensor in sorted_graph:
         src_ops = tensor._attrs["src_ops"]
         if len(src_ops) != 1:
@@ -57,7 +55,7 @@ def _fuse_slices_concat(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_slices_concat_reshape_concat(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_slices_concat_reshape_concat(sorted_graph: list[Tensor]) -> list[Tensor]:
     for tensor in sorted_graph:
         src_ops = tensor._attrs["src_ops"]
         if len(src_ops) != 1:
@@ -240,7 +238,7 @@ def get_tensor_index(tensors, tensor: Tensor) -> int:
     return idx
 
 
-def _fuse_strided_op_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noqa: C901
+def _fuse_strided_op_and_cat(sorted_graph: list[Tensor]) -> list[Tensor]:  # noqa: C901
     """
     Fuse strided_ops and cat op. One special case is group_gemm/group_layernorm + multiple cat.
     We can have
@@ -335,7 +333,7 @@ def _fuse_strided_op_and_cat(sorted_graph: List[Tensor]) -> List[Tensor]:  # noq
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_group_gemm_reshape_cat(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_group_gemm_reshape_cat(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     This pass fuses strided_op + view_op + concat patterns. It mainly performs the
     following transformations:
@@ -459,8 +457,8 @@ def _fuse_group_gemm_reshape_cat(sorted_graph: List[Tensor]) -> List[Tensor]:
 
 
 def transform_strided_ops(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """
     Add strided inputs / outputs to ops to avoid unnecessary data movement.
     """
