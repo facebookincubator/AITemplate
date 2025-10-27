@@ -1140,8 +1140,8 @@ __attribute__((device)) static int vsnprintf(
       case 'p': {
         width = sizeof(void*) * 2U + 2;
         flags |= flags::zeropad | flags::pointer;
-        uintptr_t value = (uintptr_t) __builtin_va_arg(args, void*);
-        (value == (uintptr_t) nullptr)
+        uintptr_t value = (uintptr_t)__builtin_va_arg(args, void*);
+        (value == (uintptr_t)nullptr)
             ? out_rev_(output, ")lin(", 5, width, flags)
             : print_integer(
                   output,

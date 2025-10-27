@@ -25,50 +25,20 @@
 
 #define NOT_IMPLEMENTED() assert(0 && __PRETTY_FUNCTION__)
 
-#define CUDA_FP16_ZERO \
-  __half {             \
-    0x0u               \
-  }
-#define CUDA_BF16_ZERO \
-  __nv_bfloat16 {      \
-    0x0u               \
-  }
-#define CUDA_FP162_ZERO \
-  __half2 {             \
-    0x0u, 0x0u          \
-  }
-#define CUDA_BF162_ZERO \
-  __nv_bfloat162 {      \
-    0x0u, 0x0u          \
-  }
-#define CUDA_FP16_ONE \
-  __half_raw {        \
-    0x3c00u           \
-  }
-#define CUDA_BF16_ONE \
-  __nv_bfloat16_raw { \
-    0x3f80u           \
-  }
-#define CUDA_FP16_ONE_HALF \
-  __half_raw {             \
-    0x3800u                \
-  }
-#define CUDA_BF16_ONE_HALF \
-  __nv_bfloat16_raw {      \
-    0x3f00u                \
-  }
+#define CUDA_FP16_ZERO __half{0x0u}
+#define CUDA_BF16_ZERO __nv_bfloat16{0x0u}
+#define CUDA_FP162_ZERO __half2{0x0u, 0x0u}
+#define CUDA_BF162_ZERO __nv_bfloat162{0x0u, 0x0u}
+#define CUDA_FP16_ONE __half_raw{0x3c00u}
+#define CUDA_BF16_ONE __nv_bfloat16_raw{0x3f80u}
+#define CUDA_FP16_ONE_HALF __half_raw{0x3800u}
+#define CUDA_BF16_ONE_HALF __nv_bfloat16_raw{0x3f00u}
 
 // sqrt(2 / pi)
-#define CUDA_BF16_K1  \
-  __nv_bfloat16_raw { \
-    0x3f4c            \
-  }
+#define CUDA_BF16_K1 __nv_bfloat16_raw{0x3f4c}
 
 // 2/(3*pi) - 1/6
-#define CUDA_BF16_K3  \
-  __nv_bfloat16_raw { \
-    0x3d3a            \
-  }
+#define CUDA_BF16_K3 __nv_bfloat16_raw{0x3d3a}
 
 template <typename T>
 __device__ T sign_custom(const T a) {

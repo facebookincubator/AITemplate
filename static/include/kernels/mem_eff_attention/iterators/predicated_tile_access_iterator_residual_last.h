@@ -220,8 +220,9 @@ class PredicatedTileAccessIteratorResidualLast<
       /// Gather indices
       int const* indices = nullptr)
       : params_(params),
-        pointer_(reinterpret_cast<BytePointer>(
-            const_cast<NonConstPointer>(pointer))),
+        pointer_(
+            reinterpret_cast<BytePointer>(
+                const_cast<NonConstPointer>(pointer))),
         the_predicates(extent),
         indices_(indices) {
     the_predicates.set_predicates(thread_id, threadblock_offset);
@@ -510,7 +511,7 @@ class PredicatedTileAccessIteratorResidualLast<
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
     Params(Layout const& layout)
-        : params_(layout::PitchLinear(layout.stride(0))){};
+        : params_(layout::PitchLinear(layout.stride(0))) {};
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
@@ -735,7 +736,7 @@ class PredicatedTileAccessIteratorResidualLast<
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
     Params(Layout const& layout)
-        : params_(layout::PitchLinear(layout.stride(0))){};
+        : params_(layout::PitchLinear(layout.stride(0))) {};
 
     /// Construct the Params object given a pitch-linear tensor's layout
     CUTLASS_HOST_DEVICE
@@ -1057,8 +1058,9 @@ class PredicatedTileAccessIteratorResidualLast<
                   ///< gather/scatter at this specialization
       )
       : params_(params),
-        pointer_(reinterpret_cast<BytePointer>(
-            const_cast<NonConstPointer>(pointer))),
+        pointer_(
+            reinterpret_cast<BytePointer>(
+                const_cast<NonConstPointer>(pointer))),
         the_predicates(extent) {
     the_predicates.set_predicates(thread_id, threadblock_offset);
 
@@ -1291,7 +1293,8 @@ class PredicatedTileAccessIteratorResidualLast<
     /// Construct the Params object given an AffineRankN<2> tensor's layout
     CUTLASS_HOST_DEVICE
     Params(Layout const& layout)
-        : params_(layout::AffineRankN<2>(layout.stride(0), layout.stride(1))){};
+        : params_(layout::AffineRankN<2>(layout.stride(0), layout.stride(1))) {
+          };
   };
 
  private:
@@ -1510,7 +1513,8 @@ class PredicatedTileAccessIteratorResidualLast<
     /// Construct the Params object given an AffineRankN<2> tensor's layout
     CUTLASS_HOST_DEVICE
     Params(Layout const& layout)
-        : params_(layout::AffineRankN<2>(layout.stride(1), layout.stride(0))){};
+        : params_(layout::AffineRankN<2>(layout.stride(1), layout.stride(0))) {
+          };
   };
 
  private:

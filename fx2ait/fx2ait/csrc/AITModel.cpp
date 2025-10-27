@@ -39,11 +39,15 @@ std::string AITModel::serialize() const {
     pick_output_names.push_back(picojson::value(entry));
   }
   var[OUTPUT_NAMES_STR] = picojson::value(pick_output_names);
-  var[FLOATING_POINT_INPUT_DTYPE_STR] = picojson::value(std::to_string(
-      static_cast<int16_t>(aitModelImpl_.floatingPointInputDtype().value())));
+  var[FLOATING_POINT_INPUT_DTYPE_STR] = picojson::value(
+      std::to_string(
+          static_cast<int16_t>(
+              aitModelImpl_.floatingPointInputDtype().value())));
 
-  var[FLOATING_POINT_OUTPUT_DTYPE_STR] = picojson::value(std::to_string(
-      static_cast<int16_t>(aitModelImpl_.floatingPointOutputDtype().value())));
+  var[FLOATING_POINT_OUTPUT_DTYPE_STR] = picojson::value(
+      std::to_string(
+          static_cast<int16_t>(
+              aitModelImpl_.floatingPointOutputDtype().value())));
 
   result = picojson::value(var).serialize();
   return result;
@@ -58,14 +62,15 @@ void AITModel::loadAsTorchClass() {
 
 static auto registerAITModel =
     torch::class_<AITModel>("ait", "AITModel")
-        .def(torch::init<
-             std::string,
-             std::vector<std::string>,
-             std::vector<std::string>,
-             std::optional<at::ScalarType>,
-             std::optional<at::ScalarType>,
-             int64_t,
-             bool>())
+        .def(
+            torch::init<
+                std::string,
+                std::vector<std::string>,
+                std::vector<std::string>,
+                std::optional<at::ScalarType>,
+                std::optional<at::ScalarType>,
+                int64_t,
+                bool>())
         .def("forward", &AITModel::forward)
         .def("profile", &AITModel::profile)
         .def("get_library_path", &AITModel::libraryPath)

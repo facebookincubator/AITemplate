@@ -459,8 +459,9 @@ __global__ void softmax_block_smem(
 
   const int m_idx = blockIdx.x;
   const int tid = threadIdx.x;
-  extern __shared__ __align__(sizeof(
-      float)) unsigned char shared_buf[]; // size_t smem = n*sizeof(float)
+  extern __shared__ __align__(
+      sizeof(
+          float)) unsigned char shared_buf[]; // size_t smem = n*sizeof(float)
   auto* buf = reinterpret_cast<float*>(shared_buf);
   const int num_packs = (n + pack_size - 1) / pack_size;
   for (int64_t row = m_idx; row < m; row += gridDim.x) {

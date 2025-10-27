@@ -376,7 +376,7 @@ inline __device__ void device_1xN_(
   float p_prev_lse[Mma_tile_p::MMAS_M * 2];
   if (!Is_first) {
     gmem_softmax_lse.load(
-        reinterpret_cast<uint32_t(&)[Mma_tile_p::MMAS_M * 2]>(p_prev_lse));
+        reinterpret_cast<uint32_t (&)[Mma_tile_p::MMAS_M * 2]>(p_prev_lse));
   }
 
   // Commit the data for Q and V to shared memory.
@@ -489,7 +489,7 @@ inline __device__ void device_1xN_(
     if (l < steps - 1) {
       if (!Is_first) {
         gmem_softmax_lse.load_next(
-            reinterpret_cast<uint32_t(&)[Mma_tile_p::MMAS_M * 2]>(p_prev_lse));
+            reinterpret_cast<uint32_t (&)[Mma_tile_p::MMAS_M * 2]>(p_prev_lse));
       }
     }
 
@@ -674,7 +674,7 @@ inline __device__ void device_1xN_(
       if ((tidx % Gmem_tile_o::THREADS_PER_ROW == 0) &&
           (tidx / Gmem_tile_o::THREADS_PER_ROW < Gmem_tile_o::ROWS)) {
         gmem_softmax_lse.store_row(
-            reinterpret_cast<uint32_t(&)[Mma_tile_p::MMAS_M]>(p_sum_log[jj]),
+            reinterpret_cast<uint32_t (&)[Mma_tile_p::MMAS_M]>(p_sum_log[jj]),
             rows[jj]);
       }
     }

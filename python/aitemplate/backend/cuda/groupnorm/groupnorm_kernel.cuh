@@ -68,22 +68,10 @@ __device__ bfloat16 fast_tanh(bfloat16 x) {
 #endif
 }
 
-#define CUDA_FP16_ONE_HALF \
-  __half_raw {             \
-    0x3800u                \
-  }
-#define CUDA_FP16_ONE \
-  __half_raw {        \
-    0x3c00u           \
-  }
-#define CUDA_BF16_ONE_HALF \
-  __nv_bfloat16_raw {      \
-    0x3f00u                \
-  }
-#define CUDA_BF16_ONE \
-  __nv_bfloat16_raw { \
-    0x3f80u           \
-  }
+#define CUDA_FP16_ONE_HALF __half_raw{0x3800u}
+#define CUDA_FP16_ONE __half_raw{0x3c00u}
+#define CUDA_BF16_ONE_HALF __nv_bfloat16_raw{0x3f00u}
+#define CUDA_BF16_ONE __nv_bfloat16_raw{0x3f80u}
 
 __device__ float sigmoid(const float a) {
   return (cutlass::fast_tanh(a * 0.5f) + 1.0f) * 0.5f;

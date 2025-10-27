@@ -101,8 +101,7 @@ template <
     // = `value.shape[-1] <= kKeysPerBlock`
     bool kSingleValueIteration,
     // Activation functor
-    template <typename T>
-    class ActivationFunctor,
+    template <typename T> class ActivationFunctor,
     typename offset_t_ = int64_t>
 struct AttentionKernel {
   using scalar_t = scalar_t_;

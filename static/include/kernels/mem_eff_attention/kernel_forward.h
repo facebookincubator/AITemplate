@@ -877,24 +877,25 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
 #define __CUDA_ARCH_OR_ZERO__ 0
 #endif
 
-#define INSTANTIATE_ATTENTION_KERNEL_FORWARD(              \
-    ARCH,                                                  \
-    SCALAR_T,                                              \
-    IS_ALIGNED,                                            \
-    QUERIES_PER_BLOCK,                                     \
-    KEYS_PER_BLOCK,                                        \
-    SINGLE_VALUE_ITER)                                     \
-  _ATTENTION_KERNEL_FORWARD_BEGIN(AttentionKernel<         \
-                                  SCALAR_T,                \
-                                  cutlass::arch::Sm##ARCH, \
-                                  IS_ALIGNED,              \
-                                  QUERIES_PER_BLOCK,       \
-                                  KEYS_PER_BLOCK,          \
-                                  SINGLE_VALUE_ITER>)      \
-  if (!p.advance_to_block()) {                             \
-    return;                                                \
-  }                                                        \
-  Kernel::attention_kernel(p);                             \
+#define INSTANTIATE_ATTENTION_KERNEL_FORWARD( \
+    ARCH,                                     \
+    SCALAR_T,                                 \
+    IS_ALIGNED,                               \
+    QUERIES_PER_BLOCK,                        \
+    KEYS_PER_BLOCK,                           \
+    SINGLE_VALUE_ITER)                        \
+  _ATTENTION_KERNEL_FORWARD_BEGIN(            \
+      AttentionKernel<                        \
+          SCALAR_T,                           \
+          cutlass::arch::Sm##ARCH,            \
+          IS_ALIGNED,                         \
+          QUERIES_PER_BLOCK,                  \
+          KEYS_PER_BLOCK,                     \
+          SINGLE_VALUE_ITER>)                 \
+  if (!p.advance_to_block()) {                \
+    return;                                   \
+  }                                           \
+  Kernel::attention_kernel(p);                \
   _ATTENTION_KERNEL_FORWARD_END();
 
 #define INSTANTIATE_ATTENTION_KERNEL_FORWARD_DISABLED(              \
@@ -904,13 +905,14 @@ __global__ void __launch_bounds__(AK::kNumThreads, AK::kMinBlocksPerSm)
     QUERIES_PER_BLOCK,                                              \
     KEYS_PER_BLOCK,                                                 \
     SINGLE_VALUE_ITER)                                              \
-  _ATTENTION_KERNEL_FORWARD_BEGIN(AttentionKernel<                  \
-                                  SCALAR_T,                         \
-                                  cutlass::arch::Sm##ARCH,          \
-                                  IS_ALIGNED,                       \
-                                  QUERIES_PER_BLOCK,                \
-                                  KEYS_PER_BLOCK,                   \
-                                  SINGLE_VALUE_ITER>)               \
+  _ATTENTION_KERNEL_FORWARD_BEGIN(                                  \
+      AttentionKernel<                                              \
+          SCALAR_T,                                                 \
+          cutlass::arch::Sm##ARCH,                                  \
+          IS_ALIGNED,                                               \
+          QUERIES_PER_BLOCK,                                        \
+          KEYS_PER_BLOCK,                                           \
+          SINGLE_VALUE_ITER>)                                       \
   printf(                                                           \
       "FATAL: this function is for sm%d, but was built for sm%d\n", \
       int(ARCH),                                                    \
