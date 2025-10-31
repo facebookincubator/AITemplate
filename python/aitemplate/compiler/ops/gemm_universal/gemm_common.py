@@ -22,12 +22,13 @@ import math
 import os
 import re
 from collections import OrderedDict
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
 from hashlib import sha1
 from operator import itemgetter
 from time import sleep
-from typing import Any, Callable, Dict, List, Union
+from typing import Any
 
 import jinja2
 
@@ -83,7 +84,7 @@ class DimInfo:
         self,
         source: Source,
         tensor_idx: int,
-        dim_idx: Union[int, List[int]],
+        dim_idx: int | list[int],
         placeholder: bool = False,
     ):
         """
@@ -106,7 +107,7 @@ class DimInfo:
 
     source: Source
     tensor_idx: int
-    dim_idx: List[int]
+    dim_idx: list[int]
     placeholder: bool
 
 
@@ -217,7 +218,7 @@ class gemm(Operator):
         self.exec_cond_template = EXEC_COND_TEMPLATE
 
     def _extract_epilogue_alignment(
-        self, output_shape: List[Any], dynamic_profiling_strategy=None
+        self, output_shape: list[Any], dynamic_profiling_strategy=None
     ) -> None:
         epilogue_dim = output_shape[-1]
         if isinstance(epilogue_dim, int):
@@ -251,10 +252,10 @@ class gemm(Operator):
             elif len(values) > 1:
                 key_strs.append(f"{name} >= {values[0]} && {name} <= {values[-1]}")
             else:
-                raise RuntimeError("Gemm input has empty dim values: {}".format(values))
+                raise RuntimeError(f"Gemm input has empty dim values: {values}")
         return " && ".join(key_strs)
 
-    def _extract_dims(self, for_profiling: bool = False) -> Dict[str, List[DimInfo]]:
+    def _extract_dims(self, for_profiling: bool = False) -> dict[str, list[DimInfo]]:
         """Extracts a mapping between dim names and a list of DimInfo.
         This function will be used in gemm shape inference, gemm padding graph
         transformation, gemm profiling, etc.
@@ -322,8 +323,8 @@ class gemm(Operator):
             See comments for DynamicProfileStrategy.
         """
 
-        dim_info_dict: Dict[str, List[DimInfo]] = self._extract_dims()
-        dim_dict: Dict[str, List[IntVar]] = {}
+        dim_info_dict: dict[str, list[DimInfo]] = self._extract_dims()
+        dim_dict: dict[str, list[IntVar]] = {}
         for name, dim_infos in dim_info_dict.items():
             dim_info = None
             for d in dim_infos:
@@ -419,7 +420,7 @@ class gemm(Operator):
             return f"{op_type}_{encoded_str}_{cache_ver}"
 
     def _should_build_profiler(
-        self, workloads: List[str], new_op_instance: OrderedDict
+        self, workloads: list[str], new_op_instance: OrderedDict
     ):
         """
         Check if we should build profilers. If we have a cached

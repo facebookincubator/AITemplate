@@ -17,14 +17,13 @@ Graph pass for topological sort.
 """
 
 import heapq
-from typing import List, Tuple, Union
 
 from aitemplate.compiler.base import Tensor
 
 # pylint: disable=C0103
 
 
-def toposort(nodes: Union[Tensor, List[Tensor]]) -> List[Tensor]:
+def toposort(nodes: Tensor | list[Tensor]) -> list[Tensor]:
     """Generate sorted nodes by topological order. This is the foundation of all graph passes.
 
     Parameters
@@ -40,7 +39,7 @@ def toposort(nodes: Union[Tensor, List[Tensor]]) -> List[Tensor]:
     return _priSort(nodes, SizePriTensorHelper())
 
 
-def _dfsSort(nodes: Union[Tensor, List[Tensor]]) -> List[Tensor]:
+def _dfsSort(nodes: Tensor | list[Tensor]) -> list[Tensor]:
     visited = set()
     sorted_graph = []
     stack = []
@@ -81,7 +80,7 @@ class PriTensorHelper:
     def __init__(self) -> None:
         self.entry_cnt = -1
 
-    def get_heap_input(self, node: Tensor) -> Tuple[float, int, Tensor]:
+    def get_heap_input(self, node: Tensor) -> tuple[float, int, Tensor]:
         # input is built based on heapq doc suggestion:
         # https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
         # the return tuple is: (
@@ -97,7 +96,7 @@ class PriTensorHelper:
         )
 
     def get_tensor_from_heap_output(
-        self, heap_output: Tuple[float, int, Tensor]
+        self, heap_output: tuple[float, int, Tensor]
     ) -> Tensor:
         return heap_output[2]
 
@@ -115,8 +114,8 @@ class SizePriTensorHelper(PriTensorHelper):
 
 
 def _priSort(
-    nodes: Union[Tensor, List[Tensor]], pri_tensor_helper: PriTensorHelper
-) -> List[Tensor]:
+    nodes: Tensor | list[Tensor], pri_tensor_helper: PriTensorHelper
+) -> list[Tensor]:
     # do a DFS to get all nodes in a list
     nodes = _dfsSort(nodes)
     # number of src tensors

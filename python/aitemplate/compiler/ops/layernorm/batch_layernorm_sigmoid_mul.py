@@ -18,8 +18,6 @@ gamma: [b, n]
 beta: [b, n]
 """
 
-from typing import List
-
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.layernorm.layernorm import layernorm
 
@@ -31,7 +29,7 @@ class batch_layernorm_sigmoid_mul(layernorm):
     This op expects the normalized_shape to be 1D.
     """
 
-    def __init__(self, normalized_shape: List[IntImm] = None) -> None:
+    def __init__(self, normalized_shape: list[IntImm] = None) -> None:
         super().__init__(normalized_shape)
         self._attrs["op"] = "batch_layernorm_sigmoid_mul"
 

@@ -19,7 +19,7 @@ Base class for depthwise_conv3d.
 import itertools
 import re
 from collections import OrderedDict
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 
@@ -134,7 +134,7 @@ class depthwise_conv3d(Operator):
         self.exec_dyn_key_template = EXEC_DYN_KEY_TEMPLATE
         self.exec_cond_template = EXEC_COND_TEMPLATE
 
-    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+    def _infer_shape(self, x: list[int], w: list[int]) -> list[int]:
         if x[4] != w[0] or x[4] != self._attrs["group"]:
             raise RuntimeError("Wrong inputs for depthwise_conv3d")
         eval_func = self.shape_eval_template.render(
@@ -170,7 +170,7 @@ class depthwise_conv3d(Operator):
             int(output["CO"]),
         ]
 
-    def _infer_shapes(self, x: Tensor, w: Tensor) -> List[int]:
+    def _infer_shapes(self, x: Tensor, w: Tensor) -> list[int]:
         x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
         x_shapes = itertools.product(*x_shape_values)
         w_shape = [var._attrs["values"][0] for var in w._attrs["shape"]]
@@ -200,7 +200,7 @@ class depthwise_conv3d(Operator):
         tmp = re.findall(r"(\d+)", key)
         return [int(x) for x in tmp]
 
-    def _gen_exec_key(self, shape: List[int]):
+    def _gen_exec_key(self, shape: list[int]):
         return self.exec_key_template.render(
             x_dim0=shape[0],
             x_dim1=shape[1],
@@ -237,7 +237,7 @@ class depthwise_conv3d(Operator):
         )
         return signature
 
-    def _extract_epilogue_alignment(self, output_shape: List[IntVar]) -> None:
+    def _extract_epilogue_alignment(self, output_shape: list[IntVar]) -> None:
         epilogue_dim = output_shape[-1]
         if not isinstance(epilogue_dim, IntImm):
             raise RuntimeError("Conv output last dimension must be static!")
@@ -249,7 +249,7 @@ class depthwise_conv3d(Operator):
         elif shape % 2 == 0:
             self._attrs["epilogue_alignment"] = 2
 
-    def __call__(self, x: Tensor, w: Tensor, bias: Tensor = None) -> List[Tensor]:
+    def __call__(self, x: Tensor, w: Tensor, bias: Tensor = None) -> list[Tensor]:
         """Call depthwise_conv3d with tensors x, w
 
         Parameters
@@ -275,7 +275,7 @@ class depthwise_conv3d(Operator):
         self._attrs["outputs"] = [output]
         return output
 
-    def _get_op_attributes(self) -> Dict[str, Any]:
+    def _get_op_attributes(self) -> dict[str, Any]:
         target_attrs = ["dilate", "group", "pad", "stride", "bias"]
         attr = {}
 

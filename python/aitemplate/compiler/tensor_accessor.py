@@ -18,11 +18,12 @@ TensorAccessor definition.
 
 import copy
 import logging
+from collections.abc import Iterable
 
 # pylint: disable=C0103,C0301,W0612
 
 from pprint import pformat
-from typing import Any, Iterable, List, Optional
+from typing import Any
 
 from aitemplate.compiler.base import IntImm, IntVar, Tensor
 
@@ -216,8 +217,8 @@ class TensorAccessor:
         _LOGGER.debug(f"generate dim_mapping: {dim_mapping}")
 
     def try_get_stride_strs(
-        self, dim: int, dim_names: List[str] = None
-    ) -> Optional[List[str]]:
+        self, dim: int, dim_names: list[str] = None
+    ) -> list[str] | None:
         """
         Tries to return a list of stride strs for the given dim.
         Note that both dim and dim_names are based on self.original_shapes.
@@ -236,8 +237,8 @@ class TensorAccessor:
             )
 
         def _get_value_or_names(
-            shape: List[IntVar], indices: Iterable[int]
-        ) -> List[str]:
+            shape: list[IntVar], indices: Iterable[int]
+        ) -> list[str]:
             res = []
             for index in indices:
                 d = shape[index]
@@ -331,7 +332,7 @@ class TensorAccessor:
             stride *= int(s)
         return stride
 
-    def gen_stride_str(self, dim: int, dim_names: List[str]) -> str:
+    def gen_stride_str(self, dim: int, dim_names: list[str]) -> str:
         """
         Returns the str to calculate the stride of a certain dim. This is
         a temporary solution to get around dynamic shapes problems with

@@ -16,8 +16,6 @@
 Dynamic_slice.
 """
 
-from typing import List, Optional, Union
-
 import sympy
 
 from aitemplate import backend
@@ -54,7 +52,7 @@ class dynamic_slice(Operator):
         self._attrs["has_profiler"] = False
 
     @staticmethod
-    def normalize_start_end_indices(dim_val: int, start: int, end: int) -> List[int]:
+    def normalize_start_end_indices(dim_val: int, start: int, end: int) -> list[int]:
         """
         return normalized start and end indices which fall into a well-formed
         range like below:
@@ -97,9 +95,9 @@ class dynamic_slice(Operator):
     def _infer_shapes(
         self,
         x: Tensor,
-        start_indices: List[Union[IntVar, IntVarTensor, Optional[int]]],
-        end_indices: List[Union[IntVar, IntVarTensor, Optional[int]]],
-    ) -> List[IntVar]:
+        start_indices: list[IntVar | IntVarTensor | int | None],
+        end_indices: list[IntVar | IntVarTensor | int | None],
+    ) -> list[IntVar]:
         """Infers shape for dynamic_slice."""
         # TODO: Handle start_indices/end_indices that are not int.
 
@@ -126,9 +124,9 @@ class dynamic_slice(Operator):
     def __call__(
         self,
         x: Tensor,
-        start_indices: List[Union[IntVar, IntVarTensor, Optional[int]]],
-        end_indices: List[Union[IntVar, IntVarTensor, Optional[int]]],
-    ) -> List[Tensor]:
+        start_indices: list[IntVar | IntVarTensor | int | None],
+        end_indices: list[IntVar | IntVarTensor | int | None],
+    ) -> list[Tensor]:
         """
         Parameters
         ----------

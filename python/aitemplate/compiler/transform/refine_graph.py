@@ -17,7 +17,6 @@ Graph pass to dedup operators with same signatures.
 """
 
 import logging
-from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor
 
@@ -128,7 +127,7 @@ def same_function_type(o1: Operator, o2: Operator):
     return True
 
 
-def refine_graph(sorted_graph: List[Tensor]):
+def refine_graph(sorted_graph: list[Tensor]):
     """Graph pass to dedup operators with same signatures.
 
     Parameters

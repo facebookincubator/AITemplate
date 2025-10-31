@@ -18,7 +18,7 @@ first concatenate op if possible.
 """
 
 import copy
-from typing import Callable, List, Optional, Tuple
+from collections.abc import Callable
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
@@ -35,10 +35,10 @@ _SUPPORTED_VIEW_OPS = ["reshape", "flatten"]
 
 def _make_input_view_shape(
     cat_input: Tensor,
-    original_view_shape: List[IntVar],
+    original_view_shape: list[IntVar],
     cat_dim: int,
     input_idx: int,
-) -> Optional[List[IntVar]]:
+) -> list[IntVar] | None:
     """
     Assumes that there is a pattern like concat + view_op in the graph, we tries
     to transform it into view_op + concat. However, it's not always valid to
@@ -113,7 +113,7 @@ def _make_input_view_shape(
 
 
 def _call_view_op(
-    view_op: Callable, view_output_shape: List[IntVar], input_tensor: Tensor
+    view_op: Callable, view_output_shape: list[IntVar], input_tensor: Tensor
 ) -> Tensor:
     """
     call the view_op with suitable arguments and return the output tensor
@@ -245,8 +245,8 @@ def _is_valid_cat_op(cat: Operator) -> bool:
 
 
 def _get_valid_view_op_and_second_cat(
-    view_ops: List[Operator],
-) -> Tuple[Operator, Operator]:
+    view_ops: list[Operator],
+) -> tuple[Operator, Operator]:
     """
     Return the view op and the second cat if we can find such a pair
     """
@@ -267,8 +267,8 @@ def _get_valid_view_op_and_second_cat(
 
 
 def _move_view_op_before_concat(
-    sorted_graph: List[Tensor],
-) -> Tuple[bool, List[Tensor]]:
+    sorted_graph: list[Tensor],
+) -> tuple[bool, list[Tensor]]:
     """
     Return a tuple of (bool, List[Tensor]), where True indicates the
     graph has been successfully changed.
@@ -326,8 +326,8 @@ def _move_view_op_before_concat(
 
 
 def move_view_op_before_concat(
-    sorted_graph: List[Tensor], wordir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], wordir: str = None
+) -> list[Tensor]:
     """
     This transformation turns "cat + view_op + cat" into "view_op + cat + cat".
     The yielded pattern may be optimized further by the transform_memory_ops pass.

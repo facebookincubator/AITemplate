@@ -17,7 +17,7 @@ Applies paddings to gemms based on alignment requirements.
 """
 
 import logging
-from typing import Callable, Dict, List
+from collections.abc import Callable
 
 from aitemplate.compiler import ops
 
@@ -32,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _extract_mnk_name(
-    dim_info_dict: Dict[str, DimInfo], source: Source, tensor_idx: int, dim_idx: int
+    dim_info_dict: dict[str, DimInfo], source: Source, tensor_idx: int, dim_idx: int
 ) -> str:
     for name, info_list in dim_info_dict.items():
         for info in info_list:
@@ -55,8 +55,8 @@ def _pad_input_tensor(
     op: Operator,
     tensor_idx: int,
     f_extract_var_name: Callable[[int, int], str],
-    alignment_var_to_padding_length: Dict[str, int],
-    tensor_list: List[Tensor],
+    alignment_var_to_padding_length: dict[str, int],
+    tensor_list: list[Tensor],
 ) -> None:
     original_shape = op._attrs["inputs"][tensor_idx]._attrs["shape"]
     for dim_idx, dim in enumerate(original_shape):
@@ -98,7 +98,7 @@ def _pad_input_tensor(
 
 
 def _slice_output_tensor(
-    new_output: Tensor, original_output: Tensor, tensor_list: List[Tensor]
+    new_output: Tensor, original_output: Tensor, tensor_list: list[Tensor]
 ) -> Tensor:
     new_shape = new_output._attrs["shape"]
     original_shape = original_output._attrs["shape"]
@@ -125,7 +125,7 @@ def _slice_output_tensor(
     return sliced_tensor
 
 
-def apply_padding(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
+def apply_padding(sorted_graph: list[Tensor], workdir: str = None) -> list[Tensor]:
     """
     Applies padding to gemms to use SM80 kernels.
     SM80 kernels require min_alignment == 2.

@@ -17,7 +17,6 @@ Common NHWC padding ops
 """
 
 import itertools
-from typing import List
 
 import jinja2
 
@@ -49,7 +48,7 @@ class nhwc_pad_common(Operator):
         self.shape_eval_template = shape_func_template
         self.shape_save_template = SHAPE_ASSIGNMENT_TEMPLATE
 
-    def _infer_shape(self, x: List[int]):
+    def _infer_shape(self, x: list[int]):
         eval_func = self.shape_eval_template.render(
             indent="",
             dtype="",
@@ -87,7 +86,7 @@ class nhwc_pad_common(Operator):
         ]
         return output_shape
 
-    def __call__(self, x: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor) -> list[Tensor]:
         self._attrs["inputs"] = [x]
         self._set_depth()
         output_shape = self._infer_shapes(x)

@@ -16,9 +16,9 @@
 Concatenate.
 """
 
+from collections.abc import Sequence
 from copy import deepcopy
 from functools import reduce
-from typing import List, Optional, Sequence, Tuple, Union
 
 from aitemplate import backend
 from aitemplate.backend import registry
@@ -60,7 +60,7 @@ class concatenate(Operator):
         return sorted(set(vector))
 
     @staticmethod
-    def get_rank(inputs: List[Tensor]) -> Optional[int]:
+    def get_rank(inputs: list[Tensor]) -> int | None:
         input_rank = None
         for inp in inputs:
             if not shape_utils.is_empty_rank1_tensor(inp._attrs["shape"]):
@@ -69,7 +69,7 @@ class concatenate(Operator):
         return input_rank
 
     @staticmethod
-    def get_first_non_empty_input_if_any(inputs: List[Tensor]) -> Tuple[Tensor, int]:
+    def get_first_non_empty_input_if_any(inputs: list[Tensor]) -> tuple[Tensor, int]:
         """Return the first non-empty input and its index from the list.
         If all inputs are empty, return the first input.
         """
@@ -84,7 +84,7 @@ class concatenate(Operator):
         return (t, idx)
 
     @staticmethod
-    def check_rank(inputs: List[Tensor], dim) -> bool:
+    def check_rank(inputs: list[Tensor], dim) -> bool:
         """check if the rank is valid"""
         if len(inputs) < 1:
             raise RuntimeError("expected a list of Tensors")
@@ -107,7 +107,7 @@ class concatenate(Operator):
                     f'and {r=} for tensor {t._attrs["name"]}'
                 )
 
-    def _infer_shapes(self, inputs: List[Tensor], dim) -> List[IntVar]:
+    def _infer_shapes(self, inputs: list[Tensor], dim) -> list[IntVar]:
         """Infers shapes for concatenate."""
         concatenate.check_rank(inputs, dim)
         rank = concatenate.get_rank(inputs)
@@ -162,7 +162,7 @@ class concatenate(Operator):
                 output_shape.append(output_dim)
         return output_shape
 
-    def __call__(self, inputs: List[Tensor], dim=0) -> Tensor:
+    def __call__(self, inputs: list[Tensor], dim=0) -> Tensor:
         self._attrs["inputs"] = list(inputs)
         self._attrs["input_accessors"] = [
             TensorAccessor(t) for t in self._attrs["inputs"]
@@ -252,7 +252,7 @@ class concatenate(Operator):
         )
         return idx
 
-    def remove_input_at(self, indices: Union[int, Sequence[int]]) -> None:
+    def remove_input_at(self, indices: int | Sequence[int]) -> None:
         """
         This function removes the inputs in indices from the "inputs" attribute
         and sets input_masks[indices] to be False. Note that the indices are based

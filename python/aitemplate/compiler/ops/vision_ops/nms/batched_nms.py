@@ -17,7 +17,6 @@ Batched nms.
 """
 
 import itertools
-from typing import List
 
 import jinja2
 
@@ -70,7 +69,7 @@ class batched_nms(Operator):
         self._attrs["iou_threshold"] = iou_threshold
         self.exec_key_template = EXEC_KEY_TEMPLATE
 
-    def _infer_shape(self, x: List[int]):
+    def _infer_shape(self, x: list[int]):
         """infer output shape"""
         return [x[0]]
 

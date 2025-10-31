@@ -16,8 +16,6 @@
 Fuse conv + elementwise ops.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Tensor
 
 from aitemplate.compiler.transform.fuse_conv_patterns import (
@@ -30,27 +28,27 @@ from aitemplate.compiler.transform.fuse_utils import transform_simple_fusion_pat
 # pylint: disable=C0103,C0415,W0612
 
 
-def _transform_conv2d_bias(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _transform_conv2d_bias(sorted_graph: list[Tensor]) -> list[Tensor]:
     fusion_patterns = get_conv2d_bias_pattern()
 
     return transform_simple_fusion_patterns(sorted_graph, fusion_patterns)
 
 
-def _transform_conv2d_bias_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _transform_conv2d_bias_elementwise(sorted_graph: list[Tensor]) -> list[Tensor]:
     fusion_patterns = get_conv2d_bias_elementwise_patterns()
 
     return transform_simple_fusion_patterns(sorted_graph, fusion_patterns)
 
 
 def _transform_cuda_only_conv2d_bias_elementwise(
-    sorted_graph: List[Tensor],
-) -> List[Tensor]:
+    sorted_graph: list[Tensor],
+) -> list[Tensor]:
     fusion_patterns = get_cuda_only_conv2d_bias_elementwise_patterns()
 
     return transform_simple_fusion_patterns(sorted_graph, fusion_patterns)
 
 
-def fuse_conv_elementwise(sorted_graph: List[Tensor], _: str) -> List[Tensor]:
+def fuse_conv_elementwise(sorted_graph: list[Tensor], _: str) -> list[Tensor]:
     """
     Fuse conv + elementwise ops. The second argument is unused, it's only
     here to make the type of this function the same as the others called in optimize_graph.

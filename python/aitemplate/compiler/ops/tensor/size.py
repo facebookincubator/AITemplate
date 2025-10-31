@@ -16,8 +16,6 @@
 Op to return the size of a tensor.
 """
 
-from typing import List, Union
-
 from aitemplate import backend
 
 from aitemplate.backend import registry
@@ -47,7 +45,7 @@ class size(Operator):
         assert isinstance(var, IntVar)
         return IntVar(var._attrs["values"], var._attrs["name"], src_ops=[self])
 
-    def __call__(self, x: Tensor, dim: int = None) -> Union[List[IntVar], IntVar]:
+    def __call__(self, x: Tensor, dim: int = None) -> list[IntVar] | IntVar:
         self._attrs["inputs"] = [x]
         self._set_depth()
         if isinstance(dim, int):

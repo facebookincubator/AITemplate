@@ -15,7 +15,6 @@
 import itertools
 import logging
 from collections import defaultdict
-from typing import Dict, List
 
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.transform import transform_utils
@@ -60,8 +59,8 @@ def _fused_elementwise_ops_are_equal(op1: Operator, op2: Operator) -> bool:
 
 
 def find_duplicate_fused_elementwise(
-    sorted_graph: List[Tensor],
-) -> Dict[Operator, List[Operator]]:
+    sorted_graph: list[Tensor],
+) -> dict[Operator, list[Operator]]:
     sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
     fused_elementwise_ops = filter(
         lambda operator: operator._attrs["op"] == "fused_elementwise", sorted_ops
@@ -80,8 +79,8 @@ def find_duplicate_fused_elementwise(
 
 
 def fuse_duplicate_fused_elementwise(
-    sorted_graph: List[Tensor], _workdir: str
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], _workdir: str
+) -> list[Tensor]:
     """This pass finds all duplicate fused elementwise ops and fuses them once
     more. It assumes any fuse elementwise passes are complete.
 

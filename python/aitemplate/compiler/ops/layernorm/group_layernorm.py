@@ -16,7 +16,7 @@
 Operator definition for group_layernorm.
 """
 
-from typing import Any, List
+from typing import Any
 
 from aitemplate.compiler.base import IntImm, IntVarTensor, Tensor
 from aitemplate.compiler.ops.layernorm.layernorm import layernorm
@@ -35,7 +35,7 @@ class group_layernorm(layernorm):
     Every input in the groups must have the same [M0, M1, ..., Mp] dims.
     """
 
-    def __init__(self, normalized_shape: List[List[IntImm]] = None) -> None:
+    def __init__(self, normalized_shape: list[list[IntImm]] = None) -> None:
         super().__init__(normalized_shape[0] if normalized_shape is not None else None)
         self._attrs["op"] = "group_layernorm"
         self._attrs["has_profiler"] = False
@@ -86,12 +86,12 @@ class group_layernorm(layernorm):
 
     def __call__(
         self,
-        inputs: List[Tensor],
-        gammas: List[Tensor],
-        betas: List[Tensor],
-        normalized_shapes: List[List[Any]] = None,
+        inputs: list[Tensor],
+        gammas: list[Tensor],
+        betas: list[Tensor],
+        normalized_shapes: list[list[Any]] = None,
         eps: float = 1e-5,
-    ) -> List[Tensor]:
+    ) -> list[Tensor]:
         # inputs is flattend into a single list of tensors
         all_inputs = inputs + gammas + betas
         # 'real_inputs' only contains non-None tensors

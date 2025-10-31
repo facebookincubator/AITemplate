@@ -20,7 +20,6 @@ import bisect
 import logging
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.utils.environ import multistream_max_mem_parallel_ops, multistream_mode
@@ -64,7 +63,7 @@ def _find_original_tensor(tensor: Tensor):
     return _find_original_tensor(view)
 
 
-def _make_tensor_usage_records(sorted_ops: List[Operator]) -> List[TensorUsageRecord]:
+def _make_tensor_usage_records(sorted_ops: list[Operator]) -> list[TensorUsageRecord]:
     num_of_ops = len(sorted_ops)
     tensor_records = defaultdict(
         lambda: TensorUsageRecord(
@@ -138,7 +137,7 @@ def _make_tensor_usage_records(sorted_ops: List[Operator]) -> List[TensorUsageRe
     return list(records)
 
 
-def assign_offsets_to_views_and_outputs(sorted_graph: List[Tensor]) -> None:
+def assign_offsets_to_views_and_outputs(sorted_graph: list[Tensor]) -> None:
     """Propagate offsets determined by the memory planning algorithm to views.
 
     Parameters
@@ -160,7 +159,7 @@ class Workspace:
         return self.shared_size + self.unique_size
 
 
-def _compute_workspace(sorted_graph: List[Tensor]) -> Workspace:
+def _compute_workspace(sorted_graph: list[Tensor]) -> Workspace:
     """
     Compute the workspace for the model, which can be used as scratch memory by ops.
     This pass examines two attributes on every function in the graph:
@@ -195,7 +194,7 @@ def _compute_workspace(sorted_graph: List[Tensor]) -> Workspace:
 
 
 def _greedy_by_size_memory_planning(
-    sorted_graph: List[Tensor], tensor_usage_records: List[TensorUsageRecord]
+    sorted_graph: list[Tensor], tensor_usage_records: list[TensorUsageRecord]
 ):
     """
     based on the greedy-by-size algorithm for offset calculation described in
@@ -271,7 +270,7 @@ def _greedy_by_size_memory_planning(
     return (max_blob, constant_offset, workspace)
 
 
-def greedy_by_size_memory_planning(sorted_graph: List[Tensor]):  # noqa: C901
+def greedy_by_size_memory_planning(sorted_graph: list[Tensor]):  # noqa: C901
     """
     based on the greedy-by-size algorithm for offset calculation described in
     the following paper:
@@ -287,7 +286,7 @@ def greedy_by_size_memory_planning(sorted_graph: List[Tensor]):  # noqa: C901
     return _greedy_by_size_memory_planning(sorted_graph, tensor_usage_records)
 
 
-def naive_memory_planning(sorted_graph: List[Tensor]):
+def naive_memory_planning(sorted_graph: list[Tensor]):
     max_blob = 0
     offset = 0
     constant_offset = 0
@@ -312,8 +311,8 @@ def naive_memory_planning(sorted_graph: List[Tensor]):
 
 
 def _make_tensor_usage_records_simple_multistream(
-    par_ops_seq: List[List[Operator]],
-) -> List[TensorUsageRecord]:
+    par_ops_seq: list[list[Operator]],
+) -> list[TensorUsageRecord]:
     """
     Generalized version of _make_tensor_usage_records() which
     assumes that several ops may be executed on every step.
@@ -410,7 +409,7 @@ def _make_tensor_usage_records_simple_multistream(
     return list(records)
 
 
-def simple_multistream_memory_planning(sorted_graph: List[Tensor]):
+def simple_multistream_memory_planning(sorted_graph: list[Tensor]):
     """
     A specialized case for simple multi-stream execution.
     It uses more or slightly more GPU memory than greedy_by_size_memory_planner,
@@ -436,7 +435,7 @@ def simple_multistream_memory_planning(sorted_graph: List[Tensor]):
     return _greedy_by_size_memory_planning(sorted_graph, tensor_usage_records)
 
 
-def proxy_memory_planning(sorted_graph: List[Tensor]):
+def proxy_memory_planning(sorted_graph: list[Tensor]):
     run_mode = multistream_mode()
     if run_mode == 0:
         # no multistream

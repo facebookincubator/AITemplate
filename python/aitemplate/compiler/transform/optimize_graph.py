@@ -16,8 +16,6 @@
 Applies graph transformations.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.transform.apply_padding import apply_padding
 from aitemplate.compiler.transform.dedup_make_jagged_ops import dedup_make_jagged_ops
@@ -69,8 +67,8 @@ from aitemplate.utils import graph_utils
 
 
 def optimize_graph(
-    sorted_graph: List[Tensor], workdir: str, optimize=True
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str, optimize=True
+) -> list[Tensor]:
     """Applies graph optimizations, including
 
     - fuse permute and bmm

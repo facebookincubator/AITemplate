@@ -18,7 +18,6 @@ Define jagged_to_padded_dense op
 """
 
 import logging
-from typing import List
 
 from aitemplate.backend import registry
 
@@ -57,7 +56,7 @@ class jagged_to_padded_dense(Operator):
         self._attrs["op"] = "jagged_to_padded_dense"
         self._attrs["padding_value"] = padding_value
 
-    def _infer_shape(self, x: Tensor) -> List[IntVar]:
+    def _infer_shape(self, x: Tensor) -> list[IntVar]:
         jagged_int_var = x.shape()[0]
         inner_shape = x.shape()[1:]
         return jagged_int_var.get_max_dense_shape() + inner_shape

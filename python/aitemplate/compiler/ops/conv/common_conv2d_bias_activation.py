@@ -16,8 +16,6 @@
 Fused conv2d_bias_activation op.
 """
 
-from typing import Tuple
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.conv.conv2d import conv2d
 
@@ -44,7 +42,7 @@ class conv2d_bias_activation(conv2d):
             channels to output channels, by default 1
         """
         super().__init__(stride, pad, dilate=dilate, group=group)
-        self._attrs["op"] = "conv2d_bias_{act}".format(act=activation)
+        self._attrs["op"] = f"conv2d_bias_{activation}"
         self._attrs["epilogue"] = "LinearCombinationRelu"
 
     def __call__(self, x: Tensor, w: Tensor, b: Tensor):
@@ -80,7 +78,7 @@ class conv2d_bias_activation(conv2d):
         return attrs
 
     @staticmethod
-    def is_valid_inputs(x: Tensor, w: Tensor, b: Tensor) -> Tuple[bool, str]:
+    def is_valid_inputs(x: Tensor, w: Tensor, b: Tensor) -> tuple[bool, str]:
         x_shape = x._attrs["shape"]
         if len(x_shape) != 4:
             return False, f"x should be 4D: {x_shape=}"

@@ -24,8 +24,6 @@ The basic idea behind the transformation is that we leverage bmm's
 broadcasting capability to achieve the same functionality as expand.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.compiler.transform.toposort import toposort
@@ -74,7 +72,7 @@ def _can_fuse(expand_op: Operator, bmm_op: Operator) -> bool:
     return False
 
 
-def fuse_expand_bmm(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
+def fuse_expand_bmm(sorted_graph: list[Tensor], workdir: str = None) -> list[Tensor]:
     """
     Transform expand + bmm into a single bmm op.
 

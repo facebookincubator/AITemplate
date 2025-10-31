@@ -14,7 +14,6 @@
 #
 import logging
 import os
-from typing import Dict, List, Tuple
 
 from aitemplate import backend, compiler
 
@@ -40,7 +39,7 @@ def _create_dummy_constant_folder():
     return model_container_generator.generate_model()
 
 
-def _make_op_names_unique(graph: List[Tensor]) -> Dict[str, str]:
+def _make_op_names_unique(graph: list[Tensor]) -> dict[str, str]:
     """
     To avoid ODR issues, we rename all ops in the constant folding subgraph.
     ODR issues can arise if two ops end up sharing the same name & implementation (which
@@ -56,7 +55,7 @@ def _make_op_names_unique(graph: List[Tensor]) -> Dict[str, str]:
     return new_name_to_old
 
 
-def _rename_ops(graph: List[Tensor], new_name_to_old: Dict[str, str]) -> None:
+def _rename_ops(graph: list[Tensor], new_name_to_old: dict[str, str]) -> None:
     for tensor in graph:
         for op in tensor._attrs["src_ops"]:
             if op._attrs["name"] in new_name_to_old:
@@ -87,7 +86,7 @@ def _output_from_tensor(tensor: Tensor) -> Tensor:
 
 
 def _fix_op_inputs_outputs(
-    subgraph: List[Tensor], name_to_new_tensor: Dict[str, Tensor]
+    subgraph: list[Tensor], name_to_new_tensor: dict[str, Tensor]
 ) -> None:
     """
     This is an unfortunate hack made necessary by the following:
@@ -123,8 +122,8 @@ def _fix_op_inputs_outputs(
 
 
 def _extract_foldable_subgraph(
-    sorted_graph: List[Tensor],
-) -> Tuple[List[Tensor], Dict[str, Tensor], List[Tensor]]:
+    sorted_graph: list[Tensor],
+) -> tuple[list[Tensor], dict[str, Tensor], list[Tensor]]:
     """
     Extract a list of foldable nodes. A node is foldable if:
     * It has bound data, or
@@ -212,10 +211,10 @@ def _extract_foldable_subgraph(
 
 
 def _constant_folding_impl(
-    sorted_graph: List[Tensor],
+    sorted_graph: list[Tensor],
     workdir: str,
     model_name: str,
-) -> Tuple[Dict[str, Tensor], List[Tuple[str, str]], List[Tensor]]:
+) -> tuple[dict[str, Tensor], list[tuple[str, str]], list[Tensor]]:
     model_dir = os.path.join(workdir, model_name)
 
     # Collect the set of output names before we do any transformations. We'll need this
@@ -280,10 +279,10 @@ def _constant_folding_impl(
 
 
 def constant_folding(
-    sorted_graph: List[Tensor],
+    sorted_graph: list[Tensor],
     workdir: str,
     model_name: str,
-) -> Tuple[List[Tensor], List[Tuple[str, str]], List[Tensor]]:
+) -> tuple[list[Tensor], list[tuple[str, str]], list[Tensor]]:
     """
     Fold and propagate constants.
 

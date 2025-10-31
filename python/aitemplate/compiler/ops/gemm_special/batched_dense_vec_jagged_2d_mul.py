@@ -17,8 +17,6 @@
 Define batched_dense_vec_jagged_2d_mul op
 """
 
-from typing import List
-
 from aitemplate.backend import registry
 
 from aitemplate.backend.target import Target
@@ -47,7 +45,7 @@ class batched_dense_vec_jagged_2d_mul(Operator):
         super().__init__()
         self._attrs["op"] = "batched_dense_vec_jagged_2d_mul"
 
-    def _infer_shape(self, vectors: Tensor, matrices: Tensor) -> List[IntVar]:
+    def _infer_shape(self, vectors: Tensor, matrices: Tensor) -> list[IntVar]:
         jagged_int_var = matrices.shape()[0]
         return [jagged_int_var.batch_dim(), matrices.shape()[1], matrices.shape()[2]]
 

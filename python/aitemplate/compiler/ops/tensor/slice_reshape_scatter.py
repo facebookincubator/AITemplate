@@ -16,8 +16,6 @@
 Slice_reshape_scatter.
 """
 
-from typing import Optional
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, Operator
@@ -141,7 +139,7 @@ class slice_reshape_scatter(Operator):
             y._attrs["src_ops"] = StableSet()
             y._attrs["dst_ops"] = StableSet()
 
-    def __init__(self, scatter_dim: int, element_func: Optional[str] = None) -> None:
+    def __init__(self, scatter_dim: int, element_func: str | None = None) -> None:
         super().__init__()
         self._attrs["element_func"] = element_func
         self._attrs["op"] = "slice_reshape_scatter"

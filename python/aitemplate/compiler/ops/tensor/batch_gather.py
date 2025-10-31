@@ -18,7 +18,6 @@ Batch_gather.
 
 import itertools
 from collections import OrderedDict
-from typing import List
 
 import jinja2
 
@@ -53,7 +52,7 @@ class batch_gather(Operator):
         self._attrs["has_profiler"] = False
         self.exec_key_template = EXEC_KEY_TEMPLATE
 
-    def _infer_shapes(self, x: Tensor, indices: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor, indices: Tensor) -> list[IntVar]:
         """Infers shapes for batch_gather."""
 
         rank = len(indices._attrs["shape"])

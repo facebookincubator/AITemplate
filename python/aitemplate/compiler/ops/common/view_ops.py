@@ -19,7 +19,7 @@ View ops.
 import logging
 import math
 from functools import reduce
-from typing import Any, List, Optional, Union
+from typing import Any
 
 import jinja2
 
@@ -132,8 +132,8 @@ class _reshape_base(_view):
 
     def make_output_shape_from_int_vars(
         self,
-        shape: List[Any],
-    ) -> List[IntVar]:
+        shape: list[Any],
+    ) -> list[IntVar]:
         output_shape = []
         for dim in shape:
             int_var = dim._attrs["int_var"]
@@ -156,10 +156,10 @@ class _reshape_base(_view):
 
     def make_output_shape(
         self,
-        y_shape_values: List[Union[List[int], int]],
+        y_shape_values: list[list[int] | int],
         dynamic_dim: IntVar = None,
         is_intvar_tensor: bool = False,
-    ) -> List[IntVar]:
+    ) -> list[IntVar]:
         """
         Make the output shape from the output shape values.
         """
@@ -354,7 +354,7 @@ class reshape(_reshape_base):
         else:
             return self.make_output_shape_from_int_vars(self._attrs["shape"])
 
-    def __call__(self, x: Tensor, shape: List[Any]) -> Tensor:
+    def __call__(self, x: Tensor, shape: list[Any]) -> Tensor:
         self._attrs["shape"] = shape
         self._attrs["inputs"] = [x]
         for s in shape:
@@ -526,7 +526,7 @@ class squeeze(_view):
         Tensor: the squeezed tensor.
     """
 
-    def __init__(self, dim: Optional[int]) -> None:
+    def __init__(self, dim: int | None) -> None:
         super().__init__()
         self._attrs["op"] = "squeeze"
         self._attrs["dim"] = dim
@@ -600,7 +600,7 @@ class unsqueeze(squeeze):
         self._attrs["op"] = "unsqueeze"
         self._attrs["dim"] = dim
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         x_shape = x._attrs["shape"]
         dim = wrap_dim(self._attrs["dim"], len(x_shape) + 1)
 
@@ -692,7 +692,7 @@ class make_jagged(_view):
     def __init__(
         self,
         batch_dim: IntVar,
-        jagged_dims: List[JaggedDim],
+        jagged_dims: list[JaggedDim],
         check_sequence_lengths: bool = True,
     ) -> None:
         if not jagged_dims or not all(
@@ -710,7 +710,7 @@ class make_jagged(_view):
         self._attrs["jagged_dims"] = list(jagged_dims)
         self._attrs["check_sequence_lengths"] = check_sequence_lengths
 
-    def _set_jagged_dim_offsets(self, offsets_list: List[Tensor]):
+    def _set_jagged_dim_offsets(self, offsets_list: list[Tensor]):
         jagged_dims = self._attrs["jagged_dims"]
         for i, (jagged_dim, offsets) in enumerate(zip(jagged_dims, offsets_list)):
             if jagged_dim.offsets() is not None:
@@ -725,8 +725,8 @@ class make_jagged(_view):
 
     def __call__(
         self,
-        source: Union[Tensor, List[Tensor]],
-        offsets_list: List[Tensor],
+        source: Tensor | list[Tensor],
+        offsets_list: list[Tensor],
     ) -> Tensor:
         sources_list = [source] if isinstance(source, Tensor) else source
 

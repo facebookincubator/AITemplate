@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 from enum import IntEnum
-from typing import List, Union
 
 from aitemplate.backend import registry
 
@@ -87,7 +86,7 @@ class expand(Operator):
     def _should_reuse_input_dim(dim_tensor: IntVar, dim_arg: IntVar) -> bool:
         return _dim_has_value(dim_arg, -1) or dim_tensor == dim_arg
 
-    def _infer_shape(self, tensor: Tensor, target_shape: List[IntVar]) -> List[IntVar]:
+    def _infer_shape(self, tensor: Tensor, target_shape: list[IntVar]) -> list[IntVar]:
         output_shape = []
         input_shape = tensor._attrs["shape"]
         assert len(input_shape) > 0, "Input tensor must have a shape of length > 0"
@@ -160,7 +159,7 @@ class expand(Operator):
     def __call__(
         self,
         tensor: Tensor,
-        shape: List[Union[int, IntVar, IntVarTensor]],
+        shape: list[int | IntVar | IntVarTensor],
         index_type="int64",
         optimize_fixed_dims=True,
     ) -> Tensor:

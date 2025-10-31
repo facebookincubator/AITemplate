@@ -16,8 +16,6 @@
 Fuse GEMM with elementwise operations
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.ops.gemm_universal import gemm_rcr_bias_swish
@@ -42,7 +40,7 @@ from aitemplate.compiler.transform.transform_utils import (
 # pylint: disable=C0103,C0415,W0612
 
 
-def _fuse_bmm_mul_or_div_alpha(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_bmm_mul_or_div_alpha(sorted_graph: list[Tensor]) -> list[Tensor]:
     """This pass fuses bmm and mul (or div) if mul's other operand is a
        constant scalar tensor (i.e. which has a valid "value" attribute.
        In such a case, we turn this constant value into bmm's alpha.
@@ -112,7 +110,7 @@ def _fuse_bmm_mul_or_div_alpha(sorted_graph: List[Tensor]) -> List[Tensor]:
     return sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_gemm_rcr_bias_swish(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_gemm_rcr_bias_swish(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     gemm_rcr_bias_swish(A, B) is equivalent to:
         x = gemm_rcr_bias(A, B)
@@ -176,19 +174,19 @@ def _fuse_gemm_rcr_bias_swish(sorted_graph: List[Tensor]) -> List[Tensor]:
     return sanitize_sorted_graph(new_sorted_graph)
 
 
-def _transform_gemm_bias(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _transform_gemm_bias(sorted_graph: list[Tensor]) -> list[Tensor]:
     return transform_simple_fusion_patterns(sorted_graph, get_gemm_rcr_bias_patterns())
 
 
-def _transform_mm_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _transform_mm_elementwise(sorted_graph: list[Tensor]) -> list[Tensor]:
     fusion_patterns = get_patterns()
 
     return transform_simple_fusion_patterns(sorted_graph, fusion_patterns)
 
 
 def fuse_mm_elementwise(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Fuse GEMMs with elementwise operations.
 
     Parameters

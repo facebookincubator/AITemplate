@@ -24,7 +24,7 @@ import re
 from collections import OrderedDict
 from hashlib import sha1
 from operator import itemgetter
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 
@@ -157,7 +157,7 @@ class conv3d(Operator):
         self.exec_dyn_key_template = EXEC_DYN_KEY_TEMPLATE
         self.exec_cond_template = EXEC_COND_TEMPLATE
 
-    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+    def _infer_shape(self, x: list[int], w: list[int]) -> list[int]:
         if x[4] != w[4] * self._attrs["group"]:
             raise RuntimeError("X/W Shape mismatch for conv3d")
         eval_func = self.shape_eval_template.render(
@@ -193,7 +193,7 @@ class conv3d(Operator):
             int(output["CO"]),
         ]
 
-    def _infer_shapes(self, x: Tensor, w: Tensor) -> List[int]:
+    def _infer_shapes(self, x: Tensor, w: Tensor) -> list[int]:
         x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
         x_shapes = itertools.product(*x_shape_values)
         w_shape = [var._attrs["values"][0] for var in w._attrs["shape"]]
@@ -223,7 +223,7 @@ class conv3d(Operator):
         tmp = re.findall(r"(\d+)", key)
         return [int(x) for x in tmp]
 
-    def _gen_exec_key(self, shape: List[int]):
+    def _gen_exec_key(self, shape: list[int]):
         return self.exec_key_template.render(
             x_dim0=shape[0],
             x_dim1=shape[1],
@@ -287,7 +287,7 @@ class conv3d(Operator):
         )
         return signature
 
-    def _extract_epilogue_alignment(self, output_shape: List[IntVar]) -> None:
+    def _extract_epilogue_alignment(self, output_shape: list[IntVar]) -> None:
         epilogue_dim = output_shape[-1]
         if not isinstance(epilogue_dim, IntImm):
             raise RuntimeError("Conv output last dimension must be static!")
@@ -296,7 +296,7 @@ class conv3d(Operator):
             dtype=self._attrs["inputs"][0]._attrs["dtype"],
         )
 
-    def __call__(self, x: Tensor, w: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor, w: Tensor) -> list[Tensor]:
         """Call conv3d with tensors x, w
 
         Parameters
@@ -320,7 +320,7 @@ class conv3d(Operator):
         self._attrs["outputs"] = [output]
         return output
 
-    def _get_op_attributes(self) -> Dict[str, Any]:
+    def _get_op_attributes(self) -> dict[str, Any]:
         target_attrs = ["dilate", "group", "pad", "stride"]
         attr = {}
 
@@ -806,7 +806,7 @@ class conv3d(Operator):
     def gen_function(self) -> str:
         target = backend.target.Target.current()
         op_name = self._attrs["op"]
-        func_key = "{target}.{op}.gen_function".format(target=target.name(), op=op_name)
+        func_key = f"{target.name()}.{op_name}.gen_function"
         func = registry.get(func_key)
         return func(
             self._attrs,

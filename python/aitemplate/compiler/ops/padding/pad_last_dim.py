@@ -16,8 +16,6 @@
 Pad last dimension.
 """
 
-from typing import List
-
 import jinja2
 
 from aitemplate import backend
@@ -71,7 +69,7 @@ class pad_last_dim(Operator):
         output_shape[-1] = IntImm(self._attrs["out_dim"])
         return output_shape
 
-    def __call__(self, x: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor) -> list[Tensor]:
         self._attrs["inputs"] = [x]
         self._set_depth()
         output_shape = self._infer_shapes(x)

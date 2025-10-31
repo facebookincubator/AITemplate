@@ -16,7 +16,7 @@
 Fuse GEMM + reshape + permute0213
 """
 
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from aitemplate.compiler.base import IntImm, Operator, Tensor
 from aitemplate.compiler.ops import gemm_rcr_permute
@@ -87,8 +87,8 @@ def _check_permute(op: Operator, dims: Sequence[int]) -> bool:
 
 
 def _fuse_gemm_reshape_permute0213(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Fuse GEMM + reshape + permute0213
     Fuse patterns like this together:
 
@@ -175,8 +175,8 @@ def _fuse_gemm_reshape_permute0213(
 
 
 def fuse_mm_reshape_permute(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Fuse GEMM/BMM + reshape + permute into a single op
 
     Args:

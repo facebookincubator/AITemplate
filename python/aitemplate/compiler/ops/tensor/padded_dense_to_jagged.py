@@ -17,8 +17,6 @@
 The front-end definition of the padded_dense_to_jagged op.
 """
 
-from typing import List
-
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import IntVar, JaggedDim, JaggedIntVar, Operator, Tensor
@@ -62,8 +60,8 @@ class padded_dense_to_jagged(Operator):
     def _infer_shape(
         self,
         x: Tensor,
-        offsets_list: List[Tensor],
-    ) -> List[IntVar]:
+        offsets_list: list[Tensor],
+    ) -> list[IntVar]:
         inner_shape = x.shape()[1 + len(offsets_list) :]
         return [self._attrs["total_length"]] + inner_shape
 
@@ -78,7 +76,7 @@ class padded_dense_to_jagged(Operator):
     def __call__(
         self,
         x: Tensor,
-        offsets_list: List[Tensor],
+        offsets_list: list[Tensor],
     ) -> Tensor:
         x_shape = x.shape()
         if not offsets_list:

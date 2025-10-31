@@ -17,7 +17,6 @@ Transposed conv2d op.
 """
 
 import itertools
-from typing import List
 
 import jinja2
 
@@ -118,7 +117,7 @@ class transposed_conv2d(conv2d):
         self._attrs["epilogue"] = "LinearCombination"
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
 
-    def _infer_shape(self, x: List[int], w: List[int]) -> List[int]:
+    def _infer_shape(self, x: list[int], w: list[int]) -> list[int]:
         if x[3] != w[0] * self._attrs["group"]:
             raise RuntimeError("X/W Shape mismatch for conv2d")
         eval_func = self.shape_eval_template.render(
@@ -143,7 +142,7 @@ class transposed_conv2d(conv2d):
             int(output["CO"]),
         ]
 
-    def _infer_shapes(self, x: Tensor, w: Tensor) -> List[int]:
+    def _infer_shapes(self, x: Tensor, w: Tensor) -> list[int]:
         x_shape_values = [var._attrs["values"] for var in x._attrs["shape"]]
         x_shapes = itertools.product(*x_shape_values)
         w_shape = [var._attrs["values"][0] for var in w._attrs["shape"]]

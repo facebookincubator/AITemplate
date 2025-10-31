@@ -16,7 +16,7 @@
 Split.
 """
 
-from typing import List, Sequence, Union
+from collections.abc import Sequence
 
 from aitemplate import backend
 from aitemplate.backend import registry
@@ -54,8 +54,8 @@ class split(Operator):
         self._attrs["has_profiler"] = False
 
     def _infer_shapes(
-        self, x: Tensor, split_sizes: List[int], dim: int
-    ) -> List[IntVar]:
+        self, x: Tensor, split_sizes: list[int], dim: int
+    ) -> list[IntVar]:
         """Infers shapes for split."""
 
         x_shape = x._attrs["shape"]
@@ -84,13 +84,13 @@ class split(Operator):
 
         return output_shapes
 
-    def __call__(self, x: Tensor, split_size_or_sections, dim=0) -> List[Tensor]:
+    def __call__(self, x: Tensor, split_size_or_sections, dim=0) -> list[Tensor]:
         x_shape = x._attrs["shape"]
         self._attrs["inputs"] = [x]
         dim = wrap_dim(dim, x._rank())
         self._attrs["split_dim"] = dim
         self._set_depth()
-        if isinstance(split_size_or_sections, (List, tuple)):
+        if isinstance(split_size_or_sections, (list, tuple)):
             split_size_or_sections = [
                 shape_utils.convert_IntVar_to_int(d) for d in split_size_or_sections
             ]
@@ -138,7 +138,7 @@ class split(Operator):
         func = self._get_func("{target}.{op}.gen_function")
         return func(self._attrs)
 
-    def remove_output_at(self, indices: Union[int, Sequence[int]]) -> None:
+    def remove_output_at(self, indices: int | Sequence[int]) -> None:
         """
         This function removes the outputs in indices from the "outputs" attribute
         and sets output_masks[indices] to be False. Note that the indices are based

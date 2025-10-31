@@ -16,8 +16,6 @@
 BMM_RCR + Softmax + BMM_RRR + Permute Specialization
 """
 
-from typing import Tuple
-
 from aitemplate.compiler.base import IntImm, Tensor
 from aitemplate.compiler.ops.common.view_ops import reshape
 from aitemplate.compiler.ops.gemm_universal import gemm_common as common
@@ -51,7 +49,7 @@ class bmm_softmax_bmm_permute(bmm):
     2. CUDA backend codegen is not implemented in this release.
     """
 
-    def __init__(self, shape: Tuple[int], scale=1.0, causal=False, layout="0213"):
+    def __init__(self, shape: tuple[int], scale=1.0, causal=False, layout="0213"):
         """Constructor for BMM_RCR * scale + Softmax + BMM_RRR
 
         Parameters
@@ -68,7 +66,7 @@ class bmm_softmax_bmm_permute(bmm):
         self._attrs["op"] = "bmm_softmax_bmm_permute" + causal_mask
         self._attrs["scale"] = scale
         self._attrs["shape"] = shape
-        self._attrs["layout"] = "Permute4DBMM_{}".format(layout)
+        self._attrs["layout"] = f"Permute4DBMM_{layout}"
 
         def cal_align_ab(m, n, k):
             return common.default_align_ab(k, k, self._attrs["inputs"][0].dtype())

@@ -17,7 +17,6 @@ Grouped GEMM Specialization: GEMM_RCR(A, B) + Bias
 """
 
 from collections import OrderedDict
-from typing import List
 
 import jinja2
 
@@ -100,22 +99,22 @@ class group_gemm_rcr_bias(group_gemm_rcr):
                 algo="",
             )
 
-    def input_a_accessors(self) -> List[TensorAccessor]:
+    def input_a_accessors(self) -> list[TensorAccessor]:
         return group_gemm_rcr._one_input_accessors(
             self._attrs["input_accessors"], num_inputs_per_group=3, idx=0
         )
 
-    def input_b_accessors(self) -> List[TensorAccessor]:
+    def input_b_accessors(self) -> list[TensorAccessor]:
         return group_gemm_rcr._one_input_accessors(
             self._attrs["input_accessors"], num_inputs_per_group=3, idx=1
         )
 
-    def input_bias_accessors(self) -> List[TensorAccessor]:
+    def input_bias_accessors(self) -> list[TensorAccessor]:
         return group_gemm_rcr._one_input_accessors(
             self._attrs["input_accessors"], num_inputs_per_group=3, idx=2
         )
 
-    def __call__(self, operand_groups: List[List[Tensor]], output_stride_dim=None):
+    def __call__(self, operand_groups: list[list[Tensor]], output_stride_dim=None):
         # FIXME: when output_stride_dim is specified, we will concat the outputs of the
         # grouped gemm along the stride_dim axis. It's a temporary solution for
         # a pattern where the outputs of a grouped gemm can be concatenated

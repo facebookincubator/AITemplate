@@ -21,8 +21,6 @@ output.
 import copy
 import logging
 
-from typing import List
-
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
 
@@ -53,7 +51,7 @@ def _concat_kernel_single_input_output_param_size(op: Operator):
     return total_params_size
 
 
-def split_large_concat_ops(sorted_graph: List[Tensor], _: str) -> List[Tensor]:
+def split_large_concat_ops(sorted_graph: list[Tensor], _: str) -> list[Tensor]:
     """
     Our concatenate CUDA kernel takes an input meta argument whose size
     is proportional to the number of inputs. In extreme cases, the total size

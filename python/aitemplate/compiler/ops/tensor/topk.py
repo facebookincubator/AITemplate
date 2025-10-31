@@ -22,7 +22,6 @@ import os
 import re
 from collections import OrderedDict
 from operator import itemgetter
-from typing import List
 
 import jinja2
 import numpy as np
@@ -76,7 +75,7 @@ class topk(Operator):
         self._attrs["workspace"] = 0
         self.exec_key_template = EXEC_KEY_TEMPLATE
 
-    def _infer_shapes(self, x: Tensor) -> List[IntVar]:
+    def _infer_shapes(self, x: Tensor) -> list[IntVar]:
         """Infers shapes for topK."""
 
         output_shape = list(x._attrs["shape"])
@@ -125,7 +124,7 @@ class topk(Operator):
         func = registry.get(func_key)
         return func(self._attrs, workdir)
 
-    def _gen_exec_key(self, shape: List[int]):
+    def _gen_exec_key(self, shape: list[int]):
         """rending the shape info"""
         elem_cnt = np.prod(shape)
         instance_size = shape[-1]
@@ -155,7 +154,7 @@ class topk(Operator):
         cmd.append(x_shape[1])
         cmd.append(x_shape[2])
         command = [str(x) for x in cmd]
-        _LOGGER.info("profiling cmd: {}".format(command))
+        _LOGGER.info(f"profiling cmd: {command}")
         return command
 
     def _profile_single_workload(self, profiler_prefix, exec_key, devices):

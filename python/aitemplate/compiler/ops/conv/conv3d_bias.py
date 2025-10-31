@@ -17,8 +17,6 @@
 Conv3d with bias.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Tensor
 
 from aitemplate.compiler.ops.conv.conv3d import conv3d
@@ -45,7 +43,7 @@ class conv3d_bias(conv3d):
         super().__init__(stride, pad, dilate=dilate, group=group)
         self._attrs["op"] = "conv3d_bias"
 
-    def __call__(self, x: Tensor, w: Tensor, b: Tensor) -> List[Tensor]:
+    def __call__(self, x: Tensor, w: Tensor, b: Tensor) -> list[Tensor]:
         """Call conv3d_bias with tensors x, w, b
 
         Parameters

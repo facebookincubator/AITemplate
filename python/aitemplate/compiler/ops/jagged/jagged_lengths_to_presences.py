@@ -16,8 +16,6 @@
 Define jagged_lengths_to_presences op
 """
 
-from typing import List
-
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
@@ -47,7 +45,7 @@ class jagged_lengths_to_presences(Operator):
         self,
         lengths: Tensor,
         max_seq_len: int,
-    ) -> List[IntVar]:
+    ) -> list[IntVar]:
         batch_size = lengths.shape()[0]
         return [batch_size, IntImm(max_seq_len)]
 

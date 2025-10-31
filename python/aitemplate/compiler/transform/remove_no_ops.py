@@ -30,8 +30,6 @@ many other unrelated passes use sanitize_sorted_graph. We don't need to
 call the passes in this file more than once.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Tensor
 from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 
@@ -41,7 +39,7 @@ from aitemplate.utils import graph_utils, shape_utils
 from aitemplate.utils.shape_utils import is_singleton_dimension
 
 
-def _remove_id_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _remove_id_ops(sorted_graph: list[Tensor]) -> list[Tensor]:
     """Remove identity ops."""
     ops = graph_utils.get_sorted_ops(sorted_graph)
     for op in ops:
@@ -63,7 +61,7 @@ def _remove_id_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _remove_no_op_concats(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _remove_no_op_concats(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Remove no-op concats from the graph. A no-op concat is where the output
     tensor is exactly the same as the input tensor(s) and it isn't the model output.
@@ -117,7 +115,7 @@ def _remove_no_op_concats(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _remove_no_op_dynamic_slices(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _remove_no_op_dynamic_slices(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Remove any no-op slices from the graph. A no-op slice is when the input tensor
     and output tensor are exactly the same. This happens when the start indices
@@ -155,7 +153,7 @@ def _remove_no_op_dynamic_slices(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _remove_no_op_splits(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _remove_no_op_splits(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Remove any no-op split from the graph where the input tensor is non-jagged.
     A no-op split is where the input tensor isn't divided into multiple parts.
@@ -210,7 +208,7 @@ def _remove_no_op_splits(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _remove_no_op_expands(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _remove_no_op_expands(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Remove no-op expands from the graph. A no-op expand is one
     that doesn't expand any singleton dimensions to values greater
@@ -256,7 +254,7 @@ def _remove_no_op_expands(sorted_graph: List[Tensor]) -> List[Tensor]:
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_expand_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_expand_elementwise(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Eliminate expand ops that occur before elementwise when broadcasting
     in elementwise can handle the unexpanded input.
@@ -280,7 +278,7 @@ def _fuse_expand_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
             expand_output_dim
         )
 
-    def _replace_jagged_int_var(shape: List[IntVar]):
+    def _replace_jagged_int_var(shape: list[IntVar]):
         """
         If shape[0] is a JaggedIntVar, replace it with
         the corresponding maximum dense shape.
@@ -337,7 +335,7 @@ def _fuse_expand_elementwise(sorted_graph: List[Tensor]) -> List[Tensor]:
         transform_utils.remove_tensor_from_sorted_graph(expand_output)
 
 
-def remove_no_ops(sorted_graph: List[Tensor]) -> List[Tensor]:
+def remove_no_ops(sorted_graph: list[Tensor]) -> list[Tensor]:
     """Remove no-ops from the graph.
 
     Parameters

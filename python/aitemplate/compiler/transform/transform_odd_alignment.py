@@ -17,7 +17,6 @@ Add permute for gemm/bmm if alignment is odd.
 """
 
 from math import inf
-from typing import Dict, List, Tuple
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.ops.common.view_ops import unsqueeze
@@ -46,7 +45,7 @@ from aitemplate.compiler.transform.transform_utils import (
 # pylint: disable=C0103,W0612
 
 
-def _matrix_shape_prod(shapes: List[IntVar]) -> int:
+def _matrix_shape_prod(shapes: list[IntVar]) -> int:
     prod = 1
     for shape in shapes:
         if isinstance(shape, IntImm):
@@ -58,7 +57,7 @@ def _matrix_shape_prod(shapes: List[IntVar]) -> int:
 
 
 def _compute_padding_flops(
-    tensor: Tensor, shapes: List[IntVar], padding_idx: int
+    tensor: Tensor, shapes: list[IntVar], padding_idx: int
 ) -> int:
     if shapes[padding_idx].value() % 2 == 0:
         return 0
@@ -103,7 +102,7 @@ def _get_K_index(op_type: str):
     raise RuntimeError(f"Can't find K index mapping for {op_type}")
 
 
-def _get_nonK_len(shape: List[IntVar], k_idx: int) -> int:
+def _get_nonK_len(shape: list[IntVar], k_idx: int) -> int:
     nonK_shape = shape[-1] if k_idx == -2 else shape[-2]
     return (
         nonK_shape.value()
@@ -184,9 +183,9 @@ def _compute_required_flops(mm_op: Operator, x_perm: bool, w_perm: bool) -> int:
 
 
 def _transform_odd_alignment(
-    sorted_graph: List[Tensor],
-    permutable_pairs: Dict[str, Tuple[Operator, Operator, Operator]],
-) -> List[Tensor]:
+    sorted_graph: list[Tensor],
+    permutable_pairs: dict[str, tuple[Operator, Operator, Operator]],
+) -> list[Tensor]:
     """
     This function tries to insert new permute021() ops before gemms when applicable.
 
@@ -286,8 +285,8 @@ def _transform_odd_alignment(
 
 
 def transform_odd_alignment(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Transform odd alignments to even alignments for bmm operators
 
     Parameters

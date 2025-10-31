@@ -19,7 +19,8 @@ Horizontal fusion pass to group ops together.
 import collections
 import logging
 import os
-from typing import Callable, List, OrderedDict, Set
+from collections import OrderedDict
+from collections.abc import Callable
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
@@ -228,7 +229,7 @@ _group_gemm_op_mapping = {
 }
 
 
-def _has_cycle(grouped_op: Operator, group: List[Operator]):
+def _has_cycle(grouped_op: Operator, group: list[Operator]):
     """
     Assuming that grouped_op is in the group, determine if grouped_op
     can reach any other op in the group. Return True if it can.
@@ -245,8 +246,8 @@ def _has_cycle(grouped_op: Operator, group: List[Operator]):
 
 
 def _group_split_outputs_together(
-    sorted_graph: List[Tensor], sorted_ops: List[Operator], op_type: str
-) -> List[List[Operator]]:
+    sorted_graph: list[Tensor], sorted_ops: list[Operator], op_type: str
+) -> list[list[Operator]]:
     """As long as alignment allows, we group all output gemm ops from split op
     together to eliminate the cost of split. Here we don't exclude large gemms
     because the copy of split is worse than group gemm overhead.
@@ -286,8 +287,8 @@ def _group_split_outputs_together(
 
 
 def _dfs(
-    tensor: Tensor, op_type: str, visited: OrderedDict[Tensor, Set[Operator]]
-) -> Set[Operator]:
+    tensor: Tensor, op_type: str, visited: OrderedDict[Tensor, set[Operator]]
+) -> set[Operator]:
     """Dfs pass to traverse the graph and collects descendant ops with type == op_type
     for every tensor, which is saved in `visited`.
     """
@@ -318,8 +319,8 @@ def _dfs(
 
 
 def _filter_by_op_type(
-    visited: OrderedDict[Tensor, Set[Operator]], op_type: str
-) -> OrderedDict[Operator, Set[Operator]]:
+    visited: OrderedDict[Tensor, set[Operator]], op_type: str
+) -> OrderedDict[Operator, set[Operator]]:
     """Go through `visited` and ony save the entries with parent op == op_type in
        the final dependency graph
 
@@ -342,8 +343,8 @@ def _filter_by_op_type(
 
 
 def _get_dependency_graph(
-    sorted_graph: List[Tensor], op_type: str
-) -> OrderedDict[Operator, Set[Operator]]:
+    sorted_graph: list[Tensor], op_type: str
+) -> OrderedDict[Operator, set[Operator]]:
     """Get dependency graph: `G: {op: all the descendants of op with op_type}`.
        G only contains ops with type == op_type.
        The dependency doesn't necessarily need to be topologically sorted.
@@ -372,7 +373,7 @@ def _get_dependency_graph(
 
 
 def _get_sorted_candidate_ops(
-    sorted_ops: List[Operator], op_type: str, f_filter: Callable
+    sorted_ops: list[Operator], op_type: str, f_filter: Callable
 ) -> OrderedDict[Tensor, bool]:
     """Get all the candidate ops, `grouped: {op: flag}`, for group fusion. The flag
        denotes whether this op is grouped or not and is initialized to False. We need to
@@ -400,7 +401,7 @@ _MAX_LAYERNORM_GROUP = 39
 
 
 # TODO: remove after switching to async copy for group layernorm args
-def _break_layernorm_groups(group: List[Operator]) -> List[List[Operator]]:
+def _break_layernorm_groups(group: list[Operator]) -> list[list[Operator]]:
     if len(group) <= _MAX_LAYERNORM_GROUP:
         return group
     group.sort(key=lambda x: _get_layernorm_flattened_normalized_shape(x), reverse=True)
@@ -415,7 +416,7 @@ def _break_layernorm_groups(group: List[Operator]) -> List[List[Operator]]:
 
 
 def _group_ops_by_type(
-    sorted_graph: List[Tensor], op_type: str, workdir: str = None
+    sorted_graph: list[Tensor], op_type: str, workdir: str = None
 ) -> bool:
     """Find and fuse all groups of ops that can be fused together.
     Each group is replaced with 1 group op.
@@ -573,8 +574,8 @@ def _group_ops_by_type(
 
 
 def _fuse_layernorm_ops(
-    op_group: List[Operator], sorted_graph: List[Tensor]
-) -> List[Tensor]:
+    op_group: list[Operator], sorted_graph: list[Tensor]
+) -> list[Tensor]:
     """
     Replace a group of ops with a single group op
     """
@@ -619,8 +620,8 @@ def _fuse_layernorm_ops(
 
 
 def _fuse_gemm_ops(
-    op_group: List[Operator], sorted_graph: List[Tensor]
-) -> List[Tensor]:
+    op_group: list[Operator], sorted_graph: list[Tensor]
+) -> list[Tensor]:
     """
     Replace a group of ops with a single group op
     """
@@ -670,8 +671,8 @@ def _fuse_gemm_ops(
 
 # TODO: add slice + group_gemm fusion
 def _fuse_group_ops_by_type(
-    sorted_graph: List[Tensor], op_type: str, workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], op_type: str, workdir: str = None
+) -> list[Tensor]:
     """
     This pass groups gemm ops or layernorm ops together.
 
@@ -718,8 +719,8 @@ def _fuse_group_ops_by_type(
 
 
 def fuse_group_gemm_ops(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     # gemm_rcr, gemm_rcr_bias, gemm_rcr_bias_relu, gemm_rcr_bias_sigmoid
     for op_type in _group_gemm_op_mapping.keys():
         sorted_graph = _fuse_group_ops_by_type(sorted_graph, op_type, workdir)
@@ -727,8 +728,8 @@ def fuse_group_gemm_ops(
 
 
 def fuse_group_layernorm_ops(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     for op_type in ["layernorm_sigmoid_mul", "layernorm"]:
         sorted_graph = _fuse_group_ops_by_type(sorted_graph, op_type, workdir)
     return sorted_graph
@@ -738,7 +739,7 @@ def fuse_group_layernorm_ops(
 # fuse_mm_elementwise, to prefer elementwise epilogue fusions (better overall perf)
 # fuse_group_ops,
 # fuse_strided_ops, (need to add more group gemm fusion passes)
-def fuse_group_ops(sorted_graph: List[Tensor], workdir: str = None) -> List[Tensor]:
+def fuse_group_ops(sorted_graph: list[Tensor], workdir: str = None) -> list[Tensor]:
     """Horizontal fusion of grouped gemm and layernorm ops
 
     Parameters

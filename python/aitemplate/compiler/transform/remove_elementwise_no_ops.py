@@ -16,7 +16,7 @@
 Eliminate elementwise no-ops (*/1, +-0)
 """
 
-from typing import Callable, Dict, List
+from collections.abc import Callable
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.public import FuncEnum
@@ -55,7 +55,7 @@ def func_div_predicate(src_op: Tensor) -> bool:
     return False
 
 
-FUNC_TO_PREDICATE_MAP: Dict[FuncEnum, Callable[[Tensor], bool]] = {
+FUNC_TO_PREDICATE_MAP: dict[FuncEnum, Callable[[Tensor], bool]] = {
     FuncEnum.ADD: func_add_predicate,
     FuncEnum.SUB: func_sub_predicate,
     FuncEnum.MUL: func_mul_predicate,
@@ -64,8 +64,8 @@ FUNC_TO_PREDICATE_MAP: Dict[FuncEnum, Callable[[Tensor], bool]] = {
 
 
 def remove_elementwise_no_ops(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """elementwise no-ops (*/1, +-0)"""
     for tensor in sorted_graph:
         src_ops = tensor._attrs["src_ops"]
