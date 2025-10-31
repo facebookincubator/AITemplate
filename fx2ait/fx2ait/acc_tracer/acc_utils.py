@@ -16,7 +16,8 @@ import inspect
 import logging
 import os
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
 import torch
 import torch.fx
@@ -56,7 +57,7 @@ def get_attr(node: torch.fx.Node) -> Any:
     return get_target_from_module(node.graph.owning_module, str(node.target))
 
 
-def is_acc_op(node_or_target: Union[Callable, torch.fx.Node]) -> bool:
+def is_acc_op(node_or_target: Callable | torch.fx.Node) -> bool:
     """
     Returns whether `node_or_target` is an acc_op. If it's a node, then checks whether
     it's a call_function target is from the acc_ops module. Otherwise it's already
@@ -72,9 +73,7 @@ def is_acc_op(node_or_target: Union[Callable, torch.fx.Node]) -> bool:
     return "acc_ops" in target.__module__
 
 
-def is_acc_op_with_kwarg(
-    node_or_target: Union[Callable, torch.fx.Node], kwarg: str
-) -> bool:
+def is_acc_op_with_kwarg(node_or_target: Callable | torch.fx.Node, kwarg: str) -> bool:
     """
     Helper that inspects `node_or_target` and returns whether it is an acc_op node
     (or a target for an acc_op) that has an arg signature that includes `kwarg`.
@@ -116,12 +115,12 @@ def draw_graph(traced: torch.fx.GraphModule, fname: str, figname: str = "fx_grap
         _LOGGER.error(f"Failed to write the FX graph due to: {e}")
 
 
-def get_model_info_str(gm: torch.fx.GraphModule, header: Optional[str] = None):
+def get_model_info_str(gm: torch.fx.GraphModule, header: str | None = None):
     """
     Print out info of the provided `gm`.
     If `header` is provided then it's included in the printed string.
     """
-    ops_and_counts: Dict[Callable, int] = {}
+    ops_and_counts: dict[Callable, int] = {}
     placeholder_count = get_attr_count = call_method_count = call_module_count = 0
     for node in gm.graph.nodes:
         if node.op == "call_function":
@@ -151,7 +150,7 @@ def get_model_info_str(gm: torch.fx.GraphModule, header: Optional[str] = None):
 
     # Sort and print all the other ops. Sort so it's deterministic between runs and
     # easier to parse.
-    pretty_ops_and_counts: List[Tuple[str, int]] = []
+    pretty_ops_and_counts: list[tuple[str, int]] = []
     for op, count in ops_and_counts.items():
         pretty_ops_and_counts.append((_get_qualified_name(op), count))
     pretty_ops_and_counts.sort()

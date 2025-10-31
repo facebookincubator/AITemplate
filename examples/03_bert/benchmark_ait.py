@@ -14,8 +14,6 @@
 #
 import os
 
-from typing import Dict, List
-
 import click
 import numpy as np
 import torch
@@ -35,12 +33,12 @@ def mark_output(y: Tensor) -> None:
         y[i]._attrs["is_output"] = True
         y[i]._attrs["name"] = "output_%d" % (i)
         y_shape = [d._attrs["values"][0] for d in y[i]._attrs["shape"]]
-        print("output_{} shape: {}".format(i, y_shape))
+        print(f"output_{i} shape: {y_shape}")
 
 
 def create_bert_inputs(
     batch_size: int, seq_length: int, dtype: str = "int64"
-) -> List[Tensor]:
+) -> list[Tensor]:
     input_ids = Tensor(
         shape=[batch_size, seq_length],
         name="input_ids",
@@ -76,7 +74,7 @@ def create_bert_encoders_input(
 
 def create_bert_inputs_pt(
     batch_size: int, seq_length: int, dtype: torch.dtype = torch.int64
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     input_ids = torch.randn(batch_size, seq_length).to(dtype).cuda()
     token_type_ids = torch.randn(batch_size, seq_length).to(dtype).cuda()
     position_ids = torch.randn(batch_size, seq_length).to(dtype).cuda()
@@ -90,14 +88,14 @@ def create_bert_inputs_pt(
 
 def create_bert_encoders_inputs_pt(
     batch_size: int, seq_length: int, hidden_size: int
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     encoder_input = torch.randn([batch_size, seq_length, hidden_size]).cuda().half()
     return {"input": encoder_input}
 
 
 def map_pt_params(
     ait_bert, pt_bert, batch_size: int, seq_length: int
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     pt_params = dict(pt_bert.named_parameters())
     mapped_pt_params = {}
     for name, _ in ait_bert.named_parameters():

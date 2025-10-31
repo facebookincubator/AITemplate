@@ -15,7 +15,8 @@
 import inspect
 import logging
 import re
-from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Tuple, Union
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 import torch
 import torch.fx
@@ -41,7 +42,7 @@ ALIAS_MAP = {
 #   signature of the acc_op, or for custom mapped nodes from the original unnormalized op.
 # - The third member is a bool representing whether this arg is optional, i.e. whether it
 #   is allowed to not be present in the original input args.
-ArgReplacementTuplesType = List[Tuple[Tuple[str, ...], str, bool]]
+ArgReplacementTuplesType = list[tuple[tuple[str, ...], str, bool]]
 
 
 class NormalizationInfo(NamedTuple):
@@ -73,34 +74,31 @@ class NormalizationInfo(NamedTuple):
     """
 
     new_fn_target: Callable
-    arg_replacement_tuples: Optional[ArgReplacementTuplesType]
-    custom_mapping_fn: Optional[Callable]
+    arg_replacement_tuples: ArgReplacementTuplesType | None
+    custom_mapping_fn: Callable | None
     # either (tensor_meta_field_name, original_field_name, move_to_qparams) or
     # (tensor_meta_field_name, orginal_field_name)
     # when move_to_qparams is True, we'll move the field to qparams
     # dictionary, otherwise it will stay in TensorMeta itself
-    kwargs_to_move_to_acc_out_ty: Optional[
-        List[Union[Tuple[str, str, bool], Tuple[str, str]]]
-    ]
+    kwargs_to_move_to_acc_out_ty: None | (list[tuple[str, str, bool] | tuple[str, str]])
     needs_shapes_for_normalization: bool
     skip_normalization_if_none: bool
 
 
 # Dict from (op, target) to NormalizationInfo for that op.
-_normalization_dict: Dict[Tuple[str, Union[str, Callable]], NormalizationInfo] = {}
+_normalization_dict: dict[tuple[str, str | Callable], NormalizationInfo] = {}
 
 # Set of all the acc ops.
-_acc_ops: Set[Callable] = set()
+_acc_ops: set[Callable] = set()
 
 
 def _insert_fun(
-    op_and_target: Tuple[str, Union[str, Callable]],
-    arg_replacement_tuples: List[Tuple],
-    new_fn_target: Optional[Callable] = None,
-    custom_mapping_fn: Optional[Callable] = None,
-    kwargs_to_move_to_acc_out_ty: Optional[
-        List[Union[Tuple[str, str, bool], Tuple[str, str]]]
-    ] = None,
+    op_and_target: tuple[str, str | Callable],
+    arg_replacement_tuples: list[tuple],
+    new_fn_target: Callable | None = None,
+    custom_mapping_fn: Callable | None = None,
+    kwargs_to_move_to_acc_out_ty: None
+    | (list[tuple[str, str, bool] | tuple[str, str]]) = None,
     needs_shapes_for_normalization=False,
     allow_normalize_from_torch_package=False,
     skip_normalization_if_none=False,
@@ -161,12 +159,12 @@ def _insert_fun(
         _normalization_dict[torch_package_op_and_target] = norm_info
 
 
-def _get_dup_signature_tuples(fn: Callable) -> List[Tuple[str, str]]:
+def _get_dup_signature_tuples(fn: Callable) -> list[tuple[str, str]]:
     """
     Helper that inspects the arg signature of `fn` and returns a list of tuples, where
     each tuple is a pair of duplicated names which is used for arg_replacement_tuples.
     """
-    sig_tuples: List[Tuple[str, str]] = []
+    sig_tuples: list[tuple[str, str]] = []
     for param in inspect.signature(inspect.unwrap(fn)).parameters:
         sig_tuples.append((param, param))
     return sig_tuples
@@ -181,18 +179,18 @@ def register_acc_op(acc_op: Callable):
 
 
 def register_acc_op_mapping(
-    op_and_target: Tuple[str, Union[str, Callable]],
-    arg_replacement_tuples: Optional[
-        List[
-            Union[
-                Tuple[Union[str, Tuple[str, ...]], str],
-                Tuple[Union[str, Tuple[str, ...]], str, bool],
-            ]
+    op_and_target: tuple[str, str | Callable],
+    arg_replacement_tuples: None
+    | (
+        list[
+            (
+                tuple[str | tuple[str, ...], str]
+                | tuple[str | tuple[str, ...], str, bool]
+            )
         ]
-    ] = None,
-    kwargs_to_move_to_acc_out_ty: Optional[
-        List[Union[Tuple[str, str, bool], Tuple[str, str]]]
-    ] = None,
+    ) = None,
+    kwargs_to_move_to_acc_out_ty: None
+    | (list[tuple[str, str, bool] | tuple[str, str]]) = None,
     allow_normalize_from_torch_package=False,
 ):
     """
@@ -225,12 +223,9 @@ def register_acc_op_mapping(
 
 
 def register_custom_acc_mapper_fn(
-    op_and_target: Tuple[str, Union[str, Callable]],
-    arg_replacement_tuples: List[
-        Union[
-            Tuple[Union[str, Tuple[str, ...]], str],
-            Tuple[Union[str, Tuple[str, ...]], str, bool],
-        ]
+    op_and_target: tuple[str, str | Callable],
+    arg_replacement_tuples: list[
+        (tuple[str | tuple[str, ...], str] | tuple[str | tuple[str, ...], str, bool])
     ],
     needs_shapes_for_normalization=False,
     allow_normalize_from_torch_package=False,
@@ -251,8 +246,8 @@ def register_custom_acc_mapper_fn(
 
 
 def move_kwargs_to_acc_out_ty(
-    node_or_normalization_info: Union[NormalizationInfo, torch.fx.Node],
-    new_kwargs: Dict[str, Any],
+    node_or_normalization_info: NormalizationInfo | torch.fx.Node,
+    new_kwargs: dict[str, Any],
 ):
     """
     Given `node_or_normalization_info` which is either NormalizationInfo for a node, or
@@ -278,8 +273,8 @@ def move_kwargs_to_acc_out_ty(
     # Build a dict representing the new TensorMetadata to use for acc_out_ty,
     # and then remove the kwarg from the new_kwargs since it's passed in via
     # acc_out_ty instead.
-    tmd_dict: Dict[str, Any] = {}
-    qparams: Dict[str, Any] = {}
+    tmd_dict: dict[str, Any] = {}
+    qparams: dict[str, Any] = {}
 
     for kwarg_replacement_tuple in normalization_info.kwargs_to_move_to_acc_out_ty:
         if len(kwarg_replacement_tuple) == 2:
@@ -353,9 +348,7 @@ def get_normalized_kwargs(
 def normalize(
     mod: torch.fx.GraphModule,
     expect_nodes_have_shapes: bool = False,
-    acc_normalization_block_list: Optional[
-        Set[Tuple[str, Union[str, Callable]]]
-    ] = None,
+    acc_normalization_block_list: None | (set[tuple[str, str | Callable]]) = None,
 ):
     assert len(_normalization_dict) > 0
     graph = mod.graph
@@ -376,8 +369,8 @@ def normalize(
     def normalize_to_acc_op(
         node: torch.fx.Node,
         normalization_info: NormalizationInfo,
-        normalized_args: Tuple[Any, ...],
-        normalized_kwargs: Dict[str, Any],
+        normalized_args: tuple[Any, ...],
+        normalized_kwargs: dict[str, Any],
     ):
         # If there's a custom mapping function then use it.
         if normalization_info.custom_mapping_fn is not None:

@@ -13,7 +13,8 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, Dict, Iterable, Mapping, Optional, Sequence, Set
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any
 
 import torch
 import torch.fx.passes.operator_support as ops
@@ -72,7 +73,7 @@ def create_ait_operator_support(
     """Creates an `OperatorSupportBase` instance used for AIT splitting purpose."""
     # Create an `OperatorSupport` that declares a node supported if it
     # finds a registered AIT converter.
-    support_dict: Dict[str, None] = {}
+    support_dict: dict[str, None] = {}
     for k in AIT_CONVERTERS.keys():
         # may need to switch the op name here
         support_dict[get_acc_ops_name(k)] = None
@@ -126,7 +127,7 @@ class AITSplitterSettings(splitter_base._SplitterSettingBase):
 
 
 class SelectedOperatorSupport(ops.OperatorSupportBase):
-    def __init__(self, selected_nodes: Set[torch.fx.Node]) -> None:
+    def __init__(self, selected_nodes: set[torch.fx.Node]) -> None:
         self.selected_nodes = selected_nodes
 
     def is_node_supported(
@@ -148,7 +149,7 @@ def _range_operator_support(
     for i, n in enumerate(module.graph.nodes):
         logger.info(f"Index:{i}, n.op={n.op}, n.target={n.target}, n.name={n.name}")
 
-    selected_nodes: Set[torch.fx.Node] = set()
+    selected_nodes: set[torch.fx.Node] = set()
     for i, n in enumerate(module.graph.nodes):
         if i >= start and i <= end:
             if n.op in CALLABLE_NODE_OPS:
@@ -167,8 +168,8 @@ class AITSplitter(splitter_base._SplitterBase):
         self,
         module: torch.fx.GraphModule,
         sample_input: Sequence[Any],
-        operator_support: Optional[ops.OperatorSupportBase] = None,
-        settings: Optional[AITSplitterSettings] = None,
+        operator_support: ops.OperatorSupportBase | None = None,
+        settings: AITSplitterSettings | None = None,
     ):
         if not settings:
             settings = AITSplitterSettings()

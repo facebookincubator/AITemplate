@@ -17,8 +17,9 @@ import logging
 import os
 import tempfile
 import warnings
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Union
+from typing import Any, NamedTuple
 
 import fx2ait.cache as cache
 
@@ -57,18 +58,18 @@ class AITInterpreter(torch.fx.Interpreter):
     def __init__(
         self,
         module: torch.fx.GraphModule,
-        input_specs: List[Union[TensorSpec, List[TensorSpec]]],
+        input_specs: list[TensorSpec | list[TensorSpec]],
         workdir: str,
         name: str,
         dll_name: str = "test.so",
         dynamic_profile_strategy=DynamicProfileStrategy.MAX,
         profile_devs=None,
         use_fp16_acc=True,
-        dump_ait_dir: Optional[str] = None,
-        keep_constants: Optional[bool] = None,
-        load_ait_dir: Optional[str] = None,
-        remote_cache_file_path: Optional[str] = None,
-        save_remote_cache: Optional[bool] = False,
+        dump_ait_dir: str | None = None,
+        keep_constants: bool | None = None,
+        load_ait_dir: str | None = None,
+        remote_cache_file_path: str | None = None,
+        save_remote_cache: bool | None = False,
         do_optimize_graph: bool = True,
         use_fast_math: bool = True,
         use_tanh_for_sigmoid: bool = False,
@@ -135,12 +136,12 @@ class AITInterpreter(torch.fx.Interpreter):
         self.dynamic_profile_strategy = dynamic_profile_strategy
         self.profile_devs = profile_devs
 
-        self._input_names: List[str] = []
-        self._input_dtypes: List[str] = []
-        self._output_names: List[str] = []
-        self._output_dtypes: List[str] = []
-        self._fx_input_names: List[str] = []
-        self._loaded_params: Dict[str, AITTensor] = {}
+        self._input_names: list[str] = []
+        self._input_dtypes: list[str] = []
+        self._output_names: list[str] = []
+        self._output_dtypes: list[str] = []
+        self._fx_input_names: list[str] = []
+        self._loaded_params: dict[str, AITTensor] = {}
 
         self.dump_ait_dir = dump_ait_dir
         self.keep_constants = keep_constants
@@ -280,7 +281,7 @@ class AITInterpreter(torch.fx.Interpreter):
                 self._input_dtypes.append(ait_input_dtypes[name])
 
         for i, input_name in enumerate(self._fx_input_names):
-            _LOGGER.info("Set input{}: {}".format(i, input_name))
+            _LOGGER.info(f"Set input{i}: {input_name}")
 
         if self.engine is None:
             raise RuntimeError("Engine is missing!")
@@ -304,7 +305,7 @@ class AITInterpreter(torch.fx.Interpreter):
     def placeholder(self, target, args, kwargs):
         input_spec = self.input_specs[self.input_specs_iter]
         self.input_specs_iter += 1
-        if isinstance(input_spec, List):
+        if isinstance(input_spec, list):
             """
             List[Tensor] inputs are flattened in the compiled AIT engine.
             Pytorch module original forward:

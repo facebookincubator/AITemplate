@@ -15,7 +15,6 @@
 import time
 
 import uuid
-from typing import List, Optional
 
 import torch
 from fx2ait.acc_tracer import acc_tracer
@@ -27,11 +26,11 @@ from fx2ait.fx2ait import AITInterpreter
 
 def verify_accuracy(
     mod: torch.nn.Module,
-    inputs: List[torch.Tensor],
+    inputs: list[torch.Tensor],
     rtol: float = 1e-01,
     atol: float = 1e-01,
-    permute_inputs: Optional[List[int]] = None,
-    permute_outputs: Optional[List[int]] = None,
+    permute_inputs: list[int] | None = None,
+    permute_outputs: list[int] | None = None,
 ):
     # TODO: add precision to interpreter once AIT supports multiple precision level
     # TODO: @qxy11 remove permute options once AIT supports channels-first format
@@ -110,8 +109,8 @@ def benchmark_function(
     name: str,
     iters: int,
     mod: torch.nn.Module,
-    inputs: List[torch.Tensor],
-    permute_inputs: Optional[List[int]] = None,
+    inputs: list[torch.Tensor],
+    permute_inputs: list[int] | None = None,
     ait_mod: torch.nn.Module = None,
 ) -> float:
     mod.eval()

@@ -14,7 +14,7 @@
 #
 import itertools
 import math
-from typing import Callable, Dict, Set
+from collections.abc import Callable
 
 import torch
 from aitemplate.testing.test_utils import filter_test_cases_by_params, TestEnv
@@ -40,7 +40,7 @@ unary_ops = [
     (torch.exp, acc_ops.exp),
 ]
 
-TestEnvToPrecision: Dict[TestEnv, Set[LowerPrecision]] = {
+TestEnvToPrecision: dict[TestEnv, set[LowerPrecision]] = {
     TestEnv.CUDA_LESS_THAN_SM80: [LowerPrecision.FP16, LowerPrecision.FP32],
     TestEnv.CUDA_SM80: [LowerPrecision.BF16],
     TestEnv.ROCM: [LowerPrecision.FP16],

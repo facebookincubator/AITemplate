@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 import torch
@@ -47,7 +47,7 @@ class add_one(Operator):
         self._attrs["outputs"] = [output]
         return output
 
-    def _infer_shape(self, x) -> List[IntVar]:
+    def _infer_shape(self, x) -> list[IntVar]:
         return x.shape()
 
     def gen_function(self) -> str:
@@ -134,7 +134,7 @@ void invoke_add_one({{elem_type}}* output, const {{elem_type}}* input, int64_t n
 )
 
 
-def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     assert len(func_attrs["outputs"]) == 1
     assert len(func_attrs["inputs"]) == 1
 
@@ -151,7 +151,7 @@ def gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
     )
 
 
-def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) -> str:
+def gen_function(func_attrs: dict[str, Any], header_files: str, backend_spec) -> str:
     input_x = func_attrs["inputs"][0]
     output_y = func_attrs["outputs"][0]
     input_type = backend_spec.dtype_to_backend_type(input_x._attrs["dtype"])
@@ -172,7 +172,7 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function_decl(func_attrs: dict[str, Any], backend_spec) -> str:
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"],
@@ -187,17 +187,17 @@ CUDA_HEADER_FILES = """
 
 
 @registry.reg("cuda.add_one.gen_function")
-def cuda_add_one_gen_function(func_attrs: Dict[str, Any]) -> str:
+def cuda_add_one_gen_function(func_attrs: dict[str, Any]) -> str:
     return gen_function(func_attrs, CUDA_HEADER_FILES, CUDASpec())
 
 
 @registry.reg("cuda.add_one.func_decl")
-def cuda_add_one_gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def cuda_add_one_gen_function_decl(func_attrs: dict[str, Any]) -> str:
     return gen_function_decl(func_attrs, CUDASpec())
 
 
 @registry.reg("cuda.add_one.func_call")
-def cuda_add_one_gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def cuda_add_one_gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     return gen_function_call(func_attrs, indent)
 
 
@@ -208,17 +208,17 @@ HIP_HEADER_FILES = """
 
 
 @registry.reg("rocm.add_one.gen_function")
-def rocm_add_one_gen_function(func_attrs: Dict[str, Any]) -> str:
+def rocm_add_one_gen_function(func_attrs: dict[str, Any]) -> str:
     return gen_function(func_attrs, HIP_HEADER_FILES, ROCMSpec())
 
 
 @registry.reg("rocm.add_one.func_decl")
-def rocm_add_one_gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def rocm_add_one_gen_function_decl(func_attrs: dict[str, Any]) -> str:
     return gen_function_decl(func_attrs, ROCMSpec())
 
 
 @registry.reg("rocm.add_one.func_call")
-def rocm_add_one_gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def rocm_add_one_gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     return gen_function_call(func_attrs, indent)
 
 

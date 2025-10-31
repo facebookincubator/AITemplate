@@ -16,7 +16,7 @@ import logging
 import torch  # isort:skip
 import copy
 import operator
-from typing import Dict, List, Tuple, Union
+from typing import Union
 
 import numpy
 
@@ -76,7 +76,7 @@ from .converter_registry import ait_converter
 
 # Logging
 logger: logging.Logger = logging.getLogger(__name__)
-ConverterOutput = Union[AITTensor, Tuple[AITTensor, ...], List[IntVar], IntVar]
+ConverterOutput = Union[AITTensor, tuple[AITTensor, ...], list[IntVar], IntVar]
 
 ## make sure the functions are place in alphabetic order
 
@@ -84,8 +84,8 @@ ConverterOutput = Union[AITTensor, Tuple[AITTensor, ...], List[IntVar], IntVar]
 @ait_converter(torch.ops.aten._adaptive_avg_pool2d.default)
 def aten_ops_adaptive_avg_pool2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO: @qxy11 Update once NCHW supported
@@ -113,8 +113,8 @@ def aten_ops_adaptive_avg_pool2d(
 @ait_converter(torch.ops.aten.avg_pool2d.default)
 def aten_ops_avg_pool2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO: @qxy11 Update once NCHW supported
@@ -133,8 +133,8 @@ def aten_ops_avg_pool2d(
 @ait_converter(torch.ops.aten.batch_norm)
 def aten_ops_batch_norm(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO @qxy11: Update channels-last assumption once AIT backend is updated
@@ -163,8 +163,8 @@ def aten_ops_batch_norm(
 @ait_converter(torch.ops.aten.add.Tensor)
 def aten_binary_ops_add(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     kwargs = {
@@ -177,8 +177,8 @@ def aten_binary_ops_add(
 @ait_converter(torch.ops.aten.div.Tensor)
 def aten_binary_ops_div(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     kwargs = {
@@ -191,8 +191,8 @@ def aten_binary_ops_div(
 @ait_converter(torch.ops.aten.mul.Tensor)
 def aten_binary_ops_mul(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     kwargs = {
@@ -205,8 +205,8 @@ def aten_binary_ops_mul(
 @ait_converter(torch.ops.aten.sub.Tensor)
 def aten_binary_ops_sub(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     kwargs = {
@@ -219,8 +219,8 @@ def aten_binary_ops_sub(
 @ait_converter(torch.ops.aten.cat.default)
 def aten_ops_cat(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     tensors = args[0]
@@ -279,8 +279,8 @@ def _choose_conv2d_op(
 @ait_converter(torch.ops.aten.convolution.default)
 def aten_ops_conv2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO: qxy11: Update once channels-first format is supported
@@ -389,8 +389,8 @@ def aten_ops_conv2d(
 @ait_converter(torch.ops.aten.clone.default)
 def aten_unary_ops_clone(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -402,8 +402,8 @@ def aten_unary_ops_clone(
 @ait_converter(torch.ops.aten.cos.default)
 def aten_unary_ops_cos(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -414,8 +414,8 @@ def aten_unary_ops_cos(
 @ait_converter(torch.ops.aten.chunk.default)
 def aten_ops_chunk(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -435,8 +435,8 @@ def aten_ops_chunk(
 @ait_converter(torch.ops.aten.expand.default)
 def aten_ops_expand(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO expand is not functional yet but only for cases with dim=-1
@@ -467,8 +467,8 @@ def aten_ops_expand(
 @ait_converter(aten_operator_getitem)
 def aten_ops_getitem(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -494,8 +494,8 @@ def aten_ops_getitem(
 @ait_converter(torch.ops.aten.layer_norm.default)
 def aten_ops_layer_norm(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -521,8 +521,8 @@ def aten_ops_layer_norm(
 @ait_converter(torch.ops.aten.linear)
 def aten_ops_linear(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -539,8 +539,8 @@ def aten_ops_linear(
 @ait_converter(torch.ops.aten.max_pool2d)
 def aten_ops_max_pool2d(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO: @qxy11 Update once NCHW supported
@@ -564,8 +564,8 @@ def aten_ops_max_pool2d(
 @ait_converter(torch.ops.aten.bmm.default)
 def aten_ops_matmul(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     if len(args) > 2:
@@ -604,8 +604,8 @@ def aten_ops_matmul(
 @ait_converter(torch.ops.aten.mean.dim)
 def aten_ops_mean(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -631,8 +631,8 @@ def aten_ops_mean(
 @ait_converter(torch.ops.aten.nan_to_num.default)
 def aten_ops_nan_to_num(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -657,8 +657,8 @@ def aten_ops_nan_to_num(
 @ait_converter(torch.ops.aten.split.Tensor)
 def aten_ops_split(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -680,7 +680,7 @@ def aten_ops_split(
 
 @ait_converter(torch.ops.aten.sym_numel)
 def aten_ops_numel(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = args[0]
     if not isinstance(input_val, AITTensor):
@@ -696,8 +696,8 @@ def aten_ops_numel(
 @ait_converter(torch.ops.aten.permute.default)
 def aten_ops_permute(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -714,8 +714,8 @@ def aten_ops_permute(
 @ait_converter(torch.ops.aten.pow.Tensor_Scalar)
 def aten_ops_pow(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -728,7 +728,7 @@ def aten_ops_pow(
 
 @ait_converter(torch.ops.aten.relu.default)
 def aten_ops_relu(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = args[0]
     if not isinstance(input_val, AITTensor):
@@ -740,7 +740,7 @@ def aten_ops_relu(
 @ait_converter(torch.ops.aten.reshape)
 @ait_converter(torch.ops.aten.view.default)
 def aten_ops_reshape(
-    target: Target, args: Tuple[Argument, ...], kwargs: Dict[str, Argument], name: str
+    target: Target, args: tuple[Argument, ...], kwargs: dict[str, Argument], name: str
 ) -> ConverterOutput:
     input_val = args[0]
     if not isinstance(input_val, AITTensor):
@@ -774,8 +774,8 @@ def aten_ops_reshape(
 @ait_converter(torch.ops.aten.sym_size)
 def aten_ops_size(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -790,8 +790,8 @@ def aten_ops_size(
 @ait_converter(torch.ops.aten.select.int)
 def aten_ops_slice(  # noqa: C901
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -886,8 +886,8 @@ def aten_ops_slice(  # noqa: C901
 @ait_converter(torch.ops.aten.squeeze.dim)
 def aten_ops_squeeze(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -904,8 +904,8 @@ def aten_ops_squeeze(
 @ait_converter(torch.ops.aten.sum.dim_IntList)
 def aten_ops_sum(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -932,8 +932,8 @@ def aten_ops_sum(
 @ait_converter(torch.ops.aten.hardtanh.default)
 def aten_ops_hardtanh(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -952,8 +952,8 @@ def aten_ops_hardtanh(
 @ait_converter(torch.ops.aten.t.default)
 def aten_ops_transpose(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO: we will also support https://pytorch.org/docs/stable/generated/torch.transpose.html in the future
@@ -971,8 +971,8 @@ def aten_ops_transpose(
 @ait_converter(torch.ops.aten.unsqueeze.default)
 def aten_ops_unsqueeze(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -990,8 +990,8 @@ def aten_ops_unsqueeze(
 @ait_converter(operator.mul)
 def operator_ops_mul(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1013,8 +1013,8 @@ def operator_ops_mul(
 @ait_converter(operator.add)
 def operator_ops_add(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1036,8 +1036,8 @@ def operator_ops_add(
 @ait_converter(operator.sub)
 def operator_ops_sub(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1059,8 +1059,8 @@ def operator_ops_sub(
 @ait_converter(operator.floordiv)
 def operator_ops_floordiv(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1082,8 +1082,8 @@ def operator_ops_floordiv(
 @ait_converter(torch.ops.aten.abs.default)
 def aten_unary_ops_abs(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1096,8 +1096,8 @@ def aten_unary_ops_abs(
 @ait_converter(torch.ops.aten.clamp.default)
 def aten_unary_ops_clamp(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1117,8 +1117,8 @@ def aten_unary_ops_clamp(
 @ait_converter(torch.ops.aten.log.default)
 def aten_unary_ops_log(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1131,8 +1131,8 @@ def aten_unary_ops_log(
 @ait_converter(torch.ops.aten.sigmoid.default)
 def aten_unary_ops_sigmoid(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1144,8 +1144,8 @@ def aten_unary_ops_sigmoid(
 @ait_converter(torch.ops.aten.sign.default)
 def aten_unary_ops_sign(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1158,8 +1158,8 @@ def aten_unary_ops_sign(
 @ait_converter(torch.ops.aten.sin.default)
 def aten_unary_ops_sin(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1169,8 +1169,8 @@ def aten_unary_ops_sin(
 @ait_converter(torch.ops.aten.sqrt.default)
 def aten_unary_ops_sqrt(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]
@@ -1180,8 +1180,8 @@ def aten_unary_ops_sqrt(
 @ait_converter(torch.ops.aten.tanh.default)
 def aten_unary_ops_tanh(
     target: Target,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     input_val = args[0]

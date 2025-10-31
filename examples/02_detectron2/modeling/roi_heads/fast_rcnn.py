@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Tuple
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
@@ -21,7 +20,7 @@ from aitemplate.frontend import nn, Tensor
 class fast_rcnn_inference:
     def __init__(
         self,
-        im_shape: Tuple[int, int],
+        im_shape: tuple[int, int],
         num_rois: int,
         num_classes: int,
         clip_box: bool = True,

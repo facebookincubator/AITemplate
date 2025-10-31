@@ -12,7 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -32,8 +32,8 @@ from .converter_registry import ait_converter
 def multi_head_attention_module(
     target: Target,
     submod: Any,
-    args: Tuple[Argument, ...],
-    kwargs: Dict[str, Argument],
+    args: tuple[Argument, ...],
+    kwargs: dict[str, Argument],
     name: str,
 ) -> ConverterOutput:
     # TODO fix arg/kwargs matching

@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import List
 
 import torch
 
@@ -25,7 +24,7 @@ class AITModule(torch.nn.Module):
         engine=None,
         interp_result=None,
     ):
-        super(AITModule, self).__init__()
+        super().__init__()
         self.engine = engine
 
         self.interp_result = interp_result
@@ -65,7 +64,7 @@ class AITModule(torch.nn.Module):
         return tuple(outputs)
 
     def profile(
-        self, inputs: List[torch.Tensor], filename: str, num_iters: int
+        self, inputs: list[torch.Tensor], filename: str, num_iters: int
     ) -> None:
         """
         Profile the AIT module and save the report to a file. The AITModule

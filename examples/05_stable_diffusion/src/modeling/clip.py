@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 from inspect import isfunction
-from typing import Optional
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
@@ -279,10 +278,10 @@ class CLIPAttention(nn.Module):
     def forward(
         self,
         hidden_states: Tensor,
-        attention_mask: Optional[Tensor] = None,
-        causal_attention_mask: Optional[Tensor] = None,
-        output_attentions: Optional[bool] = False,
-        residual: Optional[Tensor] = None,
+        attention_mask: Tensor | None = None,
+        causal_attention_mask: Tensor | None = None,
+        output_attentions: bool | None = False,
+        residual: Tensor | None = None,
     ):
         if residual is not None:
             self_output = self.attn(hidden_states, residual)
@@ -399,7 +398,7 @@ class CLIPEncoderLayer(nn.Module):
     def forward(
         self,
         hidden_states: Tensor,
-        output_attentions: Optional[bool] = False,
+        output_attentions: bool | None = False,
     ):
         """
         Args:
@@ -469,11 +468,11 @@ class CLIPEncoder(nn.Module):
     def forward(
         self,
         inputs_embeds,
-        attention_mask: Optional[Tensor] = None,
-        causal_attention_mask: Optional[Tensor] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        attention_mask: Tensor | None = None,
+        causal_attention_mask: Tensor | None = None,
+        output_attentions: bool | None = None,
+        output_hidden_states: bool | None = None,
+        return_dict: bool | None = None,
     ):
         r"""
         Args:
@@ -548,7 +547,7 @@ class CLIPTextEmbeddings(nn.Module):
         self,
         input_ids: Tensor,
         position_ids: Tensor,
-        inputs_embeds: Optional[Tensor] = None,
+        inputs_embeds: Tensor | None = None,
     ) -> Tensor:
         input_shape = ops.size()(input_ids)
 
@@ -612,12 +611,12 @@ class CLIPTextTransformer(nn.Module):
 
     def forward(
         self,
-        input_ids: Optional[Tensor] = None,
-        attention_mask: Optional[Tensor] = None,
-        position_ids: Optional[Tensor] = None,
-        output_attentions: Optional[bool] = None,
-        output_hidden_states: Optional[bool] = None,
-        return_dict: Optional[bool] = None,
+        input_ids: Tensor | None = None,
+        attention_mask: Tensor | None = None,
+        position_ids: Tensor | None = None,
+        output_attentions: bool | None = None,
+        output_hidden_states: bool | None = None,
+        return_dict: bool | None = None,
     ):
         r"""
         Returns:

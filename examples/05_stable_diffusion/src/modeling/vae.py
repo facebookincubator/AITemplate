@@ -15,8 +15,6 @@
 Translated from https://github.com/huggingface/diffusers/blob/main/src/diffusers/models/vae.py.
 """
 
-from typing import Tuple
-
 from aitemplate.frontend import nn, Tensor
 
 from .unet_blocks import get_up_block, UNetMidBlock2D
@@ -119,9 +117,9 @@ class AutoencoderKL(nn.Module):
         width: int,
         in_channels: int = 3,
         out_channels: int = 3,
-        down_block_types: Tuple[str] = ("DownEncoderBlock2D",),
-        up_block_types: Tuple[str] = ("UpDecoderBlock2D",),
-        block_out_channels: Tuple[int] = (64,),
+        down_block_types: tuple[str] = ("DownEncoderBlock2D",),
+        up_block_types: tuple[str] = ("UpDecoderBlock2D",),
+        block_out_channels: tuple[int] = (64,),
         layers_per_block: int = 1,
         act_fn: str = "silu",
         latent_channels: int = 4,

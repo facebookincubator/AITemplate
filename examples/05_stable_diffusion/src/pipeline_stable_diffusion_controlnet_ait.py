@@ -14,7 +14,6 @@
 #
 import inspect
 import os
-from typing import List, Optional, Union
 
 import torch
 from aitemplate.compiler import Model
@@ -838,17 +837,17 @@ class StableDiffusionAITPipeline:
     @torch.no_grad()
     def __call__(
         self,
-        prompt: Union[str, List[str]],
+        prompt: str | list[str],
         control_cond: torch.FloatTensor,
-        height: Optional[int] = 512,
-        width: Optional[int] = 512,
-        num_inference_steps: Optional[int] = 50,
-        guidance_scale: Optional[float] = 7.5,
-        negative_prompt: Optional[Union[str, List[str]]] = None,
-        eta: Optional[float] = 0.0,
-        generator: Optional[torch.Generator] = None,
-        latents: Optional[torch.FloatTensor] = None,
-        output_type: Optional[str] = "pil",
+        height: int | None = 512,
+        width: int | None = 512,
+        num_inference_steps: int | None = 50,
+        guidance_scale: float | None = 7.5,
+        negative_prompt: str | list[str] | None = None,
+        eta: float | None = 0.0,
+        generator: torch.Generator | None = None,
+        latents: torch.FloatTensor | None = None,
+        output_type: str | None = "pil",
         return_dict: bool = True,
     ):
         r"""
@@ -932,7 +931,7 @@ class StableDiffusionAITPipeline:
         do_classifier_free_guidance = guidance_scale > 1.0
         # get unconditional embeddings for classifier free guidance
         if do_classifier_free_guidance:
-            uncond_tokens: List[str]
+            uncond_tokens: list[str]
             max_length = text_input.input_ids.shape[-1]
             if negative_prompt is None:
                 uncond_tokens = [""] * batch_size

@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Optional, Tuple, Union
 
 from aitemplate.frontend import nn, Tensor
 
@@ -55,25 +54,25 @@ class UNet2DConditionModel(nn.Module):
 
     def __init__(
         self,
-        sample_size: Optional[int] = None,
+        sample_size: int | None = None,
         in_channels: int = 4,
         out_channels: int = 4,
         center_input_sample: bool = False,
         flip_sin_to_cos: bool = True,
         freq_shift: int = 0,
-        down_block_types: Tuple[str] = (
+        down_block_types: tuple[str] = (
             "CrossAttnDownBlock2D",
             "CrossAttnDownBlock2D",
             "CrossAttnDownBlock2D",
             "DownBlock2D",
         ),
-        up_block_types: Tuple[str] = (
+        up_block_types: tuple[str] = (
             "UpBlock2D",
             "CrossAttnUpBlock2D",
             "CrossAttnUpBlock2D",
             "CrossAttnUpBlock2D",
         ),
-        block_out_channels: Tuple[int] = (320, 640, 1280, 1280),
+        block_out_channels: tuple[int] = (320, 640, 1280, 1280),
         layers_per_block: int = 2,
         downsample_padding: int = 1,
         mid_block_scale_factor: float = 1,
@@ -81,7 +80,7 @@ class UNet2DConditionModel(nn.Module):
         norm_num_groups: int = 32,
         norm_eps: float = 1e-5,
         cross_attention_dim: int = 1280,
-        attention_head_dim: Union[int, Tuple[int]] = 8,
+        attention_head_dim: int | tuple[int] = 8,
         use_linear_projection: bool = False,
     ):
         super().__init__()
@@ -185,8 +184,8 @@ class UNet2DConditionModel(nn.Module):
         sample,
         timesteps,
         encoder_hidden_states,
-        down_block_additional_residuals: Optional[Tuple[Tensor]] = None,
-        mid_block_additional_residual: Optional[Tensor] = None,
+        down_block_additional_residuals: tuple[Tensor] | None = None,
+        mid_block_additional_residual: Tensor | None = None,
         return_dict: bool = True,
     ):
         """r

@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import Optional, Tuple, Union
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn
@@ -82,26 +81,26 @@ class ControlNetModel(nn.Module):
         in_channels: int = 4,
         flip_sin_to_cos: bool = True,
         freq_shift: int = 0,
-        down_block_types: Tuple[str] = (
+        down_block_types: tuple[str] = (
             "CrossAttnDownBlock2D",
             "CrossAttnDownBlock2D",
             "CrossAttnDownBlock2D",
             "DownBlock2D",
         ),
-        block_out_channels: Tuple[int] = (320, 640, 1280, 1280),
+        block_out_channels: tuple[int] = (320, 640, 1280, 1280),
         layers_per_block: int = 2,
         downsample_padding: int = 1,
         mid_block_scale_factor: float = 1,
         act_fn: str = "silu",
-        norm_num_groups: Optional[int] = 32,
+        norm_num_groups: int | None = 32,
         norm_eps: float = 1e-5,
         cross_attention_dim: int = 768,
-        attention_head_dim: Union[int, Tuple[int]] = 8,
+        attention_head_dim: int | tuple[int] = 8,
         use_linear_projection: bool = False,
         upcast_attention: bool = False,
         resnet_time_scale_shift: str = "default",
         controlnet_conditioning_channel_order: str = "rgb",
-        conditioning_embedding_out_channels: Optional[Tuple[int]] = (16, 32, 96, 256),
+        conditioning_embedding_out_channels: tuple[int] | None = (16, 32, 96, 256),
         global_pool_conditions: bool = False,
     ):
         super().__init__()
@@ -199,7 +198,7 @@ class ControlNetModel(nn.Module):
         encoder_hidden_states,
         controlnet_cond,
         conditioning_scale: float = 1.0,
-    ) -> Tuple:
+    ) -> tuple:
         t_emb = self.time_proj(timestep)
         emb = self.time_embedding(t_emb)
 
@@ -302,25 +301,25 @@ class ControlNetUNet2DConditionModel(nn.Module):
 
     def __init__(
         self,
-        sample_size: Optional[int] = None,
+        sample_size: int | None = None,
         in_channels: int = 4,
         out_channels: int = 4,
         center_input_sample: bool = False,
         flip_sin_to_cos: bool = True,
         freq_shift: int = 0,
-        down_block_types: Tuple[str] = (
+        down_block_types: tuple[str] = (
             "CrossAttnDownBlock2D",
             "CrossAttnDownBlock2D",
             "CrossAttnDownBlock2D",
             "DownBlock2D",
         ),
-        up_block_types: Tuple[str] = (
+        up_block_types: tuple[str] = (
             "UpBlock2D",
             "CrossAttnUpBlock2D",
             "CrossAttnUpBlock2D",
             "CrossAttnUpBlock2D",
         ),
-        block_out_channels: Tuple[int] = (320, 640, 1280, 1280),
+        block_out_channels: tuple[int] = (320, 640, 1280, 1280),
         layers_per_block: int = 2,
         downsample_padding: int = 1,
         mid_block_scale_factor: float = 1,
@@ -328,7 +327,7 @@ class ControlNetUNet2DConditionModel(nn.Module):
         norm_num_groups: int = 32,
         norm_eps: float = 1e-5,
         cross_attention_dim: int = 1280,
-        attention_head_dim: Union[int, Tuple[int]] = 8,
+        attention_head_dim: int | tuple[int] = 8,
         use_linear_projection: bool = False,
     ):
         super().__init__()

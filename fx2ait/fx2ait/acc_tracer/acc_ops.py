@@ -17,7 +17,8 @@ import logging
 import operator
 
 import torch  # isort:skip
-from typing import cast, Iterable, List, Optional, Sequence
+from collections.abc import Iterable, Sequence
+from typing import cast
 
 import torch.nn as nn
 from torch.fx.passes.shape_prop import _extract_tensor_metadata, TensorMetadata
@@ -464,7 +465,7 @@ def tile(*, input, dims):
     ],
     skip_normalization_if_none=True,
 )
-def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> Optional[torch.fx.Node]:
+def repeat_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node | None:
     """
     Map repeat to tile.
     """
@@ -1867,7 +1868,7 @@ def ceil(*, input):
 
 @register_acc_op_mapping(op_and_target=("call_function", torch.nn.functional.pad))
 @register_acc_op
-def pad(*, input, pad: List[int], mode: str, value: float):
+def pad(*, input, pad: list[int], mode: str, value: float):
     return torch.nn.functional.pad(input=input, pad=pad, mode=mode, value=value)
 
 
@@ -2450,7 +2451,7 @@ def where(*, condition, x, y):
 def slice_tensor(*, input, dim, start, stop, step):
     slc = slice(start, stop, step)
     if dim >= 0:
-        slices: List[slice] = [slice(None, None, None) for _ in range(dim)]
+        slices: list[slice] = [slice(None, None, None) for _ in range(dim)]
         slices.append(slc)
     else:
         slices = [Ellipsis, slc]  # type: ignore[list-item]
