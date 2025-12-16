@@ -12,9 +12,14 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import logging
 from typing import Any
 
 import torch
+
+
+logger: logging.Logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def find_batch_size_dim(
@@ -74,6 +79,8 @@ def find_batch_size_dim(
         else:
             # no dims to sort: no batch_size
             batch_size = -1
+
+    logger.info(f"Inferred batch_size: {batch_size}")
 
     bs_dim = []
     for i in inputs:
