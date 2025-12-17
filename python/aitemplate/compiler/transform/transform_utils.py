@@ -18,7 +18,6 @@ Util functions for graph transformations.
 
 import logging
 from collections import deque
-from typing import Dict, List, Union
 
 from aitemplate.compiler.base import Operator, Tensor
 
@@ -33,7 +32,7 @@ from aitemplate.utils import graph_utils
 _LOGGER = logging.getLogger(__name__)
 
 
-def check_graph_validity(sorted_graph: List[Tensor], raiseError: bool = False) -> bool:
+def check_graph_validity(sorted_graph: list[Tensor], raiseError: bool = False) -> bool:
     """
     Check whether all tensor/op in the AIT graph matches.
     If raiseError == False, returns true if graph is a valid graph, else false.
@@ -73,9 +72,7 @@ def check_graph_validity(sorted_graph: List[Tensor], raiseError: bool = False) -
                         )
                     )
             if tensor not in op._attrs["outputs"]:
-                valid = handleError(
-                    "Tensor {} not in outputs for op {}".format(tname, oname)
-                )
+                valid = handleError(f"Tensor {tname} not in outputs for op {oname}")
         visited_tensors.add(tensor)
 
     visited_tensors = set()
@@ -105,9 +102,7 @@ def check_graph_validity(sorted_graph: List[Tensor], raiseError: bool = False) -
                         )
                     )
             if tensor not in op._attrs["inputs"]:
-                valid = handleError(
-                    "Tensor {} not in inputs for op {}".format(tname, oname)
-                )
+                valid = handleError(f"Tensor {tname} not in inputs for op {oname}")
         visited_tensors.add(tensor)
 
     return valid
@@ -168,9 +163,7 @@ def replace_tensor_for_op(target_op: Operator, old_tensor: Tensor, new_tensor: T
             break
 
 
-def remove_dst_op_from_tensor(
-    tensors: Union[Tensor, List[Tensor]], dst_op: Operator
-) -> None:
+def remove_dst_op_from_tensor(tensors: Tensor | list[Tensor], dst_op: Operator) -> None:
     if isinstance(tensors, Tensor):
         tensors._attrs["dst_ops"].remove(dst_op)
     else:
@@ -256,7 +249,7 @@ def remove_tensor_from_sorted_graph(tensor: Tensor) -> None:
     tensor._attrs["is_output"] = False
 
 
-def sanitize_sorted_graph(sorted_graph: List[Tensor]) -> List[Tensor]:
+def sanitize_sorted_graph(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Removes tensors whose src_op and dst_ops are empty.
     Inputs and outputs are always kept in the graph.
@@ -311,7 +304,7 @@ def is_parent(op1: Operator, op2: Operator) -> bool:
     return False
 
 
-def _can_be_constant_folded(tensor: Tensor, visited: Dict[Tensor, bool]):
+def _can_be_constant_folded(tensor: Tensor, visited: dict[Tensor, bool]):
     if tensor in visited:
         return visited[tensor]
     if tensor._attrs["data"] is not None:
@@ -335,7 +328,7 @@ def _can_be_constant_folded(tensor: Tensor, visited: Dict[Tensor, bool]):
     visited[tensor] = True
 
 
-def can_be_constant_folded(tensors: Union[Tensor, List[Tensor]]):
+def can_be_constant_folded(tensors: Tensor | list[Tensor]):
     """
     Check if a tensor or a list of tensors can be folded as a constant
     """

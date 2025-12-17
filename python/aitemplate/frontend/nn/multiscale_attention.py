@@ -19,7 +19,7 @@ https://github.com/facebookresearch/pytorchvideo/blob/main/pytorchvideo/models/v
 """
 
 import logging
-from typing import Callable, List, Optional, Tuple
+from collections.abc import Callable
 
 import numpy
 
@@ -91,8 +91,8 @@ class Mlp(Module):
     def __init__(
         self,
         in_features: int,
-        hidden_features: Optional[int] = None,
-        out_features: Optional[int] = None,
+        hidden_features: int | None = None,
+        out_features: int | None = None,
         act_layer: Module = GELU,
         dropout_rate: float = 0.0,
         bias_on: bool = True,
@@ -152,9 +152,9 @@ class Mlp(Module):
 class _AttentionPool(Module):
     def __init__(
         self,
-        pool: Optional[Module],
+        pool: Module | None,
         has_cls_embed: bool,
-        norm: Optional[Module],
+        norm: Module | None,
     ) -> None:
         """Apply pool to a flattened input (given pool operation and the unflattened shape).
 
@@ -192,7 +192,7 @@ class _AttentionPool(Module):
             self.has_norm = False
             self.norm = Identity
 
-    def forward(self, tensor: Tensor, thw_shape: List[int]) -> Tuple[Tensor, List[int]]:
+    def forward(self, tensor: Tensor, thw_shape: list[int]) -> tuple[Tensor, list[int]]:
         """
         Args:
             tensor (Tensor): Input tensor.
@@ -449,7 +449,7 @@ class MultiScaleAttention(Module):
         v_size: int,
         batch_size: int,
         chan_size: int,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         q = ops.permute()(
             ops.reshape()(
                 self.q(q)[
@@ -481,8 +481,8 @@ class MultiScaleAttention(Module):
         q: Tensor,
         k: Tensor,
         v: Tensor,
-        thw_shape: List[int],
-    ) -> Tuple[Tensor, List[int], Tensor, List[int], Tensor, List[int]]:
+        thw_shape: list[int],
+    ) -> tuple[Tensor, list[int], Tensor, list[int], Tensor, list[int]]:
         q, q_shape = self._attention_pool_q(q, thw_shape)
         k, k_shape = self._attention_pool_k(k, thw_shape)
         v, v_shape = self._attention_pool_v(v, thw_shape)
@@ -490,16 +490,16 @@ class MultiScaleAttention(Module):
 
     def _get_qkv_length(
         self,
-        q_shape: List[int],
-        k_shape: List[int],
-        v_shape: List[int],
-    ) -> Tuple[int, int, int]:
+        q_shape: list[int],
+        k_shape: list[int],
+        v_shape: list[int],
+    ) -> tuple[int, int, int]:
         q_N = self._prod(q_shape) + 1 if self.has_cls_embed else self._prod(q_shape)
         k_N = self._prod(k_shape) + 1 if self.has_cls_embed else self._prod(k_shape)
         v_N = self._prod(v_shape) + 1 if self.has_cls_embed else self._prod(v_shape)
         return q_N, k_N, v_N
 
-    def _prod(self, shape: List[int]) -> int:
+    def _prod(self, shape: list[int]) -> int:
         """Torchscriptable version of `numpy.prod`. Note that `_prod([]) == 1`"""
         p: int = 1
         for dim in shape:
@@ -516,13 +516,13 @@ class MultiScaleAttention(Module):
         k_N: int,
         B: int,
         C: int,
-    ) -> Tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor]:
         q = q.permute(0, 2, 1, 3).reshape(B, q_N, C)
         v = v.permute(0, 2, 1, 3).reshape(B, v_N, C)
         k = k.permute(0, 2, 1, 3).reshape(B, k_N, C)
         return q, k, v
 
-    def forward(self, x: Tensor, thw_shape: List[int]) -> Tuple[Tensor, List[int]]:
+    def forward(self, x: Tensor, thw_shape: list[int]) -> tuple[Tensor, list[int]]:
         """
         Args:
             x (Tensor): Input tensor.
@@ -725,7 +725,7 @@ class MultiScaleBlock(Module):
 
     def forward(
         self, x: Tensor, t_shape: int, h_shape: int, w_shape: int
-    ) -> Tuple[Tensor, List[int]]:
+    ) -> tuple[Tensor, list[int]]:
         """
         Args:
             x (Tensor): Input tensor.

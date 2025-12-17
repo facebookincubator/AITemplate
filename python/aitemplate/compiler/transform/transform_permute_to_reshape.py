@@ -16,8 +16,6 @@
 Transform permute to reshape wherever applicable.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import IntImm, Operator, Tensor
 from aitemplate.compiler.ops import reshape
 from aitemplate.compiler.transform import transform_utils
@@ -85,8 +83,8 @@ def _check_permute_to_reshape(op: Operator) -> bool:
 
 
 def transform_permute_to_reshape(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Convert permute to reshape wherever applicable.
 
     When permute op involves moving one or more dimensions with size

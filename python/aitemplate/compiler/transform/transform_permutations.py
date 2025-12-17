@@ -12,7 +12,6 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
-from typing import List
 
 import numpy as np
 
@@ -88,8 +87,8 @@ def _reshaped_or_strided_input_or_output_accessor(op: Operator) -> bool:
 
 
 def eliminate_permutations(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     if len(sorted_graph) < 2:
         return sorted_graph
     removed_op = set()

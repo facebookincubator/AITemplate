@@ -15,7 +15,6 @@
 
 import copy
 import logging
-from typing import List
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.tensor_accessor import TensorAccessor
@@ -24,7 +23,7 @@ from aitemplate.compiler.tensor_accessor import TensorAccessor
 _LOGGER = logging.getLogger(__name__)
 
 
-def _dynamic_shape_checker(shape: List[IntVar], dim: int) -> bool:
+def _dynamic_shape_checker(shape: list[IntVar], dim: int) -> bool:
     has_dynamic_dim = False
     for idx in range(dim, len(shape)):
         if not isinstance(shape[idx], IntImm):

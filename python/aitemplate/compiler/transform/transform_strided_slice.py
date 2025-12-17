@@ -18,8 +18,6 @@ Perform transformations on slice and strided ops.
 
 import math
 
-from typing import List
-
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice, MAX_INT32
 from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
@@ -91,9 +89,9 @@ def _valid_alignment(
     op: Operator,
     slice_dim: int,
     slice_output_tensor: Tensor,
-    slice_input_shape: List[IntVar],
-    start_indices: List[int],
-    end_indices: List[int],
+    slice_input_shape: list[IntVar],
+    start_indices: list[int],
+    end_indices: list[int],
 ) -> bool:
     op_type = op._attrs["op"]
     if (
@@ -266,8 +264,8 @@ def _process_one_slice_dst(
 
 
 def _fuse_slice_and_strided_op(
-    sorted_graph: List[Tensor],
-) -> List[Tensor]:
+    sorted_graph: list[Tensor],
+) -> list[Tensor]:
     """
     This pass detects patterns like below:
       x1 = slice(x, start_indices, end_indices)

@@ -13,7 +13,8 @@
 #  limitations under the License.
 #
 from collections import namedtuple, OrderedDict
-from typing import Any, Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
+from collections.abc import Callable, Iterator
+from typing import Any, Optional, Union
 
 from aitemplate.compiler.base import Tensor
 from aitemplate.frontend.nn.parameter import Parameter
@@ -25,7 +26,7 @@ class _IncompatibleKeys(
     def __repr__(self):
         if not self.missing_keys and not self.unexpected_keys:
             return "<All keys matched successfully>"
-        return super(_IncompatibleKeys, self).__repr__()
+        return super().__repr__()
 
     __str__ = __repr__
 
@@ -115,9 +116,9 @@ class Module:
     version number and do appropriate changes if the state dict is from before
     the change."""
 
-    _parameters: Dict[str, Optional[Parameter]]
-    _buffers: Dict[str, Optional[Tensor]]
-    _modules: Dict[str, Optional["Module"]]
+    _parameters: dict[str, Parameter | None]
+    _buffers: dict[str, Tensor | None]
+    _modules: dict[str, Optional["Module"]]
 
     def __init__(self) -> None:
         """
@@ -133,7 +134,7 @@ class Module:
     forward: Callable[..., Any] = _forward_unimplemented
 
     def register_buffer(
-        self, name: str, tensor: Optional[Tensor], persistent: bool = True
+        self, name: str, tensor: Tensor | None, persistent: bool = True
     ) -> None:
         r"""Adds a buffer to the module.
 
@@ -169,7 +170,7 @@ class Module:
         elif name == "":
             raise KeyError('buffer name can\'t be empty string ""')
         elif hasattr(self, name) and name not in self._buffers:
-            raise KeyError("attribute '{}' already exists".format(name))
+            raise KeyError(f"attribute '{name}' already exists")
         elif tensor is not None and not isinstance(tensor, Tensor):
             raise TypeError(
                 "cannot assign '{}' object to buffer '{}' "
@@ -182,7 +183,7 @@ class Module:
             else:
                 self._non_persistent_buffers_set.add(name)
 
-    def register_parameter(self, name: str, param: Optional[Parameter]) -> None:
+    def register_parameter(self, name: str, param: Parameter | None) -> None:
         r"""Adds a parameter to the module.
 
         The parameter can be accessed as an attribute using given name.
@@ -205,7 +206,7 @@ class Module:
         elif name == "":
             raise KeyError('parameter name can\'t be empty string ""')
         elif hasattr(self, name) and name not in self._parameters:
-            raise KeyError("attribute '{}' already exists".format(name))
+            raise KeyError(f"attribute '{name}' already exists")
 
         if param is None:
             self._parameters[name] = None
@@ -228,11 +229,11 @@ class Module:
             module (Module): child module to be added to the module.
         """
         if not isinstance(module, Module) and module is not None:
-            raise TypeError("{} is not a Module subclass".format(typename(module)))
+            raise TypeError(f"{typename(module)} is not a Module subclass")
         elif hasattr(self, name) and name not in self._modules:
-            raise KeyError("attribute '{}' already exists".format(name))
+            raise KeyError(f"attribute '{name}' already exists")
         elif "." in name:
-            raise KeyError('module name can\'t contain ".", got: {}'.format(name))
+            raise KeyError(f'module name can\'t contain ".", got: {name}')
         elif name == "":
             raise KeyError('module name can\'t be empty string ""')
         self._modules[name] = module
@@ -292,7 +293,7 @@ class Module:
         if target == "":
             return self
 
-        atoms: List[str] = target.split(".")
+        atoms: list[str] = target.split(".")
         mod: Module = self
 
         for item in atoms:
@@ -404,7 +405,7 @@ class Module:
             if name in modules:
                 return modules[name]
         raise AttributeError(
-            "'{}' object has no attribute '{}'".format(type(self).__name__, name)
+            f"'{type(self).__name__}' object has no attribute '{name}'"
         )
 
     def __setattr__(self, name: str, value: Union[Tensor, "Module"]) -> None:
@@ -518,7 +519,7 @@ class Module:
 
     def named_parameters(
         self, prefix: str = "", recurse: bool = True
-    ) -> Iterator[Tuple[str, Parameter]]:
+    ) -> Iterator[tuple[str, Parameter]]:
         r"""Returns an iterator over module parameters, yielding both the
         name of the parameter as well as the parameter itself.
 
@@ -541,8 +542,7 @@ class Module:
         gen = self._named_members(
             lambda module: module._parameters.items(), prefix=prefix, recurse=recurse
         )
-        for elem in gen:
-            yield elem
+        yield from gen
 
     def buffers(self, recurse: bool = True) -> Iterator[Tensor]:
         r"""Returns an iterator over module buffers.
@@ -568,7 +568,7 @@ class Module:
 
     def named_buffers(
         self, prefix: str = "", recurse: bool = True
-    ) -> Iterator[Tuple[str, Tensor]]:
+    ) -> Iterator[tuple[str, Tensor]]:
         r"""Returns an iterator over module buffers, yielding both the
         name of the buffer as well as the buffer itself.
 
@@ -591,8 +591,7 @@ class Module:
         gen = self._named_members(
             lambda module: module._buffers.items(), prefix=prefix, recurse=recurse
         )
-        for elem in gen:
-            yield elem
+        yield from gen
 
     def children(self) -> Iterator["Module"]:
         r"""Returns an iterator over immediate children modules.
@@ -603,7 +602,7 @@ class Module:
         for _, module in self.named_children():
             yield module
 
-    def named_children(self) -> Iterator[Tuple[str, "Module"]]:
+    def named_children(self) -> Iterator[tuple[str, "Module"]]:
         r"""Returns an iterator over immediate children modules, yielding both
         the name of the module as well as the module itself.
 
@@ -657,7 +656,7 @@ class Module:
 
     def named_modules(
         self,
-        memo: Optional[Set["Module"]] = None,
+        memo: set["Module"] | None = None,
         prefix: str = "",
         remove_duplicate: bool = True,
     ):
@@ -702,8 +701,9 @@ class Module:
                 if module is None:
                     continue
                 submodule_prefix = prefix + ("." if prefix else "") + name
-                for m in module.named_modules(memo, submodule_prefix, remove_duplicate):
-                    yield m
+                yield from module.named_modules(
+                    memo, submodule_prefix, remove_duplicate
+                )
 
     def _get_name(self):
         return self.__class__.__name__

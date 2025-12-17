@@ -17,7 +17,7 @@ Perform graph transformation specifically for gemm -> gemm_special.
 Check each transform function summary for specific pattern to be transformed.
 """
 
-from typing import Callable, List, Tuple, Type, Union
+from collections.abc import Callable
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
@@ -38,10 +38,10 @@ from aitemplate.utils.shape_utils import is_singleton_dimension
 
 
 def _simple_transform_with_constraint(
-    sorted_graph: List[Tensor],
+    sorted_graph: list[Tensor],
     matchFunc: Callable[[Tensor], bool],
-    replaceFunc: Callable[[Tensor], Union[Tensor, List[Tensor]]],
-) -> List[Tensor]:
+    replaceFunc: Callable[[Tensor], Tensor | list[Tensor]],
+) -> list[Tensor]:
     """
     Replace ops in sorted_graph that match constraint provided by matchFunc.
     Op to be replaced is determined by matchFunc, which if true, we call replaceFunc to substitute the tensor away.
@@ -84,8 +84,8 @@ def _simple_transform_with_constraint(
 
 
 def _single_source_shape_constraint_funcs(
-    src_type: Type[Operator], target_type: Type[Operator]
-) -> Tuple[Callable[[Tensor], bool], Callable[[Tensor], Tensor]]:
+    src_type: type[Operator], target_type: type[Operator]
+) -> tuple[Callable[[Tensor], bool], Callable[[Tensor], Tensor]]:
     """
     Returns matching function and replace function for tensors that are single src_op with shape constraints.
 
@@ -133,7 +133,7 @@ def _single_source_shape_constraint_funcs(
     return (matchFunc, replaceFunc)
 
 
-def _transform_bmm_rcr_n1(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _transform_bmm_rcr_n1(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Replace kernel bmm_rcr with N == 1 and K % 8 == 0 with bmm_rcr_n1
 
@@ -154,7 +154,7 @@ def _transform_bmm_rcr_n1(sorted_graph: List[Tensor]) -> List[Tensor]:
     return _simple_transform_with_constraint(sorted_graph, matchFunc, replaceFunc)
 
 
-def _transform_gemm_rrr_small_nk(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _transform_gemm_rrr_small_nk(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Replace kernel gemm_rrr with N <= 8, K <= 16 with gemm_rrr_small_nk
 
@@ -175,7 +175,7 @@ def _transform_gemm_rrr_small_nk(sorted_graph: List[Tensor]) -> List[Tensor]:
     return _simple_transform_with_constraint(sorted_graph, matchFunc, replaceFunc)
 
 
-def _transform_1x1_conv_gemm_rcr(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _transform_1x1_conv_gemm_rcr(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     Replace a 1x1 conv2d with an equivalent gemm_rcr call.
     """
@@ -214,7 +214,7 @@ def _transform_1x1_conv_gemm_rcr(sorted_graph: List[Tensor]) -> List[Tensor]:
 
         return True
 
-    def replace_func(old_tensor: Tensor) -> List[Tensor]:
+    def replace_func(old_tensor: Tensor) -> list[Tensor]:
         src_op = list(old_tensor._attrs["src_ops"])[0]
         inputs = src_op._attrs["inputs"]
         X = inputs[0]
@@ -263,8 +263,8 @@ def _transform_1x1_conv_gemm_rcr(sorted_graph: List[Tensor]) -> List[Tensor]:
 
 
 def transform_special_ops(
-    sorted_graph: List[Tensor], workdir: str = None
-) -> List[Tensor]:
+    sorted_graph: list[Tensor], workdir: str = None
+) -> list[Tensor]:
     """Transform generic gemm/conv ops to special ops.
 
     Parameters

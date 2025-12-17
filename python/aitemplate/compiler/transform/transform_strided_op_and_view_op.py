@@ -16,8 +16,6 @@
 Perform transformations to fuse view ops with strided op by using TensorAccessor.
 """
 
-from typing import List
-
 from aitemplate.compiler.base import Operator, Tensor
 from aitemplate.compiler.public import IntImm
 from aitemplate.compiler.stable_set import StableSet
@@ -57,8 +55,8 @@ def _is_supported_view_op(op: Operator, tensor: Tensor) -> bool:
 
 
 def _fuse_strided_op_and_view_op_single_pass(
-    sorted_graph: List[Tensor],
-) -> List[Tensor]:
+    sorted_graph: list[Tensor],
+) -> list[Tensor]:
     for tensor in sorted_graph:
         if len(tensor._attrs["src_ops"]) != 1:
             continue
@@ -122,7 +120,7 @@ def _fuse_strided_op_and_view_op_single_pass(
     return transform_utils.sanitize_sorted_graph(sorted_graph)
 
 
-def _fuse_strided_op_and_view_op(sorted_graph: List[Tensor]) -> List[Tensor]:
+def _fuse_strided_op_and_view_op(sorted_graph: list[Tensor]) -> list[Tensor]:
     """
     This pass fuses a view op with a strided op before or after it by using
     op._attrs["input_accessors"] or op._attrs["output_accessors"].
