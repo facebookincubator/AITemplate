@@ -18,7 +18,6 @@ Flash attention.
 
 import itertools
 from collections import OrderedDict
-from typing import List
 
 import jinja2
 
@@ -76,7 +75,7 @@ class flash_attention(Operator):
         self.exec_key_template = EXEC_KEY_TEMPLATE
         self.shape_eval_template = SHAPE_FUNC_TEMPLATE
 
-    def _infer_shape(self, x: List[int], w: List[int]):
+    def _infer_shape(self, x: list[int], w: list[int]):
         eval_func = self.shape_eval_template.render(
             indent="",
             dtype="",

@@ -19,7 +19,6 @@ build a test module from a tensor
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Optional, Union
 
 from aitemplate import backend, compiler
 from aitemplate.compiler.base import (
@@ -48,7 +47,7 @@ from aitemplate.utils.serialization.serdes_code import dump_program
 _LOGGER = logging.getLogger(__name__)
 
 
-def _validate_tensor_args(sorted_graph: List[Tensor], output_tensors: List[Tensor]):
+def _validate_tensor_args(sorted_graph: list[Tensor], output_tensors: list[Tensor]):
     """
     Validate the user's desired output name -> index ordering.
 
@@ -77,7 +76,7 @@ def _validate_tensor_args(sorted_graph: List[Tensor], output_tensors: List[Tenso
             raise ValueError(f"Output {name} was not passed into output_tensors")
 
 
-def _verify_outputs_still_in_graph(sorted_graph: List[Tensor], outputs: List[Tensor]):
+def _verify_outputs_still_in_graph(sorted_graph: list[Tensor], outputs: list[Tensor]):
     seen = {tensor._attrs["name"]: False for tensor in outputs}
     for tensor in sorted_graph:
         name = tensor._attrs["name"]
@@ -98,7 +97,7 @@ def _verify_outputs_still_in_graph(sorted_graph: List[Tensor], outputs: List[Ten
             )
 
 
-def _mark_isolated_int_vars(sorted_graph: List[Tensor]):
+def _mark_isolated_int_vars(sorted_graph: list[Tensor]):
     """
     Mark the IntVars that are not present in any input's shape
     with the _attrs["isolated"] = True flag. The purpose is to
@@ -148,17 +147,17 @@ _DEBUG_SETTINGS = AITDebugSettings()
 
 @callstack_stats()
 def compile_model(
-    tensor: Union[Tensor, List[Tensor]],
+    tensor: Tensor | list[Tensor],
     target: backend.target.Target,
     workdir: str,
     test_name: str,
-    profile_devs: List[int] = None,
+    profile_devs: list[int] = None,
     dynamic_profiling_strategy: DynamicProfileStrategy = DynamicProfileStrategy.MAX,
     dll_name: str = "test.so",
     num_runtimes: int = AIT_DEFAULT_NUM_RUNTIMES,
     profile_dir: str = None,
-    constants: Optional[Dict[str, TorchTensor]] = None,
-    allocator_kind: Optional[AITemplateAllocatorKind] = None,
+    constants: dict[str, TorchTensor] | None = None,
+    allocator_kind: AITemplateAllocatorKind | None = None,
     debug_settings: AITDebugSettings = _DEBUG_SETTINGS,
     do_optimize_graph: bool = True,
     profile_timeout: int = 500,

@@ -16,7 +16,7 @@
 identity kernel codegen.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 from aitemplate.compiler.base import IntImm
@@ -61,7 +61,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def gen_function(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function(func_attrs: dict[str, Any], backend_spec) -> str:
     """Generates function.
 
     Parameters
@@ -90,7 +90,7 @@ def gen_function(func_attrs: Dict[str, Any], backend_spec) -> str:
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function_decl(func_attrs: dict[str, Any], backend_spec) -> str:
     """Generates function decl.
 
     Parameters
@@ -113,7 +113,7 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
     ).strip()
 
 
-def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent="  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], backend_spec, indent="  ") -> str:
     """Generates function call.
 
     Parameters

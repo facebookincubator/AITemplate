@@ -17,7 +17,6 @@ Tensor accessor related codegens.
 """
 
 import os
-from typing import List
 
 import jinja2
 from aitemplate.backend.target import Target
@@ -103,7 +102,7 @@ def find_max_alignment_for_accessor(accessor: TensorAccessor) -> int:
 
 
 def find_max_alignment_for_accessors(
-    dtype: str, accessors: List[TensorAccessor]
+    dtype: str, accessors: list[TensorAccessor]
 ) -> int:
     """the max alignment value that meets the requirement specified by
        the accessors and dtype
@@ -128,7 +127,7 @@ def find_max_alignment_for_accessors(
 
 
 def find_max_alignment(
-    num_elements: int, dtype: str, accessors: List[TensorAccessor]
+    num_elements: int, dtype: str, accessors: list[TensorAccessor]
 ) -> int:
     """find the max alignment value that meets the requirement of accessing
        num_elements of data with access patterns (strides and offsets)

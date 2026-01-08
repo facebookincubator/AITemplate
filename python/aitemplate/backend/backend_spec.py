@@ -18,8 +18,6 @@ Backend Specifications.
 
 from dataclasses import dataclass, field
 
-from typing import Dict, List
-
 import jinja2
 
 from aitemplate.backend.target import Target
@@ -33,7 +31,7 @@ class BackendSpec:
 
 @dataclass
 class CPUBackendSpec(BackendSpec):
-    func_enum_to_func_name: Dict[FuncEnum, str] = field(
+    func_enum_to_func_name: dict[FuncEnum, str] = field(
         default_factory=lambda: {
             FuncEnum.ADD: "+",
             FuncEnum.SUB: "-",
@@ -45,13 +43,13 @@ class CPUBackendSpec(BackendSpec):
 
 @dataclass
 class GPUBackendSpec(BackendSpec):
-    dtype_to_backend_fp16_dtype: Dict[str, str] = field(
+    dtype_to_backend_fp16_dtype: dict[str, str] = field(
         default_factory=lambda: {
             "float16": "half",
         }
     )
 
-    dtype_to_backend_dtype: Dict[str, str] = field(
+    dtype_to_backend_dtype: dict[str, str] = field(
         default_factory=lambda: {
             "bool": "bool",
             "float16": "half",
@@ -65,7 +63,7 @@ class GPUBackendSpec(BackendSpec):
     )
 
     # find the size in bytes of a given backend type
-    sizeof_types: Dict[str, int] = field(
+    sizeof_types: dict[str, int] = field(
         default_factory=lambda: {
             "bool": 1,
             "uint8_t": 1,
@@ -86,7 +84,7 @@ class GPUBackendSpec(BackendSpec):
     # find a backend type for a given size in bytes
     # useful to find types 2 or 4 times larger than a given dtype
     # for vectorization purposes.
-    type_for_size: Dict[int, str] = field(
+    type_for_size: dict[int, str] = field(
         default_factory=lambda: {
             1: "uint8_t",
             2: "half",
@@ -96,7 +94,7 @@ class GPUBackendSpec(BackendSpec):
         }
     )
 
-    backend_datatype_convertors: Dict[str, Dict[str, str]] = field(
+    backend_datatype_convertors: dict[str, dict[str, str]] = field(
         default_factory=lambda: {
             "half": {"float": "__half2float"},
             "bfloat16": {"float": "__bfloat162float"},
@@ -107,7 +105,7 @@ class GPUBackendSpec(BackendSpec):
         }
     )
 
-    op_type_priority_list: List[str] = field(
+    op_type_priority_list: list[str] = field(
         default_factory=lambda: [
             "half2",
             "half",
@@ -116,7 +114,7 @@ class GPUBackendSpec(BackendSpec):
             "float",
         ]
     )
-    func_enum_to_func_name: Dict[FuncEnum, Dict[str, str]] = field(
+    func_enum_to_func_name: dict[FuncEnum, dict[str, str]] = field(
         default_factory=lambda: {
             FuncEnum.ADD: {
                 "half2": "__hadd2",
@@ -364,7 +362,7 @@ class GPUBackendSpec(BackendSpec):
                 return "bfloat16_2"
             else:
                 return "bfloat16"
-        raise NotImplementedError("Unsupported dtype {}!".format(dtype))
+        raise NotImplementedError(f"Unsupported dtype {dtype}!")
 
     def get_elementwise_read_backend_type(
         self,
@@ -399,7 +397,7 @@ class GPUBackendSpec(BackendSpec):
                 (1, "uint2"),
             )
         else:
-            raise NotImplementedError("Unsupported dtype {}!".format(dtype))
+            raise NotImplementedError(f"Unsupported dtype {dtype}!")
 
         for mod, dtype in num_elems_to_backend_type:
             if num_elements % mod == 0:
@@ -409,7 +407,7 @@ class GPUBackendSpec(BackendSpec):
             f"Failed to infer data type due to invalid num elems to backend type mapping: {num_elems_to_backend_type}"
         )
 
-    def get_candidate_op_types(self, op_t: str) -> List[str]:
+    def get_candidate_op_types(self, op_t: str) -> list[str]:
         res = []
         found = False
         for t in self.op_type_priority_list:
@@ -419,10 +417,10 @@ class GPUBackendSpec(BackendSpec):
                 res.append(t)
         return res
 
-    def get_dtype_to_dtype(self, dtype: str, type_dict: Dict[str, str]):
+    def get_dtype_to_dtype(self, dtype: str, type_dict: dict[str, str]):
         data_type = type_dict.get(dtype)
         if not data_type:
-            raise NotImplementedError("Unsupported dtype {}!".format(dtype))
+            raise NotImplementedError(f"Unsupported dtype {dtype}!")
         return data_type
 
     def get_fp16_dtype(self, dtype: str):
@@ -457,7 +455,7 @@ class ROCMSpec(GPUBackendSpec):
     )
     half2_data_ref = ".data"
 
-    dtype_to_ck_type: Dict[str, str] = field(
+    dtype_to_ck_type: dict[str, str] = field(
         default_factory=lambda: {
             "float16": "ck::half_t",
             "float32": "float",
@@ -495,7 +493,7 @@ using bfloat16_2 = nv_bfloat162;
     )
 
     half2_data_ref = ""
-    dtype_to_cutlass_type: Dict[str, str] = field(
+    dtype_to_cutlass_type: dict[str, str] = field(
         default_factory=lambda: {
             "float16": "cutlass::half_t",
             "bfloat16": "cutlass::bfloat16_t",

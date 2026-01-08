@@ -23,7 +23,6 @@ import os
 import re
 import shutil
 import sys
-from typing import List
 
 from aitemplate.backend import registry
 
@@ -87,7 +86,7 @@ class ROCM(Target):
         rocm_path = os.environ.get("ROCM_PATH", "/opt/rocm")
         return rocm_path
 
-    def _get_ck_paths(self) -> List[str]:
+    def _get_ck_paths(self) -> list[str]:
         ck_paths = [
             os.path.join(self._template_path),
             os.path.join(self._template_path, "include/"),
@@ -97,7 +96,7 @@ class ROCM(Target):
         ]
         return ck_paths
 
-    def get_include_directories(self) -> List[str]:
+    def get_include_directories(self) -> list[str]:
         return self._get_ck_paths()
 
     def _build_compile_options(self):
@@ -213,7 +212,7 @@ class ROCM(Target):
     def dev_select_flag(self):
         return "HIP_VISIBLE_DEVICES"
 
-    def select_minimal_algo(self, algo_names: List[str]):
+    def select_minimal_algo(self, algo_names: list[str]):
         def comp_func(name):
             compute_args = re.findall(r"_(\d+)_*", name)
             if len(compute_args) != 1:
@@ -271,7 +270,7 @@ class FBROCM(ROCM):
             os.path.join("aitemplate/testing", "convert_hipcc_cmd")
         )
         _LOGGER.info(f"Load the hipcc compile option from {convert_hippcc_json}")
-        with open(convert_hippcc_json, "r") as hipcc_options_json:
+        with open(convert_hippcc_json) as hipcc_options_json:
             self.hipcc_options_json = json.load(hipcc_options_json)
 
         super().__init__(template_path=self._template_path, arch=arch, **kwargs)

@@ -17,7 +17,7 @@ nms kernel codegen.
 """
 
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 
@@ -120,7 +120,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) -> str:
+def gen_function(func_attrs: dict[str, Any], header_files: str, backend_spec) -> str:
     """the function for generating nms kernel"""
     blockSize = 1024
     t_size = int((func_attrs["preNmsTop"] + blockSize - 1) / blockSize)
@@ -151,7 +151,7 @@ def gen_function(func_attrs: Dict[str, Any], header_files: str, backend_spec) ->
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
+def gen_function_decl(func_attrs: dict[str, Any], backend_spec) -> str:
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"],
@@ -161,7 +161,7 @@ def gen_function_decl(func_attrs: Dict[str, Any], backend_spec) -> str:
     )
 
 
-def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent: str) -> str:
+def gen_function_call(func_attrs: dict[str, Any], backend_spec, indent: str) -> str:
     """ "The function for generating a function call to nms"""
     output_name = ""
     assert len(func_attrs["outputs"]) == 1
@@ -191,7 +191,7 @@ def gen_function_call(func_attrs: Dict[str, Any], backend_spec, indent: str) -> 
 
 
 def add_profiler(
-    file_pairs: List[Any], workdir: str, op_type, output_name: str, code: str
+    file_pairs: list[Any], workdir: str, op_type, output_name: str, code: str
 ) -> None:
     """generate code for profiling"""
     prefix = os.path.join(workdir, "profiler", op_type)
@@ -207,7 +207,7 @@ def add_profiler(
 
 
 def gen_profiler(
-    func_attrs: Dict[str, Any], workdir: str, header_files: str, backend_spec
+    func_attrs: dict[str, Any], workdir: str, header_files: str, backend_spec
 ) -> None:
     """generate and build code for NMS profiling"""
     op_type = func_attrs["op"]

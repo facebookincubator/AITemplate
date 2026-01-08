@@ -20,7 +20,7 @@ import enum
 import logging
 import sqlite3
 
-from typing import Any, Dict, Tuple
+from typing import Any
 
 import jinja2
 
@@ -654,7 +654,7 @@ class ProfileCacheDB:
         _LOGGER.info(f"deleting table {target_tables[0]=}")
         self._cur.execute(f"DROP TABLE {target_tables[0]}")
 
-    def _query(self, sql: str) -> Tuple[str, int]:
+    def _query(self, sql: str) -> tuple[str, int]:
         """a function to query op from cache
 
         Parameters
@@ -679,7 +679,7 @@ class ProfileCacheDB:
 
         raise NotImplementedError
 
-    def query_gemm(self, args: Dict[str, Any]) -> Tuple[str, int]:
+    def query_gemm(self, args: dict[str, Any]) -> tuple[str, int]:
         """a function to query gemm op epilogue from cache
 
         Parameters
@@ -699,7 +699,7 @@ class ProfileCacheDB:
         )
         return self._query(sql)
 
-    def query_conv(self, args: Dict[str, Any]) -> Tuple[str, int]:
+    def query_conv(self, args: dict[str, Any]) -> tuple[str, int]:
         """a function to query conv op epilogue from cache,
         here we use the same sql table for conv and gemm
 
@@ -720,7 +720,7 @@ class ProfileCacheDB:
         )
         return self._query(sql)
 
-    def query_conv3d(self, args: Dict[str, Any]) -> Tuple[str, int]:
+    def query_conv3d(self, args: dict[str, Any]) -> tuple[str, int]:
         """a function to query conv op epilogue from cache,
         here we use the same sql table for conv and gemm
 
@@ -741,7 +741,7 @@ class ProfileCacheDB:
         )
         return self._query(sql)
 
-    def query_normalization(self, args: Dict[str, Any]) -> Tuple[str, int]:
+    def query_normalization(self, args: dict[str, Any]) -> tuple[str, int]:
         """a function to query normalization op epilogue from cache
 
         Parameters
@@ -776,7 +776,7 @@ class ProfileCacheDB:
             else:
                 _LOGGER.info("Ignore repeat profile_record: " + query_sql)
 
-    def insert_gemm(self, args: Dict[str, Any]) -> None:
+    def insert_gemm(self, args: dict[str, Any]) -> None:
         """a function to insert gemm op epilogue into cache
 
         Parameters
@@ -808,7 +808,7 @@ class ProfileCacheDB:
         )
         self._insert(query_sql, insert_sql)
 
-    def insert_conv(self, args: Dict[str, Any]) -> None:
+    def insert_conv(self, args: dict[str, Any]) -> None:
         """a function to insert conv op epilogue into cache,
         here we use the same sql table for conv and gemm
 
@@ -850,7 +850,7 @@ class ProfileCacheDB:
         )
         self._insert(query_sql, insert_sql)
 
-    def insert_conv3d(self, args: Dict[str, Any]) -> None:
+    def insert_conv3d(self, args: dict[str, Any]) -> None:
         """a function to insert conv op epilogue into cache,
         here we use the same sql table for conv and gemm
 
@@ -896,7 +896,7 @@ class ProfileCacheDB:
         )
         self._insert(query_sql, insert_sql)
 
-    def insert_normalization(self, args: Dict[str, Any]) -> None:
+    def insert_normalization(self, args: dict[str, Any]) -> None:
         """a function to insert conv op epilogue into cache,
         here we use the same sql table for conv and gemm
 

@@ -17,7 +17,7 @@
 expand op general ROCM implementation with complete dynamic shape support
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -28,7 +28,7 @@ from aitemplate.backend.rocm.tensor import expand_static_shape  # noqa: F401
 
 
 @registry.reg("rocm.expand.func_decl")
-def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def gen_function_decl(func_attrs: dict[str, Any]) -> str:
     if func_attrs["optimize_fixed_dims"] and func_attrs["non_head_dims_are_fixed"]:
         func = registry.get("rocm.expand.static.func_decl")
         return func(func_attrs)
@@ -222,8 +222,8 @@ void {{func_name}} (
 
 
 def create_template_args(
-    func_attrs: Dict[str, Any], indent: str = "  "
-) -> Dict[str, Any]:
+    func_attrs: dict[str, Any], indent: str = "  "
+) -> dict[str, Any]:
     x = func_attrs["inputs"][0]
     y = func_attrs["outputs"][0]
     dst = y._attrs["name"]
@@ -267,7 +267,7 @@ def create_template_args(
 
 
 @registry.reg("rocm.expand.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     if not (
         func_attrs["optimize_fixed_dims"] and func_attrs["non_head_dims_are_fixed"]
     ):
@@ -278,7 +278,7 @@ def gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("rocm.expand.func_call")
-def gen_function_call(func_attrs: Dict[str, Any], indent: str = "  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent: str = "  ") -> str:
     if not (
         func_attrs["optimize_fixed_dims"] and func_attrs["non_head_dims_are_fixed"]
     ):

@@ -16,8 +16,6 @@
 Define masked_select codegen and CUDA kernel
 """
 
-from typing import List
-
 import jinja2
 
 from aitemplate.backend import registry
@@ -285,7 +283,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def _get_dims(shape: List[IntVar]) -> List[str]:
+def _get_dims(shape: list[IntVar]) -> list[str]:
     return [
         str(dim.value()) if isinstance(dim, IntImm) else dim._attrs["name"]
         for dim in shape

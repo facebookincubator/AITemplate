@@ -17,7 +17,7 @@ Common codegen functions for group_norm.
 """
 
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 
@@ -112,7 +112,7 @@ namespace {
 )
 
 
-def get_input_names(func_attrs: Dict[str, Any]) -> List[str]:
+def get_input_names(func_attrs: dict[str, Any]) -> list[str]:
     """
     Return a list of rendered name strings for inputs. It returns nullptr
     for gamma and beta if they are None.
@@ -143,7 +143,7 @@ def get_input_names(func_attrs: Dict[str, Any]) -> List[str]:
     return (input_name, gamma_name, beta_name)
 
 
-def groupnorm_gen_function(func_attrs: Dict[str, Any]) -> str:
+def groupnorm_gen_function(func_attrs: dict[str, Any]) -> str:
     use_swish = True if "swish" in func_attrs["name"] else False
     input_shape = func_attrs["inputs"][0].shape()
 
@@ -169,13 +169,13 @@ def groupnorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     )
 
 
-def groupnorm_gen_func_decl(func_attrs: Dict[str, Any]) -> str:
+def groupnorm_gen_func_decl(func_attrs: dict[str, Any]) -> str:
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )
 
 
-def groupnorm_gen_func_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def groupnorm_gen_func_call(func_attrs: dict[str, Any], indent="  ") -> str:
     output_name = ""
     assert len(func_attrs["outputs"]) == 1
     assert 1 <= len(

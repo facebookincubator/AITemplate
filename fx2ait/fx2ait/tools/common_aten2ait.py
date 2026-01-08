@@ -16,8 +16,8 @@ import logging
 import unittest
 
 import uuid
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, List, Optional, Set
 from unittest import TestCase
 
 # executorch
@@ -80,10 +80,10 @@ class DispatchTestCase(TestCase):
     def generate_graph(
         self,
         mod: torch.nn.Module,
-        original_inputs: List[torch.Tensor],
-        expected_ops: Set[Callable],
-        unexpected_ops: Optional[Set[Callable]] = None,
-        customized_passes: List[Callable] = None,
+        original_inputs: list[torch.Tensor],
+        expected_ops: set[Callable],
+        unexpected_ops: set[Callable] | None = None,
+        customized_passes: list[Callable] = None,
     ):
         # Torchdynamo+aot proxytensor tracer
         # Below are common passes
@@ -129,15 +129,15 @@ class DispatchTestCase(TestCase):
     def run_test(
         self,
         mod: torch.nn.Module,
-        inputs: List[torch.Tensor],
-        expected_ops: Set[Callable],
-        unexpected_ops: Optional[Set[Callable]] = None,
+        inputs: list[torch.Tensor],
+        expected_ops: set[Callable],
+        unexpected_ops: set[Callable] | None = None,
         rtol: float = 1e-02,
         atol: float = 1e-02,
         precision: LowerPrecision = LowerPrecision.FP16,
-        permute_inputs: Optional[List[int]] = None,
-        permute_outputs: Optional[List[int]] = None,
-        customized_passes: List[Callable] = None,
+        permute_inputs: list[int] | None = None,
+        permute_outputs: list[int] | None = None,
+        customized_passes: list[Callable] = None,
     ):
         mod.eval()
         original_inputs = inputs
@@ -206,17 +206,17 @@ class DispatchTestCase(TestCase):
     def run_test_with_dynamic_shape(
         self,
         mod: torch.nn.Module,
-        inputs_spec: List[TensorSpec],
-        expected_ops: Set[Callable],
-        unexpected_ops: Optional[Set[Callable]] = None,
+        inputs_spec: list[TensorSpec],
+        expected_ops: set[Callable],
+        unexpected_ops: set[Callable] | None = None,
         rtol: float = 1e-02,
         atol: float = 1e-02,
         precision: LowerPrecision = LowerPrecision.FP16,
-        permute_inputs: Optional[List[int]] = None,
-        permute_outputs: Optional[List[int]] = None,
-        customized_passes: List[Callable] = None,
+        permute_inputs: list[int] | None = None,
+        permute_outputs: list[int] | None = None,
+        customized_passes: list[Callable] = None,
         dynamic_profile_strategy=DynamicProfileStrategy.MAX,
-        specify_num: Optional[float] = None,
+        specify_num: float | None = None,
     ):
         mod.eval()
         inputs_list = []
@@ -332,9 +332,9 @@ class DispatchTestCase(TestCase):
         name: str,
         iters: int,
         mod: torch.nn.Module,
-        inputs: List[torch.Tensor],
-        permute_inputs: Optional[List[int]] = None,
-        customized_passes: Optional[List[int]] = None,
+        inputs: list[torch.Tensor],
+        permute_inputs: list[int] | None = None,
+        customized_passes: list[int] | None = None,
     ) -> float:
         mod.eval()
         original_inputs = inputs

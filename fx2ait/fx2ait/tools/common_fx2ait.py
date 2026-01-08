@@ -17,8 +17,8 @@ import logging
 import time
 import unittest
 import uuid
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, List, Optional, Set
 from unittest import TestCase
 
 import torch
@@ -102,15 +102,15 @@ class AITTestCase(TestCase):
     def run_test(
         self,
         mod: torch.nn.Module,
-        inputs: List[torch.Tensor],
-        expected_ops: Set[Callable],
-        unexpected_ops: Optional[Set[Callable]] = None,
+        inputs: list[torch.Tensor],
+        expected_ops: set[Callable],
+        unexpected_ops: set[Callable] | None = None,
         rtol: float = 1e-02,
         atol: float = 1e-02,
         precision: LowerPrecision = LowerPrecision.FP16,
-        permute_inputs: Optional[List[int]] = None,
-        permute_outputs: Optional[List[int]] = None,
-        passes: List[Callable] = [],  # noqa: B006
+        permute_inputs: list[int] | None = None,
+        permute_outputs: list[int] | None = None,
+        passes: list[Callable] = [],  # noqa: B006
         leaf_module: Callable = None,  # one leaf module
         apply_passes_to_lowered_module_only=False,
         use_fp16_acc=True,
@@ -247,16 +247,16 @@ class AITTestCase(TestCase):
     def run_test_with_dynamic_shape(
         self,
         mod: torch.nn.Module,
-        inputs_spec: List[TensorSpec],
-        expected_ops: Set[Callable],
-        unexpected_ops: Optional[Set[Callable]] = None,
+        inputs_spec: list[TensorSpec],
+        expected_ops: set[Callable],
+        unexpected_ops: set[Callable] | None = None,
         rtol: float = 1e-02,
         atol: float = 1e-02,
         precision: LowerPrecision = LowerPrecision.FP16,
-        passes: List[Callable] = [],  # noqa: B006
+        passes: list[Callable] = [],  # noqa: B006
         leaf_module: Callable = None,  # one leaf module
-        inputs_override: List[
-            List[torch.Tensor]
+        inputs_override: list[
+            list[torch.Tensor]
         ] = None,  # For cases we can not generate inputs with existing tensor spec interface
     ):
         mod.eval()
@@ -407,8 +407,8 @@ def benchmark_function(
     name: str,
     iters: int,
     mod: torch.nn.Module,
-    inputs: List[torch.Tensor],
-    permute_inputs: Optional[List[int]] = None,
+    inputs: list[torch.Tensor],
+    permute_inputs: list[int] | None = None,
     precision: LowerPrecision = LowerPrecision.FP16,
     leaf_module: Callable = None,
 ) -> float:

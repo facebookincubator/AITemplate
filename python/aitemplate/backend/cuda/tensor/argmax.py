@@ -16,7 +16,7 @@
 argmax kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
@@ -90,12 +90,12 @@ template<> struct Traits<NumericTraitsType>
 
 
 @registry.reg("cuda.argmax.gen_function")
-def argmax_gen_function(func_attrs: Dict[str, Any]) -> str:
+def argmax_gen_function(func_attrs: dict[str, Any]) -> str:
     return argmax_common.gen_function(func_attrs, header_files, CUDASpec())
 
 
 @registry.reg("cuda.argmax.func_decl")
-def argmax_gen_function_decl(func_attrs: Dict[str, Any]):
+def argmax_gen_function_decl(func_attrs: dict[str, Any]):
     return argmax_common.gen_function_decl(func_attrs, CUDASpec())
 
 

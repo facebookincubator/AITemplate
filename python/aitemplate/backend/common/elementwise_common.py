@@ -18,7 +18,7 @@ Backend-agnostic functions for elementwise codegen.
 
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import jinja2
 from aitemplate.backend.backend_spec import BackendSpec
@@ -278,22 +278,22 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 class ElementwiseMetaData:
     func_name: str
     op_t: str
-    args: List[Tensor]
-    outputs: List[Tensor]
+    args: list[Tensor]
+    outputs: list[Tensor]
 
 
 @dataclass
 class FusedElementwiseMetaData:
     # Input / output Tensors and TensorAccessors.
-    inputs: List[Tensor]
-    outputs: List[Tensor]
-    input_accessors: List[TensorAccessor]
-    output_accessors: List[TensorAccessor]
+    inputs: list[Tensor]
+    outputs: list[Tensor]
+    input_accessors: list[TensorAccessor]
+    output_accessors: list[TensorAccessor]
 
     # Original input / output Tensors before graph transformation.
     # Kept here for elementwise -> fused elementwise Tensor mapping.
-    original_inputs: List[Tensor]
-    original_outputs: List[Tensor]
+    original_inputs: list[Tensor]
+    original_outputs: list[Tensor]
 
     # Holds the largest read type for the fused kernel.
     # This is equivalent to write_t in the current implementation.
@@ -303,14 +303,14 @@ class FusedElementwiseMetaData:
     # Holds the read_t for each input of the fused kernel.
     # Note: read_types is only used for a small optimization for last_dim input broadcasting.
     # General mixed read_types are not supported (which requires multiple get_strided_inputs calls).
-    read_types: List[str]
+    read_types: list[str]
 
     op_t: str
     data_t: str
 
-    input_broadcast_sizes: List[List[IntVar]]
-    dynamic_dims: List[IntVar]
-    sub_funcs: List[ElementwiseMetaData]
+    input_broadcast_sizes: list[list[IntVar]]
+    dynamic_dims: list[IntVar]
+    sub_funcs: list[ElementwiseMetaData]
 
     # this flag specifies if the jagged and mixed inputs need
     # separate indexing logic within the generated kernel code.
@@ -327,7 +327,7 @@ class FusedElementwiseMetaData:
     # the output_volume list, therefore, can't contain a JaggedIntVar, as
     # the latter in the jagged output Tensor shape is "expanded" to the
     # list with `batch_dim` followed by an IntImm for each jagged dim.
-    output_volume: Optional[List[IntVar]] = None
+    output_volume: list[IntVar] | None = None
 
     # this attribute is relevant only when mixed_jagged_dense_indexing
     # is True. wether the jagged index space implementation (as opposed
@@ -352,7 +352,7 @@ def gen_function_single_thread(
     type_converter,
 ) -> str:
     """Per thread elementwise function codegen."""
-    tensor_to_expr: Dict[Tensor, str] = {}
+    tensor_to_expr: dict[Tensor, str] = {}
     float32_t = fused_func_metadata.float32_t
     body = ""
 
@@ -361,12 +361,12 @@ def gen_function_single_thread(
             input_converter = type_converter.get(fused_func_metadata.op_t).get(
                 float32_t
             )
-            name = "{}({})".format(input_converter, name)
+            name = f"{input_converter}({name})"
         tensor_to_expr[tensor] = name
 
     tmp_output_idx: int = 0
     for func_metadata in fused_func_metadata.sub_funcs:
-        params: List[str] = []
+        params: list[str] = []
         input_converter = None
         output_converter = None
         func_op_t = func_metadata.op_t
@@ -396,7 +396,7 @@ def gen_function_single_thread(
             if arg in tensor_to_expr:
                 param = tensor_to_expr[arg]
                 params.append(
-                    "{}({})".format(input_converter, param)
+                    f"{input_converter}({param})"
                     if input_converter is not None
                     else param
                 )
@@ -415,7 +415,7 @@ def gen_function_single_thread(
                         )
                     )
                 else:
-                    params.append("{}({})".format(func_op_t, arg_str))
+                    params.append(f"{func_op_t}({arg_str})")
             else:
                 raise RuntimeError(
                     "Cannot generate expression for node {}, ops: {}".format(
@@ -424,12 +424,12 @@ def gen_function_single_thread(
                 )
         assert (
             len(func_metadata.outputs) == 1
-        ), "Operator has more than 1 output! Operator: {}".format(func_metadata)
+        ), f"Operator has more than 1 output! Operator: {func_metadata}"
 
         output = func_metadata.outputs[0]
         func_def = "{}({})".format(func_metadata.func_name, ",".join(params))
         func_def = (
-            "{}({})".format(output_converter, func_def)
+            f"{output_converter}({func_def})"
             if output_converter is not None
             else func_def
         )
@@ -441,7 +441,7 @@ def gen_function_single_thread(
                 if fused_func_metadata.use_fp32_acc
                 else fused_func_metadata.op_t
             )
-            body += "{} {} = {};\n".format(temp_t, name, func_def)
+            body += f"{temp_t} {name} = {func_def};\n"
             tensor_to_expr[output] = name
         else:
             tensor_to_expr[output] = func_def
@@ -458,19 +458,19 @@ def gen_function_single_thread(
             output_converter = type_converter.get(float32_t).get(
                 fused_func_metadata.op_t
             )
-            expr = "{}({})".format(output_converter, expr)
-        body += "{} = {};\n".format(name, expr)
+            expr = f"{output_converter}({expr})"
+        body += f"{name} = {expr};\n"
 
     return body
 
 
 def _get_sub_func_metadata(
-    ops: List[Operator],
+    ops: list[Operator],
     data_t: str,
     op_t: str,
     backend_spec: BackendSpec,
     float32_t: str,
-) -> Tuple[List[ElementwiseMetaData], str]:
+) -> tuple[list[ElementwiseMetaData], str]:
     use_fp32_acc = Target.current()._kwargs.get("elementwise_use_fp32_acc", False)
     if use_fp32_acc:
         # vectorized op types are not allowed when all
@@ -486,7 +486,7 @@ def _get_sub_func_metadata(
             func_enums.append(func_enum)
             funcs = backend_spec.func_enum_to_func_name.get(func_enum)
             if funcs is None:
-                raise NotImplementedError("Func {} is not supported!".format(func_enum))
+                raise NotImplementedError(f"Func {func_enum} is not supported!")
             for candidate_op_t in candidate_op_types:
                 func_name = funcs.get(candidate_op_t)
                 if func_name is not None:
@@ -519,7 +519,7 @@ def _get_sub_func_metadata(
                 break
         if func_name is None:
             raise NotImplementedError(
-                "Unsupported func {} and op type {}!".format(func_enum, op_t)
+                f"Unsupported func {func_enum} and op type {op_t}!"
             )
         sub_func_metadata.append(
             ElementwiseMetaData(
@@ -530,19 +530,19 @@ def _get_sub_func_metadata(
     return sub_func_metadata, op_t, use_fp32_acc
 
 
-def _is_jagged_shape(shape: List[IntVar]) -> bool:
+def _is_jagged_shape(shape: list[IntVar]) -> bool:
     """Whether the given shape is a shape of a jagged Tensor."""
     return len(shape) > 0 and isinstance(shape[0], JaggedIntVar)
 
 
 def _get_input_alignments(
-    input_accessors: List[TensorAccessor],
-    input_broadcast_sizes: List[Optional[List[IntVar]]],
+    input_accessors: list[TensorAccessor],
+    input_broadcast_sizes: list[list[IntVar] | None],
     max_num_rightmost_dims_considered_for_alignments: int,
-    output_shape: List[IntVar],
+    output_shape: list[IntVar],
     dtype: str,
     global_max_alignment: int,
-) -> List[int]:
+) -> list[int]:
     # Broadcasts need to be handled carefully.
     # We have a hacky optimization for last-dim broadcasting:
     # The element is read once, and broadcasted multiple times.
@@ -603,7 +603,7 @@ def _get_input_alignments(
 
 def _get_input_broadcast_sizes(
     input_accessors, output_accessors, mixed_jagged_dense_indexing, output_volume
-) -> List[Optional[List[IntVar]]]:
+) -> list[list[IntVar] | None]:
     input_broadcast_sizes = []
     for input_accessor in input_accessors:
         input_shape = input_accessor.original_shapes
@@ -643,11 +643,11 @@ def _get_input_broadcast_sizes(
 
 def _get_alignments_and_broadcast_sizes(
     dtype: str,
-    input_accessors: List[TensorAccessor],
-    output_accessors: List[TensorAccessor],
+    input_accessors: list[TensorAccessor],
+    output_accessors: list[TensorAccessor],
     mixed_jagged_dense_indexing: bool,
-    output_volume: Optional[List[IntVar]],
-) -> Tuple[List[int], List[Optional[List[IntVar]]]]:
+    output_volume: list[IntVar] | None,
+) -> tuple[list[int], list[list[IntVar] | None]]:
     """
     Returns Tuple(input_alignments, input_broadcast_sizes)
     """
@@ -705,7 +705,7 @@ def _get_alignments_and_broadcast_sizes(
     return input_alignments, input_broadcast_sizes
 
 
-def get_dynamic_dims(*shapes: List[List[IntVar]]) -> List[IntVar]:
+def get_dynamic_dims(*shapes: list[list[IntVar]]) -> list[IntVar]:
     res = {}
     for shape in shapes:
         for dim in shape:
@@ -730,9 +730,9 @@ def get_dynamic_dims(*shapes: List[List[IntVar]]) -> List[IntVar]:
 
 
 def _get_mixed_jagged_dense_config(
-    input_accessors: List[TensorAccessor],
-    output_accessors: List[TensorAccessor],
-) -> Tuple[bool, List[IntVar], bool]:
+    input_accessors: list[TensorAccessor],
+    output_accessors: list[TensorAccessor],
+) -> tuple[bool, list[IntVar], bool]:
     """
     Returns Tuple(
         mixed_jagged_dense_indexing,
@@ -781,13 +781,13 @@ def _get_mixed_jagged_dense_config(
 
 
 def _parse_func_metadata(
-    ops: List[Operator],
-    inputs: List[Tensor],
-    outputs: List[Tensor],
-    input_accessors: List[TensorAccessor],
-    output_accessors: List[TensorAccessor],
-    original_inputs: List[Tensor],
-    original_outputs: List[Tensor],
+    ops: list[Operator],
+    inputs: list[Tensor],
+    outputs: list[Tensor],
+    input_accessors: list[TensorAccessor],
+    output_accessors: list[TensorAccessor],
+    original_inputs: list[Tensor],
+    original_outputs: list[Tensor],
     backend_spec: BackendSpec,
 ) -> FusedElementwiseMetaData:
     (
@@ -852,7 +852,7 @@ def _parse_func_metadata(
 
 
 def gen_int_var_product_str(
-    int_vars: List[IntVar],
+    int_vars: list[IntVar],
 ) -> str:
     res = []
     for int_var in int_vars:
@@ -862,15 +862,15 @@ def gen_int_var_product_str(
             res.append(int_var._attrs["name"])
         else:
             raise RuntimeError(
-                "A dim must be an IntVar! Current type: {}".format(type(int_var))
+                f"A dim must be an IntVar! Current type: {type(int_var)}"
             )
 
     return " * ".join(res) if res else "1"
 
 
 def _gen_input_broadcast_calculator_str(
-    input_shape: List[IntVar],
-    output_shape: List[IntVar],
+    input_shape: list[IntVar],
+    output_shape: list[IntVar],
     mixed_jagged_dense_indexing: bool,
 ) -> str:
     output_num_elements = []
@@ -916,11 +916,11 @@ def _gen_input_broadcast_calculator_str(
 
 
 def _gen_input_broadcast_size_str(
-    input_broadcast_sizes: List[List[IntVar]],
-    output_shape: List[IntVar],
+    input_broadcast_sizes: list[list[IntVar]],
+    output_shape: list[IntVar],
     mixed_jagged_dense_indexing: bool,
-    output_volume: Optional[List[IntVar]],
-) -> List[str]:
+    output_volume: list[IntVar] | None,
+) -> list[str]:
     res = []
     for input_broadcast_size in input_broadcast_sizes:
         if input_broadcast_size is None:
@@ -953,7 +953,7 @@ def _gen_input_broadcast_size_str(
 
 def gen_dynamic_dim_str(
     index_type: str,
-    dynamic_dims: List[IntVar],
+    dynamic_dims: list[IntVar],
     has_type: bool,
 ) -> str:
     type_str = index_type + " " if has_type else ""
@@ -968,7 +968,7 @@ def gen_offsets_str(
     jagged_int_var: JaggedIntVar,
     has_type: bool,
     const_ref: bool,
-    name: Optional[str] = None,
+    name: str | None = None,
 ) -> str:
     offsets_var_name = jagged_int_var.offsets_var_name()
     offsets_struct_type = jagged_int_var.offsets_struct_type()
@@ -986,7 +986,7 @@ def _gen_offsets_str_from_metadata(
     fused_elementwise_metadata: FusedElementwiseMetaData,
     has_type: bool,
     const_ref: bool,
-    name: Optional[str] = None,
+    name: str | None = None,
 ):
     if fused_elementwise_metadata.mixed_jagged_dense_indexing:
         inputs = fused_elementwise_metadata.inputs
@@ -1032,7 +1032,7 @@ def _gen_num_elements_calculator(
 
 def _gen_read_inputs_str(
     fused_elementwise_metadata: FusedElementwiseMetaData,
-    broadcast_sizes: List[str],
+    broadcast_sizes: list[str],
 ):
     read_inputs = []
     for input_idx, (input_accessor, read_t, broadcast_size) in enumerate(
@@ -1123,7 +1123,7 @@ def _gen_write_outputs_str(
     return write_outputs_str
 
 
-def get_stride_expressions(shape: List[IntVar]) -> List[str]:
+def get_stride_expressions(shape: list[IntVar]) -> list[str]:
     """
     Generate the stride expressions for each of the dimensions
     of the shape. A stride expression here means the
@@ -1178,10 +1178,10 @@ def _gen_compute_idx(
 
 
 def _gen_kernel_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     index_type: str,
     fused_elementwise_metadata: FusedElementwiseMetaData,
-    backend_datatype_convertors: Dict[str, Dict[str, str]],
+    backend_datatype_convertors: dict[str, dict[str, str]],
 ) -> str:
     output_params_decl = ",".join(
         [
@@ -1263,7 +1263,7 @@ def _gen_kernel_function(
 
 
 def fused_elementwise_gen_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     custom_libs: str,
     head_template: str,
     backend_spec: BackendSpec,

@@ -21,7 +21,8 @@ import enum
 import logging
 import math
 import struct
-from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, TypeVar, Union
+from collections.abc import Callable
+from typing import NamedTuple, TypeVar
 
 import numpy as np
 
@@ -60,7 +61,7 @@ class AITData(NamedTuple):
     """
 
     data_ptr: int
-    shape: List[int]
+    shape: list[int]
     dtype: str
 
 
@@ -103,7 +104,7 @@ def _dlclose(dll: ctypes.CDLL):
 
 
 def _check_tensors(
-    tensor_list: Union[Dict[str, TorchTensor], List[TorchTensor]],
+    tensor_list: dict[str, TorchTensor] | list[TorchTensor],
     is_error_fn: Callable[[TorchTensor], bool],
     list_name: str,
     condition_description: str,
@@ -120,7 +121,7 @@ def _check_tensors(
 
 
 def _check_tensors_contiguous_and_on_gpu(
-    tensors: Union[Dict[str, TorchTensor], List[TorchTensor]], name: str
+    tensors: dict[str, TorchTensor] | list[TorchTensor], name: str
 ):
     def is_bad_tensor(tensor: TorchTensor) -> bool:
         return not tensor.is_contiguous() or not tensor.is_cuda
@@ -129,7 +130,7 @@ def _check_tensors_contiguous_and_on_gpu(
 
 
 def _check_tensors_contiguous_and_on_host(
-    tensors: Union[Dict[str, TorchTensor], List[TorchTensor]], name: str
+    tensors: dict[str, TorchTensor] | list[TorchTensor], name: str
 ):
     def is_bad_tensor(tensor: TorchTensor) -> bool:
         return not tensor.is_contiguous() or tensor.is_cuda
@@ -146,7 +147,7 @@ def torch_to_ait_data(tensor: TorchTensor) -> AITData:
     )
 
 
-def _convert_tensor_args(params: Union[List[TorchTensor], Dict[str, TorchTensor]]):
+def _convert_tensor_args(params: list[TorchTensor] | dict[str, TorchTensor]):
     """
     Helper function for the WithTensors APIs.
     """
@@ -157,7 +158,7 @@ def _convert_tensor_args(params: Union[List[TorchTensor], Dict[str, TorchTensor]
     return result
 
 
-def _reshape_tensor(tensor: TorchTensor, shape: List[int]) -> TorchTensor:
+def _reshape_tensor(tensor: TorchTensor, shape: list[int]) -> TorchTensor:
     """
     Reinterpret a blob of contiguous memory as some shape. Used to convert
     outputs in RunWithTensors.
@@ -202,7 +203,7 @@ class Model:
         self,
         lib_path: str,
         num_runtimes: int = AIT_DEFAULT_NUM_RUNTIMES,
-        allocator_kind: Optional[AITemplateAllocatorKind] = None,
+        allocator_kind: AITemplateAllocatorKind | None = None,
     ):
         """
         Instantiates a wrapper around the C++ model_interface.
@@ -301,7 +302,7 @@ class Model:
         c_dtype = dtype_str_to_enum(dtype)
         return _CFormatAITData(c_pointer, c_shape, c_dtype)
 
-    def _convert_params_to_c_format(self, params: List[AITData]):
+    def _convert_params_to_c_format(self, params: list[AITData]):
         c_params = (_CFormatAITData * len(params))()
         for i, param in enumerate(params):
             c_params[i] = self._convert_single_param_to_c_format(param)
@@ -357,7 +358,7 @@ class Model:
 
     def _write_tensors_for_standalone_testcase(
         self,
-        tensor_dict: Dict[str, TorchTensor],
+        tensor_dict: dict[str, TorchTensor],
         file_handle,
         is_inputs: bool = True,
     ) -> None:
@@ -379,8 +380,8 @@ class Model:
     def write_standalone_testcase_data(
         self,
         filename,
-        inputs: Dict[str, TorchTensor],
-        expected_outputs: List[TorchTensor],
+        inputs: dict[str, TorchTensor],
+        expected_outputs: list[TorchTensor],
         atol=1e-2,
         rtol=1e-2,
     ):
@@ -393,8 +394,8 @@ class Model:
                 write_tensor_binary(out, file_handle)
 
     def _make_ait_outputs(
-        self, outputs: List[AITData], c_output_shapes
-    ) -> Dict[str, AITData]:
+        self, outputs: list[AITData], c_output_shapes
+    ) -> dict[str, AITData]:
         output_shapes = []
         for i, c_shape in enumerate(c_output_shapes):
             shape = []
@@ -409,13 +410,13 @@ class Model:
 
     def _run_impl(
         self,
-        inputs: Union[Dict[str, AITData], List[AITData]],
-        outputs: Union[Dict[str, AITData], List[AITData]],
-        stream_ptr: Optional[int] = None,
+        inputs: dict[str, AITData] | list[AITData],
+        outputs: dict[str, AITData] | list[AITData],
+        stream_ptr: int | None = None,
         sync: bool = True,
         graph_mode: bool = False,
         outputs_on_host: bool = False,
-    ) -> Dict[str, AITData]:
+    ) -> dict[str, AITData]:
         if isinstance(inputs, dict):
             inputs = self._dict_to_ordered_list(inputs, is_inputs=True)
         if isinstance(outputs, dict):
@@ -459,12 +460,12 @@ class Model:
 
     def run(
         self,
-        inputs: Union[Dict[str, AITData], List[AITData]],
-        outputs: Union[Dict[str, AITData], List[AITData]],
-        stream_ptr: Optional[int] = None,
+        inputs: dict[str, AITData] | list[AITData],
+        outputs: dict[str, AITData] | list[AITData],
+        stream_ptr: int | None = None,
         sync: bool = True,
         graph_mode: bool = False,
-    ) -> Dict[str, AITData]:
+    ) -> dict[str, AITData]:
         """
         Run the model.
 
@@ -499,11 +500,11 @@ class Model:
 
     def profile(
         self,
-        inputs: Union[Dict[str, AITData], List[AITData]],
-        outputs: Union[Dict[str, AITData], List[AITData]],
+        inputs: dict[str, AITData] | list[AITData],
+        outputs: dict[str, AITData] | list[AITData],
         num_iters: int,
         filename: str,
-        stream_ptr: Optional[int] = None,
+        stream_ptr: int | None = None,
     ) -> None:
         if isinstance(inputs, dict):
             inputs = self._dict_to_ordered_list(inputs, is_inputs=True)
@@ -532,11 +533,11 @@ class Model:
 
     def profile_with_tensors(
         self,
-        inputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        outputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
+        inputs: list[TorchTensor] | dict[str, TorchTensor],
+        outputs: list[TorchTensor] | dict[str, TorchTensor],
         num_iters: int,
         filename: str,
-        stream_ptr: Optional[int] = None,
+        stream_ptr: int | None = None,
     ) -> None:
         _check_tensors_contiguous_and_on_gpu(
             inputs,
@@ -556,9 +557,9 @@ class Model:
 
     def _interpret_tensors_as_shapes(
         self,
-        outputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        outputs_ait: Dict[str, AITData],
-    ) -> Dict[str, TorchTensor]:
+        outputs: list[TorchTensor] | dict[str, TorchTensor],
+        outputs_ait: dict[str, AITData],
+    ) -> dict[str, TorchTensor]:
         if isinstance(outputs, dict):
             return {
                 name: _reshape_tensor(tensor, outputs_ait[name].shape)
@@ -572,12 +573,12 @@ class Model:
 
     def run_with_tensors(
         self,
-        inputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        outputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        stream_ptr: Optional[int] = None,
+        inputs: list[TorchTensor] | dict[str, TorchTensor],
+        outputs: list[TorchTensor] | dict[str, TorchTensor],
+        stream_ptr: int | None = None,
         sync: bool = True,
         graph_mode: bool = False,
-    ) -> Dict[str, TorchTensor]:
+    ) -> dict[str, TorchTensor]:
         """
         Run the model with torch.Tensors. See Run() for information about the
         arguments.
@@ -607,11 +608,11 @@ class Model:
 
     def _run_with_outputs_on_host(
         self,
-        inputs: Union[Dict[str, AITData], List[AITData]],
-        outputs: Union[Dict[str, AITData], List[AITData]],
-        stream_ptr: Optional[int] = None,
+        inputs: dict[str, AITData] | list[AITData],
+        outputs: dict[str, AITData] | list[AITData],
+        stream_ptr: int | None = None,
         graph_mode: bool = False,
-    ) -> Dict[str, AITData]:
+    ) -> dict[str, AITData]:
         """
         Like Run(), but takes host memory outputs. Note that there is no sync parameter;
         the stream will always be synchronized after copying the outputs to the host.
@@ -625,11 +626,11 @@ class Model:
 
     def _run_with_tensors_outputs_on_host(
         self,
-        inputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        outputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        stream_ptr: Optional[int] = None,
+        inputs: list[TorchTensor] | dict[str, TorchTensor],
+        outputs: list[TorchTensor] | dict[str, TorchTensor],
+        stream_ptr: int | None = None,
         graph_mode: bool = False,
-    ) -> Dict[str, TorchTensor]:
+    ) -> dict[str, TorchTensor]:
         """
         Like RunWithTensors(), but takes host memory tensors
 
@@ -654,15 +655,15 @@ class Model:
 
     def benchmark(
         self,
-        inputs: Union[Dict[str, AITData], List[AITData]],
-        outputs: Union[Dict[str, AITData], List[AITData]],
-        stream_ptr: Optional[int] = None,
+        inputs: dict[str, AITData] | list[AITData],
+        outputs: dict[str, AITData] | list[AITData],
+        stream_ptr: int | None = None,
         graph_mode: bool = False,
         count: int = 10,
         repeat: int = 1,
         num_threads: int = 1,
         use_unique_stream_per_thread: bool = False,
-    ) -> Tuple[float, float, Dict[str, AITData]]:
+    ) -> tuple[float, float, dict[str, AITData]]:
         """
         Benchmark the model. See run() for information on most parameters.
         """
@@ -705,15 +706,15 @@ class Model:
 
     def benchmark_with_tensors(
         self,
-        inputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        outputs: Union[List[TorchTensor], Dict[str, TorchTensor]],
-        stream_ptr: Optional[int] = None,
+        inputs: list[TorchTensor] | dict[str, TorchTensor],
+        outputs: list[TorchTensor] | dict[str, TorchTensor],
+        stream_ptr: int | None = None,
         graph_mode: bool = False,
         count: int = 10,
         repeat: int = 1,
         num_threads: int = 1,
         use_unique_stream_per_thread: bool = False,
-    ) -> Tuple[float, float, Dict[str, TorchTensor]]:
+    ) -> tuple[float, float, dict[str, TorchTensor]]:
         """
         Benchmark the model. See run_with_tensors() for information on most parameters.
         """
@@ -739,7 +740,7 @@ class Model:
         )
         return (mean, std, self._interpret_tensors_as_shapes(outputs, ait_outputs))
 
-    def _get_map_helper(self, n: int, get_name_func) -> Dict[str, int]:
+    def _get_map_helper(self, n: int, get_name_func) -> dict[str, int]:
         result = {}
         for i in range(n):
             c_name = ctypes.c_char_p()
@@ -749,7 +750,7 @@ class Model:
             result[name] = i
         return result
 
-    def _construct_input_name_to_index_map(self) -> Dict[str, int]:
+    def _construct_input_name_to_index_map(self) -> dict[str, int]:
         num_inputs = ctypes.c_size_t()
         self.DLL.AITemplateModelContainerGetNumInputs(
             self.handle, ctypes.byref(num_inputs)
@@ -761,7 +762,7 @@ class Model:
         )
         return self._get_map_helper(num_inputs.value, get_input_name)
 
-    def get_input_name_to_index_map(self) -> Dict[str, int]:
+    def get_input_name_to_index_map(self) -> dict[str, int]:
         """
         Get the name to index mapping. Note that the ordering of inputs
         is not guaranteed to be deterministic.
@@ -771,7 +772,7 @@ class Model:
         # Copy so people can't modify our version of the map
         return self._input_name_to_index.copy()
 
-    def _construct_output_name_to_index_map(self) -> Dict[str, int]:
+    def _construct_output_name_to_index_map(self) -> dict[str, int]:
         num_outputs = ctypes.c_size_t()
         self.DLL.AITemplateModelContainerGetNumOutputs(
             self.handle, ctypes.byref(num_outputs)
@@ -783,7 +784,7 @@ class Model:
         )
         return self._get_map_helper(num_outputs.value, get_output_name)
 
-    def get_output_name_to_index_map(self) -> Dict[str, int]:
+    def get_output_name_to_index_map(self) -> dict[str, int]:
         """
         Get the name to index mapping. Unlike inputs, outputs
         have a guaranteed ordering; the order that outputs were
@@ -809,7 +810,7 @@ class Model:
             self.handle, c_name, ctypes.byref(c_tensor)
         )
 
-    def set_many_constants(self, tensors: Dict[str, AITData]):
+    def set_many_constants(self, tensors: dict[str, AITData]):
         """
         Bulk set many constants at once. More efficient than set_constant()
         since it only has to acquire the lock once.
@@ -830,7 +831,7 @@ class Model:
         )
 
     def set_double_buffer_constant(
-        self, name: str, tensor: AITData, stream_ptr: Optional[int] = None
+        self, name: str, tensor: AITData, stream_ptr: int | None = None
     ):
         """
         Set a constant. All constants must have values before calling run().
@@ -846,7 +847,7 @@ class Model:
         )
 
     def set_many_double_buffer_constants(
-        self, tensors: Dict[str, AITData], stream_ptr: Optional[int] = None
+        self, tensors: dict[str, AITData], stream_ptr: int | None = None
     ):
         """
         Bulk set many constants at once. More efficient than set_constant()
@@ -867,7 +868,7 @@ class Model:
             self.handle, ctypes.c_void_p(stream_ptr), c_names, c_tensors, num_tensors
         )
 
-    def set_many_constants_with_tensors(self, tensors: Dict[str, TorchTensor]):
+    def set_many_constants_with_tensors(self, tensors: dict[str, TorchTensor]):
         ait_tensors = {}
         for name, tensor in tensors.items():
             if not tensor.is_contiguous() or not tensor.is_cuda:
@@ -877,7 +878,7 @@ class Model:
         self.set_many_constants(ait_tensors)
 
     def set_double_buffer_constant_with_tensor(
-        self, name: str, tensor: TorchTensor, stream_ptr: Optional[int] = None
+        self, name: str, tensor: TorchTensor, stream_ptr: int | None = None
     ):
         """
         Set a constant with a PyTorch tensor.
@@ -890,7 +891,7 @@ class Model:
         self.set_double_buffer_constant(name, torch_to_ait_data(tensor), stream_ptr)
 
     def set_many_double_buffer_constants_with_tensors(
-        self, tensors: Dict[str, TorchTensor], stream_ptr: Optional[int] = None
+        self, tensors: dict[str, TorchTensor], stream_ptr: int | None = None
     ):
         ait_tensors = {}
         for name, tensor in tensors.items():
@@ -911,9 +912,7 @@ class Model:
         self.torch_constant_tensors[name] = tensor
         self.set_constant(name, torch_to_ait_data(tensor))
 
-    def get_output_maximum_shape(
-        self, output_idx_or_name: Union[int, str]
-    ) -> List[int]:
+    def get_output_maximum_shape(self, output_idx_or_name: int | str) -> list[int]:
         """
         Get the maximum output shape. The input here can either be an output name
         or an index. The index is the runtime's internal index (as specified by
@@ -955,7 +954,7 @@ class Model:
         return output.value
 
     def allocate_gpu_memory(
-        self, nbytes: int, stream_ptr: Optional[int] = None, sync: bool = True
+        self, nbytes: int, stream_ptr: int | None = None, sync: bool = True
     ) -> int:
         """
         Helper function for allocating memory on the GPU. Can be useful if
@@ -974,7 +973,7 @@ class Model:
         return ptr.value
 
     def free_gpu_memory(
-        self, ptr: int, stream_ptr: Optional[int] = None, sync: bool = True
+        self, ptr: int, stream_ptr: int | None = None, sync: bool = True
     ) -> None:
         """
         Helper function for freeing memory on the GPU. Can be useful if
@@ -993,7 +992,7 @@ class Model:
         src: int,
         count: int,
         kind: AITemplateMemcpyKind,
-        stream_ptr: Optional[int] = None,
+        stream_ptr: int | None = None,
         sync: bool = True,
     ) -> None:
         """
@@ -1021,7 +1020,7 @@ class Model:
         return out.value
 
     def numpy_to_ait_data(
-        self, arr: np.ndarray, stream_ptr: Optional[int] = None, sync: bool = True
+        self, arr: np.ndarray, stream_ptr: int | None = None, sync: bool = True
     ) -> AITData:
         """
         Convert a numpy array to AIT-usable data. Mallocs and copies
@@ -1048,7 +1047,7 @@ class Model:
     def ait_data_to_numpy(
         self,
         ait_data: AITData,
-        stream_ptr: Optional[int] = None,
+        stream_ptr: int | None = None,
         sync: bool = True,
     ) -> np.ndarray:
         """
@@ -1068,7 +1067,7 @@ class Model:
 
     def fold_constants(
         self,
-        stream_ptr: Optional[int] = None,
+        stream_ptr: int | None = None,
         sync: bool = True,
         double_buffer: bool = False,
     ):
@@ -1090,7 +1089,7 @@ class Model:
 
     def _get_constant_names_impl(
         self, unbound_constants_only: bool, constant_folding_only: bool
-    ) -> List[str]:
+    ) -> list[str]:
         num_constants = ctypes.c_size_t()
         constant_folding_inputs_only = ctypes.c_bool(constant_folding_only)
         unbound_constants_only_ = ctypes.c_bool(unbound_constants_only)
@@ -1108,12 +1107,12 @@ class Model:
 
     def get_constant_names(
         self, unbound_constants_only: bool = True, constant_folding_only: bool = False
-    ) -> List[str]:
+    ) -> list[str]:
         return self._get_constant_names_impl(
             unbound_constants_only, constant_folding_only
         )
 
     def get_constant_folding_input_names(
         self, unbound_constants_only: bool = True
-    ) -> List[str]:
+    ) -> list[str]:
         return self._get_constant_names_impl(unbound_constants_only, True)

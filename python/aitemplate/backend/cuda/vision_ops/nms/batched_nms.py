@@ -17,7 +17,7 @@ batched_nms kernel codegen for CUDA.
 """
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -93,7 +93,7 @@ def get_custom_libs() -> str:
 
 
 @registry.reg("cuda.batched_nms.gen_function")
-def batched_nms_gen_function(func_attrs: Dict[str, Any]) -> str:
+def batched_nms_gen_function(func_attrs: dict[str, Any]) -> str:
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][0]._attrs["dtype"]
@@ -106,7 +106,7 @@ def batched_nms_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.batched_nms.func_decl")
-def batched_nms_gen_function_decl(func_attrs: Dict[str, Any]):
+def batched_nms_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )

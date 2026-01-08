@@ -23,12 +23,13 @@ import copy
 import math
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
 from functools import reduce
 from numbers import Number
 from pprint import pformat
-from typing import Any, Dict, Iterable, List, Optional, Set, Union
+from typing import Any
 
 import numpy as np
 import sympy
@@ -59,7 +60,7 @@ class Node(ABC):
         Child classes add their own attributes to this dict.
         """
         super().__init__()
-        self._attrs: Dict[str, Any] = {"name": None, "depth": 0, "nop": False}
+        self._attrs: dict[str, Any] = {"name": None, "depth": 0, "nop": False}
 
     def __str__(self) -> str:
         """Returns a string version of this object."""
@@ -97,9 +98,9 @@ class IntVar(Node):
 
     def __init__(
         self,
-        values: List[int],
+        values: list[int],
         name: str = None,
-        symbolic_value: Optional[sympy.Basic] = None,
+        symbolic_value: sympy.Basic | None = None,
     ) -> None:
         """Initializes an IntVar.
 
@@ -134,9 +135,7 @@ class IntVar(Node):
                 )
             )
         if min(values) < 0:
-            raise RuntimeError(
-                "IntVar has < 0 value! values: {}, name: {}".format(values, name)
-            )
+            raise RuntimeError(f"IntVar has < 0 value! values: {values}, name: {name}")
         self._attrs["values"] = sorted(set(values))
         if len(self._attrs["values"]) == 1:
             self._attrs["symbolic_value"] = self._attrs["values"][0]
@@ -165,7 +164,7 @@ class IntVar(Node):
             )
         )
 
-    def __add__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __add__(self, other: Any | IntVar) -> IntVar:
         self_values = self._attrs["values"]
         new_sym = self._attrs["symbolic_value"]
         if isinstance(other, IntVar):
@@ -186,10 +185,10 @@ class IntVar(Node):
 
         return IntVar(values=new_values, symbolic_value=new_sym)
 
-    def __radd__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __radd__(self, other: Any | IntVar) -> IntVar:
         return self + other
 
-    def __sub__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __sub__(self, other: Any | IntVar) -> IntVar:
         self_values = self._attrs["values"]
         new_sym = self._attrs["symbolic_value"]
         if isinstance(other, IntVar):
@@ -210,7 +209,7 @@ class IntVar(Node):
 
         return IntVar(values=new_values, symbolic_value=new_sym)
 
-    def __rsub__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __rsub__(self, other: Any | IntVar) -> IntVar:
         self_values = self._attrs["values"]
         new_sym = self._attrs["symbolic_value"]
         if isinstance(other, IntVar):
@@ -233,7 +232,7 @@ class IntVar(Node):
 
         return IntVar(values=new_values, symbolic_value=new_sym)
 
-    def __mul__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __mul__(self, other: Any | IntVar) -> IntVar:
         self_values = self._attrs["values"]
         new_sym = self._attrs["symbolic_value"]
         if isinstance(other, IntVar):
@@ -256,10 +255,10 @@ class IntVar(Node):
 
         return IntVar(values=new_values, symbolic_value=new_sym)
 
-    def __rmul__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __rmul__(self, other: Any | IntVar) -> IntVar:
         return self * other
 
-    def __truediv__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __truediv__(self, other: Any | IntVar) -> IntVar:
         self_values = self._attrs["values"]
         new_sym = self._attrs["symbolic_value"]
         if isinstance(other, IntVar):
@@ -280,7 +279,7 @@ class IntVar(Node):
 
         return IntVar(values=new_values, symbolic_value=new_sym)
 
-    def __rtruediv__(self, other: Union[Any, IntVar]) -> IntVar:
+    def __rtruediv__(self, other: Any | IntVar) -> IntVar:
         self_values = self._attrs["values"]
         new_sym = self._attrs["symbolic_value"]
         if isinstance(other, IntVar):
@@ -356,7 +355,7 @@ class IntImm(IntVar):
         self._attrs["values"] = [value]
         self._attrs["symbolic_value"] = value
 
-    def __eq__(self, another: Union[int, IntVar]) -> bool:
+    def __eq__(self, another: int | IntVar) -> bool:
         if isinstance(another, int):
             return self.value() == another
 
@@ -439,7 +438,7 @@ class JaggedDim(Node):
         """The maximum possible value of the JaggedDim."""
         return self._attrs["values"][1]
 
-    def offsets(self) -> Optional[Tensor]:
+    def offsets(self) -> Tensor | None:
         """The rank-1 offsets Tensor associated with the JaggedDim"""
         return self._attrs["offsets"]
 
@@ -480,7 +479,7 @@ class JaggedIntVar(IntVar):
         self,
         total_length: IntVar,
         batch_dim: IntVar,
-        jagged_dims: List[JaggedDim],
+        jagged_dims: list[JaggedDim],
     ):
         """Initializes a JaggedIntVar.
 
@@ -569,7 +568,7 @@ class JaggedIntVar(IntVar):
         """The batch_dim of the JaggedIntVar."""
         return self._attrs["batch_dim"]
 
-    def jagged_dims(self) -> List[JaggedDim]:
+    def jagged_dims(self) -> list[JaggedDim]:
         """The jagged_dims of the JaggedIntVar."""
         return self._attrs["jagged_dims"]
 
@@ -589,7 +588,7 @@ class JaggedIntVar(IntVar):
         num_jagged_dims = len(self.jagged_dims())
         return f"ait::JaggedOffsets<{self.offsets_type()}, {num_jagged_dims}>"
 
-    def get_max_dense_shape(self) -> List[IntVar]:
+    def get_max_dense_shape(self) -> list[IntVar]:
         """
         Returns a list of IntVars representing the maximum dense shape
         (rectangular volume) that the JaggedIntVar can correspond to.
@@ -602,7 +601,7 @@ class JaggedIntVar(IntVar):
         return result
 
 
-def get_aligned_size(shape: List[IntVar], dtype: str, alignment: int = 64) -> int:
+def get_aligned_size(shape: list[IntVar], dtype: str, alignment: int = 64) -> int:
     """Returns aligned size (in bytes) of given shape and dtype.
 
     Parameters
@@ -738,8 +737,8 @@ class Tensor(Node):
 
     def __init__(
         self,
-        shape: List[IntVar],
-        name: Optional[str] = None,
+        shape: list[IntVar],
+        name: str | None = None,
         src_ops: Iterable[Node] = None,
         dst_ops: Iterable[Node] = None,
         dtype: str = "float16",
@@ -844,7 +843,7 @@ class Tensor(Node):
                 output[key] = self._attrs[key]
         return pformat(output, indent=2)
 
-    def _convert_shape(self, shape: List[Union[int, IntVar]]) -> List[IntVar]:
+    def _convert_shape(self, shape: list[int | IntVar]) -> list[IntVar]:
         """
         Converts from a list of ints / IntVars to a list of IntVars.
         """
@@ -858,7 +857,7 @@ class Tensor(Node):
                 raise RuntimeError(f"Unsupported dim type: {type(v)}, dim: {v}")
         return ret
 
-    def shape(self) -> List[IntVar]:
+    def shape(self) -> list[IntVar]:
         """
         Returns the shape of the tensor.
         It should not be used directly in IR.
@@ -884,11 +883,11 @@ class Tensor(Node):
         """Returns Tensor's data type str."""
         return self._attrs["dtype"]
 
-    def src_ops(self) -> Set[Operator]:
+    def src_ops(self) -> set[Operator]:
         """Returns a set of source operators which write to this Tensor."""
         return self._attrs["src_ops"]
 
-    def dst_ops(self) -> Set[Operator]:
+    def dst_ops(self) -> set[Operator]:
         """Returns a set of destination operators which read from this Tensor."""
         return self._attrs["dst_ops"]
 
@@ -946,11 +945,9 @@ class Tensor(Node):
         tensor_size = self.size_bytes(alignment=1)
         if tensor_size != len(data):
             raise ValueError(
-                (
-                    "ConstantTensor's maximum size is not equal to len(data)! "
-                    f"Got {len(data)=}, but expected at least {tensor_size} bytes. "
-                    "Check that the ConstantTensor's size and dtype are correct."
-                )
+                "ConstantTensor's maximum size is not equal to len(data)! "
+                f"Got {len(data)=}, but expected at least {tensor_size} bytes. "
+                "Check that the ConstantTensor's size and dtype are correct."
             )
         self._attrs["data"] = data
 
@@ -989,9 +986,9 @@ class Tensor(Node):
 
 
 def _create_host_zero_tensor(
-    shape: List[Union[int, IntVar]],
+    shape: list[int | IntVar],
     name: str = None,
-    dst_ops: Set[Node] = None,
+    dst_ops: set[Node] = None,
     dtype: str = "float16",
     is_output: bool = False,
     is_internal_constant: bool = True,
@@ -1021,8 +1018,8 @@ class IntVarTensor(Tensor):
         self,
         int_var: IntVar,
         name: str = None,
-        src_ops: Set[Node] = None,
-        dst_ops: Set[Node] = None,
+        src_ops: set[Node] = None,
+        dst_ops: set[Node] = None,
         dtype: str = "float16",
         is_input: bool = False,
         is_output: bool = False,
@@ -1115,7 +1112,7 @@ class Operator(Node):
         self._attrs["inputs"] = None
         self._attrs["has_profiler"] = False
 
-    def __call__(self, *args: List[Tensor]) -> List[Tensor]:
+    def __call__(self, *args: list[Tensor]) -> list[Tensor]:
         """Performs offline shape inference and constructs the model graph.
 
         Parameters
@@ -1213,7 +1210,7 @@ class Operator(Node):
         ------
         NotImplementedError
         """
-        raise NotImplementedError("gen_function is not defined for {}".format(self))
+        raise NotImplementedError(f"gen_function is not defined for {self}")
 
     # APIs below are for graph transformations.
     def replace_input_tensor(self, old_tensor, new_tensor) -> None:
@@ -1236,7 +1233,7 @@ class Operator(Node):
             for tensor in self._attrs["inputs"]
         ]
 
-    def _get_op_attributes(self) -> Dict[str, Any]:
+    def _get_op_attributes(self) -> dict[str, Any]:
         """
         Returns a dictionary of the core attributes of the op.
         The core attributes are attributes that are required to create an op, for

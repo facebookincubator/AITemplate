@@ -16,7 +16,7 @@
 Softmax codegen for ROCM.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -91,7 +91,7 @@ void {{func_name}}({{dtype}}* input,
 )
 
 
-def get_func_signature(func_attrs: Dict[str, Any]) -> str:
+def get_func_signature(func_attrs: dict[str, Any]) -> str:
     input_ndim = func_attrs["inputs"][0]._rank()
     return FUNC_SIGNATURE.render(
         func_name=func_attrs["name"],
@@ -125,7 +125,7 @@ def extract_config(func_attrs):
 
 @registry.reg("rocm.softmax.gen_profiler")
 def softmax_gen_profiler(
-    func_attrs: Dict[str, Any], workdir: str, indent: str = "  "
+    func_attrs: dict[str, Any], workdir: str, indent: str = "  "
 ) -> str:
     """Generates standalone executables for profiler.
 
@@ -164,7 +164,7 @@ def softmax_gen_profiler(
 
 
 @registry.reg("rocm.softmax.gen_function")
-def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
+def softmax_gen_function(func_attrs: dict[str, Any]) -> str:
     """Generate function body.
 
     Parameters
@@ -194,7 +194,7 @@ def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("rocm.softmax.func_decl")
-def softmax_gen_function_decl(func_attrs: Dict[str, Any]):
+def softmax_gen_function_decl(func_attrs: dict[str, Any]):
     """Generates function declarations.
 
     Parameters

@@ -27,7 +27,7 @@ The 4 for thread blocks indicates each thread is responsible of 4 elements.
 We use TILE_SIZE = 32 for the time being.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -198,7 +198,7 @@ void {{function_name}} (
 
 
 def gen_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     header_files: str,
     backend_spec,
 ) -> str:
@@ -231,7 +231,7 @@ def gen_function(
 
 
 def gen_function_decl(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     backend_spec,
 ) -> str:
     """
@@ -255,7 +255,7 @@ def gen_function_decl(
 
 
 def gen_function_call(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     backend_spec,
     indent="  ",
 ) -> str:

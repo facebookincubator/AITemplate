@@ -16,7 +16,7 @@
 Define batched_dense_vec_jagged_2d_mul codegen and CUDA kernel
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -122,7 +122,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 
 def _gen_kernel_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     index_type: str,
     data_type: str,
 ) -> str:
@@ -154,7 +154,7 @@ def _gen_kernel_function(
 
 
 @registry.reg("cuda.batched_dense_vec_jagged_2d_mul.gen_function")
-def jagged_to_dense_gen_function(func_attrs: Dict[str, Any]) -> str:
+def jagged_to_dense_gen_function(func_attrs: dict[str, Any]) -> str:
     """Generates jagged_to_dense function definition."""
 
     vectors = func_attrs["inputs"][0]

@@ -16,7 +16,7 @@
 bert_embeddings kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -349,7 +349,7 @@ def python_int_dtype_to_c_dtype(dtype):
 
 
 @registry.reg("cuda.bert_embeddings.gen_function")
-def bert_embeddings_gen_function(func_attrs: Dict[str, Any]) -> str:
+def bert_embeddings_gen_function(func_attrs: dict[str, Any]) -> str:
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][3]._attrs["dtype"]
@@ -366,7 +366,7 @@ def bert_embeddings_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.bert_embeddings.func_decl")
-def bert_embeddings_gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def bert_embeddings_gen_function_decl(func_attrs: dict[str, Any]) -> str:
     dtype = python_int_dtype_to_c_dtype(func_attrs["inputs"][0]._attrs["dtype"])
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(
@@ -392,7 +392,7 @@ def get_int_param_template(tensor):
 
 
 @registry.reg("cuda.bert_embeddings.func_call")
-def bert_embeddings_gen_function_call(func_attrs: Dict[str, Any], indent="  ") -> str:
+def bert_embeddings_gen_function_call(func_attrs: dict[str, Any], indent="  ") -> str:
     (
         input_ids,
         token_type_ids,

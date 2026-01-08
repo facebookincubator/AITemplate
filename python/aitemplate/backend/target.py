@@ -22,7 +22,7 @@ import pathlib
 import shutil
 import tempfile
 from enum import IntEnum
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.profiler_cache import ProfileCacheDB
@@ -230,7 +230,7 @@ class Target:
         """
         return op_def
 
-    def select_minimal_algo(self, algo_names: List[str]):
+    def select_minimal_algo(self, algo_names: list[str]):
         """Select the minimal algorithm from the list of algorithms.
 
         This is used in CI to speed up the test without running actually profiling.
@@ -305,10 +305,10 @@ class Target:
             The cache file name for this target.
         """
         # TODO: Add device name
-        cache_file = "{dev_type}.db".format(dev_type=TargetType(self._target_type).name)
+        cache_file = f"{TargetType(self._target_type).name}.db"
         return cache_file
 
-    def _prepare_profile_cache_path(self) -> Optional[str]:
+    def _prepare_profile_cache_path(self) -> str | None:
         """Prepare local profile cache for this target."""
         if self.use_dummy_profiling_results():
             _LOGGER.info("Escape loading profile cache when using dummy profiling")
@@ -378,8 +378,8 @@ class Target:
         raise NotImplementedError
 
     def query_profile_cache(
-        self, op_class: str, args: Dict[str, Any]
-    ) -> Tuple[str, int]:
+        self, op_class: str, args: dict[str, Any]
+    ) -> tuple[str, int]:
         """Query the profile cache for the given op class and args.
 
         Parameters
@@ -409,7 +409,7 @@ class Target:
             return self._profile_cache.query_normalization(args)
         raise NotImplementedError
 
-    def insert_profile_cache(self, op_class: str, args: Dict[str, Any]):
+    def insert_profile_cache(self, op_class: str, args: dict[str, Any]):
         """Insert the profile cache for the given op class and args."""
         if op_class == "gemm":
             self._profile_cache.insert_gemm(args)
@@ -422,7 +422,7 @@ class Target:
         else:
             raise NotImplementedError
 
-    def copy_headers_and_csrc_to_workdir(self, workdir: str) -> List[str]:
+    def copy_headers_and_csrc_to_workdir(self, workdir: str) -> list[str]:
         """
         Copy over all the files in include/ and csrc/ to some working directory.
         Skips files that are not marked with .cpp/.h
@@ -462,7 +462,7 @@ class Target:
         return sources
 
     @classmethod
-    def remote_logger(cls, record: Dict[str, Any]) -> None:
+    def remote_logger(cls, record: dict[str, Any]) -> None:
         """
         Upload the record remotely to some logging table.
 
@@ -473,7 +473,7 @@ class Target:
         """
         return
 
-    def get_include_directories(self) -> List[str]:
+    def get_include_directories(self) -> list[str]:
         """
         Returns a list of include directories for a compiler.
 
@@ -484,7 +484,7 @@ class Target:
         """
         raise NotImplementedError
 
-    def get_host_compiler_options(self) -> List[str]:
+    def get_host_compiler_options(self) -> list[str]:
         """
         Returns a list of options for the host compiler.
 
@@ -495,7 +495,7 @@ class Target:
         """
         raise NotImplementedError
 
-    def get_device_compiler_options(self) -> List[str]:
+    def get_device_compiler_options(self) -> list[str]:
         """
         Returns a list of options for the device compiler.
 

@@ -16,7 +16,7 @@
 Templates for different GeMM epilogues.
 """
 
-from typing import Dict, List, NamedTuple
+from typing import NamedTuple
 
 from aitemplate.compiler.ops.common.epilogue import EpilogueOp
 
@@ -26,11 +26,11 @@ class GeMMEpilogueSpec(NamedTuple):
     Base class for GeMM epilogue templates.
     """
 
-    dtype_to_config_filenames: Dict[str, List[str]]
+    dtype_to_config_filenames: dict[str, list[str]]
     element_op_template: str
     arguments_template: str = ""
-    dtype_to_instantiation_template: Dict[str, str] = {"float16": ""}
-    dtype_to_profiler_call_template: Dict[str, str] = {"float16": ""}
+    dtype_to_instantiation_template: dict[str, str] = {"float16": ""}
+    dtype_to_profiler_call_template: dict[str, str] = {"float16": ""}
     func_decl_template: str = ""
     func_call_template: str = ""
 
@@ -43,12 +43,12 @@ class GeMMBiasEpilogueSpec(GeMMEpilogueSpec):
     arguments_template: str = """
 {{indent}}                                static_cast<BiasDataType*>(bias_ptr),
 """
-    dtype_to_instantiation_template: Dict[str, str] = {
+    dtype_to_instantiation_template: dict[str, str] = {
         "float16": """
 DeviceMem b(sizeof(ck::half_t) * n);
 """,
     }
-    dtype_to_profiler_call_template: Dict[str, str] = {
+    dtype_to_profiler_call_template: dict[str, str] = {
         "float16": """
       (ck::half_t*) b.GetDeviceBuffer(),
 """,

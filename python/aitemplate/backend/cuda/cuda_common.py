@@ -16,9 +16,7 @@
 CUDA common functions for codegen.
 """
 
-from typing import Dict
-
-DTYPE_TO_CUDATYPE: Dict[str, str] = {
+DTYPE_TO_CUDATYPE: dict[str, str] = {
     "float16": "half",
     "float32": "float",
     "float": "float",
@@ -26,7 +24,7 @@ DTYPE_TO_CUDATYPE: Dict[str, str] = {
 }
 
 
-DTYPE_TO_CUTLASSTYPE: Dict[str, str] = {
+DTYPE_TO_CUTLASSTYPE: dict[str, str] = {
     "float16": "cutlass::half_t",
     "float": "float",
 }
@@ -37,7 +35,7 @@ def dtype_to_cuda_type(dtype: str):
     cuda_type = DTYPE_TO_CUDATYPE.get(dtype)
 
     if cuda_type is None:
-        raise NotImplementedError("CUDA - Unsupported dtype: {}".format(dtype))
+        raise NotImplementedError(f"CUDA - Unsupported dtype: {dtype}")
     return cuda_type
 
 
@@ -46,5 +44,5 @@ def dtype_to_cutlass_type(dtype: str):
     cutlass_type = DTYPE_TO_CUTLASSTYPE.get(dtype)
 
     if cutlass_type is None:
-        raise NotImplementedError("CUDA - Unsupported dtype: {}".format(dtype))
+        raise NotImplementedError(f"CUDA - Unsupported dtype: {dtype}")
     return cutlass_type

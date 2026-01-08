@@ -16,7 +16,7 @@
 grouped_fmha_style_b2b_bmm kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -85,7 +85,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 
 @registry.reg("cuda.grouped_fmha_style_b2b_bmm.gen_function")
-def grouped_fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
+def grouped_fmha_style_b2b_bmm_gen_function(func_attrs: dict[str, Any]) -> str:
     """the function for generating attention kernel"""
     q, k, v = func_attrs["inputs"][0:3]
 
@@ -148,7 +148,7 @@ def grouped_fmha_style_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.grouped_fmha_style_b2b_bmm.func_decl")
-def grouped_fmha_style_b2b_bmm_gen_function_decl(func_attrs: Dict[str, Any]):
+def grouped_fmha_style_b2b_bmm_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )

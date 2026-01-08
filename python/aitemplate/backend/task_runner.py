@@ -23,7 +23,6 @@ import subprocess
 import time
 import typing
 from collections import OrderedDict
-from typing import List
 
 
 # pylint: disable=R1732,R1710,R1721
@@ -32,9 +31,7 @@ class Task:
     process for the command, and output of the process.
     """
 
-    def __init__(
-        self, idx: typing.Union[int, str], cmd: str, name: str, **kwargs
-    ) -> None:
+    def __init__(self, idx: int | str, cmd: str, name: str, **kwargs) -> None:
         """
 
         Parameters
@@ -195,7 +192,7 @@ class DeviceFarm:
     Devices are logical devices, can be CPUs or GPUs.
     """
 
-    def __init__(self, devs: List[int]) -> None:
+    def __init__(self, devs: list[int]) -> None:
         """Initialize a Device Farm given a list of device ids.
 
         Parameters
@@ -211,7 +208,7 @@ class DeviceFarm:
         for dev in devs:
             self._dev_stats[dev] = False
 
-    def next_idle_dev(self) -> typing.Optional[int]:
+    def next_idle_dev(self) -> int | None:
         """Return the next idle (available) device id
 
         Returns
@@ -245,7 +242,7 @@ class DeviceFarm:
 class BaseRunner:
     """Genetic subprocess task runner for different purposes"""
 
-    def __init__(self, devs: List[int], tag: str, timeout: int = 10) -> None:
+    def __init__(self, devs: list[int], tag: str, timeout: int = 10) -> None:
         """
         Parameters
         ----------
@@ -289,7 +286,7 @@ class BaseRunner:
         self._finished_tasks = set()
         self._queue = []
 
-    def pull(self, ftask_proc: typing.Callable, fret_proc: typing.Callable) -> List:
+    def pull(self, ftask_proc: typing.Callable, fret_proc: typing.Callable) -> list:
         """Pull results from all tasks executed on the runner.
 
         Parameters
@@ -313,7 +310,7 @@ class BaseRunner:
         self.reset()
         return ret
 
-    def push(self, idx: typing.Union[int, str], cmd: str):
+    def push(self, idx: int | str, cmd: str):
         """Push a task into runner
 
         Parameters

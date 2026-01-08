@@ -26,7 +26,6 @@ import tempfile
 
 from pathlib import Path
 from shlex import quote
-from typing import List
 
 from aitemplate.backend import registry
 
@@ -82,7 +81,7 @@ class CUDA(Target):
                 cuda_version = "12.0.0"
         self._cuda_version = cuda_version
 
-    def _build_include_directories(self) -> List[str]:
+    def _build_include_directories(self) -> list[str]:
         flash_attention_path = ""
         if os.path.exists(
             os.path.join(
@@ -121,10 +120,10 @@ class CUDA(Target):
         output.extend(cutlass_path)
         return output
 
-    def get_include_directories(self) -> List[str]:
+    def get_include_directories(self) -> list[str]:
         return self._build_include_directories()
 
-    def _build_gnu_host_compiler_options(self) -> List[str]:
+    def _build_gnu_host_compiler_options(self) -> list[str]:
         return [
             "-fPIC",
             "-Wconversion",
@@ -132,10 +131,10 @@ class CUDA(Target):
             "-fvisibility=hidden",
         ]
 
-    def get_host_compiler_options(self) -> List[str]:
+    def get_host_compiler_options(self) -> list[str]:
         return self._build_gnu_host_compiler_options()
 
-    def _get_nvcc_debug_options(self) -> List[str]:
+    def _get_nvcc_debug_options(self) -> list[str]:
         CUDA_DEBUG_LEVEL_STRINGS = [[], ["-lineinfo"], ["-g", "-G"]]
         level = environ.get_cuda_nvcc_debug_level()
         if level.isdigit():
@@ -146,7 +145,7 @@ class CUDA(Target):
             return CUDA_DEBUG_LEVEL_STRINGS[level]
         return [level]
 
-    def _build_nvcc_compiler_options(self) -> List[str]:
+    def _build_nvcc_compiler_options(self) -> list[str]:
         code = [f"sm_{self._arch}", f"compute_{self._arch}"]
         if environ.enable_cuda_lto():
             code += [f"lto_{self._arch}"]
@@ -196,7 +195,7 @@ class CUDA(Target):
             )
         return options
 
-    def get_device_compiler_options(self) -> List[str]:
+    def get_device_compiler_options(self) -> list[str]:
         return self._build_nvcc_compiler_options()
 
     def _build_compile_options(self):
@@ -229,7 +228,7 @@ class CUDA(Target):
                 sys.path.insert(1, dst_path)
             except Exception as err:
                 raise RuntimeError(
-                    "Failed to create cutlass library lib: {}".format(err)
+                    f"Failed to create cutlass library lib: {err}"
                 ) from err
             self.lib_folder = dst_path
 
@@ -270,7 +269,7 @@ class CUDA(Target):
     def dev_select_flag(self):
         return "CUDA_VISIBLE_DEVICES"
 
-    def select_minimal_algo(self, algo_names: List[str]):
+    def select_minimal_algo(self, algo_names: list[str]):
         def comp_func(name):
             compute_args = re.findall(r"(\d+)x(\d+)_(\d+)x(\d+)", name)
             if len(compute_args) != 1:
@@ -336,7 +335,7 @@ class FBCUDA(CUDA):
                 os.path.join("aitemplate/testing", "convert_nvcc_cmd")
             )
             _LOGGER.info(f"Load the nvcc compile option from {convert_nvcc_json}")
-            with open(convert_nvcc_json, "r") as nvcc_option_json:
+            with open(convert_nvcc_json) as nvcc_option_json:
                 FBCUDA.nvcc_option_json = json.load(nvcc_option_json)
         self.nvcc_options_json = FBCUDA.nvcc_option_json
         cuda_version = self.nvcc_option_json.get("cuda_version", None)
@@ -352,7 +351,7 @@ class FBCUDA(CUDA):
             **kwargs,
         )
 
-    def _build_include_directories_from_sourcetree(self) -> List[str]:
+    def _build_include_directories_from_sourcetree(self) -> list[str]:
         my_path: Path = Path(os.path.realpath(__file__))  # noqa
         ait_basepath: Path = my_path.parent.parent.parent.parent.parent.absolute()
         assert (
@@ -377,7 +376,7 @@ class FBCUDA(CUDA):
         ]
         return include_paths
 
-    def _build_include_directories(self) -> List[str]:
+    def _build_include_directories(self) -> list[str]:
         if environ.enable_include_from_sourcetree():
             return self._build_include_directories_from_sourcetree()
         cutlass_path = [
@@ -395,14 +394,14 @@ class FBCUDA(CUDA):
         else:
             return cutlass_path
 
-    def get_include_directories(self) -> List[str]:
+    def get_include_directories(self) -> list[str]:
         return self._build_include_directories()
 
-    def get_host_compiler_options(self) -> List[str]:
+    def get_host_compiler_options(self) -> list[str]:
         # a placeholder
         raise NotImplementedError
 
-    def get_device_compiler_options(self) -> List[str]:
+    def get_device_compiler_options(self) -> list[str]:
         # a placeholder
         raise NotImplementedError
 
@@ -525,7 +524,7 @@ class FBCUDA(CUDA):
             for i in reversed(range(len(input_list))):
                 if input_list[i] == x:
                     return i
-            raise ValueError("{} is not in list".format(x))
+            raise ValueError(f"{x} is not in list")
 
         from libfb.py import parutil
 

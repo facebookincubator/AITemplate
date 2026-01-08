@@ -17,7 +17,7 @@ nms kernel codegen for CUDA.
 """
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -149,7 +149,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def gen_function(func_attrs: Dict[str, Any], header_files, backend_spec) -> str:
+def gen_function(func_attrs: dict[str, Any], header_files, backend_spec) -> str:
     """the function for generating nms kernel"""
     elem_input_type = backend_spec.dtype_to_backend_type(
         func_attrs["inputs"][0]._attrs["dtype"]
@@ -167,7 +167,7 @@ def gen_function(func_attrs: Dict[str, Any], header_files, backend_spec) -> str:
     )
 
 
-def gen_function_decl(func_attrs: Dict[str, Any], backend_spec):
+def gen_function_decl(func_attrs: dict[str, Any], backend_spec):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(
             func_name=func_attrs["name"], prefix=backend_spec.prefix

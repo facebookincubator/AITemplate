@@ -16,7 +16,7 @@
 attention kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -247,7 +247,7 @@ ATT_KERNEL_TEMPLATE = jinja2.Template(
 
 
 @registry.reg("cuda.flash_attention.gen_function")
-def flash_attention_gen_function(func_attrs: Dict[str, Any]) -> str:
+def flash_attention_gen_function(func_attrs: dict[str, Any]) -> str:
     """the function for generating attention kernel"""
     return FUNC_TEMPLATE.render(
         custom_kernel=ATT_KERNEL_TEMPLATE.render(
@@ -259,7 +259,7 @@ def flash_attention_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.flash_attention.func_decl")
-def flash_attention_gen_function_decl(func_attrs: Dict[str, Any]):
+def flash_attention_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )

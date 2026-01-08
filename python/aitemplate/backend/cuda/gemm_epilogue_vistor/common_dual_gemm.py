@@ -21,7 +21,7 @@ D2 = element_wise(D0, D1)
 
 from functools import partial
 from hashlib import sha1
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -152,7 +152,7 @@ def extract_config(f_proc_op, func_attrs):
 
 
 def dual_gemm_instance(
-    op_def: str, func_attrs: Dict[str, Any], for_profiler: bool
+    op_def: str, func_attrs: dict[str, Any], for_profiler: bool
 ) -> str:
     tmp = op_def.replace(
         "GemmIdentityThreadblockSwizzle<8>", "GemmIdentityThreadblockSwizzle<1>"

@@ -13,7 +13,8 @@
 #  limitations under the License.
 #
 import logging
-from typing import Any, Callable, List, Tuple
+from collections.abc import Callable
+from typing import Any
 
 import torch
 import torch.fx.passes.net_min_base as net_min_base
@@ -27,7 +28,7 @@ _LOGGER: logging.Logger = logging.getLogger(__name__)
 
 def lower_mod_default(
     mod: torch.fx.GraphModule,
-    inputs: List[TensorSpec],
+    inputs: list[TensorSpec],
     workdir: str,
     name: str,
     dll_name: str,
@@ -59,7 +60,7 @@ class AITMinimizer(net_min_base._MinimizerBase):
         self,
         module: torch.fx.GraphModule,
         sample_input: Tensors,
-        compare_fn: Callable[[Any, Any, Any], Tuple[float, bool]] = lambda a, b, c: (
+        compare_fn: Callable[[Any, Any, Any], tuple[float, bool]] = lambda a, b, c: (
             torch.dist(a, b),
             torch.allclose(a, b),
         ),

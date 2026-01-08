@@ -24,9 +24,9 @@ import shutil
 import tempfile
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
 
 from aitemplate.backend.target import Target
 
@@ -112,7 +112,7 @@ def should_skip_build_cache():
     return False
 
 
-def filename_norm_split(filename: str) -> Tuple[str, str]:
+def filename_norm_split(filename: str) -> tuple[str, str]:
     """
     Splits filename into basename and extension
     and lowercases results to enable simple lookup
@@ -188,11 +188,11 @@ def is_bin_file(filename: str) -> bool:
 
 
 def create_dir_hash(
-    cmds: List[str],
+    cmds: list[str],
     build_dir: str,
     filter_func: Callable[[str], bool] = is_source,
     debug=False,
-    content_replacer: Callable[[str], Optional[bytes]] = None,
+    content_replacer: Callable[[str], bytes | None] = None,
 ) -> str:
     """Create a hash of the (source file) contents of a build directory, used for
     creating a cache key of an entire directory along with the build commands.
@@ -282,10 +282,10 @@ class BuildCache(ABC):
     @abstractmethod
     def retrieve_build_cache(
         self,
-        cmds: List[str],
+        cmds: list[str],
         build_dir: str,
         from_sources_filter_func: Callable[[str], bool] = is_source,
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """
         Retrieves the build cache artifacts for the given build directory,
         so that ideally no compilation needs to take place.
@@ -304,7 +304,7 @@ class BuildCache(ABC):
     @abstractmethod
     def store_build_cache(
         self,
-        cmds: List[str],
+        cmds: list[str],
         build_dir: str,
         cache_key: str,
         filter_func: Callable[[str], bool] = is_cache_artifact,
@@ -345,7 +345,7 @@ class BuildCache(ABC):
 
     def makefile_normalizer(
         self, path, memoize_replacements=True, debug=False
-    ) -> Optional[bytes]:
+    ) -> bytes | None:
         """
         Normalizes the content of the makefile for hashing purposes (nothing else!),
         so that it can be compared to other Makefiles
@@ -412,15 +412,15 @@ class NoBuildCache(BuildCache):
 
     def retrieve_build_cache(
         self,
-        cmds: List[str],
+        cmds: list[str],
         build_dir: str,
         from_sources_filter_func: Callable[[str], bool] = is_source,
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         return False, None
 
     def store_build_cache(
         self,
-        cmds: List[str],
+        cmds: list[str],
         build_dir: str,
         cache_key: str,
         filter_func: Callable[[str], bool] = is_cache_artifact,
@@ -456,10 +456,10 @@ class FileBasedBuildCache(BuildCache):
 
     def retrieve_build_cache(
         self,
-        cmds: List[str],
+        cmds: list[str],
         build_dir: str,
         from_sources_filter_func: Callable[[str], bool] = is_source,
-    ) -> Tuple[bool, Optional[str]]:
+    ) -> tuple[bool, str | None]:
         """See docstring of implemented method interface in parent class"""
         if should_skip_build_cache():
             _LOGGER.info(f"CACHE: Skipped build cache for {build_dir}")
@@ -507,7 +507,7 @@ class FileBasedBuildCache(BuildCache):
 
     def store_build_cache(
         self,
-        cmds: List[str],
+        cmds: list[str],
         build_dir: str,
         cache_key: str,
         filter_func: Callable[[str], bool] = is_cache_artifact,

@@ -26,7 +26,6 @@ import shlex
 import subprocess
 from hashlib import sha1
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 
 import jinja2
 
@@ -106,7 +105,7 @@ def _log_error_context(
         full_path = os.path.join(build_dir, path)
         if os.path.exists(full_path):
             # read the lines from the file
-            with open(full_path, "r") as f:
+            with open(full_path) as f:
                 # each line ends with '\n'
                 file_lines = f.readlines()
             # except maybe the last line
@@ -238,7 +237,7 @@ class Runner(BaseRunner):
     Runner is inherited from BaseRunner.
     """
 
-    def __init__(self, devs: List[int], timeout: int = 10):
+    def __init__(self, devs: list[int], timeout: int = 10):
         """Initialize a parallel runner for building
 
         Parameters
@@ -250,12 +249,12 @@ class Runner(BaseRunner):
         """
         super().__init__(devs, "builder", timeout)
         _LOGGER.info(
-            "Using {n} CPU for building".format(n=devs),
+            f"Using {devs} CPU for building",
         )
         self._ftask_proc = process_task
         self._fret_proc = process_return
 
-    def push(self, idx: Union[int, str], cmd: str, target: Target) -> None:
+    def push(self, idx: int | str, cmd: str, target: Target) -> None:
         """Push a building task into runner
 
         Parameters
@@ -269,7 +268,7 @@ class Runner(BaseRunner):
         """
         self._queue.append(Task(idx, cmd, target, shell=True))
 
-    def pull(self) -> List:
+    def pull(self) -> list:
         """Pull building results.
         Check whether all building tasks are successful.
 
@@ -310,9 +309,9 @@ class Builder:
 
     def build_objs(
         self,
-        files: List[Tuple[str, str]],
+        files: list[tuple[str, str]],
         cc_cmd: str,
-        binary_cc_cmd: Optional[str] = None,
+        binary_cc_cmd: str | None = None,
     ):
         """Generate building task for each source code file, then build in parallel
 
@@ -359,7 +358,7 @@ class Builder:
         self._runner.join()
         self._runner.pull()
 
-    def build_so(self, target: Target, objs: List[str]):
+    def build_so(self, target: Target, objs: list[str]):
         """Generate a task to build all objects into a dynamic library
 
         Parameters
@@ -376,7 +375,7 @@ class Builder:
         if "nvcc" in cc:
             fpic = "-Xcompiler=-fPIC"
         cmd = (
-            "{cc} -shared ".format(cc=cc)
+            f"{cc} -shared "
             + fpic
             + " "
             + compile_options
@@ -550,7 +549,7 @@ clean_constants:
 
         file_lines = []
         for source in sources:
-            with open(source, "r") as f:
+            with open(source) as f:
                 lines = f.readlines()
             for line in lines:
                 if line.strip():

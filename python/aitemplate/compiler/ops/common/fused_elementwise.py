@@ -16,7 +16,7 @@
 Fused elementwise operator definition.
 """
 
-from typing import Iterable, List
+from collections.abc import Iterable
 
 from aitemplate import backend
 from aitemplate.backend import registry
@@ -89,7 +89,7 @@ class fused_elementwise(Operator):
 
     def __init__(
         self,
-        elementwise_ops: List[elementwise],
+        elementwise_ops: list[elementwise],
         inputs: Iterable[Operator],
         outputs: Iterable[Operator],
     ) -> None:

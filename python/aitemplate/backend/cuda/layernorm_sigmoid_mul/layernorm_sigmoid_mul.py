@@ -17,7 +17,7 @@ LayerNorm_Sigmoid_Mul codegen for CUDA.
 """
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -127,7 +127,7 @@ def _get_custom_libs():
 
 
 @registry.reg("cuda.layernorm.gen_function")
-def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
+def layernorm_gen_function(func_attrs: dict[str, Any]) -> str:
     gamma_beta_const_defs = layernorm_common.gamma_beta_const_defs(func_attrs)
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_backend_type(
@@ -151,7 +151,7 @@ def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.layernorm_sigmoid_mul.gen_function")
-def layernorm_sigmoid_mul_gen_function(func_attrs: Dict[str, Any]) -> str:
+def layernorm_sigmoid_mul_gen_function(func_attrs: dict[str, Any]) -> str:
     gamma_beta_const_defs = layernorm_common.gamma_beta_const_defs(func_attrs)
     backend_spec = CUDASpec()
     elem_input_type = backend_spec.dtype_to_backend_type(
@@ -175,7 +175,7 @@ def layernorm_sigmoid_mul_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 @registry.reg("cuda.layernorm.func_decl")
 @registry.reg("cuda.layernorm_sigmoid_mul.func_decl")
-def layernorm_sigmoid_mul_gen_function_decl(func_attrs: Dict[str, Any]):
+def layernorm_sigmoid_mul_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )

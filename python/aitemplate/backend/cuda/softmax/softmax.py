@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 import os
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -176,7 +176,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 )
 
 
-def get_func_signature(func_attrs: Dict[str, Any]) -> str:
+def get_func_signature(func_attrs: dict[str, Any]) -> str:
     return FUNC_SIGNATURE.render(
         func_name=func_attrs["name"],
         reduction_dim=func_attrs["dim"],
@@ -220,7 +220,7 @@ def _softmax_general_block_size(dim_size: int, inner_size: int) -> tuple[int, in
 
 
 @registry.reg("cuda.softmax.gen_function")
-def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
+def softmax_gen_function(func_attrs: dict[str, Any]) -> str:
     reduction_dim = func_attrs["dim"]
     shape = func_attrs["inputs"][0]._attrs["shape"]
 
@@ -263,7 +263,7 @@ def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.softmax.func_decl")
-def softmax_gen_function_decl(func_attrs: Dict[str, Any]):
+def softmax_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(func_signature=get_func_signature(func_attrs))
 
 

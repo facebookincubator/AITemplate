@@ -25,9 +25,9 @@ import os
 import re
 import subprocess
 from collections import namedtuple
+from collections.abc import Callable
 from queue import Queue
 from time import sleep
-from typing import Callable, List, Tuple, Union
 
 from aitemplate.backend.target import Target
 from aitemplate.backend.task_runner import BaseRunner, Task
@@ -61,7 +61,7 @@ def optimization_key(result):
 def extract_profile_result(
     stdout,
     return_ops=None,
-) -> Tuple[Union[ProfileResult, List[ProfileResult]], bool]:
+) -> tuple[ProfileResult | list[ProfileResult], bool]:
     failed = False
     try:
         runtimes = PROF_RUNTIME_PATTERN.findall(stdout)
@@ -152,7 +152,7 @@ def process_task(task: Task) -> None:
             )
 
 
-def process_return(task: Task) -> Tuple[Union[int, str], ProfileResult]:
+def process_return(task: Task) -> tuple[int | str, ProfileResult]:
     """Generate profile result from a profiling task
 
     Parameters
@@ -173,14 +173,14 @@ class Runner(BaseRunner):
     Runner is inherited from BaseRunner.
     """
 
-    def __init__(self, devs: List[int], op_name: str, timeout: int = 30):
-        _LOGGER.info("Using {n} GPU for profiling {op}".format(n=len(devs), op=op_name))
+    def __init__(self, devs: list[int], op_name: str, timeout: int = 30):
+        _LOGGER.info(f"Using {len(devs)} GPU for profiling {op_name}")
         super().__init__(devs, op_name, timeout)
         self._dev_flag = Target.current().dev_select_flag()
         self._ftask_proc = process_task
         self._fret_proc = process_return
 
-    def push(self, idx: Union[int, str], cmd: str, return_ops: List[str] = None):
+    def push(self, idx: int | str, cmd: str, return_ops: list[str] = None):
         """Push a new profiling task into runner's queue
 
         Parameters
@@ -227,8 +227,7 @@ def run_task(cmds, queue, dev_select_flag):
             completed_process = subprocess.run(
                 cmds,
                 env=update_inplace(os.environ.copy(), {dev_select_flag: device}),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
+                capture_output=True,
                 text=True,
                 shell=False,
             )
@@ -257,7 +256,7 @@ class ProfilerRunner:
     however, the results are empirically better compared to the previous runner.
     """
 
-    def __init__(self, devices: List[str], postprocessing_delegate, timeout: int = 500):
+    def __init__(self, devices: list[str], postprocessing_delegate, timeout: int = 500):
         """
         Parameters
         ----------
@@ -289,7 +288,7 @@ class ProfilerRunner:
             target = detect_target()
         self._dev_select_flag = target.dev_select_flag()
 
-    def push(self, cmds: List[str], process_result_callback: Callable):
+    def push(self, cmds: list[str], process_result_callback: Callable):
         """
         Schedule the profiler for execution in a separate process,
         Call the callback after subprocess completion

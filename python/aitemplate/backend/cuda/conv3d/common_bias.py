@@ -18,7 +18,6 @@ CUDA conv3d common functions
 
 import re
 from hashlib import sha1
-from typing import List
 
 import jinja2
 
@@ -268,7 +267,7 @@ def gen_function(
     )
 
 
-def cal_align_ab(x_shape: List[int], dtype="float16") -> int:
+def cal_align_ab(x_shape: list[int], dtype="float16") -> int:
     """Returns input alignment."""
     k = x_shape[4]  # CI
     return alignment.find_max_alignment(k, dtype)

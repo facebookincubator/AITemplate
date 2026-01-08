@@ -16,7 +16,7 @@
 nms kernel codegen for ROCM.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import ROCMSpec
@@ -32,12 +32,12 @@ header_files = """
 
 
 @registry.reg("rocm.nms.gen_function")
-def nms_gen_function(func_attrs: Dict[str, Any]) -> str:
+def nms_gen_function(func_attrs: dict[str, Any]) -> str:
     return nms_common.gen_function(func_attrs, header_files, ROCMSpec())
 
 
 @registry.reg("rocm.nms.func_decl")
-def nms_gen_function_decl(func_attrs: Dict[str, Any]):
+def nms_gen_function_decl(func_attrs: dict[str, Any]):
     return nms_common.gen_function_decl(func_attrs, ROCMSpec())
 
 

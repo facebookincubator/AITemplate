@@ -24,7 +24,7 @@ import math
 import os
 from itertools import accumulate
 from operator import mul
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 
@@ -36,7 +36,7 @@ from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
 
 
 @registry.reg("rocm.expand.static.func_decl")
-def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
+def gen_function_decl(func_attrs: dict[str, Any]) -> str:
     return FUNC_DECL_TEMPLATE.render(create_template_args(func_attrs))
 
 
@@ -189,8 +189,8 @@ def _ceil(num: float) -> int:
 
 
 def create_template_args(
-    func_attrs: Dict[str, Any], indent: str = "  "
-) -> Dict[str, Any]:
+    func_attrs: dict[str, Any], indent: str = "  "
+) -> dict[str, Any]:
     x = func_attrs["inputs"][0]
     y = func_attrs["outputs"][0]
     dst = y._attrs["name"]
@@ -210,7 +210,7 @@ def create_template_args(
     dtype4 = rocm_spec.type_for_size.get(rocm_spec.sizeof_types[dtype] * 4, None)
     xshape = x._attrs["shape"]
     yshape = y._attrs["shape"]
-    dim_types: List[ExpandDimensionType] = func_attrs["dim_types"]
+    dim_types: list[ExpandDimensionType] = func_attrs["dim_types"]
     index_type = "int64_t"
     assert all(
         dim.lower_bound() == dim.upper_bound() for dim in xshape
@@ -364,12 +364,12 @@ def create_template_args(
 
 
 @registry.reg("rocm.expand.static.gen_function")
-def gen_function(func_attrs: Dict[str, Any]) -> str:
+def gen_function(func_attrs: dict[str, Any]) -> str:
     return SRC_TEMPLATE.render(create_template_args(func_attrs, "    "))
 
 
 @registry.reg("rocm.expand.static.func_call")
-def gen_function_call(func_attrs: Dict[str, Any], indent: str = "  ") -> str:
+def gen_function_call(func_attrs: dict[str, Any], indent: str = "  ") -> str:
     return FUNC_CALL_TEMPLATE.render(create_template_args(func_attrs, indent))
 
 

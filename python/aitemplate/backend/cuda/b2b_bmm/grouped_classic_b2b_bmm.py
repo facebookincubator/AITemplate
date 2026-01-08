@@ -16,7 +16,7 @@
 classic_b2b_bmm kernel codegen for CUDA.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 import jinja2
 
@@ -250,7 +250,7 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 
 @registry.reg("cuda.grouped_classic_b2b_bmm.gen_function")
-def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
+def classic_b2b_bmm_gen_function(func_attrs: dict[str, Any]) -> str:
     """the function for generating attention kernel"""
     q, k, v, bias = func_attrs["inputs"]
     max_seq_len = func_attrs["max_seq_len"]
@@ -339,7 +339,7 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
 
 
 @registry.reg("cuda.grouped_classic_b2b_bmm.func_decl")
-def classic_b2b_bmm_gen_function_decl(func_attrs: Dict[str, Any]):
+def classic_b2b_bmm_gen_function_decl(func_attrs: dict[str, Any]):
     return FUNC_DECL.render(
         func_signature=FUNC_SIGNATURE.render(func_name=func_attrs["name"]).strip()
     )

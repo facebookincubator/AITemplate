@@ -16,7 +16,7 @@
 The back-end bindings of the padded_dense_to_jagged op.
 """
 
-from typing import Any, Dict, List
+from typing import Any
 
 import jinja2
 
@@ -138,8 +138,8 @@ FUNC_CALL_TEMPLATE = jinja2.Template(
 
 
 def _gen_compute_idx_str(
-    input_shape: List[IntVar],
-    output_shape: List[IntVar],
+    input_shape: list[IntVar],
+    output_shape: list[IntVar],
     index_type: str,
     jagged_int_var: JaggedIntVar,
 ) -> str:
@@ -161,8 +161,8 @@ def _gen_compute_idx_str(
 
 
 def _gen_calculate_n(
-    input_shape: List[IntVar],
-    output_shape: List[IntVar],
+    input_shape: list[IntVar],
+    output_shape: list[IntVar],
 ) -> str:
     use_jagged_space_indexing = Target.current()._kwargs.get(
         "use_jagged_space_indexing", False
@@ -175,7 +175,7 @@ def _gen_calculate_n(
 
 
 def _gen_kernel_function(
-    func_attrs: Dict[str, Any],
+    func_attrs: dict[str, Any],
     index_type: str,
     data_type: str,
     read_type: str,
@@ -212,7 +212,7 @@ def _gen_kernel_function(
 
 
 @registry.reg("cuda.padded_dense_to_jagged.gen_function")
-def padded_dense_to_jagged_gen_function(func_attrs: Dict[str, Any]) -> str:
+def padded_dense_to_jagged_gen_function(func_attrs: dict[str, Any]) -> str:
     """Generates padded_dense_to_jagged function definition."""
 
     x = func_attrs["inputs"][0]

@@ -16,13 +16,13 @@
 Dummy op codegen for ROCM.
 """
 
-from typing import Any, Dict
+from typing import Any
 
 from aitemplate.backend import registry
 
 
 @registry.reg("rocm.size.gen_function")
-def dummy_gen_function(func_attrs: Dict[str, Any]) -> str:
+def dummy_gen_function(func_attrs: dict[str, Any]) -> str:
     return ""
 
 
