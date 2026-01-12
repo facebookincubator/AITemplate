@@ -72,7 +72,9 @@ class bert_embeddings(Operator):
         assert (
             dtype_word_embeddings == dtype_token_type_embeddings
             and dtype_word_embeddings == dtype_position_embeddings
-        ), "dtype of word_embeddings, token_type_embeddings, position_embeddings must be the same"
+        ), (
+            "dtype of word_embeddings, token_type_embeddings, position_embeddings must be the same"
+        )
 
         assert dtype_input_ids in [
             "int",
@@ -80,13 +82,12 @@ class bert_embeddings(Operator):
             "int64",
         ], f"Expected dtype int/int32/int64 for index, got dtype {dtype_input_ids}"
 
-        assert (
-            dtype_word_embeddings
-            in [
-                "float16",
-                "float32",
-            ]
-        ), f"Expected dtype float16/float32 for embeddings, got dtype {dtype_word_embeddings}"
+        assert dtype_word_embeddings in [
+            "float16",
+            "float32",
+        ], (
+            f"Expected dtype float16/float32 for embeddings, got dtype {dtype_word_embeddings}"
+        )
 
         # expecting all three ids to have the same shapes
         assert shape_utils.is_same_shape(input_ids.shape(), token_type_ids.shape()), (

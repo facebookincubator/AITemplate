@@ -19,7 +19,6 @@ classic_b2b_bmm kernel codegen for CUDA.
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.target import Target
@@ -288,9 +287,9 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
     if len(bias_broadcast) == 3:
         # single head case: Add num heads dimension of size 1
         bias_broadcast = [bias_broadcast[0], True, bias_broadcast[1], bias_broadcast[2]]
-    assert (
-        len(bias_broadcast) == 4
-    ), f"Bias shape should be of length 4, got {len(bias_broadcast)=}"
+    assert len(bias_broadcast) == 4, (
+        f"Bias shape should be of length 4, got {len(bias_broadcast)=}"
+    )
 
     # Calculate stride expressions for bias tensor
     # Last dimension of bias has implicit stride of 1,

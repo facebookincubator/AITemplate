@@ -13,7 +13,6 @@
 #  limitations under the License.
 
 import json
-
 from typing import Dict, List
 
 from aitemplate.compiler.base import (

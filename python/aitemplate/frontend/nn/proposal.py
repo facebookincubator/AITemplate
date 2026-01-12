@@ -19,7 +19,6 @@ Proposal module.
 import math
 
 import numpy as np
-
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum

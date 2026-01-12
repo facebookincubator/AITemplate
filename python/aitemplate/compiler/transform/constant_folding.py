@@ -17,7 +17,6 @@ import os
 from typing import Dict, List, Tuple
 
 from aitemplate import backend, compiler
-
 from aitemplate.compiler.base import IntVarTensor, Tensor
 from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.compiler.transform.transform_utils import replace_tensor

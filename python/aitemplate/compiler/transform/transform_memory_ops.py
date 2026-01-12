@@ -20,13 +20,11 @@ import copy
 from typing import List
 
 from aitemplate.compiler.base import Operator, Tensor
-
 from aitemplate.compiler.ops.tensor.dynamic_slice import dynamic_slice
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
 from aitemplate.compiler.transform.toposort import toposort
 from aitemplate.compiler.transform.transform_merge_slice_ops import merge_slice_ops
-
 from aitemplate.utils import graph_utils, shape_utils
 
 
@@ -77,9 +75,9 @@ def _update_cat_dst_ops(
     first_cat_shape = first_cat_output.shape()
     rank = len(first_cat_shape)
     cat_dim = first_cat._attrs["concat_dim"]
-    assert transform_strided_ops_utils.cat_split_dim_is_static(
-        first_cat, cat_dim
-    ), f"expected the {cat_dim=} of {first_cat=} to be static"
+    assert transform_strided_ops_utils.cat_split_dim_is_static(first_cat, cat_dim), (
+        f"expected the {cat_dim=} of {first_cat=} to be static"
+    )
     second_cat_output = second_cat._attrs["outputs"][0]
     # make start_indices and end_indices for the slice
     for idx, first_cat_dst_op in enumerate(first_cat_dst_ops):
@@ -96,7 +94,7 @@ def _update_cat_dst_ops(
                 cat_dim_offset + first_cat_shape[cat_dim].value()
             )
             slice_op = dynamic_slice()
-            slice_op_name = f'dynamic_slice_{idx}_{first_cat._attrs["name"]}'
+            slice_op_name = f"dynamic_slice_{idx}_{first_cat._attrs['name']}"
             slice_op._attrs["name"] = slice_op_name
             slice_op._attrs["original_name"] = slice_op_name
             slice_output = slice_op(
@@ -182,9 +180,9 @@ def _check_first_cat(first_cat: Operator, second_cat: Operator) -> bool:
     # cat and the strided op (e.g. add).
     cat_dim = first_cat._attrs["concat_dim"]
     first_cat_outputs = first_cat._attrs["outputs"]
-    assert (
-        len(first_cat_outputs) == 1
-    ), f"expected {first_cat_outputs=} to have a single output"
+    assert len(first_cat_outputs) == 1, (
+        f"expected {first_cat_outputs=} to have a single output"
+    )
     first_cat_output = first_cat_outputs[0]
     first_cat_dst_ops = first_cat_output._attrs["dst_ops"]
     if len(first_cat_dst_ops) == 1:

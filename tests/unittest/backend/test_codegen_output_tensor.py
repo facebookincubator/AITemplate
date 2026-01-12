@@ -19,11 +19,9 @@ import unittest
 from typing import Sequence
 
 from aitemplate.backend.codegen import device_copy, set_value
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.testing import detect_target
-
 from aitemplate.testing.test_utils import gen_input_tensor
 
 

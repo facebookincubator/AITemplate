@@ -17,7 +17,6 @@ from enum import Enum
 from typing import Any, List, Optional, Set, Type
 
 import torch
-
 from aitemplate.compiler.public import DynamicProfileStrategy
 from torch import nn
 

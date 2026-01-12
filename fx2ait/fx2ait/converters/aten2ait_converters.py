@@ -19,7 +19,6 @@ import operator
 from typing import Dict, List, Tuple, Union
 
 import numpy
-
 from aitemplate.compiler.public import (
     avg_pool2d,
     bmm_rrr,
@@ -307,9 +306,9 @@ def aten_ops_conv2d(
     # output_padding = args[7]
     groups = args[8]
 
-    assert all(
-        isinstance(x, int) for x in [stride, padding, dilation]
-    ), "Expected int stride, padding, and dilation"
+    assert all(isinstance(x, int) for x in [stride, padding, dilation]), (
+        "Expected int stride, padding, and dilation"
+    )
 
     if groups is None or groups == 1:
         if transposed:
@@ -425,9 +424,9 @@ def aten_ops_chunk(
     shape = input_val.shape()
     target_dim = get_positive_dim(args[2], len(shape))
     chunks = min(args[1], shape[target_dim].value())
-    assert isinstance(
-        shape[target_dim], IntImm
-    ), f"Cannot perform chunk on dynamic dim! Get target dim {target_dim}."
+    assert isinstance(shape[target_dim], IntImm), (
+        f"Cannot perform chunk on dynamic dim! Get target dim {target_dim}."
+    )
 
     return chunk()(input_val, chunks, dim=target_dim)
 

@@ -28,7 +28,6 @@ from aitemplate.compiler.base import (
     JaggedIntVar,
     Tensor,
 )
-
 from aitemplate.compiler.model import (
     AIT_DEFAULT_NUM_RUNTIMES,
     AITemplateAllocatorKind,

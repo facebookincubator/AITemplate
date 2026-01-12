@@ -19,7 +19,6 @@ Common functions and templates for bmm-family ops
 import dataclasses
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.cuda.gemm_universal import common
@@ -354,9 +353,9 @@ def make_function_strided_args(
             # FIXME: we don't suppor strided bias yet. Will enable it once
             # we support it.
             input_bias_accessor = func_attrs["input_accessors"][2]
-            assert (
-                not input_bias_accessor.is_from_strided_tensor
-            ), f'strided bias is not supported for op {func_attrs["name"]}'
+            assert not input_bias_accessor.is_from_strided_tensor, (
+                f"strided bias is not supported for op {func_attrs['name']}"
+            )
 
     input_addr_calculator = common.INPUT_ADDR_CALCULATOR.render(
         input_a_batch_stride_dim=input_a_batch_stride_dim,
@@ -688,13 +687,13 @@ def gen_function(
 def gen_function_call(func_attrs, indent="  ", bias_ptr_arg=None):
     a = func_attrs["inputs"][0]
     ashape = func_attrs["input_accessors"][0].original_shapes
-    a_dims_ptr = [f'&{ashape[idx]._attrs["name"]}' for idx in range(len(ashape))]
+    a_dims_ptr = [f"&{ashape[idx]._attrs['name']}" for idx in range(len(ashape))]
     b = func_attrs["inputs"][1]
     bshape = func_attrs["input_accessors"][1].original_shapes
-    b_dims_ptr = [f'&{bshape[idx]._attrs["name"]}' for idx in range(len(bshape))]
+    b_dims_ptr = [f"&{bshape[idx]._attrs['name']}" for idx in range(len(bshape))]
     c = func_attrs["outputs"][0]
     cshape = func_attrs["output_accessors"][0].original_shapes
-    c_dims_ptr = [f'&{cshape[idx]._attrs["name"]}' for idx in range(len(cshape))]
+    c_dims_ptr = [f"&{cshape[idx]._attrs['name']}" for idx in range(len(cshape))]
     has_d = False
     d_ptr = None
     if "has_d" in func_attrs:

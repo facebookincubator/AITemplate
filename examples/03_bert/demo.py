@@ -13,9 +13,7 @@
 #  limitations under the License.
 #
 import click
-
 import torch
-
 from transformers import BertTokenizer
 
 from .benchmark_ait import compile_module

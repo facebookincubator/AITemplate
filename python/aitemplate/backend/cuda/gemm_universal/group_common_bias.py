@@ -17,7 +17,6 @@ Common codegen functions for group_gemm_bias-family kernels.
 """
 
 import jinja2
-
 from aitemplate.backend.cuda.gemm_universal import group_common
 
 # pylint: disable=C0103,C0415,W0613,C0301,R1705,R1703

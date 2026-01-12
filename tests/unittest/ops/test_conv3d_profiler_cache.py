@@ -18,7 +18,6 @@ import unittest
 from unittest.mock import patch
 
 from aitemplate.backend.profiler_cache import ProfileCacheDB
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import DynamicProfileStrategy
 from aitemplate.frontend import IntImm, IntVar, Tensor

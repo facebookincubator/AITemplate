@@ -55,18 +55,18 @@ class bmm_rrr_k1_tanh(bmm_rrr):
                 "bmm operand A and B should have same batch_size! "
                 "Current shape A: {} shape B: {} .".format(a_shapes, b_shapes)
             )
-        assert (
-            a_shapes[2] == b_shapes[1]
-        ), f"bmm operand A and B should have same K dim! Current shape A: {a_shapes}, shape B: {b_shapes}"
+        assert a_shapes[2] == b_shapes[1], (
+            f"bmm operand A and B should have same K dim! Current shape A: {a_shapes}, shape B: {b_shapes}"
+        )
         m_values = a_shapes[1]._attrs["values"]
         # TODO: remove shape check after fixing the kernel
-        assert all(
-            val % 8 == 0 for val in m_values
-        ), f"M should be multiples of 8. M: {a_shapes[1]}"
+        assert all(val % 8 == 0 for val in m_values), (
+            f"M should be multiples of 8. M: {a_shapes[1]}"
+        )
         n_values = b_shapes[2]._attrs["values"]
-        assert all(
-            val % 8 == 0 for val in n_values
-        ), f"N should be multiples of 8. N: {b_shapes[2]}"
+        assert all(val % 8 == 0 for val in n_values), (
+            f"N should be multiples of 8. N: {b_shapes[2]}"
+        )
         c_shapes = [batch_size_a, a_shapes[1], b_shapes[2]]
         return c_shapes
 

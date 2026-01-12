@@ -21,12 +21,10 @@ from collections import deque
 from typing import Dict, List, Union
 
 from aitemplate.compiler.base import Operator, Tensor
-
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.compiler.transform.mark_param_tensor import mark_param_tensor
 from aitemplate.compiler.transform.name_graph import name_graph
 from aitemplate.compiler.transform.remove_unused_ops import remove_unused_ops
-
 from aitemplate.utils import graph_utils
 
 
@@ -189,8 +187,8 @@ def remove_single_tensor_op_from_sorted_graph(op: Operator) -> None:
         # ensure
         for x in op._attrs["inputs"][1:]:
             assert op not in x._attrs["dst_ops"], (
-                f'Invalid: shape tensor {x._attrs["name"]} has reshape op '
-                f'{op._attrs["name"]} in its dst_ops'
+                f"Invalid: shape tensor {x._attrs['name']} has reshape op "
+                f"{op._attrs['name']} in its dst_ops"
             )
     else:
         assert len(op._attrs["inputs"]) == 1
@@ -205,9 +203,9 @@ def remove_single_tensor_op_from_sorted_graph(op: Operator) -> None:
     for dst_op in output_tensor._attrs["dst_ops"]:
         dst_op.replace_input_tensor(output_tensor, input_tensor)
     if output_tensor._attrs["is_output"]:
-        assert not input_tensor._attrs[
-            "is_input"
-        ], f"{input_tensor._attrs['name']} can not be input and output"
+        assert not input_tensor._attrs["is_input"], (
+            f"{input_tensor._attrs['name']} can not be input and output"
+        )
         input_tensor._attrs["is_output"] = True
         input_tensor._attrs["name"] = output_tensor._attrs["name"]
         input_tensor._attrs["shape"] = output_tensor._attrs["shape"]

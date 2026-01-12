@@ -15,7 +15,6 @@
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -28,7 +27,6 @@ from aitemplate.testing.test_utils import (
     TestEnv,
 )
 from aitemplate.utils import shape_utils
-
 from parameterized import parameterized
 
 

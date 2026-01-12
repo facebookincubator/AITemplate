@@ -18,9 +18,7 @@ Unittests for debug utils.
 
 import numpy as np
 import pytest
-
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm, IntVarTensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
@@ -108,9 +106,9 @@ def _test_outputs(
 
     values = [float(value) for value in values]
     target_values = np.array([1.0, 1.5, 2.0]) * 1.3
-    assert np.allclose(
-        values, target_values, rtol=1e-2, atol=1e-2
-    ), f"Expected {target_values}, got {values} instead"
+    assert np.allclose(values, target_values, rtol=1e-2, atol=1e-2), (
+        f"Expected {target_values}, got {values} instead"
+    )
 
 
 def test_outputs(capfd):

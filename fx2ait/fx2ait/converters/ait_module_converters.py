@@ -15,7 +15,6 @@
 from typing import Any, Dict, Tuple
 
 import numpy as np
-
 import torch
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import _TorchConstantTensorData, Tensor
@@ -43,9 +42,9 @@ def multi_head_attention_module(
     bsz, seq_len_q, dim = query.shape()
     _, seq_len, _ = key.shape()
 
-    assert (
-        submod.embed_dim % submod.num_heads == 0
-    ), f"embed_dim {submod.embed_dim} must be divisible by num_heads {submod.num_heads}"
+    assert submod.embed_dim % submod.num_heads == 0, (
+        f"embed_dim {submod.embed_dim} must be divisible by num_heads {submod.num_heads}"
+    )
     head_size = submod.embed_dim // submod.num_heads
     if head_size % 4 != 0:
         raise ValueError(

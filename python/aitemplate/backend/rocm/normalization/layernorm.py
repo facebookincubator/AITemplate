@@ -21,11 +21,9 @@ from hashlib import sha1
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.normalization import norm_common
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntImm
 
 EXTRA_HEADERS = jinja2.Template(
@@ -203,9 +201,9 @@ def layernorm_gen_profiler(
     dim = -1
     shapes = func_attrs["inputs"][0]._attrs["shape"]
 
-    assert isinstance(
-        shapes[dim], IntImm
-    ), "layernorm requires reduction dim to be static"
+    assert isinstance(shapes[dim], IntImm), (
+        "layernorm requires reduction dim to be static"
+    )
 
     return norm_common.gen_profiler(
         func_attrs,
@@ -327,9 +325,9 @@ def layernorm_gen_function(func_attrs: Dict[str, Any]) -> str:
     dim = -1
     shapes = func_attrs["inputs"][0]._attrs["shape"]
 
-    assert isinstance(
-        shapes[dim], IntImm
-    ), "layernorm requires reduction dim to be static"
+    assert isinstance(shapes[dim], IntImm), (
+        "layernorm requires reduction dim to be static"
+    )
 
     return gen_function(
         func_attrs,
@@ -373,9 +371,9 @@ def layernorm_gen_function_call(func_attrs, indent="  "):
     )
 
     shapes = func_attrs["inputs"][0]._attrs["shape"]
-    assert (
-        len(shapes) >= 2
-    ), f"LayerNorm only supports input with rank >= 2, current rank: {len(shapes)}"
+    assert len(shapes) >= 2, (
+        f"LayerNorm only supports input with rank >= 2, current rank: {len(shapes)}"
+    )
 
     input_dim_names = [shape._attrs["name"] for shape in shapes]
 

@@ -16,7 +16,6 @@ import unittest
 from typing import Callable
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.transform.remove_elementwise_no_ops import (

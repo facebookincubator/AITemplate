@@ -19,7 +19,6 @@ from enum import auto
 from typing import List
 
 import jinja2
-
 from aitemplate.utils.mk_ck_lib import library
 
 # import library

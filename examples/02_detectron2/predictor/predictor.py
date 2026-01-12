@@ -19,7 +19,6 @@ from typing import Tuple
 import cv2
 import numpy as np
 import torch
-
 from aitemplate.compiler import Model
 from modeling.meta_arch import GeneralizedRCNN
 from PIL import Image

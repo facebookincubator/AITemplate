@@ -16,12 +16,10 @@ import itertools
 import logging
 import os
 import unittest
-
 from typing import List, Optional
 
 import numpy as np
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
@@ -1062,9 +1060,9 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
         if num_cat_ops == 1:
             Ys = [ops.concatenate()(Y0s, dim=cat_dim)]
         else:
-            assert (
-                len(input_shapes) % 2 == 0
-            ), "len(input_shapes) must be even when num_cat_ops == 2"
+            assert len(input_shapes) % 2 == 0, (
+                "len(input_shapes) must be even when num_cat_ops == 2"
+            )
             half = len(input_shapes) // 2
             Y1 = ops.concatenate()(Y0s[:half], dim=cat_dim)
             Y2 = ops.concatenate()(Y0s[half:], dim=cat_dim)
@@ -2146,9 +2144,9 @@ class StridedOpCatPatternTestCase(unittest.TestCase):
                     x2_shape.append(1)
             else:
                 x2_shape.append(input_shape[idx])
-        assert (
-            cat_dim != 0
-        ), f"cat_dim is not allowed to be 0 in this test but got {cat_dim}"
+        assert cat_dim != 0, (
+            f"cat_dim is not allowed to be 0 in this test but got {cat_dim}"
+        )
         # set concat_dim to a new value for testing
         x2_shape[cat_dim - 1] = new_cat_dim_val
         X2 = Tensor(

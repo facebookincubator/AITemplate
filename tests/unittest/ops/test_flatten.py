@@ -16,7 +16,6 @@ import itertools
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import nn, Tensor

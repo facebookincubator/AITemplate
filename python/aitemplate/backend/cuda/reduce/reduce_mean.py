@@ -17,7 +17,6 @@ A reduce_mean kernel implementation
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.cuda.reduce import reduce_3d
 

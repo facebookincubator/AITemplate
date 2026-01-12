@@ -100,7 +100,7 @@ def get_ait_acc_op_mappers() -> Dict[Tuple[str, Union[str, Callable]], AitAccOpM
     return _AIT_ACC_OP_MAPPERS
 
 
-def get_custom_ait_acc_op_mappers() -> (
-    Dict[Tuple[str, Union[str, Callable]], CustomAitAccOpMapper]
-):
+def get_custom_ait_acc_op_mappers() -> Dict[
+    Tuple[str, Union[str, Callable]], CustomAitAccOpMapper
+]:
     return _CUSTOM_AIT_ACC_OP_MAPPERS

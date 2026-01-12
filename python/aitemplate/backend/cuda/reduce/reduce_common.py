@@ -17,14 +17,12 @@ CUDA reduce common functions
 """
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.reduce.reduce_common_slim_tensor import (
     get_special_exec_cond_and_kernel,
     meets_special_kernel_conditions,
 )
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntImm, IntVar
 
 FUNC_DECL_TEMPLATE = jinja2.Template(

@@ -15,9 +15,7 @@
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.testing import detect_target
 

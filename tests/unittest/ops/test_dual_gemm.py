@@ -17,7 +17,6 @@ import math
 import unittest
 
 import numpy as np
-
 import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import nn, Tensor

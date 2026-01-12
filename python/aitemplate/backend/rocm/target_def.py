@@ -26,13 +26,11 @@ import sys
 from typing import List
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.target import (
     AIT_STATIC_FILES_PATH,
     COMPOSABLE_KERNEL_PATH,
     Target,
 )
-
 from aitemplate.utils import environ
 from aitemplate.utils.misc import is_linux
 

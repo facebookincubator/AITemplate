@@ -17,7 +17,6 @@ Concatenate tanh op for ROCM backend.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.tensor import concatenate
 

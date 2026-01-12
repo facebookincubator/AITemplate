@@ -17,7 +17,6 @@
 import unittest
 
 import torch
-
 from aitemplate.testing import detect_target
 from fx2ait.acc_tracer import acc_ops
 from fx2ait.tools.common_fx2ait import AITTestCase

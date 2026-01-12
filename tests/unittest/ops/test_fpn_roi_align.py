@@ -102,7 +102,6 @@ class RoiAlignTestCase(unittest.TestCase):
 
         def fpn_roialign_pt(boxes, features, device="cuda"):
             from aitemplate.testing.benchmark_pt import benchmark_torch_function
-
             from detectron2.structures import Boxes
 
             pooler_resolution = pooled_size

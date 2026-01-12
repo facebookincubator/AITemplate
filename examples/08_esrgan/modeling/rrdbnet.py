@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 import torch
-
 from aitemplate.compiler import ops
 from aitemplate.frontend import nn, Tensor
 

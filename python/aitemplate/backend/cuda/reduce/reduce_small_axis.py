@@ -20,7 +20,6 @@ bound is set to 128.
 import math
 
 import jinja2
-
 from aitemplate.compiler.base import IntImm
 
 

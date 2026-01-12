@@ -19,7 +19,6 @@ Fused transposed_conv2d_bias op.
 from typing import Tuple
 
 from aitemplate.compiler.base import Tensor
-
 from aitemplate.compiler.ops.conv.common_conv2d_bias_activation import (
     conv2d_bias_activation,
 )

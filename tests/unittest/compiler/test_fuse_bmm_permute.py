@@ -17,14 +17,11 @@ import unittest
 from typing import Tuple
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
-
 from aitemplate.compiler.base import IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-
 from aitemplate.testing.test_utils import (
     filter_test_cases_by_params,
     get_random_torch_tensor,
@@ -32,7 +29,6 @@ from aitemplate.testing.test_utils import (
     TestEnv,
 )
 from aitemplate.utils import shape_utils
-
 from parameterized import parameterized
 
 
@@ -98,9 +94,9 @@ class FuseBmmPermuteCase(unittest.TestCase):
             src_ops = tensor.src_ops()
             if len(src_ops) == 0:
                 continue
-            assert (
-                len(src_ops) == 1
-            ), "Constructed graph should only have single-source op tensors."
+            assert len(src_ops) == 1, (
+                "Constructed graph should only have single-source op tensors."
+            )
             src_op = list(tensor.src_ops())[0]
             assert src_op._attrs["op"] != original_bmm
 

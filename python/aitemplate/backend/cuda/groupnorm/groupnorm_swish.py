@@ -15,7 +15,6 @@
 from typing import Any, Dict
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.cuda.groupnorm.groupnorm_common import (
     groupnorm_gen_func_call,
     groupnorm_gen_func_decl,

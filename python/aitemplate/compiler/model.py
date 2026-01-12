@@ -24,7 +24,6 @@ import struct
 from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, TypeVar, Union
 
 import numpy as np
-
 from aitemplate.compiler.dtype import dtype_str_to_enum
 from aitemplate.utils.misc import is_linux, is_windows
 from aitemplate.utils.torch_utils import torch_dtype_to_string, write_tensor_binary
@@ -162,9 +161,9 @@ def _reshape_tensor(tensor: TorchTensor, shape: List[int]) -> TorchTensor:
     Reinterpret a blob of contiguous memory as some shape. Used to convert
     outputs in RunWithTensors.
     """
-    assert (
-        tensor.ndim == len(shape)
-    ), f"Expected output tensor's ndim to match the length of Run()'s return value: {tensor.ndim=} != {len(shape)=}"
+    assert tensor.ndim == len(shape), (
+        f"Expected output tensor's ndim to match the length of Run()'s return value: {tensor.ndim=} != {len(shape)=}"
+    )
     numel = math.prod(shape)
     new_tensor = tensor.flatten()[:numel]
     return new_tensor.reshape(shape)

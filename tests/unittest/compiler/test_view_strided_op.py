@@ -13,11 +13,9 @@
 #  limitations under the License.
 #
 import unittest
-
 from typing import List, Optional
 
 import torch
-
 from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.compiler.base import IntVar
 from aitemplate.frontend import IntImm, Tensor
@@ -28,7 +26,6 @@ from aitemplate.testing.test_utils import (
     get_torch_empty_tensor,
 )
 from aitemplate.utils import graph_utils
-
 from parameterized import param, parameterized
 
 

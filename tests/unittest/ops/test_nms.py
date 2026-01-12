@@ -21,7 +21,6 @@ from unittest import skipIf
 
 import numpy as np
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target

@@ -15,7 +15,6 @@
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.stable_set import StableSet

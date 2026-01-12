@@ -23,22 +23,18 @@ import re
 import shutil
 import sys
 import tempfile
-
 from pathlib import Path
 from shlex import quote
 from typing import List
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.profiler_cache import ProfileCacheDB
-
 from aitemplate.backend.target import (
     AIT_STATIC_FILES_PATH,
     CUTLASS_PATH,
     Target,
     TargetType,
 )
-
 from aitemplate.utils import environ
 from aitemplate.utils.misc import is_debug, is_linux
 # pylint: disable=C0415,W0707,W0611,W0702,W1401
@@ -140,9 +136,9 @@ class CUDA(Target):
         level = environ.get_cuda_nvcc_debug_level()
         if level.isdigit():
             level = int(level)
-            assert (
-                level >= 0 and level < 3
-            ), "Debug level out of range. Must be 0 (no debug info), 1 (lineinfo) or 2 (with debug info, disable opt)"
+            assert level >= 0 and level < 3, (
+                "Debug level out of range. Must be 0 (no debug info), 1 (lineinfo) or 2 (with debug info, disable opt)"
+            )
             return CUDA_DEBUG_LEVEL_STRINGS[level]
         return [level]
 
@@ -355,9 +351,9 @@ class FBCUDA(CUDA):
     def _build_include_directories_from_sourcetree(self) -> List[str]:
         my_path: Path = Path(os.path.realpath(__file__))  # noqa
         ait_basepath: Path = my_path.parent.parent.parent.parent.parent.absolute()
-        assert (
-            ait_basepath.name == "AITemplate"
-        ), "AITemplate basepath resolution failed"
+        assert ait_basepath.name == "AITemplate", (
+            "AITemplate basepath resolution failed"
+        )
         relative_include_paths = [
             "fb/3rdparty/cutlass/examples/35_gemm_softmax",
             "fb/3rdparty/cutlass/examples/41_fused_multi_head_attention",

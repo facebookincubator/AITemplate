@@ -17,7 +17,6 @@ CUDA gather function
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.cuda import cuda_common
 

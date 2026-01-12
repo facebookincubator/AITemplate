@@ -77,9 +77,9 @@ class bmm_softmax_bmm(bmm):
                 "Current shape A: {} shape B: {} .".format(a_shapes, b_shapes)
             )
         batch_size = batch_size_b if batch_size_a == IntImm(1) else batch_size_a
-        assert (
-            a_shapes[2] == b_shapes[2]
-        ), f"bmm_rcr operand A and B should have the same K dim (dim2)! Current shape A: {a_shapes}, shape B: {b_shapes}"
+        assert a_shapes[2] == b_shapes[2], (
+            f"bmm_rcr operand A and B should have the same K dim (dim2)! Current shape A: {a_shapes}, shape B: {b_shapes}"
+        )
         return [batch_size, a_shapes[1], b1_shapes[2]]
 
     def _extract_dims(self, for_profiling=False):

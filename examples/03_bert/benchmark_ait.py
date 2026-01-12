@@ -13,14 +13,12 @@
 #  limitations under the License.
 #
 import os
-
 from typing import Dict, List
 
 import click
 import numpy as np
 import torch
 from aitemplate.compiler import compile_model, Model
-
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 
@@ -258,9 +256,9 @@ def compile_and_benchmark(
 ):
     if detect_target().name() == "rocm":
         graph_mode = False
-        assert activation in (
-            "fast_gelu"
-        ), f"Unsupported activation: {activation} on rocm"
+        assert activation in ("fast_gelu"), (
+            f"Unsupported activation: {activation} on rocm"
+        )
 
     pt_model = BertPt(pretrained=use_pretrained_pt_model)._model
     pt_model.eval()

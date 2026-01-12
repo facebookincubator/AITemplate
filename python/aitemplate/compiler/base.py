@@ -19,9 +19,7 @@ Basic data types of AITemplate.
 from __future__ import annotations
 
 import copy
-
 import math
-
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -32,13 +30,10 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Union
 
 import numpy as np
 import sympy
-
 from aitemplate.compiler import symbolic
 from aitemplate.compiler.dtype import get_dtype_size, normalize_dtype
 from aitemplate.compiler.op_registry import OP_REGISTRY
-
 from aitemplate.compiler.stable_set import StableSet
-
 from aitemplate.utils.tensor_utils import wrap_dim
 from aitemplate.utils.torch_utils import torch_dtype_to_string
 

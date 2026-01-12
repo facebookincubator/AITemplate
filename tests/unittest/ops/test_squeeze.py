@@ -18,7 +18,6 @@ from typing import List, Optional, Tuple
 
 import torch
 from aitemplate.compiler import compile_model
-
 from aitemplate.compiler.ops import elementwise, squeeze, unsqueeze
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor

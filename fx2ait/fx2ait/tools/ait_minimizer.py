@@ -17,7 +17,6 @@ from typing import Any, Callable, List, Tuple
 
 import torch
 import torch.fx.passes.net_min_base as net_min_base
-
 from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter, TensorSpec
 from torch.fx.passes.tools_common import Tensors

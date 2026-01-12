@@ -25,7 +25,6 @@ from operator import itemgetter
 from typing import Dict, List, Union
 
 import jinja2
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
@@ -38,9 +37,7 @@ from aitemplate.compiler.base import (
     Tensor,
 )
 from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
-
 from aitemplate.testing import detect_target
-
 from aitemplate.utils.tensor_utils import wrap_dim
 
 
@@ -99,9 +96,9 @@ class softmax(Operator):
             List[IntVar]
         """
         shapes = x._attrs["shape"]
-        assert (
-            len(shapes) >= 2
-        ), f"softmax only supports input with rank >= 2, current rank: {len(shapes)}"
+        assert len(shapes) >= 2, (
+            f"softmax only supports input with rank >= 2, current rank: {len(shapes)}"
+        )
         return x._attrs["shape"]
 
     def _invert_exec_key(self, key: str):
@@ -286,7 +283,7 @@ class softmax(Operator):
 
         if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
+                f"Profile workload: {exec_key} failed. Results: {result}."
             )
 
         out = min(result, key=itemgetter(1))

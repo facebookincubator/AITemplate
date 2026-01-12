@@ -81,12 +81,12 @@ def compile_diffusers(
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
-    assert (
-        width[0] % 64 == 0 and width[1] % 64 == 0
-    ), "Minimum Width and Maximum Width must be multiples of 64, otherwise, the compilation process will fail."
-    assert (
-        height[0] % 64 == 0 and height[1] % 64 == 0
-    ), "Minimum Height and Maximum Height must be multiples of 64, otherwise, the compilation process will fail."
+    assert width[0] % 64 == 0 and width[1] % 64 == 0, (
+        "Minimum Width and Maximum Width must be multiples of 64, otherwise, the compilation process will fail."
+    )
+    assert height[0] % 64 == 0 and height[1] % 64 == 0, (
+        "Minimum Height and Maximum Height must be multiples of 64, otherwise, the compilation process will fail."
+    )
 
     pipe = StableDiffusionPipeline.from_pretrained(
         local_dir,

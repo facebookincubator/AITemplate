@@ -18,7 +18,6 @@ import unittest
 import torch
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntVarTensor
-
 from aitemplate.frontend import IntImm, IntVar, nn, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor
@@ -42,9 +41,9 @@ class ReshapeTestCase(unittest.TestCase):
             numel *= dim
 
         if unknown_idx == -1:
-            assert (
-                numel == prod
-            ), f"When there is no unknown index, we expect dim products to be equal, got current shape {numel=} != new shape {prod=}"
+            assert numel == prod, (
+                f"When there is no unknown index, we expect dim products to be equal, got current shape {numel=} != new shape {prod=}"
+            )
         else:
             # FIXME: note that this RuntimeError rules out some "valid" PyTorch
             # code like:

@@ -14,11 +14,9 @@
 #
 import logging
 import unittest
-
 from typing import Sequence
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.transform.fuse_parallel_gemms import (
@@ -181,12 +179,12 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
         new_sorted_graph = fuse_parallel_gemms(sorted_graph)
 
         sorted_ops = graph_utils.get_sorted_ops(new_sorted_graph)
-        assert not has_op(
-            sorted_ops, "perm102_bmm_rrr_bias"
-        ), "the final graph should not have op perm102_bmm_rrr_bias"
-        assert not has_op(
-            sorted_ops, "perm102_bmm_rcr_bias"
-        ), "the final graph should not have op perm102_bmm_rcr_bias"
+        assert not has_op(sorted_ops, "perm102_bmm_rrr_bias"), (
+            "the final graph should not have op perm102_bmm_rrr_bias"
+        )
+        assert not has_op(sorted_ops, "perm102_bmm_rcr_bias"), (
+            "the final graph should not have op perm102_bmm_rcr_bias"
+        )
 
     def _fuse_parallel_gemm_cat(
         self,
@@ -254,13 +252,13 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             # Verify the generated graph.
             sorted_graph = module.debug_sorted_graph
             sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
-            assert has_op(
-                sorted_ops, perm102_bmm_op
-            ), f"the final graph does not have op {perm102_bmm_op}"
+            assert has_op(sorted_ops, perm102_bmm_op), (
+                f"the final graph does not have op {perm102_bmm_op}"
+            )
             if not has_tanh:
-                assert not has_op(
-                    sorted_ops, "split"
-                ), "the final graph has split op, but it should not"
+                assert not has_op(sorted_ops, "split"), (
+                    "the final graph has split op, but it should not"
+                )
 
             for m in ms:
                 x_pt = get_random_torch_tensor([m, b * k], dtype)
@@ -513,13 +511,13 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             # Verify the generated graph.
             sorted_graph = module.debug_sorted_graph
             sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
-            assert not has_op(
-                sorted_ops, "gemm_rcr_bias"
-            ), "the final graph still has op gemm_rcr_bias"
+            assert not has_op(sorted_ops, "gemm_rcr_bias"), (
+                "the final graph still has op gemm_rcr_bias"
+            )
             if not has_tanh:
-                assert not has_op(
-                    sorted_ops, "split"
-                ), "the final graph has split op, but it should not"
+                assert not has_op(sorted_ops, "split"), (
+                    "the final graph has split op, but it should not"
+                )
 
             for m in ms:
                 x_pt = get_random_torch_tensor([m, b1 * k], dtype)
@@ -593,9 +591,9 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             sorted_graph = module.debug_sorted_graph
             sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
             actual_unfused_ops = count_ops(sorted_ops, "gemm_rcr_bias")
-            assert (
-                actual_unfused_ops == num_unfused_ops
-            ), f"Expecting {num_unfused_ops} unfused gemm_rcr_bias ops, found {actual_unfused_ops}"
+            assert actual_unfused_ops == num_unfused_ops, (
+                f"Expecting {num_unfused_ops} unfused gemm_rcr_bias ops, found {actual_unfused_ops}"
+            )
             ys = []
             for i, input in enumerate(inputs):
                 tanh = input.tanh()
@@ -663,7 +661,7 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             X2 = X1[i]
             X3 = ops.gemm_rcr_bias()(X2, Ws[i], Bs[i])
             cat_inputs.append(X3)
-            X3._attrs["name"] = f"output{i+1}"
+            X3._attrs["name"] = f"output{i + 1}"
             X3._attrs["is_output"] = True
 
         cat_output = ops.concatenate()(cat_inputs, dim=-1)
@@ -690,12 +688,12 @@ class ParallelGemmCatFusionTestCase(unittest.TestCase):
             # Verify the generated graph.
             sorted_graph = module.debug_sorted_graph
             sorted_ops = graph_utils.get_sorted_ops(sorted_graph)
-            assert not has_op(
-                sorted_ops, perm102_bmm_op
-            ), f"the final graph has op {perm102_bmm_op}"
-            assert has_op(
-                sorted_ops, "gemm_rcr_bias"
-            ), "the final graph does not have op gemm_rcr_bias"
+            assert not has_op(sorted_ops, perm102_bmm_op), (
+                f"the final graph has op {perm102_bmm_op}"
+            )
+            assert has_op(sorted_ops, "gemm_rcr_bias"), (
+                "the final graph does not have op gemm_rcr_bias"
+            )
 
             for m in ms:
                 x_pt = get_random_torch_tensor([m, b * k], dtype)
@@ -950,7 +948,7 @@ class SingleSourceParallelGemmFusionTestCase(unittest.TestCase):
             )
             Ys_pt.append(torch.nn.functional.relu(y_pt))
         for i in range(len(N2)):
-            y_pt = torch.nn.functional.linear(x_pt, constants[f"W{i+len(N1)}"])
+            y_pt = torch.nn.functional.linear(x_pt, constants[f"W{i + len(N1)}"])
             Ys_pt.append(torch.nn.functional.relu(y_pt))
 
         # Run AITemplate module.

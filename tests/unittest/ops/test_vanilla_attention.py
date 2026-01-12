@@ -23,7 +23,6 @@ import unittest
 
 import torch
 import torch.nn.functional as F
-
 from aitemplate.compiler import compile_model, Model
 from aitemplate.frontend import nn, Tensor
 from aitemplate.frontend.nn.vanilla_attention import vanilla_attention

@@ -20,7 +20,6 @@ import os
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import tensor_accessor_codegen
@@ -186,9 +185,9 @@ def layernorm_sigmoid_mul_gen_function_decl(func_attrs: Dict[str, Any]):
 def layernorm_sigmoid_mul_gen_function_call(func_attrs, indent="  "):
     output_name = ""
     assert len(func_attrs["outputs"]) == 1
-    assert 1 <= len(
-        func_attrs["inputs"]
-    ), "expected at least 1 inputs but got {}".format(len(func_attrs["inputs"]))
+    assert 1 <= len(func_attrs["inputs"]), (
+        "expected at least 1 inputs but got {}".format(len(func_attrs["inputs"]))
+    )
 
     output_name = func_attrs["outputs"][0]._attrs["name"]
     (input_name, gamma_name, beta_name) = layernorm_common.get_input_names(func_attrs)

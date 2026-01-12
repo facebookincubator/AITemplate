@@ -52,9 +52,9 @@ class permute(Operator):
             dims[i] = wrap_dim(dim, x._rank())
 
         sorted_dims = list(range(x._rank()))
-        assert (
-            sorted(dims) == sorted_dims
-        ), f"expected a permutation of {sorted_dims}, but got {dims}"
+        assert sorted(dims) == sorted_dims, (
+            f"expected a permutation of {sorted_dims}, but got {dims}"
+        )
 
         # "dims" is set here before possible dispatching to the
         # static-shape permute kernels below to keep the call to

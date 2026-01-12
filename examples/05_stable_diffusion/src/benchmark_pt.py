@@ -15,7 +15,6 @@
 
 import click
 import torch
-
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from diffusers import StableDiffusionPipeline
 

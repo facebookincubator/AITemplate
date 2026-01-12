@@ -22,7 +22,6 @@ from collections import OrderedDict
 from typing import Any, Dict, List
 
 import jinja2
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor

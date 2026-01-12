@@ -19,14 +19,10 @@ import unittest
 
 import cv2
 import numpy as np
-
 import torch
-
 from aitemplate.compiler import compile_model
-
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-
 from detectron2.config import CfgNode
 from detectron2.engine import DefaultPredictor
 

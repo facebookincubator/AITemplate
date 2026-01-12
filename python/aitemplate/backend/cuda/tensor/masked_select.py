@@ -19,11 +19,8 @@ Define masked_select codegen and CUDA kernel
 from typing import List
 
 import jinja2
-
 from aitemplate.backend import registry
-
 from aitemplate.backend.backend_spec import CUDASpec
-
 from aitemplate.backend.common.elementwise_common import (
     gen_dynamic_dim_str,
     get_dynamic_dims,

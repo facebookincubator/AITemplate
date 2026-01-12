@@ -34,7 +34,6 @@ from aitemplate.compiler.base import DynamicProfileStrategy
 """Elementwise"""
 from aitemplate.compiler.ops.common.elementwise import clamp, elementwise
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
-
 from aitemplate.compiler.ops.common.int_elementwise import int_elementwise
 
 """GEMM"""

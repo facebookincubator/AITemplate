@@ -17,7 +17,6 @@ import unittest
 
 import torch
 from aitemplate import compiler
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import Operator
 from aitemplate.frontend import IntImm, nn, Tensor
@@ -26,7 +25,6 @@ from aitemplate.testing.test_utils import (
     get_random_torch_tensor,
     get_torch_empty_tensor,
 )
-
 from parameterized import parameterized
 
 

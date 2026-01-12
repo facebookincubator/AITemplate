@@ -17,7 +17,6 @@ ROCM codegen functions for transposed_conv2d_bias_relu.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.conv2d import common
 

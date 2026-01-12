@@ -161,9 +161,9 @@ class split(Operator):
         curr_outputs = self._attrs["outputs"]
         num_curr_outputs = len(curr_outputs)
 
-        assert (
-            len(indices) <= num_curr_outputs
-        ), f"Expected len(indices) <= num_curr_outputs, but got {len(indices)} and {num_curr_outputs}"
+        assert len(indices) <= num_curr_outputs, (
+            f"Expected len(indices) <= num_curr_outputs, but got {len(indices)} and {num_curr_outputs}"
+        )
 
         num_original_outputs = len(self._attrs["original_outputs"])
         num_output_masks = len(self._attrs["output_masks"])
@@ -182,7 +182,7 @@ class split(Operator):
             if idx < len(indices) and curr_idx == indices[idx]:
                 if not self._attrs["output_masks"][orig_idx]:
                     raise RuntimeError(
-                        f'Expected input_masks at {idx} to be True for {self._attrs["name"]}'
+                        f"Expected input_masks at {idx} to be True for {self._attrs['name']}"
                     )
                 self._attrs["output_masks"][orig_idx] = False
                 idx += 1

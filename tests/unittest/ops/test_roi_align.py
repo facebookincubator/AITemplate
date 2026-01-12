@@ -18,7 +18,6 @@ from unittest import skipIf
 import numpy as np
 import torch
 from aitemplate.compiler import compile_model
-
 from aitemplate.frontend import IntVar, nn, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import get_random_torch_tensor

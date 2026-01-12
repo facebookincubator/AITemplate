@@ -134,10 +134,10 @@ def fuse_duplicate_fused_elementwise(
         prev_shape = primary_op._attrs["output_accessors"][0].original_shapes
         for output_accessor in primary_op._attrs["output_accessors"]:
             shape = output_accessor.original_shapes
-            assert (
-                prev_shape == shape
-            ), "Output shapes mismatch in fuse_duplicate_fused_elementwise: {}, {}".format(
-                prev_shape, shape
+            assert prev_shape == shape, (
+                "Output shapes mismatch in fuse_duplicate_fused_elementwise: {}, {}".format(
+                    prev_shape, shape
+                )
             )
             prev_shape = shape
 

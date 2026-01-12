@@ -20,7 +20,6 @@ import logging
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
@@ -109,7 +108,7 @@ class FusedLayernormSigmoidMulTestCase(unittest.TestCase):
             self._test_id += 1
             for batch_size in [50, 900, 1024]:
                 logging.info(
-                    f"Run test layernorm_sigmoid_mul. Problem size {[batch_size,] + list(MS) + list(NS)}"
+                    f"Run test layernorm_sigmoid_mul. Problem size {[batch_size] + list(MS) + list(NS)}"
                 )
                 x1_pt = get_random_torch_tensor([batch_size, *MS, *NS], dtype=dtype)
                 if gamma_is_none:

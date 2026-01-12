@@ -34,9 +34,7 @@ from typing import List
 
 from aitemplate.compiler.base import IntImm, IntVar, JaggedIntVar, Operator, Tensor
 from aitemplate.compiler.ops.tensor.expand import ExpandDimensionType
-
 from aitemplate.compiler.transform import transform_utils
-
 from aitemplate.utils import graph_utils, shape_utils
 from aitemplate.utils.shape_utils import is_singleton_dimension
 
@@ -236,9 +234,9 @@ def _remove_no_op_expands(sorted_graph: List[Tensor]) -> List[Tensor]:
         assert len(inputs) >= 1, "expand must have at least 1 input"
         expand_input = inputs[0]
 
-        assert len(op._attrs["dim_types"]) == len(
-            expand_output._attrs["shape"]
-        ), "expand must have dim_type for every output dimension"
+        assert len(op._attrs["dim_types"]) == len(expand_output._attrs["shape"]), (
+            "expand must have dim_type for every output dimension"
+        )
 
         # If we just keep every dimension as-is, it is a no-op
         if any(dt != ExpandDimensionType.KEEP_DIM for dt in op._attrs["dim_types"]):

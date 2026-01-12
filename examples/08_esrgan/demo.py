@@ -15,7 +15,6 @@
 import click
 import numpy as np
 import torch
-
 from aitemplate.compiler import Model
 from PIL import Image
 

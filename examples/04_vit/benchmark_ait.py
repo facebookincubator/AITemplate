@@ -20,10 +20,8 @@ import click
 import numpy as np
 import torch
 from aitemplate.compiler import compile_model, Model
-
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-
 from modeling.vision_transformer import VisionTransformer
 from weight_utils import export_to_torch_tensor
 

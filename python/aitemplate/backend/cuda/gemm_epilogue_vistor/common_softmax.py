@@ -21,7 +21,6 @@ import re
 from hashlib import sha1
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.cuda.gemm_universal import common

@@ -70,9 +70,9 @@ def repeat_interleave(input_val, repeats, dim=None):
             "Not mapping repeat_interleave to an acc op. We currently only support `repeat_interleave` with int repeats"
         )
         return
-    assert (
-        type(repeats) is int
-    ), "We currently only support `repeat_interleave` with int repeats"
+    assert type(repeats) is int, (
+        "We currently only support `repeat_interleave` with int repeats"
+    )
     rank = len(input_val.shape())
     if dim is None:
         repeat_dim = rank - 1
@@ -130,9 +130,9 @@ class SpatioTemporalClsPositionalEncoding(Module):
                 input sequence.
         """
         super().__init__()
-        assert (
-            len(patch_embed_shape) == 3
-        ), "Patch_embed_shape should be in the form of (T, H, W)."
+        assert len(patch_embed_shape) == 3, (
+            "Patch_embed_shape should be in the form of (T, H, W)."
+        )
         self.cls_embed_on = has_cls
         self.sep_pos_embed = sep_pos_embed
         self._patch_embed_shape = tuple(patch_embed_shape)

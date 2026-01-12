@@ -16,7 +16,6 @@ import unittest
 from typing import Sequence
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.testing import detect_target

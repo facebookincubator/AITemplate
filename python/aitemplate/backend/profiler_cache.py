@@ -19,7 +19,6 @@ SQLite backend for conv/gemm profiling cache
 import enum
 import logging
 import sqlite3
-
 from typing import Any, Dict, Tuple
 
 import jinja2
@@ -648,9 +647,9 @@ class ProfileCacheDB:
         ]
         assert len(target_tables) != 0, f"no {table_kind} table exists"
         # To simplify the logic, we only keep a single table for each kind
-        assert (
-            len(target_tables) == 1
-        ), f"expected only one {table_kind} table but got {target_tables=}"
+        assert len(target_tables) == 1, (
+            f"expected only one {table_kind} table but got {target_tables=}"
+        )
         _LOGGER.info(f"deleting table {target_tables[0]=}")
         self._cur.execute(f"DROP TABLE {target_tables[0]}")
 

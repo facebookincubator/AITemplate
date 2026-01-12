@@ -21,7 +21,6 @@ from __future__ import annotations
 import concurrent.futures
 import logging
 import os
-
 import re
 import subprocess
 from collections import namedtuple
@@ -31,7 +30,6 @@ from typing import Callable, List, Tuple, Union
 
 from aitemplate.backend.target import Target
 from aitemplate.backend.task_runner import BaseRunner, Task
-
 from aitemplate.testing import detect_target
 
 # pylint: disable=W0221

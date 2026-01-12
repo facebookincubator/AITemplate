@@ -13,9 +13,7 @@
 #  limitations under the License.
 #
 import torch
-
 from fx2ait.acc_tracer.acc_normalizer import register_acc_op
-
 from fx2ait.acc_tracer.ait_acc_ops_registry import ait_register_acc_op_mapping
 
 this_arg_is_optional: bool = True

@@ -17,11 +17,9 @@ import logging
 import click
 import safetensors.torch
 import torch
-
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
-
 from modeling.rrdbnet import map_rrdb, mark_output, RRDBNet
 
 

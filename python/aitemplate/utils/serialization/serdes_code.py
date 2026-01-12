@@ -20,13 +20,10 @@ import copy
 import logging
 import os
 import sys
-
 from typing import Dict, List, Optional, Tuple, Union
 
 import jinja2
-
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
-
 from aitemplate.compiler.transform import mark_param_tensor, name_graph, toposort
 
 _LOGGER = logging.getLogger(__name__)
@@ -167,7 +164,7 @@ def _retrieve_op_info(op: Operator, params_set) -> Tuple[List, Dict]:
                         )
                     curr_idx += 1
 
-            op_inputs.append(f'[{", ".join(norm_shapes_input)}]')
+            op_inputs.append(f"[{', '.join(norm_shapes_input)}]")
             op_inputs.append(str(op._attrs["eps"]))
     elif op._attrs["op"] == "split":
         # split has size and dim provided as inputs.
@@ -182,7 +179,7 @@ def _retrieve_op_info(op: Operator, params_set) -> Tuple[List, Dict]:
                 input_name = "self." + input_name
             tmp_inputs.append(input_name)
         op_inputs = [
-            f'[{", ".join(tmp_inputs)}]',
+            f"[{', '.join(tmp_inputs)}]",
             str(op._attrs["concat_dim"]),
         ]
     elif op._attrs["op"] == "reshape":

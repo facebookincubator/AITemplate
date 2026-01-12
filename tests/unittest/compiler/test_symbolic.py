@@ -16,7 +16,6 @@
 import unittest
 
 import sympy
-
 from aitemplate.compiler import ops, symbolic, transform
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum

@@ -21,7 +21,6 @@ from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Union
 
 import fx2ait.cache as cache
-
 import torch
 
 # @manual=//aitemplate/AITemplate/python/aitemplate:aitemplate
@@ -38,7 +37,6 @@ from torch.fx.passes.split_utils import getattr_recursive
 
 from .converters.converter_registry import AIT_CONVERTERS
 from .tensor_spec import TensorSpec
-
 from .utils import dtype_to_str, make_str_ait_friendly
 
 _LOGGER: logging.Logger = logging.getLogger(__name__)
@@ -270,9 +268,9 @@ class AITInterpreter(torch.fx.Interpreter):
             if n._attrs["is_input"]
         }
         for name in ait_input_names:
-            assert (
-                self._fx_input_names.count(name) == 1
-            ), f"Cannot find AIT's compiled input: {name} in fx graph!"
+            assert self._fx_input_names.count(name) == 1, (
+                f"Cannot find AIT's compiled input: {name} in fx graph!"
+            )
 
         for name in self._fx_input_names:
             if name in ait_input_names:

@@ -20,7 +20,6 @@ along dim=1 for 3D tensors is supported.
 from typing import List
 
 import jinja2
-
 from aitemplate.compiler.base import IntVar
 from aitemplate.utils.shape_utils import is_static_dimension
 

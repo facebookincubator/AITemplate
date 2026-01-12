@@ -19,7 +19,6 @@ This is used for `ops.bmm_rcr`.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.gemm import bmm_common, bmm_permute_common, common
 from aitemplate.backend.rocm.gemm.layout import RCR

@@ -19,9 +19,7 @@ Define masked_select op
 from typing import List
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import Operator, Tensor
 
 

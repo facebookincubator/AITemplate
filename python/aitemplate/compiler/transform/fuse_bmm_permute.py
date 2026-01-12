@@ -21,7 +21,6 @@ Perform fusions for bmm + permute021 operators:
 from typing import List
 
 from aitemplate.compiler.base import Tensor
-
 from aitemplate.compiler.ops.gemm_universal import (
     bmm_ccc,
     bmm_ccr,
@@ -32,9 +31,7 @@ from aitemplate.compiler.ops.gemm_universal import (
     bmm_rrc,
     bmm_rrr,
 )
-
 from aitemplate.compiler.ops.tensor import permute021
-
 from aitemplate.compiler.transform.fuse_utils import transform_simple_fusion_patterns
 
 

@@ -20,7 +20,6 @@ import numpy as np
 import torch
 from aitemplate.compiler import compile_model
 from aitemplate.compiler.base import Tensor
-
 from aitemplate.testing import detect_target
 
 try:
@@ -30,7 +29,6 @@ except ImportError:
     ManifoldClient = None
 
 from parameterized import parameterized
-
 from timm.models.vision_transformer import vit_base_patch16_224, vit_large_patch16_384
 
 from .modeling.vision_transformer import VisionTransformer

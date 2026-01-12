@@ -15,7 +15,6 @@
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import Tensor

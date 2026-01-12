@@ -20,7 +20,6 @@ import os
 from typing import Any, Dict, List
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.target import Target
 
@@ -178,9 +177,9 @@ def groupnorm_gen_func_decl(func_attrs: Dict[str, Any]) -> str:
 def groupnorm_gen_func_call(func_attrs: Dict[str, Any], indent="  ") -> str:
     output_name = ""
     assert len(func_attrs["outputs"]) == 1
-    assert 1 <= len(
-        func_attrs["inputs"]
-    ), "expected at least 1 inputs but got {}".format(len(func_attrs["inputs"]))
+    assert 1 <= len(func_attrs["inputs"]), (
+        "expected at least 1 inputs but got {}".format(len(func_attrs["inputs"]))
+    )
 
     output_name = func_attrs["outputs"][0]._attrs["name"]
     (input_name, gamma_name, beta_name) = get_input_names(func_attrs)

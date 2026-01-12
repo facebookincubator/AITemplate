@@ -16,11 +16,9 @@ import json
 import os
 
 import click
-
 import numpy as np
 import torch
 from aitemplate.compiler import compile_model, Model
-
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from configs import get_cfg_defaults

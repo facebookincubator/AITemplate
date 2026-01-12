@@ -22,7 +22,6 @@ from aitemplate.compiler.base import IntImm, Operator, Tensor
 from aitemplate.compiler.ops import reshape
 from aitemplate.compiler.transform import transform_utils
 from aitemplate.compiler.transform.toposort import toposort
-
 from aitemplate.utils import graph_utils
 
 
@@ -41,10 +40,10 @@ def _check_permute_to_reshape(op: Operator) -> bool:
 
     inputs = op._attrs["inputs"]
 
-    assert (
-        len(inputs) == 1
-    ), "Permute operation {} should have 1 input, got {} instead".format(
-        op._attrs["op"], len(inputs)
+    assert len(inputs) == 1, (
+        "Permute operation {} should have 1 input, got {} instead".format(
+            op._attrs["op"], len(inputs)
+        )
     )
 
     if "input_accessors" in op._attrs:

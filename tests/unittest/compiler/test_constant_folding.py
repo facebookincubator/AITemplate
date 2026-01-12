@@ -17,12 +17,10 @@ import unittest
 
 import torch
 from aitemplate.compiler import compile_model, Model, ops
-
 from aitemplate.compiler.base import _create_host_zero_tensor, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.public import IntImm
 from aitemplate.compiler.transform.transform_utils import check_graph_validity
-
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (
     filter_test_cases_by_params,
@@ -30,7 +28,6 @@ from aitemplate.testing.test_utils import (
     get_torch_empty_tensor,
     TestEnv,
 )
-
 from parameterized import parameterized
 
 

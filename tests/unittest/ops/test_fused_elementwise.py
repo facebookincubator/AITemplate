@@ -21,7 +21,6 @@ import unittest
 from typing import List
 
 import torch
-
 from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum

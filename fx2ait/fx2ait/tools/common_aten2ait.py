@@ -14,7 +14,6 @@
 #
 import logging
 import unittest
-
 import uuid
 from enum import Enum
 from typing import Callable, List, Optional, Set
@@ -25,10 +24,8 @@ import executorch.exir as exir
 import torch
 from aitemplate.compiler.public import DynamicProfileStrategy
 from executorch.exir import CaptureConfig
-
 from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter
-
 from fx2ait.passes.lower_basic_pass_aten import (
     compose_bmm,
     compose_chunk,
@@ -407,7 +404,7 @@ class DispatchTestCase(TestCase):
                 f"PT Eager QPS: {pt_qps:.2f}, "
                 f"FX2AIT time per iter: {ait_time_per_iter_ms}ms, "
                 f"FX2AIT Eager QPS: {ait_qps:.2f}, "
-                f"Speedup: {ait_qps/pt_qps:.2f}, "
+                f"Speedup: {ait_qps / pt_qps:.2f}, "
             )
             with open("/tmp/bench_" + name + ".csv", "a") as f:
                 f.write(

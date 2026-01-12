@@ -18,7 +18,6 @@ Common functions and templates for perm021_ccr_bias_permute, which computes
 """
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.cuda.gemm_universal import (
     bmm_common,
     bmm_permute_common,

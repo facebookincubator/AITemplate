@@ -13,14 +13,12 @@
 #  limitations under the License.
 #
 import inspect
-
 import os
 import warnings
 from typing import List, Optional, Union
 
 import torch
 from aitemplate.compiler import Model
-
 from diffusers import (
     AutoencoderKL,
     DDIMScheduler,
@@ -32,12 +30,10 @@ from diffusers import (
     StableDiffusionPipeline,
     UNet2DConditionModel,
 )
-
 from diffusers.pipelines.stable_diffusion import (
     StableDiffusionPipelineOutput,
     StableDiffusionSafetyChecker,
 )
-
 from transformers import CLIPFeatureExtractor, CLIPTextModel, CLIPTokenizer
 
 

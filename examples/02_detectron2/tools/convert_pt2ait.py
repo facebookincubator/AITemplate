@@ -21,7 +21,6 @@ import os
 import pickle as pkl
 
 import click
-
 import numpy as np
 import torch
 from aitemplate.testing import detect_target
@@ -63,10 +62,10 @@ class detectron2_export:
             with open(os.path.join("./tmp", self.model_name, "params.json")) as fi:
                 param_map = json.load(fi)
         for name, shape in param_map:
-            assert ait_model[name].shape == tuple(
-                shape
-            ), "weight shape mismatch {} {} expected {}".format(
-                name, ait_model[name].shape, shape
+            assert ait_model[name].shape == tuple(shape), (
+                "weight shape mismatch {} {} expected {}".format(
+                    name, ait_model[name].shape, shape
+                )
             )
 
     def fuse_conv_bn_weights(

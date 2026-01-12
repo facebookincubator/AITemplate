@@ -59,9 +59,9 @@ class BertEmbeddings(Module):
         dtype="float16",
     ):
         super().__init__()
-        assert (
-            hidden_dropout_prob == 0.0
-        ), "Dropout rate larger than 0 is not supported yet."
+        assert hidden_dropout_prob == 0.0, (
+            "Dropout rate larger than 0 is not supported yet."
+        )
 
         self.word_embeddings = Embedding(shape=[vocab_size, hidden_size], dtype=dtype)
         self.position_embeddings = Embedding(

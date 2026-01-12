@@ -22,7 +22,6 @@ C[RowMajor]: [B, M, N]
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common

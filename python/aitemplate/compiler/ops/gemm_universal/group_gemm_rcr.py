@@ -22,14 +22,12 @@ from collections import OrderedDict
 from typing import List
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import ExecItem, Tensor
 from aitemplate.compiler.ops.gemm_universal import gemm_common as common
 from aitemplate.compiler.ops.gemm_universal.gemm_rcr import gemm_rcr
 from aitemplate.compiler.ops.tensor import concatenate
-
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
@@ -270,9 +268,9 @@ class group_gemm_rcr(common.gemm):
         # init compile-time filter
         workloads = list(self._attrs["exec_path"].keys())
         ab_alignments = sorted({self._get_ab_alignment(wkl) for wkl in workloads})
-        assert 1 == len(
-            ab_alignments
-        ), f"ab_alignments should be the same among all workloads, got {ab_alignments=}"
+        assert 1 == len(ab_alignments), (
+            f"ab_alignments should be the same among all workloads, got {ab_alignments=}"
+        )
         func_key = "{target}.{op}.filter".format(
             target=target.name(), op=self._attrs["op"]
         )

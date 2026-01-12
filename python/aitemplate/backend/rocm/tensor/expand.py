@@ -20,9 +20,7 @@ expand op general ROCM implementation with complete dynamic shape support
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend import registry
-
 from aitemplate.backend.backend_spec import ROCMSpec
 from aitemplate.backend.rocm.tensor import expand_static_shape  # noqa: F401
 
@@ -40,9 +38,9 @@ def gen_function_decl(func_attrs: Dict[str, Any]) -> str:
     )
     dt = x.dtype()
     dtype = rocm_spec.dtype_to_backend_dtype.get(dt, None)
-    assert (
-        dtype is not None
-    ), f"ROCM implementation does not support dtype {x.dtype()} (yet)"
+    assert dtype is not None, (
+        f"ROCM implementation does not support dtype {x.dtype()} (yet)"
+    )
     return FUNC_DECL_TEMPLATE.render(
         func_name=func_name,  # name of the function
         dtype=dtype,  # data type of the input and output tensor elements ( valid ROCM C type like float ))
@@ -231,9 +229,9 @@ def create_template_args(
     func_name = func_attrs["name"]
     rocm_spec: ROCMSpec = ROCMSpec()
     dtype = rocm_spec.dtype_to_backend_dtype.get(x.dtype(), None)
-    assert (
-        dtype is not None
-    ), f"ROCM implementation does not support dtype {x.dtype()} (yet)"
+    assert dtype is not None, (
+        f"ROCM implementation does not support dtype {x.dtype()} (yet)"
+    )
 
     xshape = x._attrs["shape"]
     yshape = y._attrs["shape"]

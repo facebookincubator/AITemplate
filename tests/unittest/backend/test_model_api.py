@@ -22,9 +22,7 @@ import unittest
 from typing import Callable, Optional, Tuple
 
 import numpy as np
-
 import torch
-
 from aitemplate.compiler import AIT_DEFAULT_NUM_RUNTIMES, compile_model, ops
 from aitemplate.compiler.base import (
     _ConstantTensorData,

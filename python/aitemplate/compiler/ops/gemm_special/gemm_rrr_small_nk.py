@@ -60,14 +60,14 @@ class gemm_rrr_small_nk(common.gemm):
         return valid
 
     def _infer_shapes(self, a: Tensor, b: Tensor):
-        assert (
-            a.shape()[-1] == b.shape()[0]
-        ), f"gemm_rrr operand A and B should have the same K dim! A shape: {a.shape()}, B shape: {b.shape()}"
+        assert a.shape()[-1] == b.shape()[0], (
+            f"gemm_rrr operand A and B should have the same K dim! A shape: {a.shape()}, B shape: {b.shape()}"
+        )
 
-        assert gemm_rrr_small_nk.is_valid_shape(
-            a, b
-        ), "shape (tensor a:{}, tensor b:{}) not valid for gemm_rrr_small_nk".format(
-            a.shape(), b.shape()
+        assert gemm_rrr_small_nk.is_valid_shape(a, b), (
+            "shape (tensor a:{}, tensor b:{}) not valid for gemm_rrr_small_nk".format(
+                a.shape(), b.shape()
+            )
         )
         return a._attrs["shape"][:-1] + [b._attrs["shape"][1]]
 

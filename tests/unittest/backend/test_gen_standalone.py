@@ -19,7 +19,6 @@ import subprocess
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, Tensor

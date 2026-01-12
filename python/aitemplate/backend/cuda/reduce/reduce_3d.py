@@ -24,10 +24,8 @@ to each final element.
 import bisect
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import tensor_accessor_codegen
-
 from aitemplate.backend.cuda.reduce import reduce_small_axis
 from aitemplate.backend.target import Target
 
@@ -921,9 +919,9 @@ def gen_function(
     epilogue_scalar_code = epilogue_scalar_template.render(indent=" " * 12)
 
     output_accessors = func_attrs["output_accessors"]
-    assert (
-        len(output_accessors) == 1
-    ), f"expected the length of output_accessors to be one but got {len(output_accessors)}"
+    assert len(output_accessors) == 1, (
+        f"expected the length of output_accessors to be one but got {len(output_accessors)}"
+    )
     dtype = func_attrs["inputs"][0].dtype()
     output_alignment = tensor_accessor_codegen.find_max_alignment_for_accessors(
         dtype, output_accessors

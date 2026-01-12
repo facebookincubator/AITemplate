@@ -17,7 +17,6 @@ FPNProposal module.
 """
 
 import numpy as np
-
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Tensor
 from aitemplate.frontend.nn.proposal import generate_shifted_anchors, Proposal

@@ -17,7 +17,6 @@ ROCM codegen functions for roi align.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import ROCMSpec
 from aitemplate.backend.common.vision_ops import roi_align_common

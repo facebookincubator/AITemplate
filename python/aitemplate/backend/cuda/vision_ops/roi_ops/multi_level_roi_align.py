@@ -17,7 +17,6 @@ Codegen functions for multi-level roi align.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common.vision_ops import multi_level_roi_align_common

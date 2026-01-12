@@ -20,7 +20,6 @@ import torch.fx.passes.operator_support as ops
 import torch.fx.passes.splitter_base as splitter_base
 from fx2ait.acc_tracer import acc_ops
 from fx2ait.ait_module import AITModule
-
 from fx2ait.converters.converter_registry import AIT_CONVERTERS
 from fx2ait.fx2ait import AITInterpreter
 from torch.fx.passes.operator_support import create_op_support, OperatorSupportBase

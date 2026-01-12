@@ -19,7 +19,6 @@ Slice reshape backend common implementation.
 import functools
 
 import jinja2
-
 from aitemplate.backend.common.tensor import slice_common
 
 OUTPUT_DIM_DEF_TEMPLATE = jinja2.Template(

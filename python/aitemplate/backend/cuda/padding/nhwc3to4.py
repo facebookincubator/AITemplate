@@ -17,7 +17,6 @@ CUDA codegen for nhwc3to4 op
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 

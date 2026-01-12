@@ -22,7 +22,6 @@ from collections import OrderedDict
 from hashlib import sha1
 
 import jinja2
-
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.target import Target
 from aitemplate.compiler.base import IntVar

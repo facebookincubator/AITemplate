@@ -15,9 +15,7 @@
 import unittest
 
 from aitemplate import compiler
-
 from aitemplate.compiler import ops
-
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.transform.fuse_ops import (

@@ -21,7 +21,6 @@ from typing import List
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.ops.gemm_universal import gemm_rcr_bias_swish
-
 from aitemplate.compiler.transform.fuse_mm_elementwise_patterns import (
     get_gemm_rcr_bias_patterns,
     get_patterns,

@@ -22,7 +22,6 @@ from aitemplate.compiler.base import IntImm, Operator, Tensor
 from aitemplate.compiler.ops import gemm_rcr_permute
 from aitemplate.compiler.transform import transform_utils
 from aitemplate.compiler.transform.toposort import toposort
-
 from aitemplate.utils import graph_utils
 
 

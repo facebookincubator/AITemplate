@@ -17,7 +17,6 @@ Common template for bmm
 """
 
 import jinja2
-
 from aitemplate.backend.rocm.gemm import common
 
 EXTRA_SHAPE_TEMPLATE = jinja2.Template(

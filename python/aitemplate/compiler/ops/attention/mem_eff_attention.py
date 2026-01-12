@@ -23,7 +23,6 @@ from typing import List, Optional, Tuple
 
 import jinja2
 import numpy as np
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor

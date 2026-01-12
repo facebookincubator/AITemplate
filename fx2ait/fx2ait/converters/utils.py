@@ -17,7 +17,6 @@ import operator
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor
-
 from aitemplate.compiler.public import (
     elementwise,
     FuncEnum,

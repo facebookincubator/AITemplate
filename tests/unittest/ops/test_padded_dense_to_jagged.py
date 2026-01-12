@@ -23,9 +23,7 @@ import unittest
 from typing import List
 
 import aitemplate.testing.jagged_utils as jagged_utils
-
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import JaggedDim
 from aitemplate.compiler.ops.common.epilogue import FuncEnum

@@ -52,9 +52,9 @@ class slice_scatter(Operator):
     def _update_inputs_outputs(self, cat_op):
         self._attrs["inputs"] = []
         for slice_op in self._attrs["slice_ops"]:
-            assert (
-                len(slice_op._attrs["inputs"]) == 1
-            ), "Slice op should only have 1 input! op: {}".format(slice_op)
+            assert len(slice_op._attrs["inputs"]) == 1, (
+                "Slice op should only have 1 input! op: {}".format(slice_op)
+            )
             input_tensor = slice_op._attrs["inputs"][0]
             # A slice op's output may be fed into the same cat op multiple
             # times, so we make sure it's removed from the set only once.

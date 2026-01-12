@@ -19,7 +19,6 @@ Dynamic_slice.
 from typing import List, Optional, Union
 
 import sympy
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor

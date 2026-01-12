@@ -18,7 +18,6 @@ Common functions and templates for bmm_permute-family ops
 
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common
-
 from aitemplate.backend.cuda.gemm_universal import (
     bmm_common,
     common,

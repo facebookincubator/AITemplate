@@ -16,7 +16,6 @@ import unittest
 from typing import List, Sequence, Union
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.testing import detect_target
 from aitemplate.testing.test_utils import (

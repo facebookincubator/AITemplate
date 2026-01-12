@@ -28,13 +28,11 @@ This kernel computes C = alpha * A @ B
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common, tensor_accessor_codegen
 from aitemplate.backend.cuda.gemm_universal import common
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntImm
 
 # pylint: disable=C0301,W0613,W0612
@@ -670,9 +668,9 @@ def gen_function(func_attrs, exec_cond_template, dim_info_dict):
     def _get_original_dim_val(func_attrs, input_idx, dim):
         accessor = func_attrs["input_accessors"][input_idx]
         shape = accessor.original_shapes
-        assert isinstance(
-            shape[dim], IntImm
-        ), f"input {input_idx}'s dim {dim} must be static. Instead it's dynamic"
+        assert isinstance(shape[dim], IntImm), (
+            f"input {input_idx}'s dim {dim} must be static. Instead it's dynamic"
+        )
         k = shape[dim]._attrs["values"][0]
         return k
 

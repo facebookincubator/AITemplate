@@ -15,7 +15,6 @@
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import JaggedDim, JaggedIntVar
 from aitemplate.compiler.ops.common.epilogue import FuncEnum

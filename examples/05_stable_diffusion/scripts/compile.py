@@ -54,9 +54,9 @@ def compile_diffusers(
         torch_dtype=torch.float16,
     ).to("cuda")
 
-    assert (
-        height % 64 == 0 and width % 64 == 0
-    ), "Height and Width must be multiples of 64, otherwise, the compilation process will fail."
+    assert height % 64 == 0 and width % 64 == 0, (
+        "Height and Width must be multiples of 64, otherwise, the compilation process will fail."
+    )
 
     ww = width // 8
     hh = height // 8

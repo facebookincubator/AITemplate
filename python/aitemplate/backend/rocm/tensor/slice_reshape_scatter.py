@@ -17,7 +17,6 @@ Slice reshape scatter ROCM implementation.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import ROCMSpec
 from aitemplate.backend.common.tensor import slice_reshape_scatter_common

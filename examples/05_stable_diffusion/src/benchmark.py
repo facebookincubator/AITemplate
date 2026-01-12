@@ -16,14 +16,12 @@
 import logging
 
 import click
-
 import numpy as np
 import torch
 from aitemplate.compiler import Model
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_pt import benchmark_torch_function
 from diffusers import StableDiffusionPipeline
-
 from torch import autocast
 from transformers import CLIPTokenizer
 

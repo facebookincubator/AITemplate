@@ -139,10 +139,10 @@ def transform_simple_fusion_patterns(
                 next_op_inputs = next_op._attrs["args"]
             else:
                 next_op_inputs = next_op._attrs["inputs"]
-            assert (
-                len(next_op_inputs) <= 2 and len(next_op_inputs) > 0
-            ), "next_op in pattern should have input length of 1 or 2, got {} instead".format(
-                len(next_op_inputs)
+            assert len(next_op_inputs) <= 2 and len(next_op_inputs) > 0, (
+                "next_op in pattern should have input length of 1 or 2, got {} instead".format(
+                    len(next_op_inputs)
+                )
             )
             if len(next_op_inputs) == 2:
                 # This is the case of add/mul/etc. we put them into inputs.

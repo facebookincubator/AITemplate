@@ -15,7 +15,6 @@
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -28,7 +27,6 @@ from aitemplate.testing.test_utils import (
     TestEnv,
 )
 from aitemplate.utils import shape_utils
-
 from parameterized import parameterized
 
 
@@ -104,9 +102,9 @@ class FusePermuteBmmCase(unittest.TestCase):
             src_ops = tensor.src_ops()
             if len(src_ops) == 0:
                 continue
-            assert (
-                len(src_ops) == 1
-            ), "constructed graph should only have single-source op tensors"
+            assert len(src_ops) == 1, (
+                "constructed graph should only have single-source op tensors"
+            )
             src_op = list(tensor.src_ops())[0]
             if src_op._attrs["op"].startswith("bmm"):
                 found_tensor = True
@@ -261,9 +259,9 @@ class FusePermuteBmmCase(unittest.TestCase):
             src_ops = tensor.src_ops()
             if len(src_ops) == 0:
                 continue
-            assert (
-                len(src_ops) == 1
-            ), "constructed graph should only have single-source op tensors"
+            assert len(src_ops) == 1, (
+                "constructed graph should only have single-source op tensors"
+            )
             src_op = list(tensor.src_ops())[0]
             assert src_op._attrs["op"] != original_bmm
 

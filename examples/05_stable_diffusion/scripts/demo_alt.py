@@ -15,7 +15,6 @@
 
 import click
 import torch
-
 from aitemplate.utils.import_path import import_parent
 
 if __name__ == "__main__":

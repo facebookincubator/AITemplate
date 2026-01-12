@@ -17,7 +17,6 @@ Nhwc 3 channel to 4 channel padding.
 """
 
 import jinja2
-
 from aitemplate.compiler.ops.padding.nhwc_pad_common import nhwc_pad_common
 
 

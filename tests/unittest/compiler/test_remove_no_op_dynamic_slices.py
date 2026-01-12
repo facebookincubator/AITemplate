@@ -16,7 +16,6 @@ import unittest
 from typing import List
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.tensor.dynamic_slice import MAX_INT32
 from aitemplate.testing import detect_target

@@ -85,9 +85,9 @@ def _make_tensor_usage_records(sorted_ops: List[Operator]) -> List[TensorUsageRe
                 tensor_records[name].tensor = tensor
             else:
                 # make sure we didn't screw up anything
-                assert (
-                    tensor == this_tensor
-                ), f"existing tensor: {this_tensor}, new tensor: {tensor}, op: {op}"
+                assert tensor == this_tensor, (
+                    f"existing tensor: {this_tensor}, new tensor: {tensor}, op: {op}"
+                )
 
             first_op_idx = tensor_records[name].first_op_idx
             last_op_idx = tensor_records[name].last_op_idx
@@ -357,9 +357,9 @@ def _make_tensor_usage_records_simple_multistream(
                     tensor_records[name].tensor = tensor
                 else:
                     # make sure we didn't screw up anything
-                    assert (
-                        tensor == this_tensor
-                    ), f"existing tensor: {this_tensor}, new tensor: {tensor}, op: {op}"
+                    assert tensor == this_tensor, (
+                        f"existing tensor: {this_tensor}, new tensor: {tensor}, op: {op}"
+                    )
 
                 first_op_idx = tensor_records[name].first_op_idx
                 last_op_idx = tensor_records[name].last_op_idx

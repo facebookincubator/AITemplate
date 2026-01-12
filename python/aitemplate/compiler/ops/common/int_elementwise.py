@@ -24,7 +24,6 @@ from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVarTensor, Operator, Tensor
 from aitemplate.compiler.op_registry import OP_REGISTRY
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
-
 from aitemplate.utils import shape_utils
 
 # pylint: disable=C0103,W0221,W0102,C0301,W0223,R1724

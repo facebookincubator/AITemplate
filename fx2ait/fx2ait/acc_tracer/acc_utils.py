@@ -198,9 +198,9 @@ def map_tensor_metadata(a: Any, fn: Callable):
         return immutable_dict(
             {name: map_tensor_metadata(elem, fn) for name, elem in a.items()}
         )
-    assert isinstance(
-        a, list
-    ), f"Only supporting tuple/list/TensorMetadata, but found {type(a)}"
+    assert isinstance(a, list), (
+        f"Only supporting tuple/list/TensorMetadata, but found {type(a)}"
+    )
     return immutable_list(map_tensor_metadata(elem, fn) for elem in a)
 
 

@@ -18,7 +18,6 @@ import unittest
 
 import numpy as np
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.frontend import IntImm, Tensor

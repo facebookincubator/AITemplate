@@ -447,9 +447,9 @@ class TensorSpec:
             input_specs_left = TensorSpec.from_two_input_lists_jagged_tensor(
                 left_inputs, left_additional_inputs
             )
-            assert len(input_specs_left) == len(
-                left_inputs_ind
-            ), "Unexpected length for left inputs"
+            assert len(input_specs_left) == len(left_inputs_ind), (
+                "Unexpected length for left inputs"
+            )
 
             for index, ind_value in enumerate(left_inputs_ind):
                 result_unsorted.append((ind_value, input_specs_left[index]))

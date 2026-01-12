@@ -17,7 +17,6 @@ import unittest
 
 import numpy as np
 import torch
-
 from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor

@@ -24,12 +24,9 @@ from hashlib import sha1
 from typing import Any, Dict, List, Tuple
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
-
 from aitemplate.backend.common import gemm_common, tensor_accessor_codegen
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntImm
 from aitemplate.utils import alignment
 
@@ -721,9 +718,9 @@ def update_alignments_in_gemm_instance(
 
     def _replace_align(align_idx, curr_align, alignment):
         curr_align_line = instance_lines[align_idx + idx_offset]
-        assert curr_align == curr_align_line.strip(
-            " ,"
-        ), f"expected {curr_align=} equal to {curr_align_line=}"
+        assert curr_align == curr_align_line.strip(" ,"), (
+            f"expected {curr_align=} equal to {curr_align_line=}"
+        )
         instance_lines[align_idx + idx_offset] = curr_align_line.replace(
             curr_align, str(alignment)
         )

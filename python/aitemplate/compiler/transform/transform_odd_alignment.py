@@ -23,7 +23,6 @@ from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.ops.common.view_ops import unsqueeze
 from aitemplate.compiler.ops.gemm_universal import bmm_ccr, bmm_crr, bmm_rcr, bmm_rrr
 from aitemplate.compiler.ops.tensor import permute021
-
 from aitemplate.compiler.transform.apply_padding import get_padding_length
 from aitemplate.compiler.transform.fuse_utils import extract_only_one_op
 from aitemplate.compiler.transform.toposort import toposort

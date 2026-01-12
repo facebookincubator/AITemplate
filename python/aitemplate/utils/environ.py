@@ -80,9 +80,9 @@ def force_profiler_cache() -> bool:
     """
     force_cache = os.environ.get("AIT_FORCE_PROFILER_CACHE", None) == "1"
     if force_cache:
-        assert (
-            os.environ.get("FORCE_PROFILE", None) != "1"
-        ), "cannot specify both AIT_FORCE_PROFILER_CACHE and FORCE_PROFILE"
+        assert os.environ.get("FORCE_PROFILE", None) != "1", (
+            "cannot specify both AIT_FORCE_PROFILER_CACHE and FORCE_PROFILE"
+        )
     return force_cache
 
 

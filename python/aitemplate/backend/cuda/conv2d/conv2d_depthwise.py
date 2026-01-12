@@ -19,7 +19,6 @@ Codegen for conv2d_depthwise.
 from collections import OrderedDict
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.conv2d import common
 from aitemplate.backend.target import Target

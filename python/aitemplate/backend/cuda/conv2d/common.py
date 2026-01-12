@@ -17,17 +17,14 @@ common template for conv2d
 """
 
 import re
-
 from collections import OrderedDict
 from hashlib import sha1
 from typing import List
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.gemm_universal.common import add_profiler, build_profiler
 from aitemplate.backend.target import Target
-
 from aitemplate.utils import alignment
 
 

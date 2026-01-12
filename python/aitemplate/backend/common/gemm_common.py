@@ -20,7 +20,6 @@ Backend-agnostic functions for gemm codegen.
 from typing import Dict
 
 import jinja2
-
 from aitemplate.compiler.ops.gemm_universal.gemm_common import DimInfo, Source
 
 SHAPE_EVAL_TEMPLATE = jinja2.Template(
@@ -39,9 +38,9 @@ def gen_dim_calculator(dim_info: DimInfo, is_ptr: bool) -> str:
             assert dim_info.tensor_idx == 1, f"Unsupported gemm dim: {dim_info}"
             prefix += "b_dim"
     else:
-        assert (
-            dim_info.source == Source.OUTPUT and dim_info.tensor_idx == 0
-        ), f"Unsupported gemm dim: {dim_info}"
+        assert dim_info.source == Source.OUTPUT and dim_info.tensor_idx == 0, (
+            f"Unsupported gemm dim: {dim_info}"
+        )
         prefix += "c_dim"
     dim_names = ["(" + prefix + str(idx) + ")" for idx in dim_info.dim_idx]
     return " * ".join(dim_names)

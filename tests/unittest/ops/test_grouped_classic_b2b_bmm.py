@@ -18,12 +18,10 @@ Unittests for grouped b2b bmm Operators.
 
 import logging
 import os
-
 import unittest
 from typing import List, Tuple
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntVar, JaggedDim
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType

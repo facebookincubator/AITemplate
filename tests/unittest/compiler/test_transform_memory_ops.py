@@ -15,7 +15,6 @@
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops, transform
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntImm, IntVar, Tensor
@@ -25,7 +24,6 @@ from aitemplate.testing.test_utils import (
     get_torch_empty_tensor,
 )
 from aitemplate.utils import graph_utils, shape_utils
-
 from parameterized import parameterized
 
 

@@ -21,9 +21,7 @@ import logging
 from typing import List
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntVar, Operator, Tensor
 
 _LOGGER = logging.getLogger(__name__)

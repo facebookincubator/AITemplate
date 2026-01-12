@@ -42,7 +42,6 @@ Blocks are(N + threads - 1) / threads;
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.utils import shape_utils

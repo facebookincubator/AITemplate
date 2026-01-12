@@ -22,7 +22,6 @@ from functools import reduce
 from typing import Any, List, Optional, Union
 
 import jinja2
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import (
@@ -137,9 +136,9 @@ class _reshape_base(_view):
         output_shape = []
         for dim in shape:
             int_var = dim._attrs["int_var"]
-            assert (
-                int_var is not None
-            ), f"expected an int_var dimension, but got {int_var=} for {shape=}"
+            assert int_var is not None, (
+                f"expected an int_var dimension, but got {int_var=} for {shape=}"
+            )
             dim_values = list(int_var._attrs["values"])
             if len(dim_values) == 1:
                 output_shape.append(IntImm(dim_values[0]))
@@ -168,9 +167,9 @@ class _reshape_base(_view):
             if len(values) == 1:
                 output_shape.append(IntImm(values[0]))
             else:
-                assert (
-                    self._attrs["unknown_idx"] == -1
-                ), f"{self._attrs['op']} doesn't support multiple dynamic dims, "
+                assert self._attrs["unknown_idx"] == -1, (
+                    f"{self._attrs['op']} doesn't support multiple dynamic dims, "
+                )
                 "got {idx} and {self._attrs['unknown_idx']}"
                 self._attrs["unknown_idx"] = idx
                 output_shape.append(
@@ -332,7 +331,9 @@ class reshape(_reshape_base):
                         else:
                             symbol_names = {s.name for s in dynamic_symbol.free_symbols}
                             unknown_symbols = symbol_names - get_global_symbol_set()
-                            assert not unknown_symbols, f"Unable to deduce dynamic symbol, because the following symbols are not in global symbol set: {unknown_symbols}"
+                            assert not unknown_symbols, (
+                                f"Unable to deduce dynamic symbol, because the following symbols are not in global symbol set: {unknown_symbols}"
+                            )
 
                             values = simplify_intvar_values(dynamic_symbol)
                             new_var = IntVar(values, symbolic_value=dynamic_symbol)
@@ -447,15 +448,15 @@ class flatten(_reshape_base):
         x_rank = len(x_shape)
         start_dim = wrap_dim(self._attrs["start"], x_rank)
         end_dim = wrap_dim(self._attrs["end"], x_rank)
-        assert (
-            start_dim >= 0 and start_dim < x_rank
-        ), f"flatten start_dim={start_dim} must be non-negative and less than input rank={x_rank}"
-        assert (
-            end_dim >= 0 and end_dim < x_rank
-        ), f"flatten end_dim={end_dim} must be non-negative and less than input rank={x_rank}"
-        assert (
-            start_dim <= end_dim
-        ), f"flatten start_dim={start_dim} must be less than or equal to end_dim={end_dim}"
+        assert start_dim >= 0 and start_dim < x_rank, (
+            f"flatten start_dim={start_dim} must be non-negative and less than input rank={x_rank}"
+        )
+        assert end_dim >= 0 and end_dim < x_rank, (
+            f"flatten end_dim={end_dim} must be non-negative and less than input rank={x_rank}"
+        )
+        assert start_dim <= end_dim, (
+            f"flatten start_dim={start_dim} must be less than or equal to end_dim={end_dim}"
+        )
 
     def __call__(self, x: Tensor) -> Tensor:
         self._sanity_check(x._attrs["shape"])

@@ -20,13 +20,9 @@ import logging
 from typing import List
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntVar, Operator, Tensor
-
 from aitemplate.compiler.dtype import get_dtype_size
-
 from aitemplate.utils import shape_utils
 
 
@@ -85,7 +81,7 @@ class masked_select(Operator):
             numel * (input_workspace_size + mask_workspace_size) + numel // 128 + 1024
         )
         _LOGGER.debug(
-            f'Allocating {self._attrs["workspace"]} bytes for temporary buffer of masked_select op'
+            f"Allocating {self._attrs['workspace']} bytes for temporary buffer of masked_select op"
         )
 
         # Output size can range from 0 (when all mask elements are False) to the total number of

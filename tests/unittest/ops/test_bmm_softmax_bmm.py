@@ -20,7 +20,6 @@ import itertools
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target

@@ -21,7 +21,6 @@ from collections import OrderedDict
 from typing import List
 
 import jinja2
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntVar, Operator, Tensor
@@ -74,14 +73,13 @@ class batch_gather(Operator):
 
     def __call__(self, x: Tensor, indices: Tensor) -> Tensor:
         dtype = indices._attrs["dtype"]
-        assert (
-            dtype
-            in [
-                "int",
-                "int32",
-                "int64",
-            ]
-        ), f"batch_gather(): Expected dtype int/int32/int64 for index, got dtype {dtype}"
+        assert dtype in [
+            "int",
+            "int32",
+            "int64",
+        ], (
+            f"batch_gather(): Expected dtype int/int32/int64 for index, got dtype {dtype}"
+        )
         self._attrs["inputs"] = [x, indices]
         self._set_depth()
         self._extract_exec_path(x)

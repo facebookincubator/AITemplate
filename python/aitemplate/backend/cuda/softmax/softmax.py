@@ -23,11 +23,9 @@ import os
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntImm
 
 # pylint: disable=C0301, C0116
@@ -224,9 +222,9 @@ def softmax_gen_function(func_attrs: Dict[str, Any]) -> str:
     reduction_dim = func_attrs["dim"]
     shape = func_attrs["inputs"][0]._attrs["shape"]
 
-    assert all(
-        isinstance(dim, IntImm) for dim in shape[reduction_dim:]
-    ), "softmax requires reduction dim & inner dims to be static"
+    assert all(isinstance(dim, IntImm) for dim in shape[reduction_dim:]), (
+        "softmax requires reduction dim & inner dims to be static"
+    )
 
     dim_size = shape[reduction_dim].value()
 
@@ -276,9 +274,9 @@ def softmax_gen_function_call(func_attrs, indent="  "):
     output_name = func_attrs["outputs"][0]._attrs["name"]
 
     shape = func_attrs["inputs"][0]._attrs["shape"]
-    assert (
-        len(shape) >= 2
-    ), f"Softmax only supports input with rank >= 2, current rank: {len(shape)}"
+    assert len(shape) >= 2, (
+        f"Softmax only supports input with rank >= 2, current rank: {len(shape)}"
+    )
 
     reduction_dim = func_attrs["dim"]
     outer_dim_names = [dim._attrs["name"] for dim in shape[:reduction_dim]]

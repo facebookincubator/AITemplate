@@ -29,17 +29,12 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import jinja2
-
 from aitemplate.backend import build_cache
 from aitemplate.backend.build_cache_base import write_binhash_file
-
 from aitemplate.backend.target import Target
 from aitemplate.backend.task_runner import BaseRunner, Task
-
 from aitemplate.utils import environ
-
 from aitemplate.utils.debug_settings import AITDebugSettings
-
 from aitemplate.utils.environ import is_cmake_compilation
 from aitemplate.utils.misc import is_debug, is_windows
 
@@ -127,7 +122,7 @@ def _log_error_context(
                     # preceding ellipsis
                     lines_to_show.append("...\n")
                 line = file_lines[i]
-                lines_to_show.append(f"{i+1:<{padding}} {line}")
+                lines_to_show.append(f"{i + 1:<{padding}} {line}")
                 if i in error_lines:
                     # mark the line as an error line: underscore
                     spaces = line[: len(line) - len(line.lstrip())]

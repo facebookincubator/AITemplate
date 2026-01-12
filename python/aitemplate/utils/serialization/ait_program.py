@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
 import torch
-
 from aitemplate.compiler.base import (
     _HostConstantTensorData,
     _NumpyConstantTensorData,

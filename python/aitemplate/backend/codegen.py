@@ -31,16 +31,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import jinja2
-
 from aitemplate.backend import registry
-
 from aitemplate.backend.main_templates import MODEL_CONTAINER_TEMPLATE, MODEL_TEMPLATE
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 from aitemplate.compiler.dtype import dtype_to_enumerator, get_dtype_size
 from aitemplate.compiler.tensor_accessor import TensorAccessor
-
 from aitemplate.compiler.transform.memory_planning import Workspace
 from aitemplate.utils.debug_settings import AITDebugSettings
 from aitemplate.utils.environ import (
@@ -442,13 +438,13 @@ class ModelContainerGenerator:
 
         shape_init = ", ".join(str(max_value(dim)) for dim in tensor._attrs["shape"])
         param_shape_init = ", ".join(
-            f'&{dim._attrs["name"]}' for dim in tensor._attrs["shape"]
+            f"&{dim._attrs['name']}" for dim in tensor._attrs["shape"]
         )
         self.set_up_output_shapes.append(
             set_value(f"max_param_shapes_[{idx}]", f"{{{shape_init}}}")
         )
         param_shape_init = ", ".join(
-            f'ParamDim({dim.lower_bound()}, {dim.upper_bound()}, &{dim._attrs["name"]})'
+            f"ParamDim({dim.lower_bound()}, {dim.upper_bound()}, &{dim._attrs['name']})"
             for dim in tensor._attrs["shape"]
         )
         self.set_up_param_dynamic_shapes.append(
@@ -468,15 +464,15 @@ class ModelContainerGenerator:
         Add an owned constant, e.g. one with a bound "data" attribute.
         Here, we codegen some extra logic to load it into memory from the .so.
         """
-        assert (
-            self.constants_data_file is not None
-        ), "Cannot add owned constants without a data file"
+        assert self.constants_data_file is not None, (
+            "Cannot add owned constants without a data file"
+        )
 
         name = tensor._attrs["name"]
         data = tensor._attrs["data"]
-        assert (
-            tensor._attrs["offset"] >= 0
-        ), f"Constant node '{name}' must have non-negative offset"
+        assert tensor._attrs["offset"] >= 0, (
+            f"Constant node '{name}' must have non-negative offset"
+        )
         num_bytes = len(data)
         self.constants_data_file.write(data.to_bytes())
 
@@ -551,7 +547,7 @@ class ModelContainerGenerator:
         elif tensor._attrs["constant_folding_output_idx"] is not None:
             self.set_up_constant_folding_outputs_offsets.append(
                 set_value(
-                    f'constant_folding_outputs_offsets_[{tensor._attrs["constant_folding_output_idx"]}]',
+                    f"constant_folding_outputs_offsets_[{tensor._attrs['constant_folding_output_idx']}]",
                     tensor._attrs["offset"],
                 )
             )
@@ -590,9 +586,9 @@ class ModelContainerGenerator:
     def _codegen_input_tensor(self, tensor: Tensor) -> None:
         name = tensor._attrs["name"]
         view = tensor._attrs["is_view_of"]
-        assert (
-            view is None
-        ), f"_codegen_input_tensor cannot be called with a view; expected a non-view tensor with is_input=True, got: {tensor}"
+        assert view is None, (
+            f"_codegen_input_tensor cannot be called with a view; expected a non-view tensor with is_input=True, got: {tensor}"
+        )
         self.set_inputs.append(
             set_value(
                 name,
@@ -604,9 +600,9 @@ class ModelContainerGenerator:
         self.input_idx += 1
 
     def _get_output_idx(self, name: str) -> int:
-        assert (
-            name in self.output_name_to_idx
-        ), f"Tensor {name} was marked as an output, but its index was not found in output_name_to_index"
+        assert name in self.output_name_to_idx, (
+            f"Tensor {name} was marked as an output, but its index was not found in output_name_to_index"
+        )
         # Add num_inputs since we internally store outputs in the same array as inputs w/
         # inputs first
         return self.output_name_to_idx[name] + self.num_inputs
@@ -616,9 +612,9 @@ class ModelContainerGenerator:
         view = tensor._attrs["is_view_of"]
         external_tensor = tensor._attrs["external_tensor"]
         if external_tensor is not None:
-            assert not external_tensor._attrs[
-                "is_param"
-            ], "Views of constants should be folded."
+            assert not external_tensor._attrs["is_param"], (
+                "Views of constants should be folded."
+            )
             self.set_inputs.append(set_value(name, view._attrs["name"]))
             return
 
@@ -651,7 +647,9 @@ class ModelContainerGenerator:
         elif external_tensor is not None:
             # Special view cases for outputs; we can hit this case if the output
             # is a view of a constant, input, or another output.
-            assert is_view, f"orig_tensor is not None, but node {name} is not marked as a view! Node: {tensor}"
+            assert is_view, (
+                f"orig_tensor is not None, but node {name} is not marked as a view! Node: {tensor}"
+            )
             self.set_inputs.append(
                 check_not_null(tensor, output_idx, skip_if_lower_bound_is_zero=True)
             )
@@ -792,7 +790,7 @@ class ModelContainerGenerator:
             if "int_state_flag" in func._attrs:
                 if func._attrs["name"] not in self.state_record:
                     self.function_state.append(
-                        f'  int64_t {func._attrs["name"]}_state {{0}};'
+                        f"  int64_t {func._attrs['name']}_state {{0}};"
                     )
                     self.state_record.add(func._attrs["name"])
             self._process_dims_for_op(func)
@@ -875,9 +873,9 @@ class ModelContainerGenerator:
         elif not is_view and not isinstance(node, IntVarTensor):
             # Normal, internal tensor that is not a view: point it to the
             # internal blob of memory
-            assert (
-                node._attrs["offset"] >= 0
-            ), f"Non-parameter node '{name}' must have non-negative offset"
+            assert node._attrs["offset"] >= 0, (
+                f"Non-parameter node '{name}' must have non-negative offset"
+            )
             self.tensor_slice.append(self._tensor_slice_func(node, "blob_ptr"))
         elif not isinstance(node, IntVarTensor):
             # Normal view, point it to the same memory as whatever it

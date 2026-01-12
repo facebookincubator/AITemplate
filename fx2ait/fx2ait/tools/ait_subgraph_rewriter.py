@@ -18,7 +18,6 @@ from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Union
 
 import torch
-
 from torch.fx._symbolic_trace import symbolic_trace
 from torch.fx.graph import Graph
 from torch.fx.graph_module import GraphModule
@@ -42,9 +41,9 @@ class AITSubgraphMatcher(SubgraphMatcher):
 
     def _match_args(self, pn: Any, gn: Any, match: InternalMatch) -> bool:
         logger.info(f"  matching arguments: {pn} to {gn}")
-        assert not (
-            isinstance(pn, Node) and isinstance(gn, Node)
-        ), "pn and gn cannot both be Node"
+        assert not (isinstance(pn, Node) and isinstance(gn, Node)), (
+            "pn and gn cannot both be Node"
+        )
         if isinstance(pn, Node) and not isinstance(gn, Node):
             if pn.op == "placeholder":
                 # Check if we've already matched these nodes in the current

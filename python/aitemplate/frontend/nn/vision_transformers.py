@@ -26,7 +26,6 @@ from aitemplate.frontend.nn.container import ModuleList
 from aitemplate.frontend.nn.conv2d import Conv2d
 from aitemplate.frontend.nn.conv3d import Conv3d
 from aitemplate.frontend.nn.dropout import Dropout
-
 from aitemplate.frontend.nn.head import create_vit_basic_head
 from aitemplate.frontend.nn.identity import Identity
 from aitemplate.frontend.nn.layer_norm import LayerNorm
@@ -92,9 +91,9 @@ class MultiscaleVisionTransformers(Module):
         """
         super().__init__()
 
-        assert hasattr(
-            cls_positional_encoding, "patch_embed_shape"
-        ), "cls_positional_encoding should have method patch_embed_shape."
+        assert hasattr(cls_positional_encoding, "patch_embed_shape"), (
+            "cls_positional_encoding should have method patch_embed_shape."
+        )
 
         self.patch_embed = patch_embed or Identity()
         self.cls_positional_encoding = cls_positional_encoding
@@ -263,9 +262,9 @@ def create_multiscale_vision_transformers(
     if use_2d_patch:
         assert temporal_size == 1, "If use_2d_patch, temporal_size needs to be 1."
     if pool_kv_stride_adaptive is not None:
-        assert (
-            pool_kv_stride_size is None
-        ), "pool_kv_stride_size should be none if pool_kv_stride_adaptive is set."
+        assert pool_kv_stride_size is None, (
+            "pool_kv_stride_size should be none if pool_kv_stride_adaptive is set."
+        )
     if norm == "layernorm":
         norm_layer = partial(LayerNorm, eps=1e-6)
         block_norm_layer = partial(LayerNorm, eps=1e-6)
@@ -277,9 +276,9 @@ def create_multiscale_vision_transformers(
     else:
         raise NotImplementedError("Only supports layernorm.")
     if create_scriptable_model:
-        assert (
-            norm == "batchnorm"
-        ), "The scriptable model supports only the batchnorm-based model."
+        assert norm == "batchnorm", (
+            "The scriptable model supports only the batchnorm-based model."
+        )
         warnings.warn(
             "`create_scriptable_model` is deprecated. MultiscaleVisionTransformers"
             " now supports scripting without this flag.",

@@ -17,7 +17,6 @@ Codegen functions for view ops.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 
 SRC_TEMPLATE = jinja2.Template(

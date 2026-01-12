@@ -19,12 +19,9 @@ import operator
 from typing import Any, Callable, List, Optional, Sequence
 
 import fx2ait.acc_tracer.acc_tracer as acc_tracer
-
 import torch
-
 from fx2ait.acc_tracer.ait_acc_normalizer import update_acc_op_mappers_for_ait
 from fx2ait.ait_module import AITModule
-
 from fx2ait.ait_splitter import AITSplitter, AITSplitterSettings
 from fx2ait.fx2ait import AITInterpreter, AITInterpreterResult
 from fx2ait.tensor_spec import TensorSpec

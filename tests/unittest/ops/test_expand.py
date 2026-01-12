@@ -17,7 +17,6 @@ import sys
 import unittest
 
 import torch
-
 from aitemplate import compiler
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm, IntVar, JaggedDim, Tensor
@@ -401,7 +400,7 @@ class ExpandTestCase(unittest.TestCase):
                 {"X": x_pt}, {"Y": y_ait}, count=num_iters
             )
         print(
-            f"Write GB/sec:{1000*y_pt.numel()*y_pt.element_size()/time_mean_ms/(1024*1024*1024)}"
+            f"Write GB/sec:{1000 * y_pt.numel() * y_pt.element_size() / time_mean_ms / (1024 * 1024 * 1024)}"
         )
         self.assertTrue(torch.equal(y_ait, y_pt))
         # measure time against torch.contiguous()
@@ -456,7 +455,7 @@ class ExpandTestCase(unittest.TestCase):
         )  # Assuming every byte written has been read as well
 
         # ait_speedup_percent = round(100.0 * pt_time / time_mean_ms - 100.0)
-        ait_speedup_factor = f"{pt_time/time_mean_ms:.2f}"
+        ait_speedup_factor = f"{pt_time / time_mean_ms:.2f}"
         ait_expand_variant = "general"
         if optimize_fixed_dims:
             ait_expand_variant = "optimized"

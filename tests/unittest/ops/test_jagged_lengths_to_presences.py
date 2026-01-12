@@ -19,7 +19,6 @@ Unittests for the jagged_lengths_to_presences op.
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target

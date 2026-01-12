@@ -16,12 +16,9 @@
 import os
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
-
 from aitemplate.backend.common import tensor_accessor_codegen
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.ops.tensor import concatenate
 
 

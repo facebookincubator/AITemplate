@@ -17,7 +17,6 @@ Codegen functions for group_gemm_rcr.
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.cuda.gemm_universal import common, group_common
 from aitemplate.backend.cuda.gemm_universal.layout import RCR

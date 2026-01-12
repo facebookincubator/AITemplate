@@ -18,7 +18,6 @@ from collections import OrderedDict
 import torch
 import torch as pt
 from aitemplate import frontend as ait
-
 from aitemplate.compiler import ops
 
 

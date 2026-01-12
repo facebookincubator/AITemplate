@@ -19,7 +19,6 @@ Fuse conv + elementwise ops.
 from typing import List
 
 from aitemplate.compiler.base import Tensor
-
 from aitemplate.compiler.transform.fuse_conv_patterns import (
     get_conv2d_bias_elementwise_patterns,
     get_conv2d_bias_pattern,

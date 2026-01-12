@@ -19,7 +19,6 @@ from typing import Any, NamedTuple
 import torch
 import torch.fx
 from fx2ait.tools.ait_subgraph_rewriter import replace_pattern
-
 from torch.fx.experimental.const_fold import split_const_subgraphs
 from torch.fx.passes.infra.pass_base import PassResult
 from torch.fx.passes.shape_prop import TensorMetadata

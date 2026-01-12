@@ -369,9 +369,9 @@ def custom_getattr_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
             if name == attr_name:
                 idx = i
                 break
-        assert (
-            idx is not None
-        ), f"Named tuple type {input_obj_type} does not have field {name}"
+        assert idx is not None, (
+            f"Named tuple type {input_obj_type} does not have field {name}"
+        )
 
         with node.graph.inserting_before(node):
             getitem_node = node.graph.call_function(
@@ -384,9 +384,9 @@ def custom_getattr_mapper(node: torch.fx.Node, _: nn.Module) -> torch.fx.Node:
         torch.Tensor,
         torch.nn.parameter.Parameter,
     ], f"Expected torch.Tensor type for {input_obj_type}"
-    assert (
-        attr_name == "shape" or attr_name == "device" or attr_name == "dtype"
-    ), f"Only supporting shape, device and dtype getattr for now, not {attr_name}"
+    assert attr_name == "shape" or attr_name == "device" or attr_name == "dtype", (
+        f"Only supporting shape, device and dtype getattr for now, not {attr_name}"
+    )
     if attr_name == "shape":
         func = size
     elif attr_name == "device":
@@ -522,9 +522,9 @@ def repeat_interleave_mapper(node: torch.fx.Node, _: nn.Module):
             "Not mapping repeat_interleave to an acc op. We currently only support `repeat_interleave` with int repeats"
         )
         return
-    assert (
-        type(repeats) is int
-    ), "We currently only support `repeat_interleave` with int repeats"
+    assert type(repeats) is int, (
+        "We currently only support `repeat_interleave` with int repeats"
+    )
     rank = node.meta["tensor_rank"]
     if dim is None:
         repeat_dim = rank - 1
@@ -1408,9 +1408,9 @@ def std_mapper(node, mod):
     dim = node.kwargs.get("dim")
     keepdim = node.kwargs.get("keepdim")
     # assert unbiased is False or unbiased is None, "We currently do not support `std` with unbiased=True where n-1 is used"
-    assert (
-        dim is not None and keepdim is not None
-    ), "We currently do not support `std` with dim=None and keepdim=None"
+    assert dim is not None and keepdim is not None, (
+        "We currently do not support `std` with dim=None and keepdim=None"
+    )
 
     with node.graph.inserting_before(node):
         # mean(X)

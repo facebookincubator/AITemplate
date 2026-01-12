@@ -50,24 +50,24 @@ class relational(Operator):
     def __call__(self, left: Tensor, right: Tensor) -> Tensor:
         assert self._attrs["func"] is not None, "No function registered"
         common_dtype = None
-        assert isinstance(
-            left, Tensor
-        ), "Relational expects left operand to be a Tensor"
+        assert isinstance(left, Tensor), (
+            "Relational expects left operand to be a Tensor"
+        )
         common_dtype = normalize_dtype(left.dtype())
         left._attrs["dtype"] = common_dtype
 
         if isinstance(right, int) or isinstance(right, float):
             right = Tensor(shape=[], value=right, dtype=common_dtype)
         else:
-            assert isinstance(
-                right, Tensor
-            ), "Relational expects right operand to be a Tensor or constant"
-            assert (
-                normalize_dtype(right.dtype()) == common_dtype
-            ), f"Type promotions are not supported; got dtype {left.dtype()}, but expected {common_dtype}"
-            assert (
-                left.shape() == right.shape()
-            ), "Relational does not support broadcasting yet. It expects tensor of same shape."
+            assert isinstance(right, Tensor), (
+                "Relational expects right operand to be a Tensor or constant"
+            )
+            assert normalize_dtype(right.dtype()) == common_dtype, (
+                f"Type promotions are not supported; got dtype {left.dtype()}, but expected {common_dtype}"
+            )
+            assert left.shape() == right.shape(), (
+                "Relational does not support broadcasting yet. It expects tensor of same shape."
+            )
             right._attrs["dtype"] = common_dtype
 
         self._attrs["args"] = [left, right]

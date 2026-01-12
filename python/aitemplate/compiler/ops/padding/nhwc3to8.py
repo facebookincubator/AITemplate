@@ -17,7 +17,6 @@ Nhwc 3 channel to 8 channel padding.
 """
 
 import jinja2
-
 from aitemplate.compiler.ops.padding.nhwc_pad_common import nhwc_pad_common
 
 SHAPE_FUNC_TEMPLATE = jinja2.Template(

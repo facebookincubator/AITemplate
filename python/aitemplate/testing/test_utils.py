@@ -24,7 +24,6 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
 
 import torch
-
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
 from aitemplate.compiler.dtype import normalize_dtype
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType

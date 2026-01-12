@@ -21,7 +21,6 @@ from hashlib import sha1
 from typing import List
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.conv2d.common import (
     extract_config as conv2d_extract_config,
@@ -30,7 +29,6 @@ from aitemplate.backend.cuda.gemm_universal.common import (  # noqa: F401
     add_profiler,
     build_profiler,
 )
-
 from aitemplate.utils import alignment
 
 

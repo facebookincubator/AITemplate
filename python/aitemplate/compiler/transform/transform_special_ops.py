@@ -31,7 +31,6 @@ from aitemplate.compiler.transform.transform_utils import (
     replace_tensor,
     sanitize_sorted_graph,
 )
-
 from aitemplate.utils.shape_utils import is_singleton_dimension
 
 # pylint: disable=C0103,C0415,W0612

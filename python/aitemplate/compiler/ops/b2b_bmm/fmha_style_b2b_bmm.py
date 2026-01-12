@@ -37,7 +37,6 @@ It supports larger N0 / N1 compared to the classic_b2b_bmm implementation.
 from typing import Optional
 
 import numpy as np
-
 from aitemplate.backend import registry, target
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import b2b_bmm_base, CausalType

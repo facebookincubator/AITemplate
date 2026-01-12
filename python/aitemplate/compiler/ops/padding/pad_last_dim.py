@@ -19,7 +19,6 @@ Pad last dimension.
 from typing import List
 
 import jinja2
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, Operator, Tensor

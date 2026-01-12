@@ -323,9 +323,9 @@ class ResNet(nn.Module):
                         f"same length as num_blocks={num_blocks}."
                     )
                     newk = k[: -len("_per_block")]
-                    assert (
-                        newk not in kwargs
-                    ), f"Cannot call make_stage with both {k} and {newk}!"
+                    assert newk not in kwargs, (
+                        f"Cannot call make_stage with both {k} and {newk}!"
+                    )
                     curr_kwargs[newk] = v[i]
                 else:
                     curr_kwargs[k] = v

@@ -17,7 +17,6 @@ import unittest
 from typing import List
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm
 from aitemplate.frontend import IntVar, Tensor
@@ -34,7 +33,7 @@ class ChunkTestCase(unittest.TestCase):
         dim: int = 0,
         input_type="float16",
     ):
-        logging.info(f"{input_shape=}, " f"{chunks=}, " f"{dim=}")
+        logging.info(f"{input_shape=}, {chunks=}, {dim=}")
 
         chunk_op = ops.chunk()
         target = detect_target()

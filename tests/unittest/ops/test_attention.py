@@ -24,7 +24,6 @@ import unittest
 
 import torch
 import torch.nn.functional as F
-
 from aitemplate.compiler import compile_model, Model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import IntVar, Tensor
@@ -35,9 +34,7 @@ from aitemplate.testing.test_utils import (
     TestEnv,
 )
 from aitemplate.utils.torch_utils import string_to_torch_dtype
-
 from einops import rearrange, repeat
-
 from parameterized import parameterized
 
 

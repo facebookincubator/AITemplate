@@ -24,10 +24,8 @@ from datetime import datetime
 from typing import List
 
 from aitemplate.backend import builder, codegen
-
 from aitemplate.backend.profiler_runner import ProfilerRunner
 from aitemplate.compiler.base import DynamicProfileStrategy, Tensor
-
 from aitemplate.compiler.ops.gemm_universal.gemm_common import (
     gemm,
     GemmProfilerPostprocessingDelegate,

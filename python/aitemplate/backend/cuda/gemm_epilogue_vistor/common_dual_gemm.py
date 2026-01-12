@@ -24,12 +24,10 @@ from hashlib import sha1
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.common import gemm_common
 from aitemplate.backend.cuda.gemm_universal import common
 from aitemplate.backend.target import Target
-
 from aitemplate.utils import alignment
 
 

@@ -13,11 +13,9 @@
 #  limitations under the License.
 #
 import unittest
-
 from typing import List
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
@@ -30,7 +28,6 @@ from aitemplate.testing.test_utils import (
 )
 from aitemplate.utils import shape_utils
 from aitemplate.utils.graph_utils import get_sorted_ops
-
 from parameterized import parameterized
 
 

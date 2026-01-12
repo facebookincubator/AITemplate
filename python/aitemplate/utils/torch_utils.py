@@ -24,7 +24,6 @@ The functions in this file may assume that
 import struct
 
 import torch
-
 from aitemplate.compiler.dtype import dtype_str_to_enum, get_dtype_size, normalize_dtype
 
 

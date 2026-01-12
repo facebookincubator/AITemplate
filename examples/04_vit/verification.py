@@ -20,7 +20,6 @@ from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from modeling.vision_transformer import VisionTransformer
 from timm.models.vision_transformer import vit_base_patch16_224, vit_large_patch16_384
-
 from weight_utils import export_to_torch_tensor
 
 

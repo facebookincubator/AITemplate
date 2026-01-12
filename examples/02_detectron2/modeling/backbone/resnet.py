@@ -310,9 +310,9 @@ class ResNet(nn.Module):
                         f"same length as num_blocks={num_blocks}."
                     )
                     newk = k[: -len("_per_block")]
-                    assert (
-                        newk not in kwargs
-                    ), f"Cannot call make_stage with both {k} and {newk}!"
+                    assert newk not in kwargs, (
+                        f"Cannot call make_stage with both {k} and {newk}!"
+                    )
                     curr_kwargs[newk] = v[i]
                 else:
                     curr_kwargs[k] = v
@@ -421,12 +421,12 @@ def build_resnet_backbone(cfg):
     }[depth]
 
     if depth in [18, 34]:
-        assert (
-            out_channels == 64
-        ), "Must set MODEL.RESNETS.RES2_OUT_CHANNELS = 64 for R18/R34"
-        assert (
-            res5_dilation == 1
-        ), "Must set MODEL.RESNETS.RES5_DILATION = 1 for R18/R34"
+        assert out_channels == 64, (
+            "Must set MODEL.RESNETS.RES2_OUT_CHANNELS = 64 for R18/R34"
+        )
+        assert res5_dilation == 1, (
+            "Must set MODEL.RESNETS.RES5_DILATION = 1 for R18/R34"
+        )
         assert num_groups == 1, "Must set MODEL.RESNETS.NUM_GROUPS = 1 for R18/R34"
 
     stages = []

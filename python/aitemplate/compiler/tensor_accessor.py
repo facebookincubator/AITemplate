@@ -18,7 +18,6 @@ TensorAccessor definition.
 
 import copy
 import logging
-
 # pylint: disable=C0103,C0301,W0612
 
 from pprint import pformat
@@ -356,9 +355,9 @@ class TensorAccessor:
         It can also be used by slice if slice is only operated on one dim.
         """
 
-        assert (
-            self.stride_dim is None
-        ), "Tensor accessor cannot be updated once stride_dim is set!"
+        assert self.stride_dim is None, (
+            "Tensor accessor cannot be updated once stride_dim is set!"
+        )
 
         original_shapes = (
             self.actual_shapes
@@ -371,15 +370,15 @@ class TensorAccessor:
             f"Original tensor and new tensor must have the same number of dims! "
             f"Original tensor shape: {original_shapes}, new tensor shape: {self.actual_shapes}"
         )
-        assert (
-            len(self.actual_shapes) > stride_dim
-        ), f"stride_dim {stride_dim} must be less than #dims {len(self.actual_shapes)}!"
-        assert isinstance(
-            original_shapes[stride_dim], IntImm
-        ), "Stride dim can't be dynamic!"
-        assert isinstance(
-            self.actual_shapes[stride_dim], IntImm
-        ), "Stride dim can't be dynamic!"
+        assert len(self.actual_shapes) > stride_dim, (
+            f"stride_dim {stride_dim} must be less than #dims {len(self.actual_shapes)}!"
+        )
+        assert isinstance(original_shapes[stride_dim], IntImm), (
+            "Stride dim can't be dynamic!"
+        )
+        assert isinstance(self.actual_shapes[stride_dim], IntImm), (
+            "Stride dim can't be dynamic!"
+        )
 
         self.original_total_elements_from_stride_dim = original_shapes[
             stride_dim
@@ -392,20 +391,20 @@ class TensorAccessor:
         for original_shape, actual_shape in zip(
             original_shapes[stride_dim + 1 :], self.actual_shapes[stride_dim + 1 :]
         ):
-            assert isinstance(
-                original_shape, IntImm
-            ), "Dims after the stride dim must have static shapes! Shapes: {}".format(
-                original_shapes
+            assert isinstance(original_shape, IntImm), (
+                "Dims after the stride dim must have static shapes! Shapes: {}".format(
+                    original_shapes
+                )
             )
-            assert isinstance(
-                actual_shape, IntImm
-            ), "Dims after the stride dim must have static shapes! Shapes: {}".format(
-                self.actual_shapes
+            assert isinstance(actual_shape, IntImm), (
+                "Dims after the stride dim must have static shapes! Shapes: {}".format(
+                    self.actual_shapes
+                )
             )
-            assert (
-                original_shape._attrs["values"] == actual_shape._attrs["values"]
-            ), "original shapes {} and actual shapes {} after the stride dim must be equal! ".format(
-                original_shapes, self.actual_shapes
+            assert original_shape._attrs["values"] == actual_shape._attrs["values"], (
+                "original shapes {} and actual shapes {} after the stride dim must be equal! ".format(
+                    original_shapes, self.actual_shapes
+                )
             )
             value = actual_shape._attrs["values"][0]
             self.original_total_elements_from_stride_dim *= value
@@ -431,9 +430,9 @@ class TensorAccessor:
         This API is useful to handle view ops, e.g. reshape, flatten, etc.
         """
 
-        assert (
-            self.stride_dim is None
-        ), "Tensor accessor cannot be updated once stride_dim is set!"
+        assert self.stride_dim is None, (
+            "Tensor accessor cannot be updated once stride_dim is set!"
+        )
 
         self.actual_shapes = new_tensor._attrs["shape"]
         original_dynamic_dims = {

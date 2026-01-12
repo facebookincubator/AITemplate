@@ -19,7 +19,6 @@ Util functions to handle shapes.
 from typing import List, Optional
 
 import sympy
-
 from aitemplate.compiler.base import IntVar, IntVarTensor, Tensor
 
 

@@ -22,16 +22,13 @@ import secrets
 import shlex
 import shutil
 import tempfile
-
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
 from aitemplate.backend.target import Target
-
 from aitemplate.utils import environ as aitemplate_env
-
 from aitemplate.utils.io import file_age, touch
 
 _LOGGER = logging.getLogger(__name__)
@@ -99,9 +96,9 @@ def should_skip_build_cache():
     skip_percentage = aitemplate_env.ait_build_cache_skip_percentage()
     if skip_percentage is not None:
         skip_percentage = int(skip_percentage)
-        assert (
-            skip_percentage >= 0 and skip_percentage <= 100
-        ), f"Skip percentage has to be in the range [0,100]. Actual value: {skip_percentage}"
+        assert skip_percentage >= 0 and skip_percentage <= 100, (
+            f"Skip percentage has to be in the range [0,100]. Actual value: {skip_percentage}"
+        )
         if skip_percentage == 100:
             return True
         if skip_percentage == 0:

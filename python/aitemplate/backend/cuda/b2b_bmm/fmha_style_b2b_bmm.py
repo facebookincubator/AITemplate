@@ -19,7 +19,6 @@ fmha_style_b2b_bmm kernel codegen for CUDA.
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.target import Target

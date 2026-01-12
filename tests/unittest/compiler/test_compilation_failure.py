@@ -18,7 +18,6 @@ from unittest.mock import patch
 
 import jinja2
 from aitemplate.backend.build_cache_base import SkipBuildCache
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import DynamicProfileStrategy
 from aitemplate.frontend import IntImm, Tensor

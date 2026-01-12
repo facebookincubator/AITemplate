@@ -19,11 +19,9 @@ import unittest
 import uuid
 
 import torch
-
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.compiler import compile_model
-
 from aitemplate.testing import detect_target
 from aitemplate.testing.benchmark_ait import make_input_output_pools, run_benchmark
 from aitemplate.testing.benchmark_pt import benchmark_torch_function

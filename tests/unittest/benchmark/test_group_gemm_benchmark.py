@@ -16,7 +16,6 @@ import logging
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
 from aitemplate.testing import detect_target
@@ -180,9 +179,9 @@ def _prepare_gemm_ait_module(m, nk_groups, test_idx=0, has_bias=True):
 
 
 def _prepare_bmm_ait_module(b, m, n, k, has_bias=False):
-    assert (
-        not has_bias
-    ), "bmm_rcr_bias is not implemented! has_bias has to be false for now"
+    assert not has_bias, (
+        "bmm_rcr_bias is not implemented! has_bias has to be false for now"
+    )
     input_tensors = _prepare_batch_input_tensors(b, m, n, k, has_bias=has_bias)
     Y = ops.bmm_rcr()(*input_tensors)
     Y._attrs["name"] = "y"

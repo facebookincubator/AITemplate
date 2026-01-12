@@ -22,7 +22,6 @@ from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import IntImm, IntVar, Operator
 from aitemplate.compiler.stable_set import StableSet
-
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 
 # pylint: disable=C0103,C0415,W0221

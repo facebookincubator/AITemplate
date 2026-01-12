@@ -88,7 +88,9 @@ def _fuse_strided_op_and_view_op_single_pass(
                     tensor._attrs["src_ops"] = StableSet({src_op})
                     transform_utils.remove_tensor_from_sorted_graph(view_input_tensor)
                     break
-            assert found_tensor, f"Cannot find view_input_tensor {view_input_tensor} from src_op outputs {src_op._attrs['outputs']}!"
+            assert found_tensor, (
+                f"Cannot find view_input_tensor {view_input_tensor} from src_op outputs {src_op._attrs['outputs']}!"
+            )
         else:
             if tensor._attrs["is_output"]:
                 continue
@@ -113,7 +115,9 @@ def _fuse_strided_op_and_view_op_single_pass(
                         accessor.update_base_tensor_shape(view_input_tensor)
                         dst_op._attrs["inputs"][idx] = view_input_tensor
                         view_input_tensor._attrs["dst_ops"].add(dst_op)
-                assert found_tensor, f"Cannot find tensor {tensor} from dst_op inputs {dst_op._attrs['inputs']}!"
+                assert found_tensor, (
+                    f"Cannot find tensor {tensor} from dst_op inputs {dst_op._attrs['inputs']}!"
+                )
                 to_be_removed_dst_ops.add(dst_op)
             tensor._attrs["dst_ops"] = tensor._attrs["dst_ops"] - to_be_removed_dst_ops
             if len(tensor._attrs["dst_ops"]) == 0:

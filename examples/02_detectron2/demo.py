@@ -70,10 +70,10 @@ def run_model(
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = confidence_threshold
     cfg.freeze()
 
-    assert (
-        weight != ""
-    ), "export model first: python convert_pt2ait.py model_d2.pkl params_ait.pkl \
+    assert weight != "", (
+        "export model first: python convert_pt2ait.py model_d2.pkl params_ait.pkl \
     --config configs/faster_rcnn_R_50_DC5.yaml"
+    )
 
     demo = Predictor(cfg)
     print("run {} end2end".format(cfg.MODEL.NAME))

@@ -22,7 +22,6 @@ import logging
 from typing import Callable, List, Optional, Tuple
 
 import numpy
-
 from aitemplate.compiler import ops
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.compiler.public import permute

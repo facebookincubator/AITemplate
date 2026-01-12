@@ -20,7 +20,6 @@ import unittest
 import numpy.random as npr
 import torch
 from aitemplate.compiler import compile_model
-
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
 from aitemplate.utils.torch_utils import string_to_torch_dtype

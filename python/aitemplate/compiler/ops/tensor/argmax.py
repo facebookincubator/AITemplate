@@ -26,7 +26,6 @@ from typing import List
 
 import jinja2
 import numpy as np
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.compiler.base import Operator, Tensor
@@ -150,7 +149,7 @@ class argmax(Operator):
 
         if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
+                f"Profile workload: {exec_key} failed. Results: {result}."
             )
 
         out = min(result, key=itemgetter(1))

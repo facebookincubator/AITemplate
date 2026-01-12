@@ -146,9 +146,9 @@ def assign_to_checkpoint(
 
     Assigns the weights to the new checkpoint.
     """
-    assert isinstance(
-        paths, list
-    ), "Paths should be a list of dicts containing 'old' and 'new' keys."
+    assert isinstance(paths, list), (
+        "Paths should be a list of dicts containing 'old' and 'new' keys."
+    )
 
     for path in paths:
         new_path = path["new"]

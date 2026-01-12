@@ -16,7 +16,6 @@ from typing import Any, Dict, List
 
 import jinja2
 import torch
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import CUDASpec, ROCMSpec

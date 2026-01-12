@@ -31,7 +31,6 @@ from aitemplate.compiler.ops.gemm_universal import (
     gemm_rrr_bias,
 )
 from aitemplate.compiler.ops.tensor import permute021
-
 from aitemplate.compiler.ops.tensor.permute import permute
 from aitemplate.compiler.transform.fuse_utils import extract_only_one_op
 from aitemplate.compiler.transform.transform_utils import (
@@ -42,7 +41,6 @@ from aitemplate.compiler.transform.transform_utils import (
     replace_tensor,
     sanitize_sorted_graph,
 )
-
 from aitemplate.utils import alignment
 
 # pylint: disable=C0103,W0612

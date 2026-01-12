@@ -16,7 +16,6 @@
 from typing import Any, Dict
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.backend_spec import ROCMSpec
 

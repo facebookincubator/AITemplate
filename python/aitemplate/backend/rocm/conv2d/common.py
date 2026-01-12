@@ -22,7 +22,6 @@ from collections import OrderedDict
 from hashlib import sha1
 
 import jinja2
-
 from aitemplate.backend.target import Target
 
 # pylint: disable=C0103,C0415,W0611,C0301

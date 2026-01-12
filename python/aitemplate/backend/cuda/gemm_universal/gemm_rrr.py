@@ -19,9 +19,7 @@ where A[RowMajor][M, K], B[RowMajor][K, N]
 """
 
 import jinja2
-
 from aitemplate.backend import registry
-
 from aitemplate.backend.backend_spec import CUDASpec
 from aitemplate.backend.cuda.gemm_universal import common
 from aitemplate.backend.cuda.gemm_universal.layout import RRR

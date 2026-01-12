@@ -16,7 +16,6 @@ import unittest
 from typing import List
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm, IntVar, Tensor
 from aitemplate.compiler.ops.common.epilogue import FuncEnum

@@ -27,12 +27,10 @@
 
 # flake8: noqa
 from aitemplate.compiler import ops
-
 from aitemplate.frontend import nn, Tensor
 from aitemplate.testing import detect_target
 
 from .attention import AttentionBlock
-
 from .clip import SpatialTransformer
 from .resnet import Downsample2D, ResnetBlock2D, Upsample2D
 

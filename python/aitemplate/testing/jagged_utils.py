@@ -17,7 +17,6 @@ from itertools import product
 from typing import List, Tuple
 
 import torch
-
 from aitemplate.testing.test_utils import get_torch_full_tensor
 from aitemplate.utils.torch_utils import string_to_torch_dtype, torch_dtype_to_string
 

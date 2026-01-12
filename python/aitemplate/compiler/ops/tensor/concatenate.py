@@ -104,7 +104,7 @@ class concatenate(Operator):
             if r != rank:
                 raise RuntimeError(
                     f"tensors expected to have the same rank but got {rank=} "
-                    f'and {r=} for tensor {t._attrs["name"]}'
+                    f"and {r=} for tensor {t._attrs['name']}"
                 )
 
     def _infer_shapes(self, inputs: List[Tensor], dim) -> List[IntVar]:
@@ -248,7 +248,7 @@ class concatenate(Operator):
                 break
         assert idx is not None and idx < len(self._attrs["inputs"]), (
             f"Expected idx to be less than the number of inputs, "
-            f'but got: {idx}, {len(self._attrs["inputs"])}'
+            f"but got: {idx}, {len(self._attrs['inputs'])}"
         )
         return idx
 
@@ -279,12 +279,12 @@ class concatenate(Operator):
         assert len(curr_input_accessors) == num_curr_inputs, (
             "expected curr_input_accessors have the same length as num_curr_inputs, "
             f"but got {len(curr_input_accessors)=}, {num_curr_inputs=}, "
-            f'op: {self._attrs["name"]}'
+            f"op: {self._attrs['name']}"
         )
 
-        assert (
-            len(indices) <= num_curr_inputs
-        ), f"Expected len(indices) <= num_curr_inputs, but got {len(indices)} and {num_curr_inputs}"
+        assert len(indices) <= num_curr_inputs, (
+            f"Expected len(indices) <= num_curr_inputs, but got {len(indices)} and {num_curr_inputs}"
+        )
 
         num_original_inputs = len(self._attrs["original_inputs"])
         num_input_masks = len(self._attrs["input_masks"])
@@ -304,7 +304,7 @@ class concatenate(Operator):
             if idx < len(indices) and curr_idx == indices[idx]:
                 if not self._attrs["input_masks"][orig_idx]:
                     raise RuntimeError(
-                        f'Expected input_masks at {idx} to be True for {self._attrs["name"]}'
+                        f"Expected input_masks at {idx} to be True for {self._attrs['name']}"
                     )
                 self._attrs["input_masks"][orig_idx] = False
                 idx += 1

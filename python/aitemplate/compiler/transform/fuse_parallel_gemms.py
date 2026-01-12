@@ -29,7 +29,6 @@ from aitemplate.compiler.transform.fuse_mm_elementwise_patterns import (
 from aitemplate.compiler.transform.fuse_utils import transform_simple_fusion_patterns
 from aitemplate.compiler.transform.toposort import toposort
 from aitemplate.compiler.transform.transform_strided_ops import _is_supported_op
-
 from aitemplate.utils import graph_utils
 from aitemplate.utils.shape_utils import is_static_dimension
 
@@ -220,9 +219,9 @@ def _merge_parallel_gemm_concat(
         old_inputs = cat_op._attrs["inputs"]
         new_inputs = old_inputs[:begin_idx] + [bmm_reshape] + old_inputs[end_idx + 1 :]
 
-        assert all(
-            cat_op._attrs["input_masks"]
-        ), "The input_pasts of cat_op must be all True"
+        assert all(cat_op._attrs["input_masks"]), (
+            "The input_pasts of cat_op must be all True"
+        )
 
         cat_op._attrs["inputs"] = new_inputs
         cat_op._attrs["input_accessors"] = [TensorAccessor(t) for t in new_inputs]

@@ -21,7 +21,6 @@ from typing import List
 
 import jinja2
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.tensor_accessor import TensorAccessor
 from aitemplate.utils import alignment
 

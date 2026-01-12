@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 import torch
-
 from aitemplate.compiler import compile_model
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target

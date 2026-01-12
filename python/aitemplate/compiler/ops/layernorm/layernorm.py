@@ -25,7 +25,6 @@ from operator import itemgetter
 from typing import Any, List, Union
 
 import jinja2
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
@@ -39,7 +38,6 @@ from aitemplate.compiler.base import (
 )
 from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
 from aitemplate.compiler.tensor_accessor import TensorAccessor
-
 from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils
 
@@ -246,9 +244,9 @@ class layernorm(Operator):
             A dynamic profiling strategy. By default MAX is used, i.e. to profile
             a dynamic range, an upper bound will be used.
         """
-        assert (
-            len(self._attrs["normalized_shape"]) == 1
-        ), "For profiling, normalized_shape must be 1D"
+        assert len(self._attrs["normalized_shape"]) == 1, (
+            "For profiling, normalized_shape must be 1D"
+        )
 
         m_max = 1
         m_min = 1
@@ -348,7 +346,7 @@ class layernorm(Operator):
 
         if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
+                f"Profile workload: {exec_key} failed. Results: {result}."
             )
 
         out = min(result, key=itemgetter(1))

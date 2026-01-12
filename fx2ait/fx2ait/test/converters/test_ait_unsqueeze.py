@@ -14,10 +14,8 @@
 #
 import torch
 from fx2ait.acc_tracer import acc_ops
-
 from fx2ait.tensor_spec import TensorSpec
 from fx2ait.tools.common_fx2ait import AITTestCase
-
 from parameterized import parameterized
 
 

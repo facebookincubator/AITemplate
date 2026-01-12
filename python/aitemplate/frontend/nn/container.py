@@ -15,7 +15,6 @@
 import operator
 from collections import abc as container_abcs, OrderedDict
 from itertools import chain, islice
-
 from typing import (
     Any,
     Dict,
@@ -30,7 +29,6 @@ from typing import (
 )
 
 from aitemplate.compiler.base import Tensor
-
 from aitemplate.frontend.nn.module import Module, typename
 from aitemplate.frontend.nn.parameter import Parameter
 

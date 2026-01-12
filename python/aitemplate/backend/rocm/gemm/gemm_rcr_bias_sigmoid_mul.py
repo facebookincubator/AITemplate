@@ -20,7 +20,6 @@ bias[RowMajor][N], D0[RowMajor][M, N].
 """
 
 import jinja2
-
 from aitemplate.backend import registry
 from aitemplate.backend.rocm.gemm import common
 from aitemplate.backend.rocm.gemm.layout import RCR

@@ -71,10 +71,10 @@ class bmm_rcr_n1(bmm_rcr):
         return valid
 
     def _infer_shapes(self, a: Tensor, b: Tensor):
-        assert self.is_valid_shape(
-            a, b
-        ), "shape (tensor a:{}, tensor b:{}) not valid for bmm_rcr_n1".format(
-            a.shape(), b.shape()
+        assert self.is_valid_shape(a, b), (
+            "shape (tensor a:{}, tensor b:{}) not valid for bmm_rcr_n1".format(
+                a.shape(), b.shape()
+            )
         )
         return super()._infer_shapes(a, b)
 

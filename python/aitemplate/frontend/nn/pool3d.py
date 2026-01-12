@@ -76,13 +76,13 @@ class MaxPool3d(Module):
             stride_tuple = self.stride
             padding_tuple = self.padding
 
-            assert (
-                kernel_size_tuple[0] == 1
-            ), "max_pool3d only supports kT == 1 currently"
+            assert kernel_size_tuple[0] == 1, (
+                "max_pool3d only supports kT == 1 currently"
+            )
             assert stride_tuple[0] == 1, "max_pool3d only supports sT == 1 currently"
-            assert (
-                padding_tuple[0] == 0
-            ), "max_pool3d only supports T_padding == 0 currently"
+            assert padding_tuple[0] == 0, (
+                "max_pool3d only supports T_padding == 0 currently"
+            )
 
             kernel_size = identical_elem_tuple_to_int(kernel_size_tuple[1:])
             stride = identical_elem_tuple_to_int(stride_tuple[1:])

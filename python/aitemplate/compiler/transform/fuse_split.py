@@ -20,10 +20,8 @@ import logging
 from typing import List
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
-
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.compiler.transform import transform_strided_ops_utils, transform_utils
-
 from aitemplate.utils import alignment, graph_utils
 
 # pylint: disable=W0612
@@ -206,7 +204,7 @@ def _check_alignment(op: Operator, offset: int, total_elems_from_split_dim: int)
             _check_dim_alignment(c_shape, dim_idx=2, dtype=dtype)
         )
 
-    raise RuntimeError(f'Unexpected op type: {op._attrs["op"]}')
+    raise RuntimeError(f"Unexpected op type: {op._attrs['op']}")
 
 
 def _fuse_split_and_strided_op(sorted_graph: List[Tensor]) -> List[Tensor]:

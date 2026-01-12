@@ -20,15 +20,12 @@ output.
 
 import copy
 import logging
-
 from typing import List
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import Operator, Tensor
-
 from aitemplate.compiler.stable_set import StableSet
 from aitemplate.compiler.transform import transform_utils
-
 from aitemplate.utils import graph_utils
 
 
@@ -49,7 +46,7 @@ def _concat_kernel_single_input_output_param_size(op: Operator):
     size_of_one_output_meta = CONCAT_OUTPUT_META_SIZE * rank
     # There are 3 more params, where each takes 8 bytes, so we add 24 more bytes
     total_params_size = CONCAT_INPUT_META_SIZE + size_of_one_output_meta + 24
-    _LOGGER.debug(f'concat op {op._attrs["name"]}: {total_params_size=}')
+    _LOGGER.debug(f"concat op {op._attrs['name']}: {total_params_size=}")
     return total_params_size
 
 
@@ -70,9 +67,9 @@ def split_large_concat_ops(sorted_graph: List[Tensor], _: str) -> List[Tensor]:
         # We create InputMeta for inputs that need to copy data.
         num_inputs = len([m for m in concat_op._attrs["input_masks"] if m is True])
         concat_inputs = concat_op._attrs["inputs"]
-        assert num_inputs == len(
-            concat_inputs
-        ), f"expected {num_inputs=} and {len(concat_inputs)=} to be equal"
+        assert num_inputs == len(concat_inputs), (
+            f"expected {num_inputs=} and {len(concat_inputs)=} to be equal"
+        )
         if num_inputs == 0:
             continue
         concat_params_size = _concat_kernel_single_input_output_param_size(concat_op)

@@ -16,9 +16,7 @@ from enum import IntEnum
 from typing import List, Union
 
 from aitemplate.backend import registry
-
 from aitemplate.backend.target import Target
-
 from aitemplate.compiler.base import IntImm, IntVar, IntVarTensor, Operator, Tensor
 from aitemplate.utils.shape_utils import convert_shape_to_IntVar
 

@@ -15,7 +15,6 @@
 from typing import Dict
 
 from aitemplate.compiler import ops
-
 from aitemplate.frontend import nn, Tensor
 
 from .box_head import build_box_head, FastRCNNConvFCHead

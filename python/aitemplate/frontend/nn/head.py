@@ -16,7 +16,6 @@
 from typing import Callable
 
 from aitemplate.compiler import ops
-
 from aitemplate.frontend import Tensor
 from aitemplate.frontend.nn.dropout import Dropout
 from aitemplate.frontend.nn.linear import Linear

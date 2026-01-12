@@ -17,13 +17,10 @@ import unittest
 from typing import List
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
-
 from aitemplate.compiler.base import IntVar, Tensor
 from aitemplate.testing import detect_target, test_utils
 from aitemplate.testing.test_utils import get_random_torch_tensor
-
 from parameterized import parameterized
 
 _PERMUTE_OPS = (

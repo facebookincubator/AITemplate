@@ -22,7 +22,6 @@ import unittest
 from typing import List, Tuple
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.b2b_bmm.b2b_bmm_base import CausalType
@@ -261,9 +260,9 @@ class ClassicMultiheadB2bBmmTestCase(unittest.TestCase):
     ):
         # Initialize AIT classic_b2b_bmm operator.
         assert len(bias_broadcast) == 4
-        assert (
-            bias_broadcast[3] is False
-        ), "Classic b2b bmm cannot broadcast bias on last dimension."
+        assert bias_broadcast[3] is False, (
+            "Classic b2b bmm cannot broadcast bias on last dimension."
+        )
         if isinstance(batch_sizes, int):
             batch_sizes = [batch_sizes]
         alpha0 = 1.0 / (k0**0.5)

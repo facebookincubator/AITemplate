@@ -26,7 +26,6 @@ from operator import itemgetter
 from typing import Any, List, Union
 
 import jinja2
-
 from aitemplate import backend
 from aitemplate.backend import registry
 from aitemplate.backend.target import Target
@@ -39,7 +38,6 @@ from aitemplate.compiler.base import (
     Tensor,
 )
 from aitemplate.compiler.ops.softmax.cache_entry import NormQueryEntry, NormRecordEntry
-
 from aitemplate.testing import detect_target
 from aitemplate.utils import shape_utils
 
@@ -235,9 +233,9 @@ class group_norm(Operator):
                 vals.append(int(item))
             else:
                 key_strs.append(item.strip())
-        assert len(vals) == len(
-            key_strs
-        ), f"expected len(vals) == len(key_strs), but got {len(vals)}, {len(key_strs)}"
+        assert len(vals) == len(key_strs), (
+            f"expected len(vals) == len(key_strs), but got {len(vals)}, {len(key_strs)}"
+        )
         return dict(zip(key_strs, vals))
 
     def _gen_exec_key(self, name_value_mapping):
@@ -326,7 +324,7 @@ class group_norm(Operator):
 
         if len(result) == 0:
             raise RuntimeError(
-                "Profile workload: " f"{exec_key}" " failed. " f"Results: {result}."
+                f"Profile workload: {exec_key} failed. Results: {result}."
             )
 
         out = min(result, key=itemgetter(1))

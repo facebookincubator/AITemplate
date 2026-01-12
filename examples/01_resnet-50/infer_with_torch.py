@@ -17,7 +17,6 @@ import os
 import numpy as np
 import torch
 from aitemplate.compiler import compile_model, Model
-
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
 from modeling.resnet import build_resnet_backbone

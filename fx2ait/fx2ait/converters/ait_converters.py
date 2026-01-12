@@ -18,7 +18,6 @@ import operator
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import torch
-
 from aitemplate.compiler.public import (
     avg_pool2d,
     bmm_rrr,
@@ -70,14 +69,11 @@ from aitemplate.compiler.public import (
     var,
     vector_norm,
 )
-
 from aitemplate.frontend.nn import Upsampling2d
-
 from fx2ait.acc_tracer import acc_ops, ait_acc_ops
 from torch.fx.node import Argument, Target
 
 from .converter_registry import ait_converter
-
 from .utils import (
     ait_ncdhw2ndhwc,
     ait_nchw2nhwc,
@@ -899,14 +895,14 @@ def acc_ops_conv_transpose2d(
     padding = identical_elem_tuple_to_int(kwargs["padding"])
     dilation = identical_elem_tuple_to_int(kwargs["dilation"])
     assert dilation == 1, "dilation {dilation} does not equal to 1!"
-    assert all(
-        isinstance(x, int) for x in [stride, padding, dilation]
-    ), "Expected int stride, padding, and dilation"
+    assert all(isinstance(x, int) for x in [stride, padding, dilation]), (
+        "Expected int stride, padding, and dilation"
+    )
 
     if kwargs["groups"] is None or kwargs["groups"] == 1:
-        assert (
-            w_last_dim % 8 == 0
-        ), f"cutlass needs weight output channel={w_last_dim} is not divisble by 8! This restriction may be not valid in newer version"
+        assert w_last_dim % 8 == 0, (
+            f"cutlass needs weight output channel={w_last_dim} is not divisble by 8! This restriction may be not valid in newer version"
+        )
 
         if bias:
             result = transposed_conv2d_bias(
@@ -919,9 +915,9 @@ def acc_ops_conv_transpose2d(
     else:
         # Grouped conv doesn't currently work on AIT CUDA, manually map
         groups = kwargs["groups"]
-        assert (
-            (w_last_dim * groups) % 8 == 0
-        ), f"cutlass needs weight output channel={w_last_dim*groups} is not divisble by 8! This restriction may be not valid in newer version"
+        assert (w_last_dim * groups) % 8 == 0, (
+            f"cutlass needs weight output channel={w_last_dim * groups} is not divisble by 8! This restriction may be not valid in newer version"
+        )
 
         group_size = input_val.shape()[3]._attrs["values"][0] // groups
         w_group_size = weight.shape()[0]._attrs["values"][0] // groups
@@ -1174,9 +1170,9 @@ def acc_ops_chunk(
     shape = input_val.shape()
     target_dim = get_positive_dim(kwargs["dim"], len(shape))
     chunks = min(kwargs["chunks"], shape[target_dim].value())
-    assert isinstance(
-        shape[target_dim], IntImm
-    ), f"Cannot perform chunk on dynamic dim! Get target dim {target_dim}."
+    assert isinstance(shape[target_dim], IntImm), (
+        f"Cannot perform chunk on dynamic dim! Get target dim {target_dim}."
+    )
 
     return chunk()(input_val, chunks, dim=target_dim)
 
@@ -1302,13 +1298,13 @@ def acc_ops_batch_norm(
     # input is channel-last after permute
     input_shape = input_val._attrs["shape"]
     channel_dim = -1
-    assert isinstance(
-        input_shape[channel_dim], IntImm
-    ), f"expected channel at {channel_dim=} in {input_shape=} to be static"
+    assert isinstance(input_shape[channel_dim], IntImm), (
+        f"expected channel at {channel_dim=} in {input_shape=} to be static"
+    )
     channel_dim_val = input_shape[channel_dim].value()
-    assert (
-        channel_dim_val == scale_dim_val
-    ), f"expected {channel_dim_val=} to be the same as {scale_dim_val=}"
+    assert channel_dim_val == scale_dim_val, (
+        f"expected {channel_dim_val=} to be the same as {scale_dim_val=}"
+    )
     mul_result = elementwise(FuncEnum.MUL)(input_val, scale)
     result = elementwise(FuncEnum.ADD)(mul_result, bias)
     if input_rank == 3:
@@ -1394,9 +1390,9 @@ def acc_ops_conv2d(
     padding = identical_elem_tuple_to_int(kwargs["padding"])
     dilation = identical_elem_tuple_to_int(kwargs["dilation"])
 
-    assert all(
-        isinstance(x, int) for x in [stride, padding, dilation]
-    ), "Expected int stride, padding, and dilation"
+    assert all(isinstance(x, int) for x in [stride, padding, dilation]), (
+        "Expected int stride, padding, and dilation"
+    )
 
     if kwargs["groups"] is None or kwargs["groups"] == 1:
         result = _choose_conv2d_op(stride, padding, dilation, input_val, weight, bias)
@@ -1561,9 +1557,9 @@ def acc_ops_max_pool3d(
 
         assert kernel_size_tuple[0] == 1, "max_pool3d only supports kT == 1 currently"
         assert stride_tuple[0] == 1, "max_pool3d only supports sT == 1 currently"
-        assert (
-            padding_tuple[0] == 0
-        ), "max_pool3d only supports T_padding == 0 currently"
+        assert padding_tuple[0] == 0, (
+            "max_pool3d only supports T_padding == 0 currently"
+        )
 
         kernel_size = identical_elem_tuple_to_int(kernel_size_tuple[1:])
         stride = identical_elem_tuple_to_int(stride_tuple[1:])

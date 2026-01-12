@@ -501,7 +501,7 @@ def benchmark_function(
             f"PT Eager QPS: {pt_qps:.2f}, "
             f"FX2AIT time per iter: {ait_time_per_iter_ms}ms, "
             f"FX2AIT Eager QPS: {ait_qps:.2f}, "
-            f"Speedup: {ait_qps/pt_qps:.2f}, "
+            f"Speedup: {ait_qps / pt_qps:.2f}, "
         )
 
         with open("/tmp/bench_" + name + ".csv", "a") as f:

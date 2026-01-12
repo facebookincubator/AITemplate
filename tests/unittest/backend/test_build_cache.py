@@ -21,14 +21,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 import torch
-
 from aitemplate.backend.build_cache_base import (
     create_dir_hash,
     FileBasedBuildCache,
     is_source,
     SkipBuildCache,
 )
-
 from aitemplate.backend.cuda.target_def import FBCUDA
 from aitemplate.compiler import compile_model, ops
 from aitemplate.frontend import IntImm, Tensor
@@ -86,9 +84,9 @@ class BuildCacheTestCase(unittest.TestCase):
                 )
                 cache.maybe_cleanup()
                 assert os.path.exists(cache_dir + "/.last_cleaned")
-                assert (
-                    file_age(cache_dir + "/.last_cleaned") < 10.0
-                ), "Last clean time should  than 10 seconds"
+                assert file_age(cache_dir + "/.last_cleaned") < 10.0, (
+                    "Last clean time should  than 10 seconds"
+                )
 
                 build_dir_1 = os.path.join(parent_dir, "build_1")
                 build_dir_2 = os.path.join(parent_dir, "build_2")
@@ -183,9 +181,9 @@ class BuildCacheTestCase(unittest.TestCase):
             )
             cache_key_log_2 = (Path(build_dir + "_2") / "cache_key.log").read_text()
 
-            assert (
-                hash1 == hash2
-            ), f"Code generation was not deterministic. Cache key mismatch between first and second code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)\nLOG 1:\n{cache_key_log_1}\n------\nLOG 1:\n{cache_key_log_2}\n-----"
+            assert hash1 == hash2, (
+                f"Code generation was not deterministic. Cache key mismatch between first and second code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)\nLOG 1:\n{cache_key_log_1}\n------\nLOG 1:\n{cache_key_log_2}\n-----"
+            )
             # Variant 3: Build over existing build dir
             Y = self._create_model_graph()
             target = detect_target()
@@ -200,9 +198,9 @@ class BuildCacheTestCase(unittest.TestCase):
             hash3 = create_dir_hash(
                 ["test_name"], build_dir + "_2", is_source, debug=True
             )
-            assert (
-                hash2 == hash3
-            ), "Code generation was not deterministic. Cache key mismatch between second and third code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
+            assert hash2 == hash3, (
+                "Code generation was not deterministic. Cache key mismatch between second and third code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
+            )
 
             # Variant 4: Let's provoke to copy the includes again, maybe to a new path?
             Y = self._create_model_graph()
@@ -219,9 +217,9 @@ class BuildCacheTestCase(unittest.TestCase):
                 ["test_name"], build_dir + "_4", is_source, debug=True
             )
 
-            assert (
-                hash3 == hash4
-            ), "Code generation was not deterministic. Cache key mismatch between third and fourth code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
+            assert hash3 == hash4, (
+                "Code generation was not deterministic. Cache key mismatch between third and fourth code generation pass. Hint: Debug this with the help of the debug option of function create_dir_hash(...)"
+            )
 
             with open(
                 os.path.join(build_dir + "_4", "Makefile"), "a", encoding="utf-8"
@@ -231,9 +229,9 @@ class BuildCacheTestCase(unittest.TestCase):
             hash5 = create_dir_hash(
                 ["test_name"], build_dir + "_4", is_source, debug=True
             )
-            assert (
-                hash4 != hash5
-            ), "Directory hash was not sensitive to a change in the Makefile, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            assert hash4 != hash5, (
+                "Directory hash was not sensitive to a change in the Makefile, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            )
             with open(
                 os.path.join(build_dir + "_4", "anything.cu"), "w", encoding="utf-8"
             ) as f:
@@ -242,9 +240,9 @@ class BuildCacheTestCase(unittest.TestCase):
             hash6 = create_dir_hash(
                 ["test_name"], build_dir + "_4", is_source, debug=True
             )
-            assert (
-                hash6 != hash5
-            ), "Directory hash was not sensitive to a change in a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            assert hash6 != hash5, (
+                "Directory hash was not sensitive to a change in a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            )
 
             os.rename(
                 os.path.join(build_dir + "_4", "anything.cu"),
@@ -253,9 +251,9 @@ class BuildCacheTestCase(unittest.TestCase):
             hash7 = create_dir_hash(
                 ["test_name"], build_dir + "_4", is_source, debug=True
             )
-            assert (
-                hash7 != hash6
-            ), "Directory hash was not sensitive to a change of name of a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            assert hash7 != hash6, (
+                "Directory hash was not sensitive to a change of name of a source file, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            )
 
             Y = self._create_model_graph()
             target = detect_target()
@@ -272,9 +270,9 @@ class BuildCacheTestCase(unittest.TestCase):
                 ["test_name"], build_dir + "_8", is_source, debug=True
             )
 
-            assert (
-                hash8 != hash1
-            ), "Directory hash was not sensitive to a change of Makefile (standalone codegen) and possibly source code, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            assert hash8 != hash1, (
+                "Directory hash was not sensitive to a change of Makefile (standalone codegen) and possibly source code, the hashes should be different. Hint: Debug this with the help of the debug option of function create_dir_hash"
+            )
 
     def test_repeated_build_dir_usage(self):
         with tempfile.TemporaryDirectory() as tempdir:

@@ -334,7 +334,9 @@ def get_normalized_kwargs(
                 new_kwargs[new_kwarg_name] = node.args[i]
             else:
                 # Verify the arg we're trying to normalize was optional.
-                assert is_optional, f"Cannot normalize {orig_kwargs_names} to {new_kwarg_name} for {node.name}"
+                assert is_optional, (
+                    f"Cannot normalize {orig_kwargs_names} to {new_kwarg_name} for {node.name}"
+                )
         else:
             new_kwargs[new_kwarg_name] = node.kwargs[orig_kwargs_name]
 

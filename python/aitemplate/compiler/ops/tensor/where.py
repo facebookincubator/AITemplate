@@ -47,12 +47,12 @@ class where(Operator):
         other_tensor: Tensor,
         dtype: str = "",
     ) -> Tensor:
-        assert isinstance(
-            condition, Tensor
-        ), f"condition needs to be a tensor, but got {type(condition)}"
-        assert (
-            condition.dtype() == "bool"
-        ), f"condition needs to be a bool tensor, but got {condition.dtype()}"
+        assert isinstance(condition, Tensor), (
+            f"condition needs to be a tensor, but got {type(condition)}"
+        )
+        assert condition.dtype() == "bool", (
+            f"condition needs to be a bool tensor, but got {condition.dtype()}"
+        )
 
         output_shape = condition.shape()
         args = []
@@ -62,18 +62,18 @@ class where(Operator):
             if isinstance(tensor, int) or isinstance(tensor, float):
                 tensor = Tensor(shape=[], value=tensor, dtype=common_dtype)
             else:
-                assert isinstance(
-                    tensor, Tensor
-                ), f"Unsupported data type: {type(tensor)}"
-                assert (
-                    tensor.shape() == output_shape
-                ), f"Tensor shape should be the same, {tensor.shape()} != {output_shape}"
+                assert isinstance(tensor, Tensor), (
+                    f"Unsupported data type: {type(tensor)}"
+                )
+                assert tensor.shape() == output_shape, (
+                    f"Tensor shape should be the same, {tensor.shape()} != {output_shape}"
+                )
                 if common_dtype is None:
                     common_dtype = normalize_dtype(tensor.dtype())
                 else:
-                    assert (
-                        common_dtype == normalize_dtype(tensor.dtype())
-                    ), f"Expect tensor of the same dtype, got {common_dtype} and {normalize_dtype(tensor.dtype())}"
+                    assert common_dtype == normalize_dtype(tensor.dtype()), (
+                        f"Expect tensor of the same dtype, got {common_dtype} and {normalize_dtype(tensor.dtype())}"
+                    )
                 inputs.append(tensor)
 
             args.append(tensor)

@@ -19,10 +19,8 @@ This file implements a pass that merges consecutive slice ops if possible.
 from typing import List, Optional
 
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
-
 from aitemplate.compiler.ops.tensor.dynamic_slice import MAX_INT32
 from aitemplate.compiler.transform import transform_utils
-
 from aitemplate.utils import shape_utils
 
 

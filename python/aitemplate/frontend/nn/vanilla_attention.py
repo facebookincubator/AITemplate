@@ -126,9 +126,9 @@ class VanillaMultiheadAttention(Module):
         mask_seq=0,
     ):
         super().__init__()
-        assert (
-            dim % num_heads == 0
-        ), f"dim {dim} should be divisible by num_heads {num_heads}"
+        assert dim % num_heads == 0, (
+            f"dim {dim} should be divisible by num_heads {num_heads}"
+        )
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = head_dim**-0.5
@@ -137,9 +137,9 @@ class VanillaMultiheadAttention(Module):
         self.mask_seq = mask_seq
 
         if causal:
-            assert (
-                attn_mask is not None
-            ), f"Missing attn_mask=Tensor(shape=1x{seq_len}x{seq_len})"
+            assert attn_mask is not None, (
+                f"Missing attn_mask=Tensor(shape=1x{seq_len}x{seq_len})"
+            )
             self.op = partial(vanilla_attention, attn_mask=attn_mask)
         else:
             self.op = vanilla_attention
@@ -238,9 +238,9 @@ class VanillaCrossAttention(Module):
         causal=False,
     ):
         super().__init__()
-        assert (
-            dim % num_heads == 0
-        ), f"dim {dim} should be divisible by num_heads {num_heads}"
+        assert dim % num_heads == 0, (
+            f"dim {dim} should be divisible by num_heads {num_heads}"
+        )
         self.num_heads = num_heads
         self.causal = causal
         self.has_residual = has_residual

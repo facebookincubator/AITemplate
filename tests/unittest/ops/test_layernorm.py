@@ -20,7 +20,6 @@ import logging
 import unittest
 
 import torch
-
 from aitemplate.compiler import compile_model, ops
 from aitemplate.compiler.base import IntImm, IntVar
 from aitemplate.frontend import Tensor

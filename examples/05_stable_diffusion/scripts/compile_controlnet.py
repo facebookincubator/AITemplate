@@ -59,12 +59,12 @@ def compile_diffusers(
     if detect_target().name() == "rocm":
         convert_conv_to_gemm = False
 
-    assert (
-        width % 64 == 0
-    ), "Width must be multiples of 64, otherwise, the compilation process will fail."
-    assert (
-        height % 64 == 0
-    ), "Height must be multiples of 64, otherwise, the compilation process will fail."
+    assert width % 64 == 0, (
+        "Width must be multiples of 64, otherwise, the compilation process will fail."
+    )
+    assert height % 64 == 0, (
+        "Height must be multiples of 64, otherwise, the compilation process will fail."
+    )
 
     controlnet = ControlNetModel.from_pretrained(
         "lllyasviel/sd-controlnet-canny", torch_dtype=torch.float16
