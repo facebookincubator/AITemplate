@@ -20,8 +20,9 @@ import contextlib
 import itertools
 import os
 import unittest
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
+from typing import Any
 
 import torch
 from aitemplate.compiler.base import IntImm, IntVar, Operator, Tensor
@@ -53,7 +54,7 @@ def _SM90_filter(method_name: str) -> bool:
     return method_name.endswith("sm90")
 
 
-_TEST_ENV_TO_FILTER_METHOD: Dict[TestEnv, Callable[[str], bool]] = {
+_TEST_ENV_TO_FILTER_METHOD: dict[TestEnv, Callable[[str], bool]] = {
     TestEnv.CUDA_LESS_THAN_SM80: (
         lambda method_name: not (
             _SM80_filter(method_name)
@@ -70,7 +71,7 @@ _TEST_ENV_TO_FILTER_METHOD: Dict[TestEnv, Callable[[str], bool]] = {
 # maps each test env (key) to the set of all test envs compatible with
 # it (value). "compatible" means that a tests that can run in *any*
 # env in the value Set[TestEnv] can also run in the key TestEnv.
-_COMPATIBLE_TEST_ENVS: Dict[TestEnv, Set[TestEnv]] = {
+_COMPATIBLE_TEST_ENVS: dict[TestEnv, set[TestEnv]] = {
     TestEnv.ROCM: {
         TestEnv.ROCM,
     },
@@ -121,7 +122,7 @@ def _test_runnable_in_env(test_name: str, env: TestEnv) -> bool:
     return False
 
 
-def filter_test_cases_by_params(params: Dict[TestEnv, List[Tuple[Any]]]):
+def filter_test_cases_by_params(params: dict[TestEnv, list[tuple[Any]]]):
     """Filters test cases to run by given params.
 
     The params corresponding to any test env compatible with
@@ -142,7 +143,7 @@ def filter_test_cases_by_params(params: Dict[TestEnv, List[Tuple[Any]]]):
     }
 
 
-def filter_test_cases_by_test_env(cls: Type[unittest.TestCase]):
+def filter_test_cases_by_test_env(cls: type[unittest.TestCase]):
     """Filters test cases to run by test case names implicitly.
 
     The test cases filtered by any test env compatible with
@@ -203,7 +204,7 @@ def get_torch_full_tensor(shape, fill_value, dtype="float16"):
     )
 
 
-def has_op(sorted_ops: List[Operator], op_name: str) -> bool:
+def has_op(sorted_ops: list[Operator], op_name: str) -> bool:
     for op in sorted_ops:
         op_type = op._attrs["op"]
         if op_type == op_name:
@@ -211,11 +212,11 @@ def has_op(sorted_ops: List[Operator], op_name: str) -> bool:
     return False
 
 
-def graph_has_op(graph: List[Tensor], op_name: str) -> bool:
+def graph_has_op(graph: list[Tensor], op_name: str) -> bool:
     return has_op(get_sorted_ops(graph), op_name)
 
 
-def count_ops(sorted_ops: List[Operator], op_name: str):
+def count_ops(sorted_ops: list[Operator], op_name: str):
     count = 0
     for op in sorted_ops:
         op_type = op._attrs["op"]
@@ -225,7 +226,7 @@ def count_ops(sorted_ops: List[Operator], op_name: str):
 
 
 def gen_input_tensor(
-    shape: List[Any], dtype: str = "float16", name: Optional[str] = None
+    shape: list[Any], dtype: str = "float16", name: str | None = None
 ) -> Tensor:
     tensor = Tensor(
         shape=shape,
@@ -251,7 +252,7 @@ def get_src_input(tensor: Tensor) -> Tensor:
     return src_op._attrs["inputs"][0]
 
 
-def get_shape(shape: List[IntVar], dim_to_value_dict: Dict[str, int]):
+def get_shape(shape: list[IntVar], dim_to_value_dict: dict[str, int]):
     res = [
         (
             dim.value()
@@ -326,7 +327,7 @@ def benchmark_module(
     pt_mod: torch.nn.Module,
     ait_mod: AITModule,
     iters: int = 100,
-    permute_inputs: Optional[List[int]] = None,
+    permute_inputs: list[int] | None = None,
 ):
     input_shape = inputs.size()
     batch_size = input_shape[0]

@@ -16,7 +16,7 @@
 patch_embed Module.
 """
 
-from typing import Callable, Tuple
+from collections.abc import Callable
 
 from aitemplate.compiler import ops
 from aitemplate.frontend import Tensor
@@ -60,9 +60,9 @@ def create_conv_patch_embed(
     *,
     in_channels: int,
     out_channels: int,
-    conv_kernel_size: Tuple[int] = (1, 16, 16),
-    conv_stride: Tuple[int] = (1, 4, 4),
-    conv_padding: Tuple[int] = (1, 7, 7),
+    conv_kernel_size: tuple[int] = (1, 16, 16),
+    conv_stride: tuple[int] = (1, 4, 4),
+    conv_padding: tuple[int] = (1, 7, 7),
     conv_bias: bool = True,
     conv: Callable = Conv3d,
 ) -> Module:
