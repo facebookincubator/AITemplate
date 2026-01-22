@@ -108,5 +108,5 @@ def split_large_split_ops(sorted_graph: List[Tensor], _: str) -> List[Tensor]:
     new_output_tensors = [
         tensor for tensor in sorted_graph if tensor._attrs["is_output"]
     ]
-    sorted_graph = toposort.toposort(new_output_tensors)
+    sorted_graph = toposort(new_output_tensors)
     return sorted_graph
