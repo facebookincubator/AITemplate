@@ -93,7 +93,9 @@ def compile_unet(
         height_d = height
         width_d = width
     else:
-        batch_size = (batch_size[0], batch_size[1] * 2)  # double batch size for unet
+        # double batch size for unet.
+        # Both lower and upper dims should be doubled, otherviwe output image will be messy on T4 GPU (SM75)
+        batch_size = (batch_size[0] * 2, batch_size[1] * 2)
         batch_size = IntVar(values=list(batch_size), name="batch_size")
         height = height[0] // 8, height[1] // 8
         width = width[0] // 8, width[1] // 8
