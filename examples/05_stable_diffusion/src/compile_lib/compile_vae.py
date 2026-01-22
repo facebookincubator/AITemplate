@@ -15,7 +15,7 @@
 
 import torch
 from aitemplate.compiler import compile_model
-from aitemplate.frontend import Tensor
+from aitemplate.frontend import IntVar, Tensor
 from aitemplate.testing import detect_target
 
 from ..modeling.vae import AutoencoderKL as ait_AutoencoderKL
@@ -118,7 +118,7 @@ def map_vae(pt_module, device="cuda", dtype="float16"):
 
 def compile_vae(
     pt_mod,
-    batch_size=1,
+    batch_size=(1, 8),
     height=64,
     width=64,
     use_fp16_acc=False,
@@ -159,6 +159,7 @@ def compile_vae(
         latent_channels=latent_channels,
         sample_size=sample_size,
     )
+    batch_size = IntVar(values=list(batch_size), name="batch_size")
 
     ait_input = Tensor(
         shape=[batch_size, height, width, latent_channels],

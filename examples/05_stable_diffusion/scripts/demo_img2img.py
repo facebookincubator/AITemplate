@@ -35,13 +35,14 @@ from src.pipeline_stable_diffusion_img2img_ait import StableDiffusionImg2ImgAITP
 )
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
+@click.option("--batch", default=1, help="Batch size of generated image")
 @click.option(
     "--prompt", default="A fantasy landscape, trending on artstation", help="prompt"
 )
 @click.option(
     "--benchmark", type=bool, default=False, help="run stable diffusion e2e benchmark"
 )
-def run(local_dir, width, height, prompt, benchmark):
+def run(local_dir, width, height, batch, prompt, benchmark):
     # load the pipeline
     device = "cuda"
     pipe = StableDiffusionImg2ImgAITPipeline.from_pretrained(
@@ -59,6 +60,7 @@ def run(local_dir, width, height, prompt, benchmark):
     init_image = Image.open(BytesIO(response.content)).convert("RGB")
     init_image = init_image.resize((height, width))
 
+    prompt = [prompt] * batch
     with torch.autocast("cuda"):
         images = pipe(
             prompt=prompt, init_image=init_image, strength=0.75, guidance_scale=7.5
@@ -67,8 +69,8 @@ def run(local_dir, width, height, prompt, benchmark):
             args = (prompt, init_image)
             t = benchmark_torch_function(10, pipe, *args)
             print(f"sd e2e: {t} ms")
-
-    images[0].save("fantasy_landscape_ait.png")
+    for i, image in enumerate(images):
+        image.save(f"example_ait_{i}.png")
 
 
 if __name__ == "__main__":
