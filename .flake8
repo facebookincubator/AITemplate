@@ -1,6 +1,12 @@
 [flake8]
 select = B,C,E,F,P,W,B9
 max-line-length = 80
+exclude =
+  .claude,
+  .git,
+  __pycache__,
+  build,
+  dist
 # Main Explanation Docs: https://github.com/grantmcconnaughey/Flake8Rules
 ignore =
   # Black conflicts and overlaps.
