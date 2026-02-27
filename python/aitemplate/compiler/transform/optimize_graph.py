@@ -21,6 +21,7 @@ from typing import List
 from aitemplate.compiler.base import Tensor
 from aitemplate.compiler.transform.apply_padding import apply_padding
 from aitemplate.compiler.transform.dedup_make_jagged_ops import dedup_make_jagged_ops
+from aitemplate.compiler.transform.fuse_b2b_bmm import fuse_b2b_bmm
 from aitemplate.compiler.transform.fuse_bmm_permute import fuse_bmm_permute
 from aitemplate.compiler.transform.fuse_conv_elementwise import fuse_conv_elementwise
 from aitemplate.compiler.transform.fuse_duplicate_fused_elementwise import (
@@ -74,6 +75,7 @@ def optimize_graph(
 
     - fuse permute and bmm
     - fuse permute and gemm
+    - fuse b2b bmm pattern
     - transform odd alignment
     - fuse conv and elementwise
     - fuse gemm and elementwise
@@ -105,6 +107,7 @@ def optimize_graph(
         fuse_permute_bmm_and_gemm,
         fuse_bmm_permute,
         fuse_expand_bmm,
+        fuse_b2b_bmm,
         transform_odd_alignment,
         fuse_conv_elementwise,
         fuse_single_source_parallel_gemms,
