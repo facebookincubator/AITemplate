@@ -326,9 +326,7 @@ def classic_b2b_bmm_gen_function(func_attrs: Dict[str, Any]) -> str:
         ),
         alpha0=str(func_attrs["alpha0"]),
         alpha1=str(func_attrs["alpha1"]),
-        alpha1_divide_by_seq_len=(
-            "true" if func_attrs["alpha1_divide_by_seq_len"] else "false"
-        ),
+        alpha1_divide_by_seq_len=func_attrs["alpha1_divide_by_seq_len"],
         epilogue_math=epilogue_math,
         bias_stride_n=bias_stride_n,
         bias_stride_mn=bias_stride_mn,

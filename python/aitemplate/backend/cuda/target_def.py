@@ -325,6 +325,22 @@ class FBCUDA(CUDA):
         cutlass_lib_path = parutil.get_dir_path(
             "aitemplate/AITemplate/python/aitemplate/utils/mk_cutlass_lib"
         )
+        # Ensure the cutlass_lib resource directory has __init__.py.
+        # Buck may strip it when packaging genrule output as a resource.
+        cutlass_lib_init = os.path.join(cutlass_lib_path, "cutlass_lib", "__init__.py")
+        if not os.path.exists(cutlass_lib_init) and os.path.isdir(
+            os.path.join(cutlass_lib_path, "cutlass_lib")
+        ):
+            with open(cutlass_lib_init, "w") as f:
+                f.write(
+                    "from . import library\n"
+                    "from . import generator\n"
+                    "from . import manifest\n"
+                    "from . import conv3d_operation\n"
+                    "from . import gemm_operation\n"
+                    "from . import conv2d_operation\n"
+                    "from . import extra_operation\n"
+                )
         sys.path.append(cutlass_lib_path)
 
         if not FBCUDA.nvcc_option_json:
