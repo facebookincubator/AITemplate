@@ -141,15 +141,21 @@ def build_decomposed_b2b_bmm_graph(batch, seq_len, head_dim, dtype="float16"):
 # =============================================================================
 
 
-def run_pattern_matching_example():
+def run_pattern_matching_example(use_cutedsl=False):
     """Test: Decomposed ops auto-fused into classic_b2b_bmm by compiler pass.
 
     Builds an AIT graph from primitive ops (bmm_rcr, elementwise MUL/ADD/SIGMOID,
     bmm_rrr) and verifies that the fuse_b2b_bmm pass fuses them into a single
     classic_b2b_bmm kernel, producing results matching PyTorch.
+
+    Parameters
+    ----------
+    use_cutedsl : bool
+        If True, use CuTeDSL backend instead of CUTLASS C++ templates.
     """
+    backend_name = "CuTeDSL" if use_cutedsl else "CUTLASS C++"
     print("\n" + "=" * 60)
-    print("Pattern Matching Test: decomposed ops -> classic_b2b_bmm")
+    print(f"Pattern Matching Test: decomposed ops -> classic_b2b_bmm ({backend_name})")
     print("=" * 60)
 
     batch, seq_len, head_dim = 4, 128, 64
@@ -166,15 +172,19 @@ def run_pattern_matching_example():
     y_pt = pt_model(q_pt, k_pt, v_pt, bias_pt)
 
     # Build AIT graph from decomposed ops (NOT ops.classic_b2b_bmm)
-    target = _get_target(use_fp16_acc=False)
+    target = _get_target(use_fp16_acc=False, use_cutedsl_b2b_bmm=use_cutedsl)
     logging.getLogger("aitemplate").setLevel(logging.DEBUG)
 
     with target:
         Y = build_decomposed_b2b_bmm_graph(batch, seq_len, head_dim, dtype)
 
     # Compile - the fuse_b2b_bmm pass will fuse the decomposed graph
-    print("\nCompiling... (fuse_b2b_bmm pass will pattern-match and fuse)")
-    with compile_model(Y, target, "./tmp", "pattern_matched_b2b_bmm") as module:
+    workdir_suffix = "cutedsl" if use_cutedsl else "cutlass"
+    print(f"\nCompiling with {backend_name} backend...")
+    print("(fuse_b2b_bmm pass will pattern-match and fuse)")
+    with compile_model(
+        Y, target, "./tmp", f"pattern_matched_b2b_bmm_{workdir_suffix}"
+    ) as module:
         y_ait = torch.empty_like(y_pt)
         module.run_with_tensors(
             {"Q": q_pt, "K": k_pt, "V": v_pt, "Bias": bias_pt},
@@ -189,13 +199,34 @@ def run_pattern_matching_example():
 
 
 def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="AITemplate classic_b2b_bmm example")
+    parser.add_argument(
+        "--use-cutedsl",
+        action="store_true",
+        default=False,
+        help="Use CuTeDSL backend instead of CUTLASS C++ templates",
+    )
+    parser.add_argument(
+        "--both",
+        action="store_true",
+        default=False,
+        help="Run with both CUTLASS C++ and CuTeDSL backends",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("AITemplate classic_b2b_bmm Pattern Matching Example")
     print("=" * 60)
     print("\nDemonstrates automatic fusion of decomposed attention ops")
     print("into classic_b2b_bmm via the fuse_b2b_bmm compiler pass.")
 
-    run_pattern_matching_example()
+    if args.both:
+        run_pattern_matching_example(use_cutedsl=False)
+        run_pattern_matching_example(use_cutedsl=True)
+    else:
+        run_pattern_matching_example(use_cutedsl=args.use_cutedsl)
 
     print("\n" + "=" * 60)
     print("All tests passed!")
