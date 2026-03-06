@@ -325,7 +325,12 @@ class Builder:
         for idx, fpair in enumerate(files):
             src, target = fpair
             _LOGGER.info("Building " + target)
-            if src.endswith(".bin"):
+            if src.endswith(".o"):
+                # Pre-compiled object file (e.g. from CuTeDSL AOT export).
+                # No compilation needed — the object is already ready.
+                _LOGGER.info(f"Skipping compilation for pre-compiled object: {src}")
+                continue
+            elif src.endswith(".bin"):
                 if binary_cc_cmd is None:
                     raise ValueError(
                         "Cannot compile .bin file without specifying binary_cc_cmd!"
@@ -370,12 +375,19 @@ class Builder:
         fpic = "-fPIC"
         if "nvcc" in cc:
             fpic = "-Xcompiler=-fPIC"
+
+        # Check if any objects are CuTeDSL pre-compiled .o files.
+        # If so, we need to link against libcuda for CUlibrary-based metadata loading.
+        has_cutedsl = any(obj.endswith("_cutedsl.o") for obj in objs)
+        extra_libs = " -lcuda" if has_cutedsl else ""
+
         cmd = (
             "{cc} -shared ".format(cc=cc)
             + fpic
             + " "
             + compile_options
             + " -o {target} {objs}".format(target=target, objs=" ".join(objs))
+            + extra_libs
         )
         cmd = _time_cmd(cmd)
         _LOGGER.debug(f"The cmd for building {target} is {cmd}")
@@ -433,12 +445,23 @@ clean_constants:
         #   debug option is enabled.
         # * windll.cu and windll.obj are used in builder_cmake.py for MSVC compiler
         #   and are not needed to be used in builder_make.py compiler engine.
-        obj_files = [
-            pair[1].split("/")[-1]
-            for pair in file_pairs
-            if not pair[1].endswith(standalone_obj) and not pair[1].endswith(windll_obj)
-        ]
+        has_cutedsl = False
+        obj_files = []
+        for pair in file_pairs:
+            if pair[1].endswith(standalone_obj) or pair[1].endswith(windll_obj):
+                continue
+            if pair[0].endswith(".o"):
+                # CuTeDSL pre-compiled .o: use basename since Make runs
+                # from the workdir where the .o file is located
+                obj_files.append(os.path.basename(pair[0]))
+                has_cutedsl = True
+            else:
+                obj_files.append(pair[1].split("/")[-1])
         obj_files = " ".join(obj_files)
+
+        # Add -lcuda when CuTeDSL objects are present (needed for CUlibrary loading)
+        if has_cutedsl:
+            build_so_cmd += " -lcuda"
 
         cc = Target.current().cc()
         compile_options = Target.current().compile_options()
