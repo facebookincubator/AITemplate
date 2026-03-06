@@ -231,6 +231,15 @@ class classic_b2b_bmm(b2b_bmm_base):
 
         return attr
 
+    def _use_cutedsl(self) -> bool:
+        """Check if CuTeDSL backend is enabled for this op."""
+        current_target = target.Target.current()
+        return current_target._kwargs.get("use_cutedsl_b2b_bmm", False)
+
+    def _backend_suffix(self) -> str:
+        """Return registry key suffix for the active backend."""
+        return "_cutedsl" if self._use_cutedsl() else ""
+
     def gen_function(self) -> str:
         """call backend functions"""
         current_target = target.Target.current()
@@ -240,8 +249,37 @@ class classic_b2b_bmm(b2b_bmm_base):
             raise NotImplementedError(
                 "classic_b2b_bmm is only supported by CUDA>=SM80 devices."
             )
-        func_key = "{target}.{op}.gen_function".format(
-            target=current_target.name(), op=self._attrs["op"]
+        suffix = self._backend_suffix()
+        # Store suffix so codegen can pick it up for func_decl / func_call
+        self._attrs["backend_suffix"] = suffix
+        func_key = "{target}.{op}.gen_function{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
         )
         func = registry.get(func_key)
         return func(self._attrs)
+
+    def gen_function_decl(self, func_attrs=None) -> str:
+        """Generate function declaration, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        func_key = "{target}.{op}.func_decl{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(self._attrs)
+
+    def gen_function_call(self, func_attrs=None, indent="  ") -> str:
+        """Generate function call, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        func_key = "{target}.{op}.func_call{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(self._attrs, indent=indent)
