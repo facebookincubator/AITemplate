@@ -117,9 +117,19 @@ def gen_function_src(
             if fname not in exist_func:
                 src_path = os.path.join(prefix, fname + target.src_extension())
                 obj_path = os.path.join(prefix, fname + ".obj")
+                # Pass workdir to func_attrs so CuTeDSL backend can write
+                # .h + .o artifacts alongside the .cu wrapper
+                func._attrs["workdir"] = prefix
                 file_pairs.append((src_path, obj_path))
                 with open(src_path, "w") as fo:
                     fo.write(func.gen_function())
+                # If the op produced a CuTeDSL pre-compiled .o file, add it
+                # to file_pairs so the linker picks it up. The .o is already
+                # compiled, so we use it as both src and obj (the builder
+                # skips compilation for .o src files).
+                cutedsl_obj = func._attrs.get("cutedsl_obj_path")
+                if cutedsl_obj and os.path.exists(cutedsl_obj):
+                    file_pairs.append((cutedsl_obj, cutedsl_obj))
                 exist_func.add(fname)
     _LOGGER.info(f"generated {len(file_pairs)} function srcs")
     return file_pairs
@@ -753,11 +763,16 @@ class ModelContainerGenerator:
             return
 
         for func in funcs:
+            # Check for backend suffix (e.g. "_cutedsl" for CuTeDSL backend).
+            # This is set by ops that support multiple backends (like classic_b2b_bmm).
+            backend_suffix = func._attrs.get("backend_suffix", "")
             f_func_decl = registry.get(
                 ".".join((self.target.name(), func._attrs["op"], "func_decl"))
+                + backend_suffix
             )
             f_func_call = registry.get(
                 ".".join((self.target.name(), func._attrs["op"], "func_call"))
+                + backend_suffix
             )
             if func._attrs["name"] not in self.exist_funcs:
                 self.func_decl.append(f_func_decl(func._attrs))
