@@ -36,11 +36,22 @@ from src.compile_lib.compile_vae import compile_vae
 )
 @click.option("--width", default=512, help="Width of generated image")
 @click.option("--height", default=512, help="Height of generated image")
-@click.option("--batch-size", default=1, help="batch size")
+@click.option(
+    "--batch-size",
+    default=(1, 8),
+    type=(int, int),
+    nargs=2,
+    help="Minimum and maximum batch size",
+)
 @click.option("--use-fp16-acc", default=True, help="use fp16 accumulation")
 @click.option("--convert-conv-to-gemm", default=True, help="convert 1x1 conv to gemm")
 def compile_diffusers(
-    local_dir, width, height, batch_size, use_fp16_acc=True, convert_conv_to_gemm=True
+    local_dir,
+    width,
+    height,
+    batch_size,
+    use_fp16_acc=True,
+    convert_conv_to_gemm=True
 ):
     logging.getLogger().setLevel(logging.INFO)
     torch.manual_seed(4896)
@@ -73,10 +84,14 @@ def compile_diffusers(
         dim=pipe.text_encoder.config.hidden_size,
         act_layer=pipe.text_encoder.config.hidden_act,
     )
+
     # UNet
     compile_unet(
         pipe.unet,
-        batch_size=batch_size * 2,
+        batch_size=(
+            batch_size[0] * 2,
+            batch_size[1] * 2,
+        ),  # double batch size for unet
         width=ww,
         height=hh,
         use_fp16_acc=use_fp16_acc,
