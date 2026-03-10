@@ -17,8 +17,8 @@ Torch module profiling utility.
 """
 
 import logging
+from collections.abc import Callable
 from operator import itemgetter
-from typing import Callable, List, Tuple
 
 import torch
 
@@ -29,7 +29,7 @@ def profile_callable(
     func: Callable,
     cache_flush_slab: torch.Tensor,
     n_iter: int,
-) -> Tuple[List[int], List[int]]:
+) -> tuple[list[int], list[int]]:
     """
     Profile the callable and return the device and wall time for each iteration.
     We assume the iterations happen sequentially, not concurrently.
