@@ -16,6 +16,7 @@
 GEMM Specialization: GEMM_RCR(A, B) + Bias
 """
 
+from aitemplate.backend import registry, target
 from aitemplate.compiler.base import IntImm, Tensor
 from aitemplate.compiler.ops.gemm_universal import gemm_rcr
 from aitemplate.compiler.tensor_accessor import TensorAccessor
@@ -99,3 +100,54 @@ class gemm_rcr_bias(gemm_rcr):
         self._attrs["outputs"] = [output]
         self._attrs["output_accessors"] = [TensorAccessor(output)]
         return output
+
+    def _use_cutedsl(self) -> bool:
+        """Check if CuTeDSL backend is enabled for this op."""
+        current_target = target.Target.current()
+        return current_target._kwargs.get("use_cutedsl_gemm", False)
+
+    def _backend_suffix(self) -> str:
+        """Return registry key suffix for the active backend."""
+        return "_cutedsl" if self._use_cutedsl() else ""
+
+    def gen_function(self) -> str:
+        """Generate function code, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        # Store suffix so codegen can pick it up for func_decl / func_call
+        self._attrs["backend_suffix"] = suffix
+        func_key = "{target}.{op}.gen_function{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(
+            self._attrs,
+            self.exec_cond_template,
+            self._extract_dims(),
+        )
+
+    def gen_function_decl(self, func_attrs=None) -> str:
+        """Generate function declaration, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        func_key = "{target}.{op}.func_decl{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(self._attrs)
+
+    def gen_function_call(self, func_attrs=None, indent="  ") -> str:
+        """Generate function call, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        func_key = "{target}.{op}.func_call{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(self._attrs, indent=indent)
