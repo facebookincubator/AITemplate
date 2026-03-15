@@ -83,9 +83,15 @@ def get_smem_layout_atom(
 
 
 class GemmRcrBiasSm80Kernel:
-    """CuTeDSL SM80 GEMM RCR with 1D bias kernel.
+    """CuTeDSL SM80 GEMM RCR with 1D bias kernel and fused epilogue.
 
-    C[M, N] = A[M, K] @ B[N, K]^T + Bias[N]
+    C[M, N] = epilogue(A[M, K] @ B[N, K]^T + Bias[N])
+
+    Supported fusion_type values (compile-time constant):
+      0: identity  -> C = gemm + bias
+      1: relu      -> C = relu(gemm + bias)
+      2: sigmoid   -> C = sigmoid(gemm + bias)
+      3: swish     -> C = silu(gemm + bias) = x * sigmoid(x)
 
     Tile sizes:
       tile_m=128, tile_n=128, tile_k=32
@@ -98,7 +104,8 @@ class GemmRcrBiasSm80Kernel:
     1. Load bias[tile_n] into SMEM as a 1D vector
     2. Create a 2D broadcast view (tile_m, tile_n) with stride-0 in M
     3. Partition to match accumulator layout via thr_mma.partition_C()
-    4. Element-wise add in FP32
+    4. Element-wise add in FP32 accumulators
+    5. Apply activation in FP32 accumulators (compile-time selected)
 
     Parameters
     ----------
@@ -108,17 +115,27 @@ class GemmRcrBiasSm80Kernel:
         Threadblock tile size in N dimension.
     tile_k : int
         Threadblock tile size in K dimension (loop step).
+    fusion_type : int
+        Compile-time epilogue activation: 0=none, 1=relu, 2=sigmoid, 3=swish.
     """
+
+    # Epilogue fusion type constants
+    FUSION_NONE = 0
+    FUSION_RELU = 1
+    FUSION_SIGMOID = 2
+    FUSION_SWISH = 3
 
     def __init__(
         self,
         tile_m: int = 128,
         tile_n: int = 128,
         tile_k: int = 32,
+        fusion_type: int = 0,
     ):
         self.tile_m = tile_m
         self.tile_n = tile_n
         self.tile_k = tile_k
+        self.fusion_type = fusion_type
         self.num_threads = 128  # 4 warps
 
         # Named barrier for CTA synchronization
@@ -443,7 +460,15 @@ class GemmRcrBiasSm80Kernel:
 
         for r in cutlass.range_constexpr(cute.size(acc_mn.shape[0])):
             for c in cutlass.range_constexpr(cute.size(acc_mn.shape[1])):
-                acc_mn[r, c] = acc_mn[r, c] + cutlass.Float32(tCsBias_mn[r, c])
+                val = acc_mn[r, c] + cutlass.Float32(tCsBias_mn[r, c])
+                # Compile-time epilogue activation (no runtime overhead)
+                if cutlass.const_expr(self.fusion_type == self.FUSION_RELU):
+                    val = cute.arch.fmax(val, 0.0)
+                elif cutlass.const_expr(self.fusion_type == self.FUSION_SIGMOID):
+                    val = 1.0 / (1.0 + cute.math.exp(-val))
+                elif cutlass.const_expr(self.fusion_type == self.FUSION_SWISH):
+                    val = val / (1.0 + cute.math.exp(-val))
+                acc_mn[r, c] = val
 
         # =====================================================================
         # Store output from registers to GMEM via SMEM
