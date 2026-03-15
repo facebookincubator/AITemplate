@@ -44,9 +44,15 @@ import cutlass.utils.hopper_helpers as sm90_utils
 
 
 class GemmRcrBiasSm90Kernel:
-    """CuTeDSL SM90 GEMM RCR with 1D bias kernel using TMA + WGMMA.
+    """CuTeDSL SM90 GEMM RCR with 1D bias kernel and fused epilogue using TMA + WGMMA.
 
-    C[M, N] = A[M, K] @ B[N, K]^T + Bias[N]
+    C[M, N] = epilogue(A[M, K] @ B[N, K]^T + Bias[N])
+
+    Supported fusion_type values (compile-time constant):
+      0: identity  -> C = gemm + bias
+      1: relu      -> C = relu(gemm + bias)
+      2: sigmoid   -> C = sigmoid(gemm + bias)
+      3: swish     -> C = silu(gemm + bias) = x * sigmoid(x)
 
     Tile sizes:
       tile_m=128, tile_n=128, tile_k=64 (MMA_K for SM90)
@@ -54,10 +60,9 @@ class GemmRcrBiasSm90Kernel:
 
     Grid: (ceil(M/tile_m), ceil(N/tile_n), 1)
 
-    The bias is added after the GEMM mainloop in the epilogue:
-    1. After WGMMA completes, apply bias element-wise to FP32 accumulators
-    2. The bias is loaded from GMEM via simple register loads (1D bias is small)
-    3. Convert FP32 -> FP16 and store via TMA S2G
+    The bias and activation are applied after the GEMM mainloop:
+    1. GEMM output stored via TMA S2G
+    2. Post-epilogue pass: read back from GMEM, add bias + apply activation, write back
 
     Parameters
     ----------
@@ -65,15 +70,25 @@ class GemmRcrBiasSm90Kernel:
         Threadblock tile size in M dimension.
     tile_n : int
         Threadblock tile size in N dimension.
+    fusion_type : int
+        Compile-time epilogue activation: 0=none, 1=relu, 2=sigmoid, 3=swish.
     """
+
+    # Epilogue fusion type constants
+    FUSION_NONE = 0
+    FUSION_RELU = 1
+    FUSION_SIGMOID = 2
+    FUSION_SWISH = 3
 
     def __init__(
         self,
         tile_m: int = 128,
         tile_n: int = 128,
+        fusion_type: int = 0,
     ):
         self.tile_m = tile_m
         self.tile_n = tile_n
+        self.fusion_type = fusion_type
 
         # SM90 tile_k is determined by the MMA instruction
         self.tile_k = 64  # Will be updated in _setup_attributes
@@ -609,4 +624,16 @@ class GemmRcrBiasSm90Kernel:
                 n_global = n_base + col
                 bias_val = mBias[n_global]
                 old_val = gC_raw[row, col]
-                gC_raw[row, col] = old_val + bias_val
+                # Promote to FP32 for accumulation + activation, then
+                # convert back to the output dtype before storing.
+                val = cutlass.Float32(old_val) + cutlass.Float32(bias_val)
+                # Compile-time epilogue activation (no runtime overhead)
+                if cutlass.const_expr(self.fusion_type == self.FUSION_RELU):
+                    val = cute.arch.fmax(val, cutlass.Float32(0.0))
+                elif cutlass.const_expr(self.fusion_type == self.FUSION_SIGMOID):
+                    val = cutlass.Float32(1.0) / (
+                        cutlass.Float32(1.0) + cute.math.exp(-val)
+                    )
+                elif cutlass.const_expr(self.fusion_type == self.FUSION_SWISH):
+                    val = val / (cutlass.Float32(1.0) + cute.math.exp(-val))
+                gC_raw[row, col] = self._dtype(val)

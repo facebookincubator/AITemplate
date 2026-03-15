@@ -19,6 +19,7 @@ from aitemplate.backend.cuda.gemm_universal import (
     bmm_xxx,
     bmm_xxx_add,
     gemm_rcr_bias,
+    gemm_rcr_bias_activation_cutedsl,
     gemm_rcr_bias_cutedsl,
     gemm_rcr_bias_elementwise,
     gemm_rcr_bias_fast_gelu,

@@ -214,6 +214,7 @@ def _aot_compile_cutedsl_kernel(
     output_dir: str,
     func_name: str,
     arch: int,
+    fusion_type: int = 0,
 ):
     """AOT-compile the CuTeDSL gemm_rcr_bias kernel and export .h + .o artifacts.
 
@@ -228,6 +229,8 @@ def _aot_compile_cutedsl_kernel(
         Base name for the exported files.
     arch : int
         GPU architecture (80 for Ampere, 90 for Hopper).
+    fusion_type : int
+        Epilogue fusion: 0=none, 1=relu, 2=sigmoid, 3=swish.
 
     Returns
     -------
@@ -246,13 +249,15 @@ def _aot_compile_cutedsl_kernel(
             GemmRcrBiasSm90Kernel,
         )
 
-        kernel = GemmRcrBiasSm90Kernel(tile_m=128, tile_n=128)
+        kernel = GemmRcrBiasSm90Kernel(tile_m=128, tile_n=128, fusion_type=fusion_type)
     else:
         from aitemplate.backend.cuda.gemm_universal.cutedsl_gemm_rcr_bias_sm80 import (
             GemmRcrBiasSm80Kernel,
         )
 
-        kernel = GemmRcrBiasSm80Kernel(tile_m=128, tile_n=128, tile_k=32)
+        kernel = GemmRcrBiasSm80Kernel(
+            tile_m=128, tile_n=128, tile_k=32, fusion_type=fusion_type
+        )
 
     # Create representative tensors for compilation.
     # All dimensions are dynamic (marked via mark_compact_shape_dynamic),
