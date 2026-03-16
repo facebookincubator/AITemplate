@@ -51,7 +51,7 @@
 
 /*!
  * \brief whether throw dmlc::Error instead of
- *  directly calling abort when FATAL error occured
+ *  directly calling abort when FATAL error occurred
  *  NOTE: this may still not be perfect.
  *  do not use FATAL and CHECK in destructors
  */
@@ -61,7 +61,7 @@
 
 /*!
  * \brief whether always log a message before throw
- * This can help identify the error that cannot be catched.
+ * This can help identify the error that cannot be caught.
  */
 #ifndef DMLC_LOG_BEFORE_THROW
 #define DMLC_LOG_BEFORE_THROW 0
