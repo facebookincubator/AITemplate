@@ -15,13 +15,19 @@
 """
 CuTeDSL SM90 (Hopper) implementation of Batched Matrix Multiply (BMM).
 
-Supports configurable layouts:
-  RRR: A[B, M, K] row-major, B[B, K, N] row-major, C[B, M, N] row-major
-  CCR: A[B, K, M] col-major, B[B, N, K] col-major, C[B, M, N] row-major
-  (and other combinations)
+Expects batch-last tensor ordering (matching the NVIDIA CuTeDSL convention):
+  A: (M, K, B) — K-major if a_row_major, M-major if col-major
+  B: (N, K, B) — N-major if b_row_major, K-major if col-major
+  C: (M, N, B) — N-major (row-major output)
+  D: (M, N, B) — residual tensor (optional)
+
+Layout combinations:
+  RRR: a_row_major=True,  b_row_major=True   (K-major A, N-major B)
+  CCR: a_row_major=False, b_row_major=False   (M-major A, K-major B)
+  RCR: a_row_major=True,  b_row_major=False   (K-major A, K-major B)
 
 Optional residual add for _add variants:
-  C[B, M, N] = A @ B + D[B, M, N]
+  C(M, N, B) = A @ B + D(M, N, B)
 
 Uses Hopper-specific features:
   - TMA for efficient GMEM <-> SMEM transfers
@@ -44,26 +50,16 @@ import cutlass.utils.hopper_helpers as sm90_utils
 class BmmSm90Kernel:
     """CuTeDSL SM90 BMM kernel using TMA + WGMMA.
 
-    C[B, M, N] = A @ B  (+ D if has_d)
+    C(M, N, B) = A @ B  (+ D if has_d)
 
-    Layout controlled by a_row_major/b_row_major:
-      RRR: a_row_major=True,  b_row_major=True  -> A[B,M,K], B[B,K,N]
-      CCR: a_row_major=False, b_row_major=False  -> A[B,K,M], B[B,N,K]
+    All tensors use batch-last ordering: (dim0, dim1, Batch).
+    Layout controlled by a_row_major/b_row_major (affects strides, not shape):
+      A is always (M, K, B), B is always (N, K, B), C/D are always (M, N, B).
+      RRR: a_row_major=True,  b_row_major=True  (K-major A, N-major B)
+      CCR: a_row_major=False, b_row_major=False  (M-major A, K-major B)
+      RCR: a_row_major=True,  b_row_major=False  (K-major A, K-major B)
 
     Grid: (ceil(M/tile_m), ceil(N/tile_n), B)
-
-    Parameters
-    ----------
-    tile_m : int
-        Threadblock tile in M.
-    tile_n : int
-        Threadblock tile in N.
-    a_row_major : bool
-        True if A is row-major (M,K), False if col-major (K,M).
-    b_row_major : bool
-        True if B is row-major (K,N), False if col-major (N,K).
-    has_d : bool
-        If True, adds residual tensor D to the output.
     """
 
     def __init__(
@@ -109,10 +105,13 @@ class BmmSm90Kernel:
             if self.a_row_major
             else utils.LayoutEnum.COL_MAJOR
         )
+        # For SMEM layout (N, K): ROW_MAJOR = K contiguous, COL_MAJOR = N contiguous.
+        # B[K,N] (b_row_major=True) has N contiguous in GMEM → COL_MAJOR in SMEM.
+        # B[N,K] (b_row_major=False) has K contiguous in GMEM → ROW_MAJOR in SMEM.
         b_layout = (
-            utils.LayoutEnum.ROW_MAJOR
+            utils.LayoutEnum.COL_MAJOR
             if self.b_row_major
-            else utils.LayoutEnum.COL_MAJOR
+            else utils.LayoutEnum.ROW_MAJOR
         )
         c_layout = utils.LayoutEnum.ROW_MAJOR
 
@@ -127,18 +126,8 @@ class BmmSm90Kernel:
             tiler_mn=(64, self.tile_n),
         )
 
-        mma_inst_shape_k = cute.size(tiled_mma.shape_mnk, mode=[2])
-        tile_k = mma_inst_shape_k * 4
-
-        # SMEM layouts
-        a_smem_layout_atom = cute.nvgpu.warpgroup.make_smem_layout_atom(
-            sm90_utils.get_smem_layout_atom(a_layout, self._dtype, tile_k),
-            self._dtype,
-        )
-        b_smem_layout_atom = cute.nvgpu.warpgroup.make_smem_layout_atom(
-            sm90_utils.get_smem_layout_atom(b_layout, self._dtype, tile_k),
-            self._dtype,
-        )
+        tile_k = self.tile_k
+        tile_shape_mnk = (self.tile_m, self.tile_n, tile_k)
 
         # Pipeline stages
         a_smem_shape = (self.tile_m, tile_k)
@@ -151,15 +140,19 @@ class BmmSm90Kernel:
         ab_stage = (self.smem_capacity - mbar_helpers_bytes) // ab_bytes_per_stage
         ab_stage = min(ab_stage, 7)
 
-        a_smem_layout_staged = cute.tile_to_shape(
-            a_smem_layout_atom,
-            (*a_smem_shape, ab_stage),
-            (0, 1, 2),
+        # Use canonical helpers for SMEM layout (handles K-major vs MN-major,
+        # swizzle selection, and tile_to_shape order automatically).
+        a_smem_layout_staged = sm90_utils.make_smem_layout_a(
+            a_layout,
+            tile_shape_mnk,
+            self._dtype,
+            ab_stage,
         )
-        b_smem_layout_staged = cute.tile_to_shape(
-            b_smem_layout_atom,
-            (*b_smem_shape, ab_stage),
-            (0, 1, 2),
+        b_smem_layout_staged = sm90_utils.make_smem_layout_b(
+            b_layout,
+            tile_shape_mnk,
+            self._dtype,
+            ab_stage,
         )
 
         # Epilogue SMEM
@@ -175,10 +168,13 @@ class BmmSm90Kernel:
             (0, 1, 2),
         )
 
-        # TMA atoms — created on the full 3D tensors
+        # SMEM layouts (slice out the stage dimension)
         a_smem_layout = cute.slice_(a_smem_layout_staged, (None, None, 0))
         b_smem_layout = cute.slice_(b_smem_layout_staged, (None, None, 0))
+        epi_smem_layout = cute.slice_(epi_smem_layout_staged, (None, None, 0))
 
+        # TMA atoms — tensors are batch-last: A(M,K,B), B(N,K,B), C(M,N,B).
+        # Simple tuple tilers tile the first two data modes (batch is last).
         tma_atom_a, tma_tensor_a = cute.nvgpu.cpasync.make_tiled_tma_atom(
             cute.nvgpu.cpasync.CopyBulkTensorTileG2SOp(),
             mA,
@@ -191,17 +187,11 @@ class BmmSm90Kernel:
             b_smem_layout,
             b_smem_shape,
         )
-
-        epi_smem_layout = cute.slice_(epi_smem_layout_staged, (None, None, 0))
-        c_cta_v_layout = cute.composition(
-            cute.make_identity_layout(mC.shape),
-            epi_tile,
-        )
         tma_atom_c, tma_tensor_c = cute.nvgpu.cpasync.make_tiled_tma_atom(
             cute.nvgpu.cpasync.CopyBulkTensorTileS2GOp(),
             mC,
             epi_smem_layout,
-            c_cta_v_layout,
+            epi_tile,
         )
 
         tma_copy_bytes = cute.size_in_bytes(
@@ -325,96 +315,116 @@ class BmmSm90Kernel:
         tile_k = mma_inst_shape_k * 4
         k_tiles = cute.ceil_div(K, tile_k)
 
-        # ----- Tile the 3D tensors for this CTA -----
-        # For A: project out the batch dim + tile M and K
-        # For B: project out the batch dim + tile N and K
-        # tile_coord includes batch_idx
-        if self.a_row_major:
-            # A[B, M, K]: tile_shape=(1, tile_m, tile_k), coord=(batch_idx, m_block, _)
-            tile_coord_a = (batch_idx, m_block, cute._)
-            gA_mk = cute.local_tile(
-                mA_mk, (1, self.tile_m, tile_k), tile_coord_a, proj=(None, 1, 1)
-            )
-        else:
-            # A[B, K, M]: tile_shape=(1, tile_k, tile_m), coord=(batch_idx, _, m_block)
-            tile_coord_a = (batch_idx, cute._, m_block)
-            gA_mk = cute.local_tile(
-                mA_mk, (1, tile_k, self.tile_m), tile_coord_a, proj=(None, 1, 1)
-            )
-
-        if self.b_row_major:
-            # B[B, K, N]: tile_shape=(1, tile_k, tile_n), coord=(batch_idx, _, n_block)
-            tile_coord_b = (batch_idx, cute._, n_block)
-            gB_nk = cute.local_tile(
-                mB_nk, (1, tile_k, self.tile_n), tile_coord_b, proj=(None, 1, 1)
-            )
-        else:
-            # B[B, N, K]: tile_shape=(1, tile_n, tile_k), coord=(batch_idx, n_block, _)
-            tile_coord_b = (batch_idx, n_block, cute._)
-            gB_nk = cute.local_tile(
-                mB_nk, (1, self.tile_n, tile_k), tile_coord_b, proj=(None, 1, 1)
-            )
-
-        # C output tile: C[B, M, N]
-        tile_coord_c = (batch_idx, m_block, n_block)
+        # ----- Tile the 3D batch-last tensors for this CTA -----
+        # Tensors are (dim0, dim1, Batch). Slice batch last, tile 2D data.
+        # A(M, K, B), B(N, K, B) — layout-independent shape convention.
+        gA_mk = cute.local_tile(
+            mA_mk[None, None, batch_idx], (self.tile_m, tile_k), (m_block, None)
+        )
+        gB_nk = cute.local_tile(
+            mB_nk[None, None, batch_idx], (self.tile_n, tile_k), (n_block, None)
+        )
+        # C(M, N, B)
         gC_mn = cute.local_tile(
-            mC_mn, (1, self.tile_m, self.tile_n), tile_coord_c, proj=(None, 1, 1)
+            mC_mn[None, None, batch_idx], (self.tile_m, self.tile_n), (m_block, n_block)
         )
 
         # ----- TMA partitions -----
-        tCgA = tma_atom_a.get_slice(cute._).partition_S(gA_mk)
-        tCsA = tma_atom_a.get_slice(cute._).partition_D(sA)
-        tCgB = tma_atom_b.get_slice(cute._).partition_S(gB_nk)
-        tCsB = tma_atom_b.get_slice(cute._).partition_D(sB)
+        sA_for_tma = cute.group_modes(sA, 0, 2)
+        gA_for_tma = cute.group_modes(gA_mk, 0, 2)
+        tAsA, tAgA = cute.nvgpu.cpasync.tma_partition(
+            tma_atom_a,
+            0,
+            cute.make_layout(1),
+            sA_for_tma,
+            gA_for_tma,
+        )
 
-        # ----- MMA partition -----
-        thr_mma = tiled_mma.get_slice(tidx)
-        tCsA_mma = thr_mma.partition_A(sA[(None, None, 0)])
-        tCsB_mma = thr_mma.partition_B(sB[(None, None, 0)])
-        acc = thr_mma.make_fragment_C(cutlass.Float32)
-        cute.fill(acc, 0.0)
+        sB_for_tma = cute.group_modes(sB, 0, 2)
+        gB_for_tma = cute.group_modes(gB_nk, 0, 2)
+        tBsB, tBgB = cute.nvgpu.cpasync.tma_partition(
+            tma_atom_b,
+            0,
+            cute.make_layout(1),
+            sB_for_tma,
+            gB_for_tma,
+        )
+
+        # ----- MMA partition (following GEMM SM90 pattern) -----
+        warp_group_idx = cute.arch.make_warp_uniform(tidx // 128)
+        warp_group_thread_layout = cute.make_layout(1, stride=128)
+        thr_mma = tiled_mma.get_slice(warp_group_thread_layout(warp_group_idx))
+
+        tCsA = thr_mma.partition_A(sA)
+        tCsB = thr_mma.partition_B(sB)
+        tCrA = tiled_mma.make_fragment_A(tCsA)
+        tCrB = tiled_mma.make_fragment_B(tCsB)
+
+        # Accumulator — use partition_shape_C + make_fragment (not make_fragment_C)
+        acc_shape = thr_mma.partition_shape_C((self.tile_m, self.tile_n))
+        acc = cute.make_fragment(acc_shape, cutlass.Float32)
 
         # ----- Epilogue setup -----
-        tCgC_for_tma_partition = cute.zipped_divide(gC_mn, epi_tile)
-        epi_tile_shape = tCgC_for_tma_partition.shape[1]
-        epi_tile_layout = cute.make_layout(
-            epi_tile_shape,
-            stride=(epi_tile_shape[1], 1),
-        )
-        epi_tile_num = cute.size(epi_tile_layout)
+        tCgC_for_tma = cute.zipped_divide(gC_mn, epi_tile)
 
-        # Retile accumulator for R2S copy
-        tiled_copy_r2s = sm90_utils.make_tiled_copy_r2s(
-            self._dtype,
-            tiled_mma,
-        )
-        thr_copy_r2s = tiled_copy_r2s.get_slice(tidx)
-
+        # Reuse A's SMEM for epilogue output staging
         sC_ptr = cute.recast_ptr(
             sA.iterator,
             epi_smem_layout_staged.inner,
             dtype=self._dtype,
         )
         sC = cute.make_tensor(sC_ptr, epi_smem_layout_staged.outer)
-        tRS_sD = thr_copy_r2s.partition_D(sC)
-        tRS_rAcc = tiled_copy_r2s.retile_S(acc)
 
-        tRS_rD_layout = cute.make_fragment_like(
-            tRS_sD[(None, None, None, 0)],
-            cutlass.Float32,
-        ).layout
+        # R2S copy setup (matching GEMM SM90 pattern)
+        copy_atom_r2s = sm90_utils.sm90_get_smem_store_op(
+            utils.LayoutEnum.ROW_MAJOR,
+            elem_ty_d=self._dtype,
+            elem_ty_acc=cutlass.Float32,
+        )
+        copy_atom_C = cute.make_copy_atom(
+            cute.nvgpu.warp.StMatrix8x8x16bOp(
+                utils.LayoutEnum.ROW_MAJOR.is_m_major_c(),
+                4,
+            ),
+            self._dtype,
+        )
+        tiled_copy_C_atom = cute.make_tiled_copy_C_atom(copy_atom_C, tiled_mma)
+        tiled_copy_r2s = cute.make_tiled_copy_S(copy_atom_r2s, tiled_copy_C_atom)
+
+        thr_copy_r2s = tiled_copy_r2s.get_slice(tidx)
+        tRS_sD = thr_copy_r2s.partition_D(sC)
+        tRS_rAcc = tiled_copy_r2s.retile(acc)
+
+        # Allocate D registers
+        rD_shape = cute.shape(thr_copy_r2s.partition_S(sC))
+        tRS_rD_layout = cute.make_layout(rD_shape[:3])
         tRS_rD = cute.make_fragment_like(tRS_rD_layout, cutlass.Float32)
         size_tRS_rD = cute.size(tRS_rD)
 
         # TMA store partitions
-        bSG_sD = tma_atom_c.get_slice(cute._).partition_S(sC)
-        bSG_gD = tCgC_for_tma_partition
+        sC_for_tma = cute.group_modes(sC, 0, 2)
+        bSG_sD, bSG_gD = cute.nvgpu.cpasync.tma_partition(
+            tma_atom_c,
+            0,
+            cute.make_layout(1),
+            sC_for_tma,
+            tCgC_for_tma,
+        )
+
+        epi_tile_num = cute.size(tCgC_for_tma, mode=[1])
+        epi_tile_shape = tCgC_for_tma.shape[1]
+        epi_tile_layout = cute.make_layout(
+            epi_tile_shape, stride=(epi_tile_shape[1], 1)
+        )
 
         # C pipeline for epilogue stores
-        c_pipeline = pipeline.PipelineTmaStore(
-            stages=cute.size(tRS_sD, mode=[3]),
+        c_producer_group = pipeline.CooperativeGroup(
+            pipeline.Agent.Thread, self.num_threads
         )
-        c_pipeline.producer_acquire()
+        c_pipeline = pipeline.PipelineTmaStore.create(
+            num_stages=cute.size(tRS_sD, mode=[3]),
+            producer_group=c_producer_group,
+        )
 
         # =====================================================================
         # Mainloop: TMA G2S + WGMMA
@@ -434,40 +444,43 @@ class BmmSm90Kernel:
         # Prefetch first stages
         prefetch_cnt = cutlass.min(ab_stage, k_tiles)
         if warp_idx == 0:
-            for k_tile in cutlass.range(prefetch_cnt, unroll=1):
+            for _ in cutlass.range(prefetch_cnt, unroll=1):
                 pl.producer_acquire(producer_state)
                 cute.copy(
                     tma_atom_a,
-                    tCgA[(None, cute._, k_tile)],
-                    tCsA[(None, cute._, producer_state.index)],
+                    tAgA[(None, producer_state.count)],
+                    tAsA[(None, producer_state.index)],
                     tma_bar_ptr=pl.producer_get_barrier(producer_state),
                     mcast_mask=0,
                 )
                 cute.copy(
                     tma_atom_b,
-                    tCgB[(None, cute._, k_tile)],
-                    tCsB[(None, cute._, producer_state.index)],
+                    tBgB[(None, producer_state.count)],
+                    tBsB[(None, producer_state.index)],
                     tma_bar_ptr=pl.producer_get_barrier(producer_state),
                     mcast_mask=0,
                 )
                 pl.producer_commit(producer_state)
                 producer_state.advance()
 
-        # Mainloop
-        for _k_tile in cutlass.range(k_tiles, unroll_full=True):
+        # WGMMA mainloop
+        tiled_mma.set(cute.nvgpu.warpgroup.Field.ACCUMULATE, False)
+        num_k_blocks = cute.size(tCrA, mode=[2])
+
+        for _k_tile in cutlass.range(k_tiles, unroll=1):
             peek_status = pl.consumer_try_wait(consumer_read_state)
             pl.consumer_wait(consumer_read_state, peek_status)
-            cute.arch.warpgroup_fence_operand_reads()
 
-            cute.gemm(
-                tiled_mma,
-                tCsA_mma[(None, None, None, consumer_read_state.index)],
-                tCsB_mma[(None, None, None, consumer_read_state.index)],
-                acc,
-            )
-            cute.arch.warpgroup_commit_batch()
-            cute.arch.warpgroup_wait(count=0)
-            cute.arch.warpgroup_fence_operand_reads()
+            cute.nvgpu.warpgroup.fence()
+            for k_block_idx in cutlass.range(num_k_blocks, unroll_full=True):
+                k_block_coord = (None, None, k_block_idx, consumer_read_state.index)
+                tCrA_phase = tCrA[k_block_coord]
+                tCrB_phase = tCrB[k_block_coord]
+                cute.gemm(tiled_mma, acc, tCrA_phase, tCrB_phase, acc)
+                tiled_mma.set(cute.nvgpu.warpgroup.Field.ACCUMULATE, True)
+
+            cute.nvgpu.warpgroup.commit_group()
+            cute.nvgpu.warpgroup.wait_group(0)
 
             pl.consumer_release(consumer_release_state)
             consumer_read_state.advance()
@@ -478,15 +491,15 @@ class BmmSm90Kernel:
                 pl.producer_acquire(producer_state)
                 cute.copy(
                     tma_atom_a,
-                    tCgA[(None, cute._, producer_state.count)],
-                    tCsA[(None, cute._, producer_state.index)],
+                    tAgA[(None, producer_state.count)],
+                    tAsA[(None, producer_state.index)],
                     tma_bar_ptr=pl.producer_get_barrier(producer_state),
                     mcast_mask=0,
                 )
                 cute.copy(
                     tma_atom_b,
-                    tCgB[(None, cute._, producer_state.count)],
-                    tCsB[(None, cute._, producer_state.index)],
+                    tBgB[(None, producer_state.count)],
+                    tBsB[(None, producer_state.index)],
                     tma_bar_ptr=pl.producer_get_barrier(producer_state),
                     mcast_mask=0,
                 )
@@ -541,18 +554,16 @@ class BmmSm90Kernel:
             )
             cute.arch.sync_threads()
 
-            # Tile the raw C and D tensors for this CTA's batch slice
+            # Slice batch (last dim), then tile the 2D result
             gC_raw = cute.local_tile(
-                mC_raw,
-                (1, self.tile_m, self.tile_n),
-                (batch_idx, m_block, n_block),
-                proj=(None, 1, 1),
+                mC_raw[None, None, batch_idx],
+                (self.tile_m, self.tile_n),
+                (m_block, n_block),
             )
             gD_raw = cute.local_tile(
-                mD_raw,
-                (1, self.tile_m, self.tile_n),
-                (batch_idx, m_block, n_block),
-                proj=(None, 1, 1),
+                mD_raw[None, None, batch_idx],
+                (self.tile_m, self.tile_n),
+                (m_block, n_block),
             )
 
             tile_m_size = self.tile_m
