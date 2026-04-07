@@ -16,6 +16,7 @@
 GEMM Specialization for A[RowMajor], B[ColMajor], C[RowMajor]
 """
 
+from aitemplate.backend import registry, target
 from aitemplate.compiler.base import IntImm, Tensor
 from aitemplate.compiler.ops.gemm_universal import gemm_common as common
 
@@ -100,3 +101,53 @@ class gemm_rcr(common.gemm):
             raise RuntimeError("K must be static! k: {}".format(a_shape[-1]))
 
         return a, b
+
+    def _use_cutedsl(self) -> bool:
+        """Check if CuTeDSL backend is enabled for this op."""
+        current_target = target.Target.current()
+        return current_target._kwargs.get("use_cutedsl_gemm", False)
+
+    def _backend_suffix(self) -> str:
+        """Return registry key suffix for the active backend."""
+        return "_cutedsl" if self._use_cutedsl() else ""
+
+    def gen_function(self) -> str:
+        """Generate function code, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        self._attrs["backend_suffix"] = suffix
+        func_key = "{target}.{op}.gen_function{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(
+            self._attrs,
+            self.exec_cond_template,
+            self._extract_dims(),
+        )
+
+    def gen_function_decl(self, func_attrs=None) -> str:
+        """Generate function declaration, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        func_key = "{target}.{op}.func_decl{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(self._attrs)
+
+    def gen_function_call(self, func_attrs=None, indent="  ") -> str:
+        """Generate function call, dispatching to CuTeDSL if enabled."""
+        current_target = target.Target.current()
+        suffix = self._backend_suffix()
+        func_key = "{target}.{op}.func_call{suffix}".format(
+            target=current_target.name(),
+            op=self._attrs["op"],
+            suffix=suffix,
+        )
+        func = registry.get(func_key)
+        return func(self._attrs, indent=indent)

@@ -31,6 +31,7 @@ from aitemplate.backend.cuda.gemm_universal import (
     gemm_rcr_bias_sigmoid,
     gemm_rcr_bias_swish,
     gemm_rcr_bias_tanh,
+    gemm_rcr_cutedsl,
     gemm_rcr_fast_gelu,
     gemm_rcr_permute,
     gemm_rcr_permute_elup1,
