@@ -12,10 +12,24 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 #
+import importlib
 import inspect
 import logging
 import re
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set, Tuple, Union
+
+# Disable Cinder lazy imports for this module. Under Cinder (used by
+# ien.lower.cg1 on CG1/aarch64), lazy imports can cause built-in functions
+# like operator.getitem to resolve to different objects depending on import
+# timing. This breaks identity-based comparisons in the normalization
+# blocklist and _normalization_dict, producing different graphs on CG1 vs
+# H100 from the same config. The torch_tensorrt copy of this module handles
+# this via LazyCallableAttr/_replace_fake_ops (added Nov 2023), but that
+# system was never ported to this fx2ait copy. Disabling lazy imports here
+# is the simplest fix and is consistent with 60+ other files in fbcode.
+# See also: D95755614, P2255333269 for investigation details.
+if hasattr(importlib, "set_lazy_imports"):
+    importlib.set_lazy_imports(False)
 
 import torch
 import torch.fx
