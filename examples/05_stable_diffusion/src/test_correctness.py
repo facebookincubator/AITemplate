@@ -35,15 +35,12 @@ class StableDiffusionVerification(unittest.TestCase):
     def setUpClass(cls) -> None:
         torch.manual_seed(0)
 
-    def __init__(self, *args, **kwargs):
-        super(StableDiffusionVerification, self).__init__(*args, **kwargs)
-
-        self.local_path = "/tmp/aitemplate_stablediffusion_v2"
-        os.makedirs(self.local_path, exist_ok=True)
+        local_path = "/tmp/aitemplate_stablediffusion_v2"
+        os.makedirs(local_path, exist_ok=True)
 
         try:
             pipe = StableDiffusionPipeline.from_pretrained(
-                self.local_path, revision="fp16", torch_dtype=torch.float16
+                local_path, revision="fp16", torch_dtype=torch.float16
             ).to("cuda")
         except OSError:
             if ManifoldClient is not None:
@@ -51,12 +48,12 @@ class StableDiffusionVerification(unittest.TestCase):
                     await_sync(
                         client.getRecursive(
                             manifold_path="tree/aitemplate/stable_diffusion/v2",
-                            local_path=self.local_path,
+                            local_path=local_path,
                         )
                     )
 
                 pipe = StableDiffusionPipeline.from_pretrained(
-                    self.local_path, revision="fp16", torch_dtype=torch.float16
+                    local_path, revision="fp16", torch_dtype=torch.float16
                 ).to("cuda")
             else:
                 pipe = StableDiffusionPipeline.from_pretrained(
@@ -65,20 +62,20 @@ class StableDiffusionVerification(unittest.TestCase):
                     torch_dtype=torch.float16,
                     use_auth_token=os.environ.get("HUGGINGFACE_AUTH_TOKEN", True),
                 ).to("cuda")
-                pipe.save_pretrained(self.local_path)
+                pipe.save_pretrained(local_path)
 
-        self.pt_unet = pipe.unet
-        self.pt_vae = pipe.vae
-        self.pt_clip = pipe.text_encoder
-        self.tokenizer = pipe.tokenizer
+        cls.pt_unet = pipe.unet
+        cls.pt_vae = pipe.vae
+        cls.pt_clip = pipe.text_encoder
+        cls.tokenizer = pipe.tokenizer
 
-        self.vae_config = {
+        cls.vae_config = {
             "batch_size": 1,
             "width": 64,
             "height": 64,
         }
 
-        self.unet_config = {
+        cls.unet_config = {
             "batch_size": 2,
             "dim": 320,
             "hidden_dim": pipe.unet.config.cross_attention_dim,
@@ -86,16 +83,16 @@ class StableDiffusionVerification(unittest.TestCase):
             "height": 64,
         }
 
-        self.unet_compile_extra_config = {
+        cls.unet_compile_extra_config = {
             "attention_head_dim": pipe.unet.config.attention_head_dim,
         }
 
-        self.clip_config = {
+        cls.clip_config = {
             "batch_size": 1,
             "seqlen": 64,
         }
 
-        self.clip_compile_extra_config = {
+        cls.clip_compile_extra_config = {
             "depth": pipe.text_encoder.config.num_hidden_layers,
             "num_heads": pipe.text_encoder.config.num_attention_heads,
             "dim": pipe.text_encoder.config.hidden_size,
