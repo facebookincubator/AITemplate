@@ -362,10 +362,13 @@ static size_t GLOBAL_WORKSPACE_SIZE_{{instance_name}} = 0;
 
 PROFILER_MAIN_TEMPLATE = jinja2.Template(
     """
+#include <cstdint>
 #include <iostream>
 #include <string>
 
 #include "cutlass/cutlass.h"
+
+using std::int8_t;
 
 {{benchmark_decls}}
 
