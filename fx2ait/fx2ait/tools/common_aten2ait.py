@@ -20,10 +20,8 @@ from typing import Callable, List, Optional, Set
 from unittest import TestCase
 
 # executorch
-import executorch.exir as exir
 import torch
 from aitemplate.compiler.public import DynamicProfileStrategy
-from executorch.exir import CaptureConfig
 from fx2ait.ait_module import AITModule
 from fx2ait.fx2ait import AITInterpreter
 from fx2ait.passes.lower_basic_pass_aten import (
@@ -40,6 +38,7 @@ from fx2ait.passes.lower_basic_pass_aten import (
     run_const_fold,
 )
 from fx2ait.tensor_spec import TensorSpec
+from torch.export import export
 
 _LOGGER = logging.getLogger(__name__)
 torch.ops.load_library("//deeplearning/ait:AITModel")
@@ -99,19 +98,10 @@ class DispatchTestCase(TestCase):
         if customized_passes:
             passes_list.extend(customized_passes)
 
-        fx_module = (
-            exir.capture(
-                mod,
-                tuple(original_inputs),
-                CaptureConfig(
-                    enable_functionalization=False,
-                    enable_dynamic_shape=True,
-                    _use_old_decomp_table=True,
-                ),
-            )
-            .transform(*tuple(passes_list))
-            .exported_program.graph_module
-        )
+        ep = export(mod, tuple(original_inputs), strict=False)
+        fx_module = ep.module()
+        for pass_fn in passes_list:
+            fx_module = pass_fn(fx_module)
 
         fx_module = run_const_fold(fx_module)
         _LOGGER.info(f"aten fx graph: {fx_module.graph}")
