@@ -3045,6 +3045,14 @@ def tensor_split(*, input, indices_or_sections, dim=0):
         indices_or_sections = indices_or_sections.tolist()
     if isinstance(indices_or_sections, int):
         return torch.tensor_split(input, sections=indices_or_sections, dim=dim)
+    elif isinstance(indices_or_sections, torch.fx.Proxy):
+        # Preserve the tensor-indices overload while retracing; Proxy is
+        # iterable but cannot be materialized as a tuple.
+        return torch.tensor_split(
+            input,
+            tensor_indices_or_sections=indices_or_sections,
+            dim=dim,
+        )
     elif isinstance(indices_or_sections, Iterable):
         return torch.tensor_split(input, indices=tuple(indices_or_sections), dim=dim)
     else:
