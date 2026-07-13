@@ -47,7 +47,9 @@ def prepare_image(
 
             for image_ in image:
                 image_ = image_.convert("RGB")
-                image_ = image_.resize((width, height), resample=Image.LANCZOS)
+                image_ = image_.resize(
+                    (width, height), resample=Image.Resampling.LANCZOS
+                )
                 image_ = np.array(image_)
                 image_ = image_[None, :]
                 images.append(image_)
@@ -109,7 +111,7 @@ def run(
     image = cv2.Canny(image, 100, 200)
     image = image[:, :, None]
     image = np.concatenate([image, image, image], axis=2)
-    canny_image = Image.fromarray(image)
+    canny_image = Image.fromarray(np.asarray(image))
     control_cond = prepare_image(
         canny_image,
         width,

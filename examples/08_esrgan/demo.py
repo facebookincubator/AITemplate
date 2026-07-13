@@ -86,7 +86,7 @@ def demo(
 
     upscaled = esrgan_inference(module, image_array, scale)
 
-    output_image = Image.fromarray(upscaled)
+    output_image = Image.fromarray(np.asarray(upscaled))
     output_image.save(output_image_path)
 
 

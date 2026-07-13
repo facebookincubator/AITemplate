@@ -45,7 +45,7 @@ class Predictor:
         self.num_classes = cfg.MODEL.ROI_HEADS.NUM_CLASSES
         self.min_size = cfg.INPUT.MIN_SIZE_TEST
         self.max_size = cfg.INPUT.MAX_SIZE_TEST
-        self.interp_method = Image.BILINEAR
+        self.interp_method = Image.Resampling.BILINEAR
 
     def get_parameters(self):
         """
@@ -95,9 +95,9 @@ class Predictor:
         h, w = img.shape[:2]
         new_h, new_w = Predictor.get_output_shape(h, w, self.min_size, self.max_size)
         if len(img.shape) > 2 and img.shape[2] == 1:
-            pil_image = Image.fromarray(img[:, :, 0], mode="L")
+            pil_image = Image.fromarray(np.asarray(img[:, :, 0]), mode="L")
         else:
-            pil_image = Image.fromarray(img)
+            pil_image = Image.fromarray(np.asarray(img))
         pil_image = pil_image.resize((new_w, new_h), self.interp_method)
         ret = np.asarray(pil_image)
         if len(img.shape) > 2 and img.shape[2] == 1:
@@ -276,7 +276,7 @@ class Predictor:
                     det_width = box[2] - box[0]
                     det_height = box[3] - box[1]
                     mask = mask.astype(np.float32)
-                    small_mask = Image.fromarray(mask)
+                    small_mask = Image.fromarray(np.asarray(mask))
                     mask = small_mask.resize(
                         (det_width, det_height), resample=self.interp_method
                     )

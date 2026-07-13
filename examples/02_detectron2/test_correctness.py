@@ -95,10 +95,10 @@ def apply_transform(cfg, img):
         h, w, cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MAX_SIZE_TEST
     )
     if len(img.shape) > 2 and img.shape[2] == 1:
-        pil_image = Image.fromarray(img[:, :, 0], mode="L")
+        pil_image = Image.fromarray(np.asarray(img[:, :, 0]), mode="L")
     else:
-        pil_image = Image.fromarray(img)
-    pil_image = pil_image.resize((new_w, new_h), Image.BILINEAR)
+        pil_image = Image.fromarray(np.asarray(img))
+    pil_image = pil_image.resize((new_w, new_h), Image.Resampling.BILINEAR)
     ret = np.asarray(pil_image)
     if len(img.shape) > 2 and img.shape[2] == 1:
         ret = np.expand_dims(ret, -1)
@@ -191,9 +191,9 @@ def postprocess_ait_results(
                 box = pred_box.cpu().numpy().astype("int")
                 det_width = box[2] - box[0]
                 det_height = box[3] - box[1]
-                small_mask = Image.fromarray(mask)
+                small_mask = Image.fromarray(np.asarray(mask))
                 mask = small_mask.resize(
-                    (det_width, det_height), resample=Image.BILINEAR
+                    (det_width, det_height), resample=Image.Resampling.BILINEAR
                 )
                 mask = np.array(mask, copy=False)
                 MASK_THRESHOLD = 0.5
