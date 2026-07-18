@@ -18,6 +18,7 @@ Unittests for LayerNorm Operator.
 
 import json
 import math
+import re
 import tempfile
 import unittest
 from collections import namedtuple
@@ -224,44 +225,7 @@ class SoftmaxTestCase(unittest.TestCase):
             dim=dim,
         )
 
-    def _test_benchmark_softmax(self):
-        dtype = "float16"
-        torch_dtype = string_to_torch_dtype(dtype)
-        results = []
-        shape = (260, 4)
-        batch_sizes = [2**p for p in range(0, 16)]
-        for reduction_dim in [-1, -2]:
-            module = self._build_model(
-                batch_sizes,
-                shape,
-                reduction_dim,
-                dtype,
-                f"bench_softmax_{abs(reduction_dim)}",
-            )
-
-            for batch_size in batch_sizes:
-                x_pt = torch.ones(batch_size, *shape, dtype=torch_dtype).cuda()
-                y_pt = torch.empty([batch_size, *shape], dtype=torch_dtype).cuda()
-                with tempfile.NamedTemporaryFile("r") as f:
-                    module.profile_with_tensors(
-                        inputs={"X": x_pt},
-                        outputs={"Y": y_pt},
-                        num_iters=1000,
-                        filename=f.name,
-                    )
-                    profiling_data = json.loads(f.read())
-
-                    runtime_ms = 0
-                    for func_name, record in profiling_data.items():
-                        if func_name.startswith("softmax"):
-                            runtime_ms += record["ms_per_iter"]
-                    results.append(BenchResult(reduction_dim, batch_size, runtime_ms))
-
-        for r in results:
-            items = r.batch_size * math.prod(shape)
-            print(f"{r.dim=}, {items=}, {r.runtime_ms=}")
-
-    def _test_benchmark_pytorch_softmax(self):
+    def _benchmark(self, make_callable):
         batch_sizes = [2**p for p in range(0, 16)]
         shape = (260, 4)
         dtype = "float16"
@@ -273,12 +237,15 @@ class SoftmaxTestCase(unittest.TestCase):
 
         results = []
         for reduction_dim in [-1, -2]:
+            to_profile = make_callable(batch_sizes, shape, reduction_dim, dtype)
             for batch_size in batch_sizes:
                 x_pt = torch.ones(batch_size, *shape, dtype=torch_dtype).cuda()
+                y_pt = torch.empty([batch_size, *shape], dtype=torch_dtype).cuda()
                 _, wall_times = profile_callable(
-                    lambda: torch.nn.functional.softmax(x_pt, dim=reduction_dim),
+                    lambda: to_profile(x_pt, y_pt),  # noqa: B023
                     cache_flush_slab,
                     n_iter=1000,
+                    events_of_interest=[re.compile("softmax", re.I)],
                 )
                 results.append(
                     BenchResult(reduction_dim, batch_size, mean(wall_times) / 1000.0)
@@ -287,6 +254,27 @@ class SoftmaxTestCase(unittest.TestCase):
         for r in results:
             items = r.batch_size * math.prod(shape)
             print(f"{r.dim=}, {items=}, {r.runtime_ms=}")
+
+    def _test_benchmark_pytorch(self):
+        def make_callable(batch_sizes, shape, reduction_dim, dtype):
+            return lambda x_pt, _: torch.nn.functional.softmax(x_pt, reduction_dim)
+
+        self._benchmark(make_callable)
+
+    def _test_benchmark_ait(self):
+        def make_callable(batch_sizes, shape, reduction_dim, dtype):
+            module = self._build_model(
+                batch_sizes,
+                shape,
+                reduction_dim,
+                dtype,
+                f"bench_softmax_{abs(reduction_dim)}",
+            )
+            return lambda x_pt, y_pt: module.run_with_tensors(
+                inputs={"X": x_pt}, outputs={"Y": y_pt}
+            )
+
+        self._benchmark(make_callable)
 
 
 if __name__ == "__main__":
