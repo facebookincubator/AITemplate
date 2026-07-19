@@ -76,8 +76,6 @@
 
 #include <inttypes.h>
 
-using namespace gemm_kernel_utils;
-
 namespace {
 template <typename scalar_t, typename Arch>
 constexpr int getWarpsPerSm() {
