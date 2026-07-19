@@ -383,16 +383,27 @@ std::vector<AITData> AITModelImpl::processInputs(
   const auto num_inputs = input_name_to_index_.size();
   std::vector<AITData> ait_inputs;
   TORCH_CHECK(
-      inputs.size() == num_inputs,
+      inputs.size() >= num_inputs,
       "User passed ",
       inputs.size(),
-      " inputs, but the model expects ",
+      " inputs, but the model expects equal or more than ",
       num_inputs);
   ait_inputs.resize(inputs.size());
-  for (int python_input_idx = 0; python_input_idx < input_names_.size();
-       python_input_idx++) {
-    auto input_name = input_names_[python_input_idx];
-    const auto ait_input_idx = input_name_to_index_.at(input_name);
+  for (auto& elem : input_name_to_index_) {
+    std::string input_name = "";
+    auto python_input_idx = 0;
+    for (; python_input_idx < input_names_.size(); python_input_idx++) {
+      if (input_names_[python_input_idx] == elem.first) {
+        input_name = elem.first;
+        break;
+      }
+    }
+    TORCH_CHECK(
+        input_name != "",
+        "Didn't found corresponding python input for ",
+        elem.first);
+
+    const auto ait_input_idx = elem.second;
     auto& input = inputs[python_input_idx];
     if (floating_point_input_dtype_ != std::nullopt &&
         input.is_floating_point()) {
