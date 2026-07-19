@@ -25,8 +25,13 @@ from aitemplate.compiler.base import IntImm
 from aitemplate.compiler.ops.common.epilogue import FuncEnum
 from aitemplate.frontend import Tensor
 from aitemplate.testing import detect_target
-from aitemplate.testing.test_utils import get_random_torch_tensor
+from aitemplate.testing.test_utils import (
+    get_random_torch_tensor,
+    get_torch_empty_tensor,
+)
 from aitemplate.utils import graph_utils, shape_utils
+
+from parameterized import parameterized
 
 
 class FusedElementwiseBroadcastTestCase(unittest.TestCase):
@@ -956,6 +961,106 @@ class FusedElementwiseBroadcastTestCase(unittest.TestCase):
             expected_data_t="float",
             dtype="float",
         )
+
+    @parameterized.expand([("float16"), ("float")])
+    def test_fused_elementwise_broadcast_with_skip_connection(self, dtype):
+        r"""
+                X0   X1 (8)   X2 (1)   X3
+                 \   /           \    /
+                  Div_0 (R0)      Sub_1 (R1)
+                     \              |        X4 (-1)
+                      \             |        /
+                       \            Mul_2 (R2)
+                        \          /   \
+                         \        /     \
+                          Add_3 (R3)     \
+                             |            \
+                          Softmax_4 (R4)  /
+                                \        /
+                                 \      /
+                                  \    /
+                                   Add_5 (R5) (output)
+
+            X0 ([1,12,512,512]) and X3 ([1,1,1,512]) have different but broadcastable shapes.
+        """
+        target = detect_target()
+        if dtype == "float" and target.name == "rocm":
+            self.skipTest("float tensors not supported by rocm")
+        shape0 = [1, 12, 512, 512]
+        shape1 = [1, 1, 1, 512]
+        X0 = Tensor(
+            shape=shape0,
+            dtype=dtype,
+            name="X0",
+            is_input=True,
+        )
+        X1 = Tensor(
+            shape=[],
+            dtype=dtype,
+            name="X1",
+            value=8.0,
+        )
+        X2 = Tensor(
+            shape=[],
+            dtype=dtype,
+            name="X2",
+            value=1.0,
+        )
+        X3 = Tensor(
+            shape=shape1,
+            dtype=dtype,
+            name="X3",
+            is_input=True,
+        )
+        X4 = Tensor(
+            shape=[],
+            dtype=dtype,
+            name="X4",
+            value=-1.0,
+        )
+
+        R0 = ops.elementwise(FuncEnum.DIV)(X0, X1)  # Div_0
+        R1 = ops.elementwise(FuncEnum.SUB)(X2, X3)  # Sub_1
+        R2 = ops.elementwise(FuncEnum.MUL)(R1, X4)  # Mul_2
+        R3 = ops.elementwise(FuncEnum.ADD)(R0, R2)  # Add_3
+        R4 = ops.softmax()(R3, -1)  # Softmax_4
+        R5 = ops.elementwise(FuncEnum.ADD)(R4, R2)  # Add_5
+        R5._attrs["name"] = "R5"
+        R5._attrs["is_output"] = True
+
+        module = compile_model(
+            [R5],
+            target,
+            "./tmp",
+            f"test_fused_elementwise_broadcast_with_skip_connection_{dtype}",
+        )
+        debug_sorted_graph = module.debug_sorted_graph
+        sorted_ops = graph_utils.get_sorted_ops(debug_sorted_graph)
+        self.assertEqual(len(sorted_ops), 4)
+
+        x0_pt = get_random_torch_tensor(shape0, dtype)
+        x3_pt = get_random_torch_tensor(shape1, dtype)
+
+        r0_pt = x0_pt / 8.0
+        r1_pt = 1.0 - x3_pt
+        r2_pt = r1_pt * (-1.0)
+        r3_pt = r0_pt + r2_pt
+        r4_pt = torch.nn.functional.softmax(r3_pt, -1)
+        r5_pt = r4_pt + r2_pt
+
+        r5 = get_torch_empty_tensor(x0_pt.shape, dtype)
+
+        input_name_to_idx_mapping = module.get_input_name_to_index_map()
+        inputs = [None] * len(input_name_to_idx_mapping)
+        input_name_to_pt_mapping = {
+            "X0": x0_pt,
+            "X3": x3_pt,
+        }
+        for input_name, pt in input_name_to_pt_mapping.items():
+            inputs[input_name_to_idx_mapping[input_name]] = pt
+        module.run_with_tensors(inputs, {"R5": r5})
+
+        self.assertTrue(torch.allclose(r5, r5_pt, atol=1e-2, rtol=1e-2))
 
 
 if __name__ == "__main__":
