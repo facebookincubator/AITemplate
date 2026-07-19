@@ -12,6 +12,49 @@ AITemplate (AIT) is a Python framework that transforms deep neural networks into
 
 - Unified, open, and flexible. Seamless fp16 deep neural network models for NVIDIA GPU or AMD GPU. Fully open source, Lego-style easily extendable high-performance primitives for new model support. Supports a significantly more comprehensive range of fusions than existing solutions for both GPU platforms.
 
+#Use Cases:
+1. Cloud-Based Inference
+
+AITemplate optimizes models like BERT, ResNet, and Vision Transformers for lightning-fast inference on NVIDIA and AMD GPUs, ideal for cloud-based AI services such as:
+
+    NLP: Accelerate text analysis and translation models for real-time applications.
+    Computer Vision: Speed up image recognition and object detection in cloud services.
+    Generative AI: Optimize models like Stable Diffusion for faster image generation in creative tools.
+
+2. Autonomous Systems
+
+AITemplate enhances performance in robotics, drones, and self-driving cars by speeding up AI workloads.
+
+    Self-Driving Vehicles: Faster perception and decision-making through optimized GPU-based models.
+    Robotics: Accelerated navigation and control for autonomous robots in warehouses and factories.
+
+3. Recommendation Systems
+
+For large-scale recommendation engines, AITemplate scales inference while maintaining high throughput.
+
+    E-commerce: Optimize product recommendations for real-time user interactions.
+    Social Media: Speed up content and ad recommendations, enhancing user engagement.
+
+4. AI Research and Development
+
+Researchers can optimize models without being tied to proprietary libraries, ensuring flexibility across GPU platforms.
+
+    Model Experimentation: Quickly test new architectures like Vision Transformers or Mask R-CNN with efficient inference.
+    Cross-GPU Flexibility: Seamlessly switch between NVIDIA and AMD hardware for experiments.
+
+5. Edge Computing
+
+AITemplate enables AI models to run efficiently on edge devices with limited resources.
+
+    Smart Cameras: Real-time object detection and event monitoring in security systems.
+    Healthcare Devices: Faster, accurate AI for portable medical diagnostics and wearables.
+
+6. Gaming and Entertainment
+
+Optimize AI features in gaming, such as rendering or NPC behavior.
+
+    Real-time Rendering: Accelerate AI models used in game environment rendering.
+    AI-driven Game Features: Speed up AI models controlling NPCs for smoother player interactions.
 
 ## More about AITemplate
 
