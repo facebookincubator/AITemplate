@@ -17,7 +17,6 @@ positional_encoding Modules.
 """
 
 import logging
-from typing import Tuple
 
 from aitemplate.compiler import ops
 from aitemplate.compiler.base import IntImm
@@ -112,7 +111,7 @@ class SpatioTemporalClsPositionalEncoding(Module):
     def __init__(
         self,
         embed_dim: int,
-        patch_embed_shape: Tuple[int, int, int],
+        patch_embed_shape: tuple[int, int, int],
         sep_pos_embed: bool = False,
         has_cls: bool = True,
         dtype: str = "float16",
@@ -168,7 +167,7 @@ class SpatioTemporalClsPositionalEncoding(Module):
             self.pos_embed_temporal = Parameter(shape=[], dtype=dtype)
             self.pos_embed_class = Parameter(shape=[], dtype=dtype)
 
-    def patch_embed_shape(self) -> Tuple[int, int, int]:
+    def patch_embed_shape(self) -> tuple[int, int, int]:
         return self._patch_embed_shape
 
     def forward(self, x: Tensor) -> Tensor:
