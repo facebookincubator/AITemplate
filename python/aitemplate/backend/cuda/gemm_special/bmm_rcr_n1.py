@@ -711,7 +711,7 @@ def gen_function(func_attrs, exec_cond_template, dim_info_dict):
         output_ndims=3,
     )
     if ak == 0:
-        # avoid compilation failure (zero-sized variable not alowed in device code)
+        # avoid compilation failure (zero-sized variable not allowed in device code)
         # caused by instantiating the template with K=0
         exec_paths = ""
     else:
