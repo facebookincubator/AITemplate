@@ -815,12 +815,6 @@ def acc_ops_reshape(
     return reshape()(input_val, shape)
 
 
-# TODO (T124248862)
-# We are waiting for full support of topk including:
-# actual return values
-# dim,
-# largest flag,
-# sorted flag
 @ait_converter(acc_ops.topk)
 def acc_ops_topk(
     target: Target,
