@@ -21,9 +21,22 @@
 #endif
 
 #include <dlfcn.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <torch/headeronly/core/ScalarType.h>
+#include <torch/optim/optimizer.h>
 #include <torch/torch.h> // @manual=//caffe2:torch-cpp
 #include <memory>
 #include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "c10/core/Allocator.h"
+#include "c10/core/Device.h"
+#include "c10/core/StorageImpl.h"
+#include "c10/util/intrusive_ptr.h"
+#include "folly/lang/Hint.h"
 
 #ifdef FBCODE_AIT
 #include "folly/container/F14Map.h"

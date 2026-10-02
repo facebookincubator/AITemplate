@@ -15,17 +15,38 @@
 #include "AITModelImpl.h" // @manual
 
 #include <type_traits>
+#include <utility>
 
+#include <cuda_runtime_api.h>
 #include <dlfcn.h>
+#include <driver_types.h>
+#include <glog/logging.h>
 #include <sstream>
 
 #include "ATen/Context.h" // @manual
+#include "ATen/EmptyTensor.h"
+#include "ATen/core/TensorBase.h"
+#include "ATen/core/TensorBody.h"
 #include "ATen/cuda/CUDAContext.h"
+#include "ATen/cuda/CUDAContextLight.h"
+#include "ATen/record_function.h"
+#include "aitemplate/AITemplate/static/include/model_interface.h"
 #include "c10/core/CPUAllocator.h"
+#include "c10/core/DeviceGuard.h"
+#include "c10/core/DispatchKey.h"
+#include "c10/core/DispatchKeySet.h"
+#include "c10/core/ScalarType.h"
+#include "c10/core/ScalarTypeToTypeMeta.h"
+#include "c10/core/TensorImpl.h"
 #include "c10/cuda/CUDAStream.h"
+#include "c10/util/ArrayRef.h"
+#include "c10/util/Exception.h"
+#include "c10/util/typeid.h"
+#include "folly/container/HeterogeneousAccess.h"
+#include "folly/container/MapUtil.h"
+#include "torch/headeronly/util/irange.h"
 
 #ifdef FBCODE_AIT
-#include "folly/MapUtil.h"
 #endif
 
 namespace torch::aitemplate {

@@ -17,6 +17,7 @@
 // compiled into the final .so. When a ModelContainer is created,
 // it copies this data into some owned GPU memory.
 
+#include <stddef.h>
 #include <array>
 #include <cstdint>
 #include <utility>
