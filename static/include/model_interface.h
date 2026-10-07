@@ -16,6 +16,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <functional>
 #include <numeric>
 #include <stdexcept>
 #include <utility>
