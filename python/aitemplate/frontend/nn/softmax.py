@@ -16,8 +16,6 @@
 softmax Module.
 """
 
-from typing import Optional
-
 from aitemplate.compiler import ops
 from aitemplate.frontend.nn.module import Module
 
@@ -52,7 +50,7 @@ class Softmax(Module):
 
     def __init__(
         self,
-        dim: Optional[int] = None,
+        dim: int | None = None,
     ):
         super().__init__()
         self.dim = dim

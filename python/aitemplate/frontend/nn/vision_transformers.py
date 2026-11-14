@@ -14,8 +14,8 @@
 #
 
 import warnings
+from collections.abc import Callable
 from functools import partial
-from typing import Callable, List, Optional, Tuple, Union
 
 import torch
 from pytorchvideo.layers.utils import round_width  # usort:skip
@@ -73,12 +73,12 @@ class MultiscaleVisionTransformers(Module):
     def __init__(
         self,
         *,
-        patch_embed: Optional[Module],
+        patch_embed: Module | None,
         cls_positional_encoding: Module,
-        pos_drop: Optional[Module],
+        pos_drop: Module | None,
         blocks: ModuleList,
-        norm_embed: Optional[Module],
-        head: Optional[Module],
+        norm_embed: Module | None,
+        head: Module | None,
     ) -> None:
         """
         Args:
@@ -120,7 +120,7 @@ class MultiscaleVisionTransformers(Module):
 
 def create_multiscale_vision_transformers(
     *,
-    spatial_size: Union[int, Tuple[int, int]],
+    spatial_size: int | tuple[int, int],
     temporal_size: int,
     cls_embed_on: bool = True,
     sep_pos_embed: bool = True,
@@ -130,9 +130,9 @@ def create_multiscale_vision_transformers(
     enable_patch_embed: bool = True,
     input_channels: int = 3,
     patch_embed_dim: int = 96,
-    conv_patch_embed_kernel: Tuple[int] = (3, 7, 7),
-    conv_patch_embed_stride: Tuple[int] = (2, 4, 4),
-    conv_patch_embed_padding: Tuple[int] = (1, 3, 3),
+    conv_patch_embed_kernel: tuple[int] = (3, 7, 7),
+    conv_patch_embed_stride: tuple[int] = (2, 4, 4),
+    conv_patch_embed_padding: tuple[int] = (1, 3, 3),
     enable_patch_embed_norm: bool = False,
     use_2d_patch: bool = False,
     # Attention block config.
@@ -147,15 +147,15 @@ def create_multiscale_vision_transformers(
     depthwise_conv: bool = True,
     bias_on: bool = True,
     separate_qkv: bool = True,
-    embed_dim_mul: Optional[List[List[int]]] = None,
-    atten_head_mul: Optional[List[List[int]]] = None,
+    embed_dim_mul: list[list[int]] | None = None,
+    atten_head_mul: list[list[int]] | None = None,
     dim_mul_in_att: bool = False,
-    pool_q_stride_size: Optional[List[List[int]]] = None,
-    pool_kv_stride_size: Optional[List[List[int]]] = None,
-    pool_kv_stride_adaptive: Optional[Union[int, Tuple[int, int, int]]] = None,
-    pool_kvq_kernel: Optional[Union[int, Tuple[int, int, int]]] = None,
+    pool_q_stride_size: list[list[int]] | None = None,
+    pool_kv_stride_size: list[list[int]] | None = None,
+    pool_kv_stride_adaptive: int | tuple[int, int, int] | None = None,
+    pool_kvq_kernel: int | tuple[int, int, int] | None = None,
     # Head config.
-    head: Optional[Callable] = create_vit_basic_head,
+    head: Callable | None = create_vit_basic_head,
     head_dropout_rate: float = 0.5,
     head_activation: Callable = None,
     head_num_classes: int = 400,

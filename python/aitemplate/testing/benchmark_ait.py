@@ -13,7 +13,6 @@
 #  limitations under the License.
 #
 
-from typing import Optional
 
 import torch
 
@@ -61,7 +60,7 @@ def run_module_with_pools(
     inputs_pool,
     outputs_pool,
     num_iters,
-    stream_ptr: Optional[int] = None,
+    stream_ptr: int | None = None,
     sync: bool = False,
     graph_mode: bool = False,
 ):
@@ -101,7 +100,7 @@ def run_benchmark(
     outputs_pool,
     num_iters,
     num_warmup_iters,
-    stream: Optional[torch.cuda.Stream] = None,
+    stream: torch.cuda.Stream | None = None,
     sync: bool = False,
     graph_mode: bool = False,
 ):
