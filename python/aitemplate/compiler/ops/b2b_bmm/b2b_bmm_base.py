@@ -80,14 +80,6 @@ class b2b_bmm_base(Operator):
         self._attrs["alpha0"] = alpha0
         self._attrs["alpha1"] = alpha1
         self._attrs["alpha1_divide_by_seq_len"] = alpha1_divide_by_seq_len
-
-        import cutlass_lib
-
-        if epilogue_math_name not in cutlass_lib.library.EpilogueMathName:
-            raise RuntimeError(
-                "Unsupported epilogue function! Please check "
-                "python/aitemplate/utils/mk_cutlass_lib/extra_enum.py for a list of supported epilogue functions."
-            )
         self._attrs["epilogue_math_name"] = epilogue_math_name
 
     def _check_alignment(self) -> None:
