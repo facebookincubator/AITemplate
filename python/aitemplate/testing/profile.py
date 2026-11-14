@@ -17,6 +17,8 @@ Torch module profiling utility.
 """
 
 import logging
+
+import re
 from operator import itemgetter
 from typing import Callable, List, Tuple
 
@@ -29,6 +31,7 @@ def profile_callable(
     func: Callable,
     cache_flush_slab: torch.Tensor,
     n_iter: int,
+    events_of_interest: List[re.Pattern] = None,
 ) -> Tuple[List[int], List[int]]:
     """
     Profile the callable and return the device and wall time for each iteration.
@@ -50,6 +53,10 @@ def profile_callable(
         A slab of GPU memory. We flush the device L2 cache by filling the slab.
     n_iter: int
         The number of iterations to call the callable.
+    events_of_interest: List[re.Pattern]
+        Optional. The names of events that we want to gather profiling data for.
+        If omitted, we will gather profiling data for all events minus the
+        ones ending in " Sync".
     Returns
     -------
         device_times: List[int]
@@ -89,14 +96,19 @@ def profile_callable(
         if e.cuda_time != 0
     ]
 
-    sorted_events = sorted(
-        filter(lambda e: e["name"] != "Context Sync", events), key=itemgetter("start")
-    )
+    def filter_fn(e):
+        if events_of_interest is not None:
+            return any(r.search(e["name"]) for r in events_of_interest)
+        return not e["name"].endswith(" Sync")
+
+    sorted_events = sorted(filter(filter_fn, events), key=itemgetter("start"))
     assert 0 == len(sorted_events) % n_iter
     n_groups = len(sorted_events) // n_iter
-    # in each group (corresponding to a profiling iteration),
-    # skip measuring the first kernel, which is the l2 cache flush
-    event_groups = [g[1:] for g in zip(*([iter(sorted_events)] * n_groups))]
+    event_groups = list(zip(*([iter(sorted_events)] * n_groups), strict=True))
+    if events_of_interest is None:
+        # in each group (corresponding to a profiling iteration),
+        # skip measuring the first kernel, which is the l2 cache flush
+        event_groups = [g[1:] for g in event_groups]
     logger.info(
         f"First kernel sequence: {list(map(itemgetter('name'), event_groups[0]))}"
     )
