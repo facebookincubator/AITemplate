@@ -22,7 +22,7 @@
 #define DEVICE_CHECK(call)                                           \
   if ((call) != GetDeviceSuccess()) {                                \
     throw std::runtime_error(                                        \
-        #call " API call failed: " + GetLastErrorString() + " at " + \
+        #call " API call failed: " + GetErrorString(call) + " at " + \
         __FILE__ + ", line" + std::to_string(__LINE__));             \
   }
 
