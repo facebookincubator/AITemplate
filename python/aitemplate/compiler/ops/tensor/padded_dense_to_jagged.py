@@ -50,7 +50,7 @@ class padded_dense_to_jagged(Operator):
             # would already be a JaggedIntVar and we fetch the real
             # total_length from inside it.
             total_length = total_length.total_length()
-        if type(total_length) != IntVar:
+        if not isinstance(total_length, IntVar):
             raise TypeError(
                 f"total_length must be IntVar, but got {type(total_length).__name__}."
             )
@@ -89,7 +89,7 @@ class padded_dense_to_jagged(Operator):
                 "one batch dimension, as many sequence dimensions as len(offsets_list), and "
                 f"at least one inner dimension, but {len(offsets_list)=}, {x_shape=}."
             )
-        if type(x_shape[0]) != IntVar:
+        if not isinstance(x_shape[0], IntVar):
             raise TypeError(
                 f"x.shape()[0] must be IntVar, but got {type(x_shape[0]).__name__}."
             )
